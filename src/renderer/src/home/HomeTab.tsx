@@ -18,11 +18,17 @@ function staleMessage(fetchedAt: string | null): string {
   return `Jira unreachable, last updated ${pad(at.getHours())}:${pad(at.getMinutes())}`;
 }
 
+function failureMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+}
+
 export function HomeTab({ projectKey }: Props) {
   const { sprint } = useSprint(projectKey);
   const tabs = useMaple((s) => s.tabs);
   const activate = useMaple((s) => s.activate);
   const [selected, setSelected] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   const [suggested, setSuggested] = useState<readonly string[]>([]);
   const toDo = new Set(sprint?.data?.cards.filter((c) => c.status === 'To Do').map((c) => c.key));
   const batch = suggested.filter((key) => toDo.has(key));
@@ -31,6 +37,20 @@ export function HomeTab({ projectKey }: Props) {
     tabs.find((t) => t.kind === 'card' && t.projectKey === projectKey && t.cardKey === key) ?? null;
   const activateTab = (tab: TabState) => {
     activate(tab.id);
+  };
+  const select = (key: string) => {
+    setSelected(key);
+    setFailure(null);
+  };
+  const run = (action: Promise<TabState>) => {
+    action
+      .then((tab) => {
+        setFailure(null);
+        activateTab(tab);
+      })
+      .catch((err: unknown) => {
+        setFailure(failureMessage(err));
+      });
   };
   const startAll = async () => {
     const started: TabState[] = [];
@@ -51,7 +71,7 @@ export function HomeTab({ projectKey }: Props) {
           </div>
         )}
         {sprint?.data ? (
-          <Board sprint={sprint.data} highlighted={new Set(batch)} onSelect={setSelected} />
+          <Board sprint={sprint.data} highlighted={new Set(batch)} onSelect={select} />
         ) : (
           sprint?.error === null && <p className={styles.empty}>No active sprint</p>
         )}
@@ -60,8 +80,13 @@ export function HomeTab({ projectKey }: Props) {
         <CardDetail
           card={card}
           tab={tabFor(card.key)}
-          onStart={() => void window.maple.tabs.startCard(projectKey, card.key).then(activateTab)}
-          onOpen={() => void window.maple.tabs.openCard(projectKey, card.key).then(activateTab)}
+          failure={failure}
+          onStart={() => {
+            run(window.maple.tabs.startCard(projectKey, card.key));
+          }}
+          onOpen={() => {
+            run(window.maple.tabs.openCard(projectKey, card.key));
+          }}
           onGoTo={() => {
             const tab = tabFor(card.key);
             if (tab) {

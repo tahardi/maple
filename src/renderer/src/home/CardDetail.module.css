@@ -35,3 +35,9 @@
   padding-left: 18px;
   font-size: 12px;
 }
+
+.failure {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
