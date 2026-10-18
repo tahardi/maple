@@ -30,6 +30,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [changedOverride, setChangedOverride] = useState<boolean | null>(null);
   const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [approveError, setApproveError] = useState<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
@@ -48,8 +49,9 @@ export function CardTab({ tab }: { tab: TabState }) {
             window.maple.session.sendPrompt(tab.id, text);
           },
           approve: () => {
+            setApproveError(null);
             window.maple.pr.approve(tab.id).catch((err: unknown) => {
-              console.error(err instanceof Error ? err.message : String(err));
+              setApproveError(err instanceof Error ? err.message : String(err));
             });
           },
         });
@@ -131,6 +133,11 @@ export function CardTab({ tab }: { tab: TabState }) {
         <div className={styles.divider} onPointerDown={drag('right')} />
         <div className={styles.right} style={{ width: `${String(columns.right)}%` }} data-testid="claude-slot">
           {card?.status === 'Done' && !worktreeExists && <MergedNotice onClose={() => void closeTab(tab.id, false)} />}
+          {approveError !== null && (
+            <div className={styles.approveError} role="alert">
+              {approveError}
+            </div>
+          )}
           <ClaudePane tabId={tab.id} actions={actions} />
         </div>
       </div>

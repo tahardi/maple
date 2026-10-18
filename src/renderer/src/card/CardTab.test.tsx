@@ -232,23 +232,23 @@ describe('CardTab', () => {
     expect(close).toHaveBeenCalledWith('t1', false);
   });
 
-  test('a failed Approve is logged', async () => {
+  test('a failed Approve shows its error until the next Approve', async () => {
     // given
-    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    fakeMaple({
-      pr: {
-        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
-        approve: () => Promise.reject(new Error('approving PR: offline')),
-      },
-    });
+    const approve = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('approving PR: offline'))
+      .mockResolvedValueOnce(undefined);
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), approve } });
     render(<CardTab tab={tab} />);
+    const slot = within(screen.getByTestId('claude-slot'));
     // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
     // then
-    await vi.waitFor(() => {
-      expect(error).toHaveBeenCalledWith('approving PR: offline');
-    });
-    error.mockRestore();
+    expect(await slot.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    // when
+    await userEvent.click(slot.getByRole('button', { name: 'Approve' }));
+    // then
+    expect(slot.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   test('a working tab disables Approve', async () => {
