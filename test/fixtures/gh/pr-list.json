@@ -1,0 +1,9 @@
+[
+  {
+    "body": "## Describe your changes\n\nAdds the GitHub client.\n\n## Deviations from the card\n\nNone\n\n## Needs Taylor\n\n- Try it on device\n",
+    "number": 33,
+    "state": "OPEN",
+    "title": "[MPL-13] GitHub Client",
+    "url": "https://github.com/tahardi/maple/pull/33"
+  }
+]

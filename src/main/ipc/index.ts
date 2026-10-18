@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import type { ProjectConfig } from '@shared/types';
+import type { SessionManager } from '../sessions';
 import { registerApp } from './app';
 import { registerConfig } from './config';
 import { registerJira } from './jira';
@@ -13,6 +14,7 @@ export type IpcDeps = {
   window: () => BrowserWindow | null;
   worktreeFor: (tabId: string) => string | null;
   project: (projectKey: string) => ProjectConfig | null;
+  sessions: SessionManager;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [

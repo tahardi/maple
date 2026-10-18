@@ -1,6 +1,30 @@
 import { ipcMain } from 'electron';
+import type { Fetched, PrInfo } from '@shared/types';
+import { currentBranch } from '../git';
+import { prForBranch } from '../github';
+import { defaultRunner } from '../preflight';
+import type { IpcDeps } from './index';
 
-export function registerPr(): void {
-  ipcMain.handle('pr:get', () => Promise.reject(new Error('pr:get is not implemented')));
+async function lookup(worktree: string): Promise<PrInfo | null> {
+  return prForBranch(defaultRunner, worktree, await currentBranch(worktree));
+}
+
+export function registerPr(deps: IpcDeps): void {
+  const lastGood = new Map<string, Fetched<PrInfo>>();
+  ipcMain.handle('pr:get', async (_event, tabId: string): Promise<Fetched<PrInfo>> => {
+    const worktree = deps.worktreeFor(tabId);
+    if (!worktree) {
+      return { data: null, error: null, fetchedAt: null };
+    }
+    try {
+      const fetched = { data: await lookup(worktree), error: null, fetchedAt: new Date().toISOString() };
+      lastGood.set(tabId, fetched);
+      return fetched;
+    } catch (err) {
+      const cached = lastGood.get(tabId);
+      const error = err instanceof Error ? err.message : String(err);
+      return { data: cached?.data ?? null, error, fetchedAt: cached?.fetchedAt ?? null };
+    }
+  });
   ipcMain.handle('pr:approve', () => Promise.reject(new Error('pr:approve is not implemented')));
 }

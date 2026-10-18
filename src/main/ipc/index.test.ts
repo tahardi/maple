@@ -1,6 +1,7 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { IPC_CHANNELS, type ChannelKind } from '@shared/ipc';
+import { SessionManager } from '../sessions';
 import { registerIpc } from './index';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
@@ -25,7 +26,16 @@ function channelsOf(kind: ChannelKind): string[] {
 }
 
 describe('registerIpc', () => {
-  const deps = { window: () => null, worktreeFor: () => null, project: () => null };
+  const sessions = new SessionManager({
+    spawn: vi.fn(),
+    config: vi.fn(),
+    hooksFile: '',
+    socketPath: '',
+    save: vi.fn(),
+    closedSessions: {},
+    uuid: vi.fn(),
+  });
+  const deps = { window: () => null, worktreeFor: () => null, project: () => null, sessions };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -54,10 +64,10 @@ describe('registerIpc', () => {
   test('rejects stub requests as not implemented', async () => {
     // given
     registerIpc(deps);
-    const call = handle.mock.calls.find(([channel]) => channel === 'pr:get');
+    const call = handle.mock.calls.find(([channel]) => channel === 'pr:approve');
     // when
     const result = call?.[1]({} as IpcMainInvokeEvent);
     // then
-    await expect(result).rejects.toThrow('pr:get is not implemented');
+    await expect(result).rejects.toThrow('pr:approve is not implemented');
   });
 });
