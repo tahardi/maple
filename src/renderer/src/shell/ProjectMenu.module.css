@@ -1,7 +1,7 @@
 .menu {
-  background: #3c3c3c;
-  color: #e6e6e6;
-  border: 1px solid #555;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 8px;
   margin-right: 12px;

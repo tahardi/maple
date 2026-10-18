@@ -3,8 +3,8 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: #f3f3f3;
-  color: #1e1e1e;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .body {
@@ -35,10 +35,10 @@
 .divider {
   width: 4px;
   cursor: col-resize;
-  background: #ddd;
+  background: var(--border);
 }
 
 .waiting {
   padding: 12px;
-  color: #777;
+  color: var(--text-muted);
 }

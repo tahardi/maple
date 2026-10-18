@@ -13,15 +13,15 @@
 
 .toggle button {
   background: transparent;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 2px 8px;
   cursor: pointer;
 }
 
 .toggle button[aria-pressed='true'] {
-  background: #1e1e1e;
-  color: #fff;
+  background: var(--accent);
+  color: var(--text-strong);
 }
 
 .list {
@@ -40,11 +40,11 @@
 }
 
 .row:hover {
-  background: #e4e4e4;
+  background: var(--surface-hover);
 }
 
 .selected {
-  background: #d6e4f5;
+  background: var(--accent);
 }
 
 .dir {
@@ -57,17 +57,17 @@
 }
 
 .A {
-  color: #2e7d32;
+  color: var(--success);
 }
 
 .M {
-  color: #b58900;
+  color: var(--warning);
 }
 
 .D {
-  color: #c62828;
+  color: var(--danger);
 }
 
 .R {
-  color: #1565c0;
+  color: var(--link);
 }

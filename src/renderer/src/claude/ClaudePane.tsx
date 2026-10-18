@@ -45,6 +45,7 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
       fontSize: 13,
       scrollback: 10_000,
+      theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
