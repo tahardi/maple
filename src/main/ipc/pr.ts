@@ -1,15 +1,12 @@
 import { ipcMain } from 'electron';
 import type { Fetched, PrInfo } from '@shared/types';
+import { currentBranch } from '../git';
 import { prForBranch } from '../github';
 import { defaultRunner } from '../preflight';
 import type { IpcDeps } from './index';
 
 async function lookup(worktree: string): Promise<PrInfo | null> {
-  const { code, stdout, stderr } = await defaultRunner('git', ['branch', '--show-current'], worktree);
-  if (code !== 0) {
-    throw new Error(`reading branch: ${stderr}`);
-  }
-  return prForBranch(defaultRunner, worktree, stdout.trim());
+  return prForBranch(defaultRunner, worktree, await currentBranch(worktree));
 }
 
 export function registerPr(deps: IpcDeps): void {

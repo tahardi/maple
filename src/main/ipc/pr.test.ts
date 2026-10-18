@@ -5,13 +5,15 @@ import { registerPr } from './pr';
 
 type Handler = (event: IpcMainInvokeEvent, tabId: string) => Promise<unknown>;
 
-const { handle, prForBranch, defaultRunner } = vi.hoisted(() => ({
+const { handle, prForBranch, defaultRunner, currentBranch } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
   prForBranch: vi.fn(),
   defaultRunner: vi.fn(),
+  currentBranch: vi.fn(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
+vi.mock('../git', () => ({ currentBranch }));
 vi.mock('../github', () => ({ prForBranch }));
 vi.mock('../preflight', () => ({ defaultRunner }));
 
@@ -27,7 +29,7 @@ const pr: PrInfo = {
 };
 
 function get(worktree: string | null): (tabId: string) => Promise<unknown> {
-  registerPr({ window: () => null, worktreeFor: () => worktree });
+  registerPr({ window: () => null, worktreeFor: () => worktree, project: () => null });
   const call = handle.mock.calls.find(([name]) => name === 'pr:get');
   if (!call) {
     throw new Error('finding handler for pr:get');
@@ -39,7 +41,7 @@ describe('registerPr', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prForBranch.mockReset();
-    defaultRunner.mockReset().mockResolvedValue({ code: 0, stdout: 'mpl-13-github-client\n', stderr: '' });
+    currentBranch.mockReset().mockResolvedValue('mpl-13-github-client');
   });
 
   test('get looks up the PR for the tab worktree branch', async () => {
@@ -50,7 +52,7 @@ describe('registerPr', () => {
     const result = await prGet('t1');
     // then
     expect(result).toEqual({ data: pr, error: null, fetchedAt: expect.any(String) as string });
-    expect(defaultRunner).toHaveBeenCalledWith('git', ['branch', '--show-current'], '/wt');
+    expect(currentBranch).toHaveBeenCalledWith('/wt');
     expect(prForBranch).toHaveBeenCalledWith(defaultRunner, '/wt', 'mpl-13-github-client');
   });
 
