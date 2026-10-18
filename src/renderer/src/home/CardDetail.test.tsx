@@ -15,7 +15,7 @@ const tab: TabState = {
 
 function renderDetail(c: Card, t: TabState | null) {
   const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
-  render(<CardDetail card={c} tab={t} {...handlers} />);
+  render(<CardDetail card={c} tab={t} failure={null} {...handlers} />);
   return handlers;
 }
 

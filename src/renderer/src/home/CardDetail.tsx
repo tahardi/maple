@@ -5,6 +5,7 @@ import styles from './CardDetail.module.css';
 type Props = {
   card: Card;
   tab: TabState | null;
+  failure: string | null;
   onStart: () => void;
   onOpen: () => void;
   onGoTo: () => void;
@@ -25,7 +26,7 @@ function action(card: Card, tab: TabState | null, props: Props): { label: string
 }
 
 export function CardDetail(props: Props) {
-  const { card, tab, onClose } = props;
+  const { card, tab, failure, onClose } = props;
   const next = action(card, tab, props);
 
   return (
@@ -54,6 +55,11 @@ export function CardDetail(props: Props) {
           Open in Jira
         </a>
       </div>
+      {failure !== null && (
+        <p role="alert" className={styles.failure}>
+          {failure}
+        </p>
+      )}
       <MarkdownText text={card.descriptionMd} />
     </aside>
   );

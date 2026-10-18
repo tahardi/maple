@@ -121,6 +121,70 @@ describe('HomeTab', () => {
     });
   });
 
+  test('a failed Start shows the error until another card is selected', async () => {
+    // given
+    const startCard = vi.fn(() =>
+      Promise.reject(new Error("Error invoking remote method 'tabs:startCard': Error: creating worktree: exists")),
+    );
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^creating worktree: exists$/);
+    await userEvent.click(screen.getByRole('button', { name: /^DIG-44/ }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test.each([
+    { name: 'IPC prefix', reason: new Error("Error invoking remote method 'tabs:startCard': Error: x"), want: 'x' },
+    {
+      name: 'IPC prefix without Error:',
+      reason: new Error("Error invoking remote method 'tabs:startCard': x"),
+      want: 'x',
+    },
+    { name: 'plain Error', reason: new Error('starting card: x'), want: 'starting card: x' },
+  ])('a Start rejected with $name shows "$want"', async ({ reason, want }) => {
+    // given
+    fakeMaple({
+      tabs: { startCard: () => Promise.reject(reason) },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(new RegExp(`^${want}$`));
+  });
+
+  test('a successful Open clears an earlier error', async () => {
+    // given
+    const openCard = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('opening card: no worktree'))
+      .mockResolvedValue(tab('t8', 'DIG-44'));
+    fakeMaple({
+      tabs: { openCard },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    useMaple.setState({ activate: vi.fn() });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('opening card: no worktree');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    // then
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
+
   test('Close hides the card detail', async () => {
     // given
     fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });

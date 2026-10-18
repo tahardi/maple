@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import type { PreflightProblem } from '@shared/types';
 import { appLogger, type Logger } from './log';
 
@@ -22,6 +22,8 @@ const tools = ['claude', 'gh', 'git'] as const;
 export async function runPreflight(
   run: Runner,
   jiraEnvPath: string,
+  claudeJsonPath: string,
+  plannerDirs: string[],
   logger: Logger = appLogger,
 ): Promise<PreflightProblem[]> {
   const problems: PreflightProblem[] = [];
@@ -38,6 +40,13 @@ export async function runPreflight(
   } catch {
     problems.push({ tool: 'jira-env', message: `Jira credentials file ${jiraEnvPath} does not exist` });
   }
+  const trusted = await trustedFolders(claudeJsonPath);
+  for (const plannerDir of plannerDirs.filter((d) => !trusted.has(d))) {
+    problems.push({
+      tool: 'claude-trust',
+      message: `trusting folder: ${plannerDir} is not trusted by Claude, run claude there once and choose Yes`,
+    });
+  }
   for (const { tool, message } of problems) {
     logger.warn('preflight', 'problem', { tool, message });
   }
@@ -45,4 +54,31 @@ export async function runPreflight(
     logger.info('preflight', 'passed');
   }
   return problems;
+}
+
+async function trustedFolders(claudeJsonPath: string): Promise<Set<string>> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(claudeJsonPath, 'utf8'));
+  } catch {
+    return new Set();
+  }
+  const projects = typeof parsed === 'object' && parsed !== null && 'projects' in parsed ? parsed.projects : null;
+  if (typeof projects !== 'object' || projects === null) {
+    return new Set();
+  }
+  return new Set(
+    Object.entries(projects)
+      .filter(([, value]: [string, unknown]) => isTrusted(value))
+      .map(([path]) => path),
+  );
+}
+
+function isTrusted(value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'hasTrustDialogAccepted' in value &&
+    value.hasTrustDialogAccepted === true
+  );
 }
