@@ -129,13 +129,13 @@ describe('registerTabs', () => {
     expect(sendToWindow).toHaveBeenCalledWith('tabs:status', status);
   });
 
-  test('tabs:setActive records the active tab', () => {
+  test.each(['t1', null])('tabs:setActive records %s as the active tab', (tabId) => {
     // given
     const { setActiveTab } = setup();
     const listener = on.mock.calls.find(([name]) => name === 'tabs:setActive')?.[1];
     // when
-    listener?.({}, 't1');
+    listener?.({}, tabId);
     // then
-    expect(setActiveTab).toHaveBeenCalledWith('t1');
+    expect(setActiveTab).toHaveBeenCalledWith(tabId);
   });
 });

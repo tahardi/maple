@@ -9,7 +9,7 @@ export type TabsApi = {
   close(tabId: string, force: boolean): Promise<CloseResult>;
   resume(tabId: string): Promise<void>;
   startFresh(tabId: string): Promise<void>;
-  setActive(tabId: string): void;
+  setActive(tabId: string | null): void;
   statuses(): Promise<TabStatus[]>;
   onStatus(cb: (s: TabStatus) => void): Unsubscribe;
   onChanged(cb: (tabs: TabState[]) => void): Unsubscribe;

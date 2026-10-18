@@ -21,7 +21,7 @@ export function registerTabs({ sessions, status, window, setActiveTab }: IpcDeps
   ipcMain.handle('tabs:startFresh', (_event, tabId: string) => {
     sessions.startFresh(tabId);
   });
-  ipcMain.on('tabs:setActive', (_event, tabId: string) => {
+  ipcMain.on('tabs:setActive', (_event, tabId: string | null) => {
     setActiveTab(tabId);
   });
   ipcMain.handle('tabs:statuses', () => status.statuses());

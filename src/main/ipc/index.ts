@@ -17,7 +17,7 @@ export type IpcDeps = {
   project: (projectKey: string) => Promise<ProjectConfig | null>;
   sessions: SessionManager;
   status: StatusEngine;
-  setActiveTab: (tabId: string) => void;
+  setActiveTab: (tabId: string | null) => void;
   setNotifications: (on: boolean) => Promise<void>;
 };
 
