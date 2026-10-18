@@ -52,7 +52,7 @@ describe('prForBranch', () => {
   test('counts failed and cancelled checks as failed', async () => {
     // given
     const buckets = JSON.stringify([{ bucket: 'fail' }, { bucket: 'cancel' }, { bucket: 'pass' }]);
-    const run = fakeRunner(ok(fixture('pr-list.json')), { code: 1, stdout: buckets, stderr: '' });
+    const run = fakeRunner(ok(fixture('pr-list.json')), ok(buckets));
     // when
     const pr = await prForBranch(run, '/wt', 'b');
     // then

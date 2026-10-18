@@ -19,10 +19,10 @@ const pendingExitCode = 8;
 
 async function checksFor(run: Runner, worktree: string, num: number): Promise<ChecksSummary> {
   const { code, stdout, stderr } = await run('gh', ['pr', 'checks', String(num), '--json', 'bucket'], worktree);
-  if (code !== 0 && code !== pendingExitCode && stderr.includes('no checks reported')) {
-    return { passed: 0, failed: 0, pending: 0, total: 0 };
-  }
-  if (code !== 0 && code !== pendingExitCode && stdout.trim() === '') {
+  if (code !== 0 && code !== pendingExitCode) {
+    if (stderr.includes('no checks reported')) {
+      return { passed: 0, failed: 0, pending: 0, total: 0 };
+    }
     throw new Error(`checking PR: ${stderr}`);
   }
   const buckets = checksSchema.parse(JSON.parse(stdout)).map((c) => c.bucket);
