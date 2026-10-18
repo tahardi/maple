@@ -118,7 +118,7 @@ export class SessionManager extends EventEmitter<Events> {
     return [...this.sessions.values()].map((session) => session.tab);
   }
 
-  setWorktree(tabId: string, path: string): void {
+  setWorktree(tabId: string, path: string | null): void {
     const session = this.require(tabId);
     session.tab = { ...session.tab, worktreePath: path };
     this.changed();
@@ -273,13 +273,17 @@ export class SessionManager extends EventEmitter<Events> {
     const check = async () => {
       const path = await findWorktree(worktreesDir, cardKey).catch((err: unknown) => {
         this.log.warn('worktree', 'failed', { operation: 'findWorktree', cardKey, error: message(err) });
-        return null;
+        return undefined;
       });
-      if (done || path === null || this.sessions.get(session.tab.id) !== session) {
+      const current = session.tab.worktreePath;
+      if (done || path === undefined || path === current || this.sessions.get(session.tab.id) !== session) {
         return;
       }
-      session.stopWatch();
-      this.log.info('worktree', 'found', { cardKey, path });
+      if (path === null) {
+        this.log.info('worktree', 'gone', { cardKey });
+      } else {
+        this.log.info('worktree', 'found', { cardKey, path });
+      }
       this.setWorktree(session.tab.id, path);
     };
     try {
