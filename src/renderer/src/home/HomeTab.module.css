@@ -1,0 +1,23 @@
+.home {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.stale {
+  background: #f7e27a;
+  color: #3d3200;
+  padding: 6px 12px;
+}
+
+.empty {
+  padding: 12px;
+  color: #666;
+}

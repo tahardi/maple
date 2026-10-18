@@ -18,8 +18,6 @@
   margin-top: 4px;
 }
 
-.text {
+.none {
   margin: 0;
-  white-space: pre-wrap;
-  font-family: inherit;
 }

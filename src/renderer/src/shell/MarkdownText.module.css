@@ -1,0 +1,28 @@
+.markdown {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  font-size: 14px;
+  margin: 12px 0 4px;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol {
+  margin: 4px 0;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 18px;
+}
+
+.markdown pre {
+  background: #f4f4f4;
+  padding: 8px;
+  overflow: auto;
+}
