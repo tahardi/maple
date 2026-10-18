@@ -37,4 +37,20 @@ describe('ActionBar', () => {
     expect(button).toHaveAttribute('title', 'No PR yet');
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  test('no actions renders no buttons', () => {
+    // when
+    render(<ActionBar actions={[]} />);
+    // then
+    expect(screen.queryAllByRole('button')).toEqual([]);
+  });
+
+  test('an enabled action without a title has no tooltip', () => {
+    // when
+    render(<ActionBar actions={[{ label: 'Approve', onClick: vi.fn() }]} />);
+    // then
+    const button = screen.getByRole('button', { name: 'Approve' });
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute('title');
+  });
 });

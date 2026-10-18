@@ -4,13 +4,17 @@ import { fakeMaple } from '../testing/fakeMaple';
 import { SessionEnded } from './SessionEnded';
 
 describe('SessionEnded', () => {
-  test('shows the exit code', () => {
+  test.each([
+    { exitCode: 2, text: 'Session ended (exit code 2)' },
+    { exitCode: 0, text: 'Session ended (exit code 0)' },
+    { exitCode: null, text: 'Session ended (exit code unknown)' },
+  ])('exit code $exitCode shows "$text"', ({ exitCode, text }) => {
     // given
     fakeMaple();
     // when
-    render(<SessionEnded tabId="t1" exitCode={2} />);
+    render(<SessionEnded tabId="t1" exitCode={exitCode} />);
     // then
-    expect(screen.getByText('Session ended (exit code 2)')).toBeInTheDocument();
+    expect(screen.getByText(text)).toBeInTheDocument();
   });
 
   test.each([
