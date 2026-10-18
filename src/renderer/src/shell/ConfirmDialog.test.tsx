@@ -41,6 +41,19 @@ describe('ConfirmDialog', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
+  test('Escape after closing does nothing', async () => {
+    // given
+    const onCancel = vi.fn();
+    const { unmount } = render(
+      <ConfirmDialog title="t" body="b" confirmLabel="OK" onConfirm={vi.fn()} onCancel={onCancel} />,
+    );
+    unmount();
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
   test('shows the title and body', () => {
     // given
     renderDialog();

@@ -39,6 +39,19 @@ describe('TabBar', () => {
     expect(labels).toEqual(['Home', 'BEAR-1', 'BEAR-2']);
   });
 
+  test.each([
+    { activeTabId: null, selected: 'Home' },
+    { activeTabId: 't2', selected: 'BEAR-2' },
+  ])('marks $selected as the selected tab', ({ activeTabId, selected }) => {
+    // given
+    useMaple.setState({ activeTabId });
+    // when
+    render(<TabBar />);
+    // then
+    const marked = screen.getAllByRole('tab', { selected: true }).map((t) => t.textContent);
+    expect(marked).toEqual([selected]);
+  });
+
   test('clicking a tab activates it', async () => {
     // given
     const activate = vi.fn();

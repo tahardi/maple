@@ -67,6 +67,21 @@ describe('App', () => {
     expect(banner).toHaveTextContent('Jira credentials are missing');
   });
 
+  test('shows preflight problems and a config error in one banner', async () => {
+    // given
+    fakeMaple({
+      config: { get: () => Promise.resolve({ data: null, error: 'reading config: bad json', fetchedAt: null }) },
+      preflight: { run: () => Promise.resolve([{ tool: 'gh', message: 'gh is not installed' }]) },
+    });
+    // when
+    render(<App />);
+    // then
+    const banner = await screen.findByRole('alert');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(banner).toHaveTextContent('gh is not installed');
+    expect(banner).toHaveTextContent('reading config: bad json');
+  });
+
   test('shows the active card tab', async () => {
     // given
     fakeMaple({

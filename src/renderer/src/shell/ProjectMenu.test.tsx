@@ -20,6 +20,15 @@ describe('ProjectMenu', () => {
     expect(options).toEqual(['Bearclave (BEAR)', 'Dig Days (DIG)']);
   });
 
+  test('shows the selected project', () => {
+    // given
+    useMaple.setState({ projectKey: 'DIG' });
+    // when
+    render(<ProjectMenu />);
+    // then
+    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue('DIG');
+  });
+
   test('choosing a project selects it', async () => {
     // given
     const selectProject = vi.fn();
