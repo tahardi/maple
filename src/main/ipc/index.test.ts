@@ -21,7 +21,7 @@ function channelsOf(kind: ChannelKind): string[] {
 }
 
 describe('registerIpc', () => {
-  const deps = { window: () => null, worktreeFor: () => null };
+  const deps = { window: () => null, worktreeFor: () => null, project: () => null };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -50,10 +50,10 @@ describe('registerIpc', () => {
   test('rejects stub requests as not implemented', async () => {
     // given
     registerIpc(deps);
-    const call = handle.mock.calls.find(([channel]) => channel === 'jira:sprint');
+    const call = handle.mock.calls.find(([channel]) => channel === 'config:get');
     // when
-    const result = call?.[1]({} as IpcMainInvokeEvent, 'DIG');
+    const result = call?.[1]({} as IpcMainInvokeEvent);
     // then
-    await expect(result).rejects.toThrow('jira:sprint is not implemented');
+    await expect(result).rejects.toThrow('config:get is not implemented');
   });
 });
