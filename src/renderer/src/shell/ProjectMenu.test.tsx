@@ -1,3 +1,4 @@
+import type { Dot, TabState } from '@shared/types';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
@@ -38,5 +39,53 @@ describe('ProjectMenu', () => {
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project' }), 'DIG');
     // then
     expect(selectProject).toHaveBeenCalledWith('DIG');
+  });
+
+  test('shows waiting and ready counts for projects that have them', () => {
+    // given
+    const tab = (id: string, projectKey: string): TabState => ({
+      id,
+      projectKey,
+      kind: 'card',
+      cardKey: `${projectKey}-${id}`,
+      sessionId: id,
+      worktreePath: null,
+    });
+    const status = (tabId: string, dot: Dot) => ({ tabId, dot, sessionAlive: true, exitCode: null });
+    useMaple.setState({
+      tabs: [tab('1', 'DIG'), tab('2', 'DIG'), tab('3', 'BEAR')],
+      statuses: { '1': status('1', 'waiting'), '2': status('2', 'ready'), '3': status('3', 'idle') },
+    });
+    // when
+    render(<ProjectMenu />);
+    // then
+    const options = screen.getAllByRole('option').map((o) => o.textContent);
+    expect(options).toEqual(['Bearclave (BEAR)', 'Dig Days (DIG) · 1 waiting · 1 ready']);
+  });
+
+  test.each([
+    { name: 'only waiting', dots: ['waiting', 'working'], want: 'Dig Days (DIG) · 1 waiting · 0 ready' },
+    { name: 'only ready', dots: ['ready', 'ready'], want: 'Dig Days (DIG) · 0 waiting · 2 ready' },
+    { name: 'neither', dots: ['working', 'idle'], want: 'Dig Days (DIG)' },
+  ] as const)('labels a project with $name', ({ dots, want }) => {
+    // given
+    const tab = (id: string): TabState => ({
+      id,
+      projectKey: 'DIG',
+      kind: 'card',
+      cardKey: `DIG-${id}`,
+      sessionId: id,
+      worktreePath: null,
+    });
+    useMaple.setState({
+      tabs: [tab('1'), tab('2')],
+      statuses: Object.fromEntries(
+        dots.map((dot: Dot, i) => [String(i + 1), { tabId: String(i + 1), dot, sessionAlive: true, exitCode: null }]),
+      ),
+    });
+    // when
+    render(<ProjectMenu />);
+    // then
+    expect(screen.getByRole('option', { name: want })).toBeInTheDocument();
   });
 });

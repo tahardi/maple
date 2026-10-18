@@ -6,6 +6,7 @@ import type { IpcMainInvokeEvent } from 'electron';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ProjectConfig } from '@shared/types';
 import type { SessionManager } from '../sessions';
+import type { StatusEngine } from '../status';
 import { registerJira } from './jira';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
@@ -21,8 +22,11 @@ const fixtures = resolve(import.meta.dirname, '../../../test/fixtures/jira');
 const deps = {
   window: () => null,
   worktreeFor: () => null,
-  project: (k: string) => (k === 'HALO' ? project : null),
+  project: (k: string) => Promise.resolve(k === 'HALO' ? project : null),
   sessions,
+  status: {} as StatusEngine,
+  setActiveTab: () => undefined,
+  setNotifications: () => Promise.resolve(),
 };
 
 function fixture(name: string): string {

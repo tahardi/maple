@@ -22,6 +22,7 @@ export type SessionDeps = {
 
 type Events = {
   data: [tabId: string, data: string];
+  spawn: [tabId: string, prompted: boolean];
   exit: [tabId: string, code: number];
   input: [tabId: string];
   batch: [projectKey: string, keys: string[]];
@@ -201,6 +202,7 @@ export class SessionManager extends EventEmitter<Events> {
     });
     session.pty = pty;
     session.alive = true;
+    this.emit('spawn', tab.id, prompt !== null);
     pty.onData((data) => {
       this.onData(session, data);
     });
