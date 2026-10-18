@@ -146,31 +146,82 @@ describe('JiraClient', () => {
     // then
     await expect(got).rejects.toThrow('fetching sprint: getaddrinfo ENOTFOUND');
   });
+
+  test.each([
+    {
+      name: 'getCard gets a 401',
+      call: (c: JiraClient) => c.getCard('HALO-19'),
+      body: '',
+      status: 401,
+      want: 'fetching card: Jira returned 401',
+    },
+    {
+      name: 'the sprint response has an unexpected shape',
+      call: (c: JiraClient) => c.activeSprint(7),
+      body: '{"sprints":[]}',
+      status: 200,
+      want: 'fetching sprint: ',
+    },
+    {
+      name: 'a card has a status outside the four Maple knows',
+      call: (c: JiraClient) => c.getCard('HALO-19'),
+      body: fixture('issue.json').replaceAll('"name": "To Do"', '"name": "Backlog"'),
+      status: 200,
+      want: 'fetching card: ',
+    },
+  ])('rejects when $name', async ({ call, body, status, want }) => {
+    // given
+    const fetchFn = vi.fn<typeof fetch>(() => Promise.resolve(new Response(body, { status })));
+    const client = new JiraClient(creds, fetchFn);
+    // when
+    const got = call(client);
+    // then
+    await expect(got).rejects.toThrow(want);
+  });
 });
 
 describe('readCreds', () => {
   test.each([
-    { name: 'adds https when the site has no scheme', site: 'example.atlassian.net' },
-    { name: 'keeps an existing scheme', site: 'https://example.atlassian.net' },
-  ])('$name', async ({ site }) => {
+    {
+      name: 'adds https when the site has no scheme',
+      env: 'JIRA_SITE=example.atlassian.net\nJIRA_EMAIL=me@example.com\nJIRA_TOKEN=secret\n',
+    },
+    {
+      name: 'keeps an existing scheme',
+      env: 'JIRA_SITE=https://example.atlassian.net\nJIRA_EMAIL=me@example.com\nJIRA_TOKEN=secret\n',
+    },
+    {
+      name: 'strips quotes, export prefixes, and a trailing slash',
+      env: 'export JIRA_SITE="example.atlassian.net/"\nexport JIRA_EMAIL=\'me@example.com\'\nJIRA_TOKEN = secret\n',
+    },
+  ])('$name', async ({ env }) => {
     // given
     const dir = await mkdtemp(join(tmpdir(), 'maple-jira-'));
     const path = join(dir, 'env');
-    await writeFile(path, `JIRA_SITE=${site}\nJIRA_EMAIL=me@example.com\nJIRA_TOKEN=secret\n`);
+    await writeFile(path, env);
     // when
     const got = await readCreds(path);
     // then
     expect(got).toEqual(creds);
   });
 
-  test('rejects when a key is missing', async () => {
+  test.each([
+    {
+      name: 'a key is missing',
+      env: 'JIRA_SITE=example.atlassian.net\nJIRA_EMAIL=me@example.com\n',
+      want: 'reading jira creds: JIRA_TOKEN is missing',
+    },
+    { name: 'the file does not exist', env: null, want: 'reading jira creds: ENOENT' },
+  ])('rejects when $name', async ({ env, want }) => {
     // given
     const dir = await mkdtemp(join(tmpdir(), 'maple-jira-'));
     const path = join(dir, 'env');
-    await writeFile(path, 'JIRA_SITE=example.atlassian.net\nJIRA_EMAIL=me@example.com\n');
+    if (env !== null) {
+      await writeFile(path, env);
+    }
     // when
     const got = readCreds(path);
     // then
-    await expect(got).rejects.toThrow('reading jira creds: JIRA_TOKEN is missing');
+    await expect(got).rejects.toThrow(want);
   });
 });

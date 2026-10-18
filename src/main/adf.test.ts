@@ -48,6 +48,26 @@ describe('adfToMarkdown', () => {
       want: '[card](https://x.test/a)',
     },
     { name: 'strikethrough', input: doc(paragraph(text('x', { type: 'strike' }))), want: '~~x~~' },
+    { name: 'italic', input: doc(paragraph(text('x', { type: 'em' }))), want: '*x*' },
+    {
+      name: 'hard break',
+      input: doc(paragraph(text('a'), { type: 'hardBreak' }, text('b'))),
+      want: 'a\nb',
+    },
+    {
+      name: 'ordered list with a start number',
+      input: doc({ type: 'orderedList', attrs: { order: 3 }, content: [item(paragraph(text('a')))] }),
+      want: '3. a',
+    },
+    {
+      name: 'nested bullet list',
+      input: doc({
+        type: 'bulletList',
+        content: [item(paragraph(text('a')), { type: 'bulletList', content: [item(paragraph(text('b')))] })],
+      }),
+      want: '- a\n  - b',
+    },
+    { name: 'input that is not a document', input: 'not adf', want: '' },
     {
       name: 'unknown node type',
       input: doc({ type: 'panel', content: [paragraph(text('kept'))] }),
