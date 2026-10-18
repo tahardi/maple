@@ -51,7 +51,8 @@ export function CardTab({ tab }: { tab: TabState }) {
           approve: () => {
             setApproveError(null);
             window.maple.pr.approve(tab.id).catch((err: unknown) => {
-              setApproveError(err instanceof Error ? err.message : String(err));
+              const message = err instanceof Error ? err.message : String(err);
+              setApproveError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
             });
           },
         });

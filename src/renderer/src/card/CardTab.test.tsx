@@ -251,6 +251,23 @@ describe('CardTab', () => {
     expect(slot.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  test('a failed Approve hides the Electron IPC prefix', async () => {
+    // given
+    const err = new Error("Error invoking remote method 'pr:approve': Error: approving PR: offline");
+    fakeMaple({
+      pr: {
+        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
+        approve: () => Promise.reject(err),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    const slot = within(screen.getByTestId('claude-slot'));
+    // when
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    // then
+    expect(await slot.findByRole('alert')).toHaveTextContent(/^approving PR: offline$/);
+  });
+
   test('a working tab disables Approve', async () => {
     // given
     fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
