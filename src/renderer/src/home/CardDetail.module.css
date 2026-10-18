@@ -1,0 +1,42 @@
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 380px;
+  border-left: 1px solid #ccc;
+  padding: 12px;
+  overflow: auto;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.top h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.meta,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.blockers {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+.description {
+  white-space: pre-wrap;
+  font-size: 12px;
+  margin: 0;
+}
