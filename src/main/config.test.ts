@@ -1,8 +1,8 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { loadConfig } from './config';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { configDir, expandHome, loadConfig } from './config';
 
 const validConfig = {
   worktreesDir: '~/Documents/code/wts',
@@ -21,6 +21,41 @@ const withoutActions = { ...validConfig, actions: undefined };
 const withoutNotifications = { ...validConfig, notifications: undefined };
 const duplicateKey = { ...validConfig, projects: [validConfig.projects[0], validConfig.projects[0]] };
 const stringBoardId = { ...validConfig, projects: [{ ...validConfig.projects[0], jiraBoardId: '2' }] };
+
+describe('configDir', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  test.each([
+    { name: 'MAPLE_CONFIG_DIR when set', env: '/tmp/maple', expected: '/tmp/maple' },
+    { name: '~/.config/maple by default', env: undefined, expected: join(homedir(), '.config', 'maple') },
+  ])('returns $name', ({ env, expected }) => {
+    // given
+    vi.stubEnv('MAPLE_CONFIG_DIR', env);
+    // when
+    const dir = configDir();
+    // then
+    expect(dir).toBe(expected);
+  });
+});
+
+describe('expandHome', () => {
+  test.each([
+    { input: '~', expected: homedir() },
+    { input: '~/code', expected: join(homedir(), 'code') },
+    { input: '/abs/path', expected: '/abs/path' },
+    { input: '~other/code', expected: '~other/code' },
+    { input: 'a/~/b', expected: 'a/~/b' },
+  ])('expands $input', ({ input, expected }) => {
+    // given
+    const path = input;
+    // when
+    const expanded = expandHome(path);
+    // then
+    expect(expanded).toBe(expected);
+  });
+});
 
 describe('loadConfig', () => {
   let dir = '';
@@ -41,6 +76,8 @@ describe('loadConfig', () => {
     // then
     expect(result.error).toBeNull();
     expect(result.data?.projects[0]?.plannerDir).toBe(join(homedir(), 'Documents/code/dig-days'));
+    expect(result.data?.worktreesDir).toBe(join(homedir(), 'Documents/code/wts'));
+    expect(result.fetchedAt).not.toBeNull();
   });
 
   test.each([
