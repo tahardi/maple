@@ -14,113 +14,72 @@ const pr = (state: PrInfo['state'], failed: number): PrInfo => ({
 });
 
 describe('nextDot', () => {
-  test.each<{ name: string; prev: Dot; input: DotInput; lastInputAt: number; want: Dot }>([
-    { name: 'prompt starts work', prev: 'idle', input: { type: 'prompt' }, lastInputAt: 0, want: 'working' },
-    { name: 'permission waits', prev: 'working', input: { type: 'permission' }, lastInputAt: 0, want: 'waiting' },
-    { name: 'echo stays idle', prev: 'idle', input: { type: 'output', at: 1100 }, lastInputAt: 1000, want: 'idle' },
-    {
-      name: 'output at 500 ms is echo',
-      prev: 'idle',
-      input: { type: 'output', at: 1500 },
-      lastInputAt: 1000,
-      want: 'idle',
-    },
-    {
-      name: 'output at 501 ms works',
-      prev: 'ready',
-      input: { type: 'output', at: 1501 },
-      lastInputAt: 1000,
-      want: 'working',
-    },
-    { name: 'prompt from waiting works', prev: 'waiting', input: { type: 'prompt' }, lastInputAt: 0, want: 'working' },
-    {
-      name: 'done card with failing checks is idle',
-      prev: 'working',
-      input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: pr('OPEN', 2) },
-      lastInputAt: 0,
-      want: 'idle',
-    },
-    {
-      name: 'to do card waits',
-      prev: 'working',
-      input: { type: 'stop', kind: 'card', cardStatus: 'To Do', pr: null },
-      lastInputAt: 0,
-      want: 'waiting',
-    },
-    {
-      name: 'in review with a closed PR waits',
-      prev: 'working',
-      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: pr('CLOSED', 0) },
-      lastInputAt: 0,
-      want: 'waiting',
-    },
-    {
-      name: 'late output works',
-      prev: 'idle',
-      input: { type: 'output', at: 3000 },
-      lastInputAt: 1000,
-      want: 'working',
-    },
-    {
-      name: 'output keeps working',
-      prev: 'working',
-      input: { type: 'output', at: 9000 },
-      lastInputAt: 0,
-      want: 'working',
-    },
-    { name: 'input keeps prev', prev: 'waiting', input: { type: 'input', at: 5 }, lastInputAt: 0, want: 'waiting' },
+  test.each<{ name: string; input: DotInput; want: Dot }>([
+    { name: 'prompt starts work', input: { type: 'prompt' }, want: 'working' },
+    { name: 'permission waits', input: { type: 'permission' }, want: 'waiting' },
     {
       name: 'planner stop is idle',
-      prev: 'working',
+
       input: { type: 'stop', kind: 'planner', cardStatus: null, pr: null },
-      lastInputAt: 0,
       want: 'idle',
     },
     {
       name: 'done card is idle',
-      prev: 'working',
+
       input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: null },
-      lastInputAt: 0,
+      want: 'idle',
+    },
+    {
+      name: 'done card with failing checks is idle',
+
+      input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: pr('OPEN', 2) },
       want: 'idle',
     },
     {
       name: 'reviewable card is ready',
-      prev: 'working',
+
       input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: pr('OPEN', 0) },
-      lastInputAt: 0,
       want: 'ready',
     },
     {
       name: 'failing checks wait',
-      prev: 'working',
+
       input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: pr('OPEN', 1) },
-      lastInputAt: 0,
+      want: 'waiting',
+    },
+    {
+      name: 'to do card waits',
+
+      input: { type: 'stop', kind: 'card', cardStatus: 'To Do', pr: null },
       want: 'waiting',
     },
     {
       name: 'in progress card waits',
-      prev: 'working',
+
       input: { type: 'stop', kind: 'card', cardStatus: 'In Progress', pr: pr('OPEN', 0) },
-      lastInputAt: 0,
       want: 'waiting',
     },
     {
       name: 'in review without a PR waits',
-      prev: 'working',
+
       input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: null },
-      lastInputAt: 0,
       want: 'waiting',
     },
     {
       name: 'in review with a merged PR waits',
-      prev: 'working',
+
       input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: pr('MERGED', 0) },
-      lastInputAt: 0,
       want: 'waiting',
     },
-  ])('$name', ({ prev, input, lastInputAt, want }) => {
+    {
+      name: 'in review with a closed PR waits',
+
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: pr('CLOSED', 0) },
+      want: 'waiting',
+    },
+  ])('$name', ({ input, want }) => {
     // given
-    const args = [prev, input, lastInputAt] as const;
+    const args = [input] as const;
     // when
     const got = nextDot(...args);
     // then

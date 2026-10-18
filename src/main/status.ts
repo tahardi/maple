@@ -7,35 +7,24 @@ export type StatusDeps = {
   sessions: SessionManager;
   getCard: (key: string) => Promise<Card>;
   prFor: (worktree: string) => Promise<PrInfo | null>;
-  now: () => number;
 };
 
 type Events = { status: [status: TabStatus, prev: Dot] };
 
-type Tracked = { status: TabStatus; lastInputAt: number; seq: number };
+type Tracked = { status: TabStatus; seq: number };
 
 export class StatusEngine extends EventEmitter<Events> {
   private readonly tabs = new Map<string, Tracked>();
 
   constructor(private readonly deps: StatusDeps) {
     super();
-    const { sessions, now } = deps;
+    const { sessions } = deps;
     sessions.on('spawn', (tabId, prompted) => {
       const prev = this.tabs.get(tabId);
       const dot = prompted ? 'working' : 'idle';
       const status: TabStatus = { tabId, dot, sessionAlive: true, exitCode: null };
-      this.tabs.set(tabId, { status, lastInputAt: 0, seq: (prev?.seq ?? 0) + 1 });
+      this.tabs.set(tabId, { status, seq: (prev?.seq ?? 0) + 1 });
       this.emitStatus(tabId, prev?.status.dot ?? dot);
-    });
-    sessions.on('data', (tabId) => {
-      this.apply(tabId, { type: 'output', at: now() });
-    });
-    sessions.on('input', (tabId) => {
-      const tracked = this.tabs.get(tabId);
-      if (tracked) {
-        tracked.lastInputAt = now();
-        this.apply(tabId, { type: 'input', at: tracked.lastInputAt });
-      }
     });
     sessions.on('exit', (tabId, exitCode) => {
       const tracked = this.tabs.get(tabId);
@@ -93,7 +82,7 @@ export class StatusEngine extends EventEmitter<Events> {
     }
     const tracked = this.tabs.get(tabId);
     if (tracked?.seq === seq) {
-      this.setDot(tracked, input === null ? 'waiting' : nextDot(tracked.status.dot, input, tracked.lastInputAt));
+      this.setDot(tracked, input === null ? 'waiting' : nextDot(input));
     }
   }
 
@@ -111,7 +100,7 @@ export class StatusEngine extends EventEmitter<Events> {
     if (!tracked) {
       return;
     }
-    this.setDot(tracked, nextDot(tracked.status.dot, input, tracked.lastInputAt));
+    this.setDot(tracked, nextDot(input));
   }
 
   private setDot(tracked: Tracked, dot: Dot): void {

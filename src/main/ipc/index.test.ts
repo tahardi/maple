@@ -40,7 +40,6 @@ describe('registerIpc', () => {
     sessions,
     getCard: vi.fn(),
     prFor: vi.fn(),
-    now: () => 0,
   });
   const deps = {
     window: () => null,

@@ -2,12 +2,8 @@ import type { Dot, JiraStatus, PrInfo, TabKind, TabState, TabStatus } from './ty
 
 export type DotInput =
   | { type: 'prompt' }
-  | { type: 'input'; at: number }
-  | { type: 'output'; at: number }
   | { type: 'permission' }
   | { type: 'stop'; kind: TabKind; cardStatus: JiraStatus | null; pr: PrInfo | null };
-
-const ECHO_MS = 500;
 
 function stopDot(cardStatus: JiraStatus | null, pr: PrInfo | null): Dot {
   if (cardStatus === 'Done') {
@@ -17,16 +13,12 @@ function stopDot(cardStatus: JiraStatus | null, pr: PrInfo | null): Dot {
   return reviewable ? 'ready' : 'waiting';
 }
 
-export function nextDot(prev: Dot, input: DotInput, lastInputAt: number): Dot {
+export function nextDot(input: DotInput): Dot {
   switch (input.type) {
     case 'prompt':
       return 'working';
     case 'permission':
       return 'waiting';
-    case 'output':
-      return prev !== 'working' && input.at - lastInputAt > ECHO_MS ? 'working' : prev;
-    case 'input':
-      return prev;
     case 'stop':
       return input.kind === 'planner' ? 'idle' : stopDot(input.cardStatus, input.pr);
   }

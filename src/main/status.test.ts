@@ -46,21 +46,16 @@ function setup(overrides: Overrides = {}) {
   const sessions = Object.assign(new EventEmitter(), { get: vi.fn(() => tab) });
   const getCard = vi.fn(overrides.getCard ?? (() => Promise.resolve(card)));
   const prFor = vi.fn(overrides.prFor ?? (() => Promise.resolve(openPr)));
-  let now = 0;
   const engine = new StatusEngine({
     sessions: sessions as unknown as SessionManager,
     getCard,
     prFor,
-    now: () => now,
   });
   const emitted: TabStatus[] = [];
   engine.on('status', (s) => {
     emitted.push(s);
   });
-  const tick = (ms: number) => {
-    now += ms;
-  };
-  return { sessions, engine, emitted, tick, getCard, prFor };
+  return { sessions, engine, emitted, getCard, prFor };
 }
 
 describe('StatusEngine', () => {
@@ -137,20 +132,36 @@ describe('StatusEngine', () => {
     expect(emitted.at(-1)?.dot).toBe('waiting');
   });
 
-  test.each([
-    { name: 'echo', gap: 100, want: 'idle' },
-    { name: 'output', gap: 2000, want: 'working' },
-  ])('$name after typing leaves the tab $want', ({ gap, want }) => {
+  test.each(['idle', 'waiting', 'ready'] as const)('output and keystrokes leave a %s tab alone', async (want) => {
     // given
-    const { sessions, engine, tick } = setup();
-    sessions.emit('spawn', 't1', false);
-    tick(5000);
-    sessions.emit('input', 't1');
-    tick(gap);
+    const getCard = () =>
+      Promise.resolve({ ...card, status: want === 'idle' ? ('Done' as const) : ('In Progress' as const) });
+    const prFor = () => Promise.resolve(want === 'ready' ? openPr : null);
+    const ready = () => Promise.resolve({ ...card, status: 'In Review' as const });
+    const { sessions, engine, emitted } = setup({ getCard: want === 'ready' ? ready : getCard, prFor });
+    sessions.emit('spawn', 't1', true);
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe(want);
+    });
+    emitted.length = 0;
     // when
-    sessions.emit('data', 't1', 'x');
+    sessions.emit('data', 't1', 'redraw');
+    sessions.emit('input', 't1');
+    sessions.emit('data', 't1', 'late');
     // then
+    expect(emitted).toEqual([]);
     expect(engine.statuses()[0]?.dot).toBe(want);
+  });
+
+  test('startup output leaves a new tab idle', () => {
+    // given
+    const { sessions, engine } = setup();
+    sessions.emit('spawn', 't1', false);
+    // when
+    sessions.emit('data', 't1', 'banner');
+    // then
+    expect(engine.statuses()[0]?.dot).toBe('idle');
   });
 
   test('an exit marks the session dead', () => {
@@ -250,7 +261,6 @@ describe('StatusEngine', () => {
     emitted.length = 0;
     // when
     engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
-    sessions.emit('data', 't1', 'x');
     // then
     expect(emitted).toEqual([]);
   });

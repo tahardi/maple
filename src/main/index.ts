@@ -83,7 +83,6 @@ async function start(): Promise<void> {
     sessions,
     getCard: async (key) => (await jira).getCard(key),
     prFor: async (worktree) => prForBranch(defaultRunner, worktree, await currentBranch(worktree)),
-    now: Date.now,
   });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
