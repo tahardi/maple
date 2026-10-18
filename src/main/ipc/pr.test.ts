@@ -21,6 +21,7 @@ vi.mock('../github', () => ({ prForBranch, commentOnPr }));
 vi.mock('../preflight', () => ({ defaultRunner }));
 
 const event = {} as IpcMainInvokeEvent;
+const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const pr: PrInfo = {
   number: 33,
   url: 'https://github.com/tahardi/maple/pull/33',
@@ -37,16 +38,19 @@ function register(
   worktree: string | null,
   sessions: SessionManager = {} as SessionManager,
 ): (tabId: string) => Promise<unknown> {
-  registerPr({
-    window: () => null,
-    worktreeFor: () => worktree,
-    project: () => Promise.resolve(null),
-    sessions,
-    status: {} as StatusEngine,
-    setActiveTab: () => undefined,
-    warnings: () => [],
-    setNotifications: () => Promise.resolve(),
-  });
+  registerPr(
+    {
+      window: () => null,
+      worktreeFor: () => worktree,
+      project: () => Promise.resolve(null),
+      sessions,
+      status: {} as StatusEngine,
+      setActiveTab: () => undefined,
+      warnings: () => [],
+      setNotifications: () => Promise.resolve(),
+    },
+    logger,
+  );
   const call = handle.mock.calls.find(([name]) => name === channel);
   if (!call) {
     throw new Error(`finding handler for ${channel}`);
@@ -212,5 +216,34 @@ describe('registerPr', () => {
     await expect(result).rejects.toThrow('approving PR: listing PRs: offline');
     expect(commentOnPr).not.toHaveBeenCalled();
     expect(sendPrompt).not.toHaveBeenCalled();
+  });
+
+  test('logs a failed PR lookup at warn', async () => {
+    // given
+    prForBranch.mockRejectedValue(new Error('listing PRs: offline'));
+    const prGet = get('/wt');
+    // when
+    await prGet('t1');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:get',
+      tabId: 't1',
+      error: 'listing PRs: offline',
+    });
+  });
+
+  test('logs a failed approve at warn', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const { approve } = approver();
+    commentOnPr.mockRejectedValue(new Error('commenting on PR: offline'));
+    // when
+    await approve('t1').catch(() => undefined);
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:approve',
+      tabId: 't1',
+      error: 'commenting on PR: offline',
+    });
   });
 });

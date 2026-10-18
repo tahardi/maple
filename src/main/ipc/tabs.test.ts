@@ -36,6 +36,8 @@ function fakeSessions() {
   });
 }
 
+const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+
 const status: TabStatus = { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false };
 
 function setup() {
@@ -44,16 +46,19 @@ function setup() {
   const setActiveTab = vi.fn();
   const sendToWindow = vi.fn();
   const win = { isDestroyed: () => false, webContents: { send: sendToWindow } } as unknown as BrowserWindow;
-  registerTabs({
-    window: () => win,
-    worktreeFor: () => null,
-    project: () => Promise.resolve(null),
-    sessions: sessions as unknown as SessionManager,
-    status: engine as unknown as StatusEngine,
-    setActiveTab,
-    setNotifications: () => Promise.resolve(),
-    warnings: () => [],
-  });
+  registerTabs(
+    {
+      window: () => win,
+      worktreeFor: () => null,
+      project: () => Promise.resolve(null),
+      sessions: sessions as unknown as SessionManager,
+      status: engine as unknown as StatusEngine,
+      setActiveTab,
+      setNotifications: () => Promise.resolve(),
+      warnings: () => [],
+    },
+    logger,
+  );
   return { sessions, engine, setActiveTab, sendToWindow };
 }
 
@@ -167,5 +172,28 @@ describe('registerTabs', () => {
     // then
     expect(sessions.close).toHaveBeenCalledWith('t1');
     expect(got).toEqual({ closed: true, needsConfirm: false });
+  });
+
+  test.each([
+    { channel: 'tabs:startCard', args: ['NOPE', 'NOPE-1'], method: 'startCard' },
+    { channel: 'tabs:openCard', args: ['NOPE', 'NOPE-1'], method: 'openCard' },
+    { channel: 'tabs:openPlanner', args: ['NOPE'], method: 'openPlanner' },
+    { channel: 'tabs:resume', args: ['gone'], method: 'resume' },
+    { channel: 'tabs:startFresh', args: ['gone'], method: 'startFresh' },
+  ] as const)('$channel logs a failure at warn and rethrows', ({ channel, args, method }) => {
+    // given
+    const { sessions } = setup();
+    sessions[method].mockImplementation(() => {
+      throw new Error('finding tab: gone');
+    });
+    // when
+    const run = () => invoke(channel, ...args);
+    // then
+    expect(run).toThrow('finding tab: gone');
+    expect(logger.warn).toHaveBeenCalledWith('session', 'failed', {
+      operation: channel,
+      args: [...args],
+      error: 'finding tab: gone',
+    });
   });
 });

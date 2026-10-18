@@ -1,9 +1,10 @@
 import { ipcMain } from 'electron';
 import { changes, listFiles, mergeBase, readFilePair } from '../git';
+import { appLogger, logFailure, type Logger } from '../log';
 import { watchWorktree } from '../worktreeWatcher';
 import { send, type IpcDeps } from './index';
 
-export function registerRepo(deps: IpcDeps): void {
+export function registerRepo(deps: IpcDeps, logger: Logger = appLogger): void {
   const watchers = new Map<string, { path: string; stop: () => void }>();
 
   function worktreeFor(tabId: string): string | null {
@@ -22,19 +23,25 @@ export function registerRepo(deps: IpcDeps): void {
     return path;
   }
 
-  ipcMain.handle('repo:changes', (_event, tabId: string) => {
-    const path = worktreeFor(tabId);
-    return path === null ? null : changes(path);
-  });
-  ipcMain.handle('repo:listFiles', (_event, tabId: string) => {
-    const path = worktreeFor(tabId);
-    return path === null ? [] : listFiles(path);
-  });
-  ipcMain.handle('repo:readFile', async (_event, tabId: string, file: string) => {
-    const path = worktreeFor(tabId);
-    if (path === null) {
-      throw new Error(`reading file: tab ${tabId} has no worktree`);
-    }
-    return readFilePair(path, await mergeBase(path), file);
-  });
+  ipcMain.handle('repo:changes', (_event, tabId: string) =>
+    logFailure(logger, 'repo', { operation: 'repo:changes', args: [tabId] }, () => {
+      const path = worktreeFor(tabId);
+      return path === null ? null : changes(path);
+    }),
+  );
+  ipcMain.handle('repo:listFiles', (_event, tabId: string) =>
+    logFailure(logger, 'repo', { operation: 'repo:listFiles', args: [tabId] }, () => {
+      const path = worktreeFor(tabId);
+      return path === null ? [] : listFiles(path);
+    }),
+  );
+  ipcMain.handle('repo:readFile', (_event, tabId: string, file: string) =>
+    logFailure(logger, 'repo', { operation: 'repo:readFile', args: [tabId, file] }, async () => {
+      const path = worktreeFor(tabId);
+      if (path === null) {
+        throw new Error(`reading file: tab ${tabId} has no worktree`);
+      }
+      return readFilePair(path, await mergeBase(path), file);
+    }),
+  );
 }

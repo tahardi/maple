@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Fetched, MapleConfig } from '@shared/types';
 import { z } from 'zod';
+import { appLogger, type Logger } from './log';
 
 const defaultActions = [
   { label: 'Address review', prompt: '/card {key}' },
@@ -46,7 +47,17 @@ function failed(error: string): Fetched<MapleConfig> {
   return { data: null, error, fetchedAt: null };
 }
 
-export async function loadConfig(dir: string = configDir()): Promise<Fetched<MapleConfig>> {
+export async function loadConfig(dir: string = configDir(), logger: Logger = appLogger): Promise<Fetched<MapleConfig>> {
+  const result = await readConfig(dir);
+  if (result.data) {
+    logger.info('config', 'loaded', { projects: result.data.projects.length });
+  } else {
+    logger.error('config', 'failed', { error: result.error });
+  }
+  return result;
+}
+
+async function readConfig(dir: string): Promise<Fetched<MapleConfig>> {
   const path = join(dir, 'config.json');
   let text: string;
   try {

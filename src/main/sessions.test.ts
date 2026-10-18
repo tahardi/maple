@@ -74,6 +74,7 @@ function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: 
   let n = 0;
   const save = vi.fn<(tabs: TabState[], closed: Record<string, string>) => Promise<void>>(() => Promise.resolve());
   const spawnFn = fakeSpawn(ptys);
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const manager = new SessionManager({
     spawn: spawnFn,
     config: () => config,
@@ -83,8 +84,9 @@ function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: 
     closedSessions,
     uuid: () => `uuid-${String(++n)}`,
     hasTranscript,
+    logger,
   });
-  return { manager, ptys, save, spawnFn };
+  return { manager, ptys, save, spawnFn, logger };
 }
 
 function fresh(manager: SessionManager, tab: TabState): TabState {
@@ -126,6 +128,19 @@ describe('SessionManager', () => {
       MAPLE_SOCKET: '/tmp/maple.sock',
       TERM: 'xterm-256color',
     });
+  });
+
+  test('logs spawned with the args', () => {
+    // given
+    const { manager, logger } = setup();
+    // when
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // then
+    expect(logger.info).toHaveBeenCalledWith(
+      'session',
+      'spawned',
+      expect.objectContaining({ tabId: tab.id, args: [...base, '--session-id', tab.sessionId, '/card DIG-44'] }),
+    );
   });
 
   test.each([
@@ -556,5 +571,108 @@ describe('SessionManager', () => {
       expect(manager.get(tab.id)?.worktreePath).toBe('/tmp/wts/dig-days-dig-44');
     });
     expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  test('logs exited with the code', () => {
+    // given
+    const { manager, ptys, logger } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // when
+    ptys[0].emitExit(3);
+    // then
+    expect(logger.info).toHaveBeenCalledWith('session', 'exited', { tabId: tab.id, code: 3 });
+  });
+
+  test('logs spawned with resumed true for a resume', () => {
+    // given
+    const { manager, logger } = setup();
+    // when
+    manager.openCard('DIG', 'DIG-44', 'old');
+    // then
+    expect(logger.info).toHaveBeenCalledWith('session', 'spawned', expect.objectContaining({ resumed: true }));
+  });
+
+  test('logs the first 80 characters of a sent prompt', () => {
+    // given
+    const { manager, logger } = setup();
+    const tab = manager.openPlanner('DIG', null);
+    // when
+    manager.sendPrompt(tab.id, 'x'.repeat(100));
+    // then
+    expect(logger.info).toHaveBeenCalledWith('session', 'prompt sent', { tabId: tab.id, text: 'x'.repeat(80) });
+  });
+
+  test('logs a fresh start when a resume has no transcript', () => {
+    // given
+    const { manager, logger } = setup({}, () => false);
+    // when
+    const tab = manager.openCard('DIG', 'DIG-44', 'old');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('session', 'no transcript, starting fresh', {
+      tabId: tab.id,
+      sessionId: 'old',
+    });
+  });
+
+  test('logs a found worktree', async () => {
+    // given
+    vi.mocked(findWorktree).mockResolvedValue('/tmp/wts/dig-days-dig-44');
+    const { manager, logger } = setup();
+    // when
+    manager.startCard('DIG', 'DIG-44');
+    // then
+    await vi.waitFor(() => {
+      expect(logger.info).toHaveBeenCalledWith('worktree', 'found', {
+        cardKey: 'DIG-44',
+        path: '/tmp/wts/dig-days-dig-44',
+      });
+    });
+  });
+
+  test('logs a failed worktree lookup at warn', async () => {
+    // given
+    vi.mocked(findWorktree).mockRejectedValue(new Error('listing worktrees: denied'));
+    const { manager, logger } = setup();
+    // when
+    manager.startCard('DIG', 'DIG-44');
+    // then
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith('worktree', 'failed', {
+        operation: 'findWorktree',
+        cardKey: 'DIG-44',
+        error: 'listing worktrees: denied',
+      });
+    });
+  });
+
+  test('logs a failed worktree watch at warn', () => {
+    // given
+    vi.mocked(watchWorktrees).mockImplementation(() => {
+      throw new Error('watching worktrees: ENOENT');
+    });
+    const { manager, logger } = setup();
+    // when
+    manager.startCard('DIG', 'DIG-44');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('worktree', 'failed', {
+      operation: 'watchWorktrees',
+      cardKey: 'DIG-44',
+      error: 'watching worktrees: ENOENT',
+    });
+  });
+
+  test('logs a failed state save at error', async () => {
+    // given
+    const { manager, save, logger } = setup();
+    save.mockRejectedValue(new Error('writing state: disk full'));
+    // when
+    manager.startCard('DIG', 'DIG-44');
+    // then
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith('session', 'failed', {
+        operation: 'saveState',
+        error: 'writing state: disk full',
+      });
+    });
   });
 });
