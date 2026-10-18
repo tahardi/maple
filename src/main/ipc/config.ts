@@ -1,10 +1,23 @@
 import { ipcMain } from 'electron';
+import type { Fetched, MapleConfig, ProjectConfig } from '@shared/types';
 import { loadConfig } from '../config';
 import { setAppMenu } from '../menu';
 import { send, type IpcDeps } from './index';
 
+let cached: Promise<Fetched<MapleConfig>> | null = null;
+
+export async function projectByKey(key: string): Promise<ProjectConfig | null> {
+  const config = await cached;
+  return config?.data?.projects.find((p) => p.jiraKey === key) ?? null;
+}
+
+export async function notificationsDefault(): Promise<boolean> {
+  const config = await cached;
+  return config?.data?.notifications ?? true;
+}
+
 export function registerConfig(deps: IpcDeps): void {
-  let cached = loadConfig();
+  cached = loadConfig();
   const reload = async () => {
     cached = loadConfig();
     const result = await cached;
@@ -13,5 +26,5 @@ export function registerConfig(deps: IpcDeps): void {
   };
   ipcMain.handle('config:get', () => cached);
   ipcMain.handle('config:reload', reload);
-  setAppMenu(reload);
+  setAppMenu(reload, deps.setNotifications);
 }

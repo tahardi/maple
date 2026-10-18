@@ -7,8 +7,16 @@ export function TabBar() {
   const projectKey = useMaple((s) => s.projectKey);
   const activeTabId = useMaple((s) => s.activeTabId);
   const activate = useMaple((s) => s.activate);
+  const statuses = useMaple((s) => s.statuses);
   const cardTabs = tabs.filter((t) => t.projectKey === projectKey && t.kind === 'card');
-  const items = [{ id: null, label: 'Home' }, ...cardTabs.map((t) => ({ id: t.id, label: t.cardKey ?? t.id }))];
+  const items = [
+    { id: null, label: 'Home', dot: undefined },
+    ...cardTabs.map((t) => ({
+      id: t.id,
+      label: t.cardKey ?? t.id,
+      dot: Object.hasOwn(statuses, t.id) ? statuses[t.id].dot : undefined,
+    })),
+  ];
 
   return (
     <div className={styles.bar}>
@@ -24,6 +32,7 @@ export function TabBar() {
               activate(item.id);
             }}
           >
+            {item.dot && <span className={styles.dot} data-dot={item.dot} />}
             {item.label}
           </button>
         ))}

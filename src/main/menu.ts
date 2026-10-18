@@ -1,6 +1,11 @@
 import { Menu } from 'electron';
 
-export function setAppMenu(reloadConfig: () => Promise<unknown>): void {
+const NOTIFICATIONS_ID = 'notifications';
+
+export function setAppMenu(
+  reloadConfig: () => Promise<unknown>,
+  setNotifications: (on: boolean) => Promise<void>,
+): void {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
@@ -25,7 +30,25 @@ export function setAppMenu(reloadConfig: () => Promise<unknown>): void {
           { role: 'togglefullscreen' },
         ],
       },
+      {
+        label: 'Settings',
+        submenu: [
+          {
+            id: NOTIFICATIONS_ID,
+            label: 'Desktop notifications',
+            type: 'checkbox',
+            click: (item) => void setNotifications(item.checked),
+          },
+        ],
+      },
       { role: 'windowMenu' },
     ]),
   );
+}
+
+export function checkNotifications(on: boolean): void {
+  const item = Menu.getApplicationMenu()?.getMenuItemById(NOTIFICATIONS_ID);
+  if (item) {
+    item.checked = on;
+  }
 }

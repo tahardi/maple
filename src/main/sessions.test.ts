@@ -82,6 +82,16 @@ function setup(closedSessions: Record<string, string> = {}) {
   return { manager, ptys, save, spawnFn };
 }
 
+function fresh(manager: SessionManager, tab: TabState): TabState {
+  manager.startFresh(tab.id);
+  return tab;
+}
+
+function resumed(manager: SessionManager, tab: TabState): TabState {
+  manager.resume(tab.id);
+  return tab;
+}
+
 const base = ['--dangerously-skip-permissions', '--settings', '/tmp/maple/hooksFile.json'];
 
 describe('SessionManager', () => {
@@ -126,6 +136,32 @@ describe('SessionManager', () => {
     // then
     expect(second.id).toBe(first.id);
     expect(spawnFn).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    { name: 'startCard', open: (m: SessionManager) => m.startCard('DIG', 'DIG-44'), prompted: true },
+    { name: 'openCard', open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', null), prompted: false },
+    { name: 'openPlanner', open: (m: SessionManager) => m.openPlanner('DIG', null), prompted: false },
+    {
+      name: 'startFresh on a card',
+      open: (m: SessionManager) => fresh(m, m.startCard('DIG', 'DIG-44')),
+      prompted: true,
+    },
+    {
+      name: 'startFresh on a planner',
+      open: (m: SessionManager) => fresh(m, m.openPlanner('DIG', null)),
+      prompted: false,
+    },
+    { name: 'resume', open: (m: SessionManager) => resumed(m, m.startCard('DIG', 'DIG-44')), prompted: false },
+  ])('$name emits spawn with prompted $prompted', ({ open, prompted }) => {
+    // given
+    const { manager } = setup();
+    const spawned = vi.fn();
+    manager.on('spawn', spawned);
+    // when
+    const tab = open(manager);
+    // then
+    expect(spawned).toHaveBeenLastCalledWith(tab.id, prompted);
   });
 
   test.each([
