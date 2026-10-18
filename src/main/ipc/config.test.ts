@@ -40,7 +40,7 @@ describe('registerConfig', () => {
 
   test('get serves the startup load without loading again', async () => {
     // given
-    registerConfig({ window: () => null, worktreeFor: () => null });
+    registerConfig({ window: () => null, worktreeFor: () => null, project: () => null });
     // when
     const results = [await handler('config:get')(event), await handler('config:get')(event)];
     // then
@@ -51,7 +51,7 @@ describe('registerConfig', () => {
   test('reload refreshes the cached config and notifies the window', async () => {
     // given
     const { win, sendToWindow } = fakeWindow(false);
-    registerConfig({ window: () => win, worktreeFor: () => null });
+    registerConfig({ window: () => win, worktreeFor: () => null, project: () => null });
     // when
     const reloaded = await handler('config:reload')(event);
     const after = await handler('config:get')(event);
@@ -67,7 +67,7 @@ describe('registerConfig', () => {
   ])('reload skips notifying $name', async ({ destroyed }) => {
     // given
     const { win, sendToWindow } = fakeWindow(destroyed ?? false);
-    registerConfig({ window: () => (destroyed === null ? null : win), worktreeFor: () => null });
+    registerConfig({ window: () => (destroyed === null ? null : win), worktreeFor: () => null, project: () => null });
     // when
     const reloaded = await handler('config:reload')(event);
     // then
@@ -78,7 +78,7 @@ describe('registerConfig', () => {
   test('menu reload refreshes the cache and notifies the window', async () => {
     // given
     const { win, sendToWindow } = fakeWindow(false);
-    registerConfig({ window: () => win, worktreeFor: () => null });
+    registerConfig({ window: () => win, worktreeFor: () => null, project: () => null });
     const [[menuReload]] = setAppMenu.mock.calls;
     // when
     await menuReload();
