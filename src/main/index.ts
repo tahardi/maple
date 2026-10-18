@@ -5,9 +5,17 @@ import { spawn } from 'node-pty';
 import { configDir, loadConfig } from './config';
 import { hookSocketPath, startHookServer } from './hookServer';
 import { writeHooksFile } from './hooksFile';
+import { currentBranch } from './git';
+import { prForBranch } from './github';
 import { registerIpc } from './ipc';
+import { notificationsDefault, projectByKey } from './ipc/config';
+import { JiraClient, jiraEnvPath, readCreds } from './jira';
+import { checkNotifications } from './menu';
+import { notifyTab, shouldNotify } from './notify';
+import { defaultRunner } from './preflight';
 import { SessionManager } from './sessions';
-import { saveState, loadState } from './state';
+import { saveState, loadState, type SavedState } from './state';
+import { StatusEngine } from './status';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -37,12 +45,18 @@ function createWindow(): void {
   }
 }
 
-async function startSessions(): Promise<SessionManager> {
+async function start(): Promise<void> {
   const [{ data: config }, { state }] = await Promise.all([loadConfig(), loadState()]);
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
   const socketPath = hookSocketPath();
-  const stopHooks = await startHookServer(socketPath, () => undefined);
+  let saved = state;
   let saving = Promise.resolve();
+  const persist = (patch: Partial<SavedState>) => {
+    saved = { ...saved, ...patch };
+    const snapshot = saved;
+    saving = saving.catch(() => undefined).then(() => saveState(snapshot));
+    return saving;
+  };
   const sessions = new SessionManager({
     spawn,
     config: () => {
@@ -53,28 +67,58 @@ async function startSessions(): Promise<SessionManager> {
     },
     hooksFile,
     socketPath,
-    save: (tabs, closedSessions) => {
-      saving = saving.catch(() => undefined).then(() => saveState({ ...state, tabs, closedSessions }));
-      return saving;
-    },
+    save: (tabs, closedSessions) => persist({ tabs, closedSessions }),
     closedSessions: state.closedSessions,
     uuid: randomUUID,
+  });
+  const jira = readCreds(jiraEnvPath()).then((creds) => new JiraClient(creds));
+  jira.catch(() => undefined);
+  const status = new StatusEngine({
+    sessions,
+    getCard: async (key) => (await jira).getCard(key),
+    prFor: async (worktree) => prForBranch(defaultRunner, worktree, await currentBranch(worktree)),
+    now: Date.now,
+  });
+  const stopHooks = await startHookServer(socketPath, (e) => {
+    status.hook(e);
   });
   app.on('will-quit', () => {
     sessions.killAll();
     void stopHooks();
   });
-  return sessions;
-}
 
-void app.whenReady().then(async () => {
-  const sessions = await startSessions();
+  let activeTabId: string | null = null;
+  const enabled = async () => saved.notifications ?? (await notificationsDefault());
+  status.on('status', (s, prev) => {
+    void (async () => {
+      const tab = sessions.get(s.tabId);
+      const focused = mainWindow?.isFocused() ?? false;
+      if (tab && shouldNotify(s.dot, prev, focused, activeTabId, tab.id, await enabled())) {
+        const project = await projectByKey(tab.projectKey);
+        notifyTab(() => mainWindow, tab, project?.name ?? tab.projectKey);
+      }
+    })();
+  });
+
   registerIpc({
     window: () => mainWindow,
     worktreeFor: (tabId) => sessions.get(tabId)?.worktreePath ?? null,
-    project: () => null,
+    project: projectByKey,
     sessions,
+    status,
+    setActiveTab: (tabId) => {
+      activeTabId = tabId;
+    },
+    setNotifications: async (on) => {
+      checkNotifications(on);
+      await persist({ notifications: on });
+    },
   });
+  checkNotifications(await enabled());
+}
+
+void app.whenReady().then(async () => {
+  await start();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

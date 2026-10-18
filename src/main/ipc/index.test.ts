@@ -2,6 +2,7 @@ import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { IPC_CHANNELS, type ChannelKind } from '@shared/ipc';
 import { SessionManager } from '../sessions';
+import { StatusEngine } from '../status';
 import { registerIpc } from './index';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
@@ -35,7 +36,21 @@ describe('registerIpc', () => {
     closedSessions: {},
     uuid: vi.fn(),
   });
-  const deps = { window: () => null, worktreeFor: () => null, project: () => null, sessions };
+  const status = new StatusEngine({
+    sessions,
+    getCard: vi.fn(),
+    prFor: vi.fn(),
+    now: () => 0,
+  });
+  const deps = {
+    window: () => null,
+    worktreeFor: () => null,
+    project: () => Promise.resolve(null),
+    sessions,
+    status,
+    setActiveTab: vi.fn(),
+    setNotifications: vi.fn(),
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();

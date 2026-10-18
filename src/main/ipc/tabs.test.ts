@@ -1,15 +1,16 @@
 import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { TabState } from '@shared/types';
+import type { TabState, TabStatus } from '@shared/types';
 import type { SessionManager } from '../sessions';
+import type { StatusEngine } from '../status';
 import { registerTabs } from './tabs';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
 const { handle, on } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
-  on: vi.fn<(channel: string, listener: () => void) => void>(),
+  on: vi.fn<(channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void>(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle, on } }));
@@ -35,17 +36,24 @@ function fakeSessions() {
   });
 }
 
+const status: TabStatus = { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null };
+
 function setup() {
   const sessions = fakeSessions();
+  const engine = Object.assign(new EventEmitter(), { statuses: vi.fn(() => [status]) });
+  const setActiveTab = vi.fn();
   const sendToWindow = vi.fn();
   const win = { isDestroyed: () => false, webContents: { send: sendToWindow } } as unknown as BrowserWindow;
   registerTabs({
     window: () => win,
     worktreeFor: () => null,
-    project: () => null,
+    project: () => Promise.resolve(null),
     sessions: sessions as unknown as SessionManager,
+    status: engine as unknown as StatusEngine,
+    setActiveTab,
+    setNotifications: () => Promise.resolve(),
   });
-  return { sessions, sendToWindow };
+  return { sessions, engine, setActiveTab, sendToWindow };
 }
 
 function invoke(channel: string, ...args: unknown[]): unknown {
@@ -101,5 +109,33 @@ describe('registerTabs', () => {
     sessions.emit('changed', [tab]);
     // then
     expect(sendToWindow).toHaveBeenCalledWith('tabs:changed', [tab]);
+  });
+
+  test('tabs:statuses returns the engine statuses', () => {
+    // given
+    setup();
+    // when
+    const got = invoke('tabs:statuses');
+    // then
+    expect(got).toEqual([status]);
+  });
+
+  test('a status change is sent to the window', () => {
+    // given
+    const { engine, sendToWindow } = setup();
+    // when
+    engine.emit('status', status, 'working');
+    // then
+    expect(sendToWindow).toHaveBeenCalledWith('tabs:status', status);
+  });
+
+  test('tabs:setActive records the active tab', () => {
+    // given
+    const { setActiveTab } = setup();
+    const listener = on.mock.calls.find(([name]) => name === 'tabs:setActive')?.[1];
+    // when
+    listener?.({}, 't1');
+    // then
+    expect(setActiveTab).toHaveBeenCalledWith('t1');
   });
 });

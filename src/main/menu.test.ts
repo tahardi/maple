@@ -18,7 +18,7 @@ describe('setAppMenu', () => {
   test('adds a Reload config item that calls reload', () => {
     // given
     const reload = vi.fn(() => Promise.resolve());
-    setAppMenu(reload);
+    setAppMenu(reload, () => Promise.resolve());
     const item = menuItems().find((entry) => entry.label === 'Reload config');
     // when
     item?.click?.({} as never, undefined, {});
@@ -30,11 +30,26 @@ describe('setAppMenu', () => {
 
   test('leaves out Force Reload so Ctrl+Shift+R stays free', () => {
     // given
-    setAppMenu(() => Promise.resolve());
+    setAppMenu(
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+    );
     // when
     const items = menuItems();
     // then
     expect(items.map((entry) => entry.role)).not.toContain('forceReload');
     expect(items.map((entry) => entry.role)).not.toContain('viewMenu');
+  });
+
+  test.each([true, false])('the Desktop notifications checkbox sets notifications to %s', (checked) => {
+    // given
+    const setNotifications = vi.fn(() => Promise.resolve());
+    setAppMenu(() => Promise.resolve(), setNotifications);
+    const item = menuItems().find((entry) => entry.label === 'Desktop notifications');
+    // when
+    item?.click?.({ checked } as never, undefined, {});
+    // then
+    expect(item?.type).toBe('checkbox');
+    expect(setNotifications).toHaveBeenCalledWith(checked);
   });
 });

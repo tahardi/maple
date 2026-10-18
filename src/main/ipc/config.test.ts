@@ -1,7 +1,9 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionManager } from '../sessions';
-import { registerConfig } from './config';
+import type { StatusEngine } from '../status';
+import type { Fetched, MapleConfig, ProjectConfig } from '@shared/types';
+import { projectByKey, registerConfig } from './config';
 
 type Handler = (event: IpcMainInvokeEvent) => Promise<unknown>;
 
@@ -19,6 +21,13 @@ const event = {} as IpcMainInvokeEvent;
 const sessions = {} as SessionManager;
 const first = { data: null, error: 'reading config: missing', fetchedAt: null };
 const second = { data: null, error: null, fetchedAt: '2026-10-17T00:00:00.000Z' };
+const halo: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
+const dig: ProjectConfig = { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 8, plannerDir: '/tmp/dig' };
+const loaded = (projects: ProjectConfig[]): Fetched<MapleConfig> => ({
+  data: { worktreesDir: '/tmp/wts', notifications: true, projects, actions: [] },
+  error: null,
+  fetchedAt: '2026-10-18T00:00:00.000Z',
+});
 
 function handler(channel: string): Handler {
   const call = handle.mock.calls.find(([name]) => name === channel);
@@ -26,6 +35,18 @@ function handler(channel: string): Handler {
     throw new Error(`finding handler for ${channel}`);
   }
   return call[1];
+}
+
+function deps(window: () => BrowserWindow | null = () => null) {
+  return {
+    window,
+    worktreeFor: () => null,
+    project: () => Promise.resolve(null),
+    sessions,
+    status: {} as StatusEngine,
+    setActiveTab: vi.fn(),
+    setNotifications: vi.fn(() => Promise.resolve()),
+  };
 }
 
 function fakeWindow(destroyed: boolean) {
@@ -42,7 +63,7 @@ describe('registerConfig', () => {
 
   test('get serves the startup load without loading again', async () => {
     // given
-    registerConfig({ window: () => null, worktreeFor: () => null, project: () => null, sessions });
+    registerConfig(deps());
     // when
     const results = [await handler('config:get')(event), await handler('config:get')(event)];
     // then
@@ -53,7 +74,7 @@ describe('registerConfig', () => {
   test('reload refreshes the cached config and notifies the window', async () => {
     // given
     const { win, sendToWindow } = fakeWindow(false);
-    registerConfig({ window: () => win, worktreeFor: () => null, project: () => null, sessions });
+    registerConfig(deps(() => win));
     // when
     const reloaded = await handler('config:reload')(event);
     const after = await handler('config:get')(event);
@@ -69,12 +90,7 @@ describe('registerConfig', () => {
   ])('reload skips notifying $name', async ({ destroyed }) => {
     // given
     const { win, sendToWindow } = fakeWindow(destroyed ?? false);
-    registerConfig({
-      window: () => (destroyed === null ? null : win),
-      worktreeFor: () => null,
-      project: () => null,
-      sessions,
-    });
+    registerConfig(deps(() => (destroyed === null ? null : win)));
     // when
     const reloaded = await handler('config:reload')(event);
     // then
@@ -85,12 +101,37 @@ describe('registerConfig', () => {
   test('menu reload refreshes the cache and notifies the window', async () => {
     // given
     const { win, sendToWindow } = fakeWindow(false);
-    registerConfig({ window: () => win, worktreeFor: () => null, project: () => null, sessions });
+    registerConfig(deps(() => win));
     const [[menuReload]] = setAppMenu.mock.calls;
     // when
     await menuReload();
     // then
     expect(await handler('config:get')(event)).toEqual(second);
     expect(sendToWindow).toHaveBeenCalledWith('config:changed', second);
+  });
+});
+
+describe('projectByKey', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test.each([
+    { name: 'a known key', loads: [loaded([halo])], reload: false, key: 'HALO', want: halo },
+    { name: 'an unknown key', loads: [loaded([halo])], reload: false, key: 'NOPE', want: null },
+    { name: 'a failed load', loads: [first], reload: false, key: 'HALO', want: null },
+    { name: 'a reloaded config', loads: [loaded([halo]), loaded([dig])], reload: true, key: 'DIG', want: dig },
+  ])('returns the project for $name', async ({ loads, reload, key, want }) => {
+    // given
+    loadConfig.mockReset();
+    loads.forEach((result) => loadConfig.mockResolvedValueOnce(result));
+    registerConfig(deps());
+    if (reload) {
+      await handler('config:reload')(event);
+    }
+    // when
+    const got = await projectByKey(key);
+    // then
+    expect(got).toEqual(want);
   });
 });

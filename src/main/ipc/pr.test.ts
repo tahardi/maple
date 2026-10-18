@@ -2,6 +2,7 @@ import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { PrInfo } from '@shared/types';
 import type { SessionManager } from '../sessions';
+import type { StatusEngine } from '../status';
 import { registerPr } from './pr';
 
 type Handler = (event: IpcMainInvokeEvent, tabId: string) => Promise<unknown>;
@@ -33,8 +34,11 @@ function get(worktree: string | null): (tabId: string) => Promise<unknown> {
   registerPr({
     window: () => null,
     worktreeFor: () => worktree,
-    project: () => null,
+    project: () => Promise.resolve(null),
     sessions: {} as SessionManager,
+    status: {} as StatusEngine,
+    setActiveTab: () => undefined,
+    setNotifications: () => Promise.resolve(),
   });
   const call = handle.mock.calls.find(([name]) => name === 'pr:get');
   if (!call) {

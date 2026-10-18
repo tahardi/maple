@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
+import type { IpcDeps } from './index';
 
-export function registerApp(): void {
-  ipcMain.handle('app:setNotifications', () => Promise.reject(new Error('app:setNotifications is not implemented')));
+export function registerApp({ setNotifications }: IpcDeps): void {
+  ipcMain.handle('app:setNotifications', (_event, on: boolean) => setNotifications(on));
   ipcMain.on('app:confirmQuit', () => undefined);
 }

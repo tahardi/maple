@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 import type { CloseResult } from '@shared/types';
 import { send, type IpcDeps } from './index';
 
-export function registerTabs({ sessions, window }: IpcDeps): void {
+export function registerTabs({ sessions, status, window, setActiveTab }: IpcDeps): void {
   ipcMain.handle('tabs:list', () => sessions.list());
   ipcMain.handle('tabs:startCard', (_event, projectKey: string, cardKey: string) =>
     sessions.startCard(projectKey, cardKey),
@@ -21,8 +21,13 @@ export function registerTabs({ sessions, window }: IpcDeps): void {
   ipcMain.handle('tabs:startFresh', (_event, tabId: string) => {
     sessions.startFresh(tabId);
   });
-  ipcMain.on('tabs:setActive', () => undefined);
-  ipcMain.handle('tabs:statuses', () => Promise.reject(new Error('tabs:statuses is not implemented')));
+  ipcMain.on('tabs:setActive', (_event, tabId: string) => {
+    setActiveTab(tabId);
+  });
+  ipcMain.handle('tabs:statuses', () => status.statuses());
+  status.on('status', (s) => {
+    send(window(), 'tabs:status', s);
+  });
   sessions.on('changed', (tabs) => {
     send(window(), 'tabs:changed', tabs);
   });

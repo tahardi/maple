@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron';
 import type { ProjectConfig } from '@shared/types';
 import type { SessionManager } from '../sessions';
+import type { StatusEngine } from '../status';
 import { registerApp } from './app';
 import { registerConfig } from './config';
 import { registerJira } from './jira';
@@ -13,8 +14,11 @@ import { registerTabs } from './tabs';
 export type IpcDeps = {
   window: () => BrowserWindow | null;
   worktreeFor: (tabId: string) => string | null;
-  project: (projectKey: string) => ProjectConfig | null;
+  project: (projectKey: string) => Promise<ProjectConfig | null>;
   sessions: SessionManager;
+  status: StatusEngine;
+  setActiveTab: (tabId: string) => void;
+  setNotifications: (on: boolean) => Promise<void>;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [

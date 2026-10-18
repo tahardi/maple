@@ -129,6 +129,21 @@ describe('SessionManager', () => {
   });
 
   test.each([
+    { name: 'startCard', open: (m: SessionManager) => m.startCard('DIG', 'DIG-44'), prompted: true },
+    { name: 'openCard', open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', null), prompted: false },
+    { name: 'openPlanner', open: (m: SessionManager) => m.openPlanner('DIG', null), prompted: false },
+  ])('$name emits spawn with prompted $prompted', ({ open, prompted }) => {
+    // given
+    const { manager } = setup();
+    const spawned = vi.fn();
+    manager.on('spawn', spawned);
+    // when
+    const tab = open(manager);
+    // then
+    expect(spawned).toHaveBeenCalledWith(tab.id, prompted);
+  });
+
+  test.each([
     { name: 'with a resume id', resumeId: 'old-session', want: ['--resume', 'old-session'] },
     { name: 'without a resume id', resumeId: null, want: ['--session-id', 'uuid-2'] },
   ])('openCard $name spawns without a prompt', ({ resumeId, want }) => {

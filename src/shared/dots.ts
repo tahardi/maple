@@ -1,0 +1,49 @@
+import type { Dot, JiraStatus, PrInfo, TabKind, TabState, TabStatus } from './types';
+
+export type DotInput =
+  | { type: 'prompt' }
+  | { type: 'input'; at: number }
+  | { type: 'output'; at: number }
+  | { type: 'permission' }
+  | { type: 'stop'; kind: TabKind; cardStatus: JiraStatus | null; pr: PrInfo | null };
+
+const ECHO_MS = 500;
+
+function stopDot(cardStatus: JiraStatus | null, pr: PrInfo | null): Dot {
+  if (cardStatus === 'Done') {
+    return 'idle';
+  }
+  const reviewable = cardStatus === 'In Review' && pr?.state === 'OPEN' && pr.checks.failed === 0;
+  return reviewable ? 'ready' : 'waiting';
+}
+
+export function nextDot(prev: Dot, input: DotInput, lastInputAt: number): Dot {
+  switch (input.type) {
+    case 'prompt':
+      return 'working';
+    case 'permission':
+      return 'waiting';
+    case 'output':
+      return prev !== 'working' && input.at - lastInputAt > ECHO_MS ? 'working' : prev;
+    case 'input':
+      return prev;
+    case 'stop':
+      return input.kind === 'planner' ? 'idle' : stopDot(input.cardStatus, input.pr);
+  }
+}
+
+export function projectCounts(
+  tabs: TabState[],
+  statuses: TabStatus[],
+): Record<string, { waiting: number; ready: number }> {
+  const dots = new Map(statuses.map((s) => [s.tabId, s.dot]));
+  const counts: Record<string, { waiting: number; ready: number }> = {};
+  for (const tab of tabs) {
+    const count = (counts[tab.projectKey] ??= { waiting: 0, ready: 0 });
+    const dot = dots.get(tab.id);
+    if (dot === 'waiting' || dot === 'ready') {
+      count[dot] += 1;
+    }
+  }
+  return counts;
+}
