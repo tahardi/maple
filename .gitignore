@@ -12,3 +12,5 @@ npm-debug.log*
 out/
 dist/
 coverage/
+test-results/
+playwright-report/

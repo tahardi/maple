@@ -1,0 +1,15 @@
+#!/usr/bin/env node
+import { createInterface } from 'node:readline';
+
+const args = process.argv.slice(2);
+process.stdout.write(`FAKE CLAUDE ${args.join(' ')}\r\n`);
+if (args[0] === '--version') {
+  process.exit(0);
+}
+createInterface({ input: process.stdin })
+  .on('line', (line) => {
+    process.stdout.write(`${line}\r\n`);
+  })
+  .on('close', () => {
+    process.exit(0);
+  });
