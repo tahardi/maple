@@ -19,6 +19,23 @@ const tab = (id: string, cardKey: string): TabState => ({
   worktreePath: null,
 });
 
+const WITH_DIG_46 = { ...SPRINT, cards: [...SPRINT.cards, card('DIG-46', 'To Do')] };
+
+function batchEvents() {
+  let emit: (keys: string[]) => void = () => undefined;
+  return {
+    onBatch: (_projectKey: string, cb: (keys: string[]) => void) => {
+      emit = cb;
+      return vi.fn();
+    },
+    emit: (keys: string[]) => {
+      act(() => {
+        emit(keys);
+      });
+    },
+  };
+}
+
 describe('HomeTab', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
@@ -211,5 +228,97 @@ describe('HomeTab', () => {
     });
     expect(started).toEqual(['DIG-46', 'DIG-41']);
     expect(activate).toHaveBeenCalledTimes(1);
+  });
+
+  test('Suggest next batch clears the highlight', async () => {
+    // given
+    const { onBatch, emit } = batchEvents();
+    fakeMaple({
+      jira: { sprint: () => Promise.resolve({ data: WITH_DIG_46, error: null, fetchedAt: null }) },
+      session: { onBatch },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByTestId('claude-pane');
+    emit(['DIG-46']);
+    expect(await screen.findByRole('button', { name: /^DIG-46/ })).toHaveAttribute('data-highlighted', 'true');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Suggest next batch' }));
+    // then
+    expect(screen.getByRole('button', { name: /^DIG-46/ })).not.toHaveAttribute('data-highlighted');
+    expect(screen.queryByRole('button', { name: /^Start all/ })).not.toBeInTheDocument();
+  });
+
+  test('a batch with no To Do keys shows Nothing to start', async () => {
+    // given
+    const { onBatch, emit } = batchEvents();
+    fakeMaple({
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+      session: { onBatch },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByTestId('claude-pane');
+    // when
+    emit(['DIG-44', 'DIG-99']);
+    // then
+    expect(await screen.findByText('Nothing to start right now')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Start all/ })).not.toBeInTheDocument();
+  });
+
+  test('Start all waits for each card before starting the next', async () => {
+    // given
+    const { onBatch, emit } = batchEvents();
+    let finish: () => void = () => undefined;
+    const startCard = vi
+      .fn()
+      .mockReturnValueOnce(
+        new Promise<TabState>((resolve) => {
+          finish = () => {
+            resolve(tab('t-DIG-46', 'DIG-46'));
+          };
+        }),
+      )
+      .mockResolvedValue(tab('t-DIG-41', 'DIG-41'));
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: WITH_DIG_46, error: null, fetchedAt: null }) },
+      session: { onBatch },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByTestId('claude-pane');
+    emit(['DIG-46', 'DIG-41']);
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: 'Start all 2' }));
+    // then
+    expect(startCard).toHaveBeenCalledTimes(1);
+    act(() => {
+      finish();
+    });
+    await waitFor(() => {
+      expect(startCard).toHaveBeenCalledTimes(2);
+    });
+    expect(startCard).toHaveBeenLastCalledWith('DIG', 'DIG-41');
+  });
+
+  test('a card that leaves To Do after a refresh drops out of the batch', async () => {
+    // given
+    const { onBatch, emit } = batchEvents();
+    const moved = {
+      ...WITH_DIG_46,
+      cards: WITH_DIG_46.cards.map((c) => (c.key === 'DIG-46' ? { ...c, status: 'In Progress' as const } : c)),
+    };
+    const sprint = vi
+      .fn()
+      .mockResolvedValueOnce({ data: WITH_DIG_46, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: moved, error: null, fetchedAt: null });
+    fakeMaple({ jira: { sprint }, session: { onBatch } });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByTestId('claude-pane');
+    emit(['DIG-46', 'DIG-41']);
+    expect(await screen.findByRole('button', { name: 'Start all 2' })).toBeInTheDocument();
+    // when
+    window.dispatchEvent(new Event('focus'));
+    // then
+    expect(await screen.findByRole('button', { name: 'Start all 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^DIG-46/ })).not.toHaveAttribute('data-highlighted');
   });
 });

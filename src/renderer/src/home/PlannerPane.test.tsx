@@ -18,19 +18,22 @@ const PLANNER: TabState = {
   worktreePath: null,
 };
 
-function setup(batch: readonly string[] = []) {
+function setup(batch: readonly string[] = [], planner: Promise<TabState> = Promise.resolve(PLANNER)) {
   let emit: (keys: string[]) => void = () => undefined;
+  const unsubscribe = vi.fn();
   const onBatchEvent = vi.fn((_projectKey: string, cb: (keys: string[]) => void) => {
     emit = cb;
-    return vi.fn();
+    return unsubscribe;
   });
-  const openPlanner = vi.fn(() => Promise.resolve(PLANNER));
+  const openPlanner = vi.fn(() => planner);
   const sendPrompt = vi.fn();
   fakeMaple({ tabs: { openPlanner }, session: { onBatch: onBatchEvent, sendPrompt } });
   const onBatch = vi.fn();
   const onStartAll = vi.fn();
-  render(<PlannerPane projectKey="DIG" onBatch={onBatch} batch={batch} onStartAll={onStartAll} />);
+  const { unmount } = render(<PlannerPane projectKey="DIG" onBatch={onBatch} batch={batch} onStartAll={onStartAll} />);
   return {
+    unmount,
+    unsubscribe,
     openPlanner,
     sendPrompt,
     onBatch,
@@ -108,5 +111,49 @@ describe('PlannerPane', () => {
     // then
     expect(screen.queryByText('Nothing to start right now')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Start all/ })).not.toBeInTheDocument();
+  });
+
+  test('Suggest next batch is disabled until the planner opens', async () => {
+    // given
+    let open: (tab: TabState) => void = () => undefined;
+    const { sendPrompt } = setup(
+      [],
+      new Promise<TabState>((resolve) => {
+        open = resolve;
+      }),
+    );
+    const button = screen.getByRole('button', { name: 'Suggest next batch' });
+    // when
+    await userEvent.click(button);
+    // then
+    expect(button).toBeDisabled();
+    expect(sendPrompt).not.toHaveBeenCalled();
+    await act(async () => {
+      open(PLANNER);
+      await Promise.resolve();
+    });
+    expect(button).toBeEnabled();
+  });
+
+  test('Suggest next batch hides Nothing to start until the next answer', async () => {
+    // given
+    const { emit } = setup([]);
+    await screen.findByTestId('claude-pane');
+    emit([]);
+    expect(screen.getByText('Nothing to start right now')).toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Suggest next batch' }));
+    // then
+    expect(screen.queryByText('Nothing to start right now')).not.toBeInTheDocument();
+  });
+
+  test('unmounting stops listening for batches', async () => {
+    // given
+    const { unmount, unsubscribe } = setup();
+    await screen.findByTestId('claude-pane');
+    // when
+    unmount();
+    // then
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 });
