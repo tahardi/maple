@@ -1,0 +1,73 @@
+.tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.toggle {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+.toggle button {
+  background: transparent;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.toggle button[aria-pressed='true'] {
+  background: #1e1e1e;
+  color: #fff;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: #e4e4e4;
+}
+
+.selected {
+  background: #d6e4f5;
+}
+
+.dir {
+  font-weight: 600;
+}
+
+.badge {
+  font-weight: 700;
+  padding: 0 4px;
+}
+
+.A {
+  color: #2e7d32;
+}
+
+.M {
+  color: #b58900;
+}
+
+.D {
+  color: #c62828;
+}
+
+.R {
+  color: #1565c0;
+}

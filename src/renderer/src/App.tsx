@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import styles from './App.module.css';
+import { CardTab } from './card/CardTab';
 import { Banner } from './shell/Banner';
 import { TabBar } from './shell/TabBar';
 import { useMaple } from './store';
@@ -23,11 +24,7 @@ export function App() {
     <div className={styles.app}>
       {messages.length > 0 && <Banner messages={messages} />}
       <TabBar />
-      {activeTab ? (
-        <div data-testid="card-tab">{activeTab.cardKey}</div>
-      ) : (
-        <div data-testid="home">{project?.name}</div>
-      )}
+      {activeTab ? <CardTab key={activeTab.id} tab={activeTab} /> : <div data-testid="home">{project?.name}</div>}
     </div>
   );
 }

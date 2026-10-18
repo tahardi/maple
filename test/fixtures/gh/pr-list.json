@@ -1,6 +1,6 @@
 [
   {
-    "body": "## Describe your changes\n\nAdds the GitHub client.\n\n## Deviations from the card\n\nNone\n\n## Needs Taylor\n\n- Try it on device\n",
+    "body": "## Describe your changes\n\nAdds the GitHub client.\n\n## Deviations from the card\n\nNone\n\n## Needs Taylor\n\n- Try it on device\n\n## Card impacts\n\n- MPL-15: rename foo to bar\n",
     "number": 33,
     "state": "OPEN",
     "title": "[MPL-13] GitHub Client",
