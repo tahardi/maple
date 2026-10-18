@@ -1,0 +1,77 @@
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { loadState, saveState, type SavedState } from './state';
+
+const emptyState: SavedState = { version: 1, tabs: [], closedSessions: {}, notifications: null };
+
+const savedState: SavedState = {
+  version: 1,
+  tabs: [
+    {
+      id: 'tab-1',
+      projectKey: 'DIG',
+      kind: 'card',
+      cardKey: 'DIG-44',
+      sessionId: 'session-1',
+      worktreePath: '/tmp/wts/dig-44',
+    },
+  ],
+  closedSessions: { 'DIG-40': 'session-0' },
+  notifications: false,
+};
+
+describe('state', () => {
+  let dir = '';
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'maple-state-'));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('round-trips a saved state', async () => {
+    // given
+    await saveState(savedState, dir);
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state: savedState, warning: null });
+  });
+
+  test('defaults closedSessions when missing', async () => {
+    // given
+    const withoutClosed = { ...savedState, closedSessions: undefined };
+    await writeFile(join(dir, 'state.json'), JSON.stringify(withoutClosed));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result.state.closedSessions).toEqual({});
+  });
+
+  test('leaves no temp file after saving', async () => {
+    // given
+    const nested = join(dir, 'nested');
+    // when
+    await saveState(savedState, nested);
+    // then
+    expect(await readdir(nested)).toEqual(['state.json']);
+  });
+
+  test.each([
+    { name: 'missing', content: null, warning: null },
+    { name: 'corrupt', content: '{', warning: 'reading state: state.json is unreadable, starting with no tabs' },
+  ])('starts empty when the file is $name', async ({ content, warning }) => {
+    // given
+    if (content !== null) {
+      await writeFile(join(dir, 'state.json'), content);
+    }
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state: emptyState, warning });
+  });
+});

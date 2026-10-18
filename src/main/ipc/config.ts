@@ -1,6 +1,17 @@
 import { ipcMain } from 'electron';
+import { loadConfig } from '../config';
+import { setAppMenu } from '../menu';
+import { send, type IpcDeps } from './index';
 
-export function registerConfig(): void {
-  ipcMain.handle('config:get', () => Promise.reject(new Error('config:get is not implemented')));
-  ipcMain.handle('config:reload', () => Promise.reject(new Error('config:reload is not implemented')));
+export function registerConfig(deps: IpcDeps): void {
+  let cached = loadConfig();
+  const reload = async () => {
+    cached = loadConfig();
+    const result = await cached;
+    send(deps.window(), 'config:changed', result);
+    return result;
+  };
+  ipcMain.handle('config:get', () => cached);
+  ipcMain.handle('config:reload', reload);
+  setAppMenu(reload);
 }
