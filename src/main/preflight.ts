@@ -2,11 +2,15 @@ import { execFile } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import type { PreflightProblem } from '@shared/types';
 
-export type Runner = (cmd: string, args: string[]) => Promise<{ code: number; stdout: string; stderr: string }>;
+export type Runner = (
+  cmd: string,
+  args: string[],
+  cwd?: string,
+) => Promise<{ code: number; stdout: string; stderr: string }>;
 
-export const defaultRunner: Runner = (cmd, args) =>
+export const defaultRunner: Runner = (cmd, args, cwd) =>
   new Promise((resolve) => {
-    execFile(cmd, args, (error, stdout, stderr) => {
+    execFile(cmd, args, { cwd }, (error, stdout, stderr) => {
       const code = !error ? 0 : error.code === 'ENOENT' ? 127 : typeof error.code === 'number' ? error.code : 1;
       resolve({ code, stdout, stderr });
     });
