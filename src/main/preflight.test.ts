@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
@@ -115,6 +115,34 @@ describe('runPreflight claude trust', () => {
     { name: 'missing file', contents: null, plannerDirs: [trusted, untrusted], untrustedDirs: [trusted, untrusted] },
     { name: 'unparsable file', contents: '{', plannerDirs: [trusted, untrusted], untrustedDirs: [trusted, untrusted] },
     { name: 'trusted parent with untrusted child', contents, plannerDirs: [child], untrustedDirs: [child] },
+    { name: 'no projects configured', contents, plannerDirs: [], untrustedDirs: [] },
+    {
+      name: 'mixed dirs in config order',
+      contents,
+      plannerDirs: [untrusted, trusted, absent],
+      untrustedDirs: [untrusted, absent],
+    },
+    { name: 'file without projects', contents: '{}', plannerDirs: [trusted], untrustedDirs: [trusted] },
+    { name: 'null projects', contents: '{"projects":null}', plannerDirs: [trusted], untrustedDirs: [trusted] },
+    { name: 'non-object root', contents: '[]', plannerDirs: [trusted], untrustedDirs: [trusted] },
+    {
+      name: 'non-object entry',
+      contents: JSON.stringify({ projects: { [trusted]: true } }),
+      plannerDirs: [trusted],
+      untrustedDirs: [trusted],
+    },
+    {
+      name: 'entry without the trust flag',
+      contents: JSON.stringify({ projects: { [trusted]: {} } }),
+      plannerDirs: [trusted],
+      untrustedDirs: [trusted],
+    },
+    {
+      name: 'truthy flag that is not true',
+      contents: JSON.stringify({ projects: { [trusted]: { hasTrustDialogAccepted: 'yes' } } }),
+      plannerDirs: [trusted],
+      untrustedDirs: [trusted],
+    },
   ])('reports $name', async ({ contents, plannerDirs, untrustedDirs }) => {
     // given
     const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-json-')), 'claude.json');
@@ -125,6 +153,30 @@ describe('runPreflight claude trust', () => {
     const problems = await runPreflight(fakeRunner({}), presentEnv, path, plannerDirs);
     // then
     expect(problems).toEqual(untrustedDirs.map((d) => ({ tool: 'claude-trust', message: message(d) })));
+  });
+
+  test('reports every project when the file is a directory', async () => {
+    // given
+    const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-json-')), 'claude.json');
+    mkdirSync(path);
+    // when
+    const problems = await runPreflight(fakeRunner({}), presentEnv, path, [trusted, untrusted]);
+    // then
+    expect(problems).toEqual([trusted, untrusted].map((d) => ({ tool: 'claude-trust', message: message(d) })));
+  });
+
+  test('logs each untrusted dir at warn', async () => {
+    // given
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-json-')), 'claude.json');
+    writeFileSync(path, contents);
+    // when
+    await runPreflight(fakeRunner({}), presentEnv, path, [untrusted], logger);
+    // then
+    expect(logger.warn.mock.calls).toEqual([
+      ['preflight', 'problem', { tool: 'claude-trust', message: message(untrusted) }],
+    ]);
+    expect(logger.info).not.toHaveBeenCalled();
   });
 });
 
