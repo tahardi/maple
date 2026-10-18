@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, shell } from 'electron';
+import { pathToFileURL } from 'node:url';
+import { app, BrowserWindow, dialog } from 'electron';
 import { spawn } from 'node-pty';
 import { configDir, loadConfig } from './config';
 import { hookSocketPath, startHookServer } from './hookServer';
@@ -15,6 +16,7 @@ import { checkNotifications } from './menu';
 import { notifyTab, shouldNotify } from './notify';
 import { defaultRunner } from './preflight';
 import { restoreTabs } from './restore';
+import { lockDown, webPreferences } from './security';
 import { SessionManager } from './sessions';
 import { saveState, loadState, type SavedState } from './state';
 import { StatusEngine } from './status';
@@ -28,21 +30,13 @@ function createWindow(): void {
     width: 1600,
     height: 1000,
     title: 'Maple',
-    webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.mjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
+    webPreferences: webPreferences(join(import.meta.dirname, '../preload/index.cjs'), app.isPackaged),
   });
 
   mainWindow = window;
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) {
-      void shell.openExternal(url);
-    }
-    return { action: 'deny' };
-  });
+  const rendererUrl = app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL;
+  const indexFile = join(import.meta.dirname, '../renderer/index.html');
+  lockDown(window.webContents, rendererUrl ?? pathToFileURL(indexFile).href);
   window.on('close', (event) => {
     if (!quitting && process.platform !== 'darwin') {
       event.preventDefault();
@@ -53,11 +47,10 @@ function createWindow(): void {
     mainWindow = null;
   });
 
-  const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   if (rendererUrl) {
     void window.loadURL(rendererUrl);
   } else {
-    void window.loadFile(join(import.meta.dirname, '../renderer/index.html'));
+    void window.loadFile(indexFile);
   }
 }
 

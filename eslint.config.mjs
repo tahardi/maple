@@ -26,6 +26,14 @@ export default defineConfig(
         'error',
         { selector: 'ExportDefaultDeclaration', message: 'Use named exports.' },
         { selector: 'TSEnumDeclaration', message: 'Use a string union instead of an enum.' },
+        {
+          selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+          message: 'Render untrusted text as text, never as HTML.',
+        },
+        {
+          selector: 'AssignmentExpression > MemberExpression.left[property.name=/^(inner|outer)HTML$/]',
+          message: 'Render untrusted text as text, never as HTML.',
+        },
       ],
     },
   },

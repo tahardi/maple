@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
-import { readdir, readFile, stat } from 'node:fs/promises';
-import { join, relative, resolve, sep } from 'node:path';
+import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import type { ChangeSet, FileChange, FilePair } from '@shared/types';
 import { matchWorktree } from '@shared/worktree';
@@ -116,7 +116,11 @@ export async function changes(worktree: string): Promise<ChangeSet> {
   ]);
   const untrackedPaths = splitZ(untracked);
   const untrackedLines = await Promise.all(
-    untrackedPaths.map(async (path) => countLines(await readFile(join(worktree, path)))),
+    untrackedPaths.map(async (path) => {
+      const full = join(worktree, path);
+      const info = await lstat(full);
+      return info.isFile() && info.size <= MAX_BYTES ? countLines(await readFile(full)) : 0;
+    }),
   );
   const { added, removed } = sumNumstat(numstat);
   return {
@@ -134,16 +138,36 @@ export async function listFiles(worktree: string): Promise<string[]> {
   return splitZ(await git(worktree, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']));
 }
 
+function isInside(root: string, full: string): boolean {
+  const inside = relative(root, full);
+  return inside !== '..' && !inside.startsWith(`..${sep}`) && !isAbsolute(inside);
+}
+
+async function realOrSelf(path: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch (err) {
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+      return path;
+    }
+    throw err;
+  }
+}
+
 export async function readFilePair(worktree: string, base: string, path: string): Promise<FilePair> {
-  const full = resolve(worktree, path);
-  const inside = relative(worktree, full);
-  if (inside === '..' || inside.startsWith(`..${sep}`)) {
-    throw new Error(`reading file: ${path} is outside the worktree`);
+  const root = await realpath(worktree);
+  const full = await realOrSelf(resolve(root, path));
+  if (!isInside(root, full)) {
+    throw new Error('reading file: path is outside the worktree');
+  }
+  const info = await stat(full).catch(() => null);
+  if (info !== null && !info.isFile()) {
+    return { kind: 'binary', path };
+  }
+  if (info !== null && info.size > MAX_BYTES) {
+    return { kind: 'tooLarge', path, bytes: info.size };
   }
   const current = await readOrNull(full);
-  if (current !== null && current.length > MAX_BYTES) {
-    return { kind: 'tooLarge', path, bytes: current.length };
-  }
   const old = await showOrNull(worktree, base, path);
   if ((current !== null && isBinary(current)) || (old !== null && isBinary(old))) {
     return { kind: 'binary', path };

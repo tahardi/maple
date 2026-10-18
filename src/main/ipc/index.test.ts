@@ -5,11 +5,11 @@ import { SessionManager } from '../sessions';
 import { StatusEngine } from '../status';
 import { registerIpc } from './index';
 
-type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
+type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
 const { handle, on } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
-  on: vi.fn<(channel: string, listener: () => void) => void>(),
+  on: vi.fn<(channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void>(),
 }));
 
 vi.mock('electron', () => ({
@@ -54,6 +54,9 @@ describe('registerIpc', () => {
     setNotifications: vi.fn(),
   };
 
+  sessions.setMaxListeners(0);
+  status.setMaxListeners(0);
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -76,5 +79,48 @@ describe('registerIpc', () => {
     // then
     const registered = on.mock.calls.map(([channel]) => channel);
     expect(registered.sort()).toEqual(expected);
+  });
+
+  test.each([
+    { channel: 'jira:sprint', args: [7] },
+    { channel: 'tabs:startCard', args: ['MPL', '../../myself?'] },
+    { channel: 'tabs:startCard', args: ['mpl', 'MPL-1'] },
+    { channel: 'tabs:openCard', args: ['MPL', '--help'] },
+    { channel: 'tabs:openPlanner', args: [{}] },
+    { channel: 'tabs:close', args: ['t1', 'yes'] },
+    { channel: 'tabs:resume', args: [null] },
+    { channel: 'tabs:startFresh', args: [1] },
+    { channel: 'session:backlog', args: [1] },
+    { channel: 'repo:changes', args: [['t1']] },
+    { channel: 'repo:listFiles', args: [''] },
+    { channel: 'repo:readFile', args: ['t1', 5] },
+    { channel: 'pr:get', args: [1] },
+    { channel: 'pr:approve', args: ['t1', 'extra'] },
+    { channel: 'app:setNotifications', args: ['yes'] },
+  ])('$channel rejects invalid arguments $args', async ({ channel, args }) => {
+    // given
+    registerIpc(deps);
+    const handler = handle.mock.calls.find(([name]) => name === channel)?.[1];
+    // when
+    const got = Promise.resolve().then(() => handler?.({} as IpcMainInvokeEvent, ...args));
+    // then
+    await expect(got).rejects.toThrow(`handling ${channel}: arguments are invalid`);
+  });
+
+  test.each([
+    { channel: 'tabs:setActive', args: [5], spy: () => deps.setActiveTab },
+    { channel: 'session:write', args: ['t1', 5], spy: () => vi.spyOn(sessions, 'write') },
+    { channel: 'session:resize', args: ['t1', 80, 1e9], spy: () => vi.spyOn(sessions, 'resize') },
+    { channel: 'session:sendPrompt', args: ['t1', {}], spy: () => vi.spyOn(sessions, 'sendPrompt') },
+  ])('$channel drops invalid arguments $args', ({ channel, args, spy }) => {
+    // given
+    const target = spy();
+    registerIpc(deps);
+    const listener = on.mock.calls.find(([name]) => name === channel)?.[1];
+    // when
+    listener?.({}, ...args);
+    // then
+    expect(listener).toBeDefined();
+    expect(target).not.toHaveBeenCalled();
   });
 });

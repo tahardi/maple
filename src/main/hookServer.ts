@@ -1,10 +1,12 @@
-import { rm } from 'node:fs/promises';
+import { chmod, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import type { HookEvent } from '@shared/types';
 import { z } from 'zod';
 import { configDir } from './config';
 import { appLogger, type Logger } from './log';
+
+const MAX_LINE = 64 * 1024;
 
 const eventSchema = z.object({
   tabId: z.string(),
@@ -34,11 +36,25 @@ export async function startHookServer(
   const server = createServer((socket) => {
     let buffer = '';
     socket.setEncoding('utf8');
+    let dropping = false;
     socket.on('data', (chunk: string) => {
       buffer += chunk;
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
+      if (dropping && lines.length > 0) {
+        lines.shift();
+        dropping = false;
+      }
+      if (buffer.length > MAX_LINE) {
+        logger.warn('hook', 'dropped', { bytes: buffer.length });
+        buffer = '';
+        dropping = true;
+      }
       for (const line of lines) {
+        if (line.length > MAX_LINE) {
+          logger.warn('hook', 'dropped', { bytes: line.length });
+          continue;
+        }
         const event = parseLine(line);
         if (event) {
           logger.info('hook', 'received', { ...event });
@@ -59,6 +75,7 @@ export async function startHookServer(
       resolve();
     });
   });
+  await chmod(socketPath, 0o600);
   return () =>
     new Promise((resolve) => {
       server.close(() => {

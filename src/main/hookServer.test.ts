@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -146,6 +146,33 @@ describe('startHookServer', () => {
     await vi.waitFor(() => {
       expect(logger.warn).toHaveBeenCalledWith('hook', 'malformed', { line: 'x'.repeat(200) });
     });
+  });
+
+  test('creates the socket readable and writable by the owner only', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    // when
+    close = await startHookServer(socketPath, vi.fn());
+    // then
+    expect((await stat(socketPath)).mode & 0o777).toBe(0o600);
+  });
+
+  test.each([
+    { name: 'a line over 64 KB', text: `${'x'.repeat(65 * 1024)}\n${JSON.stringify(stop)}\n` },
+    { name: 'an unterminated chunk over 64 KB', chunks: ['x'.repeat(65 * 1024), `\n${JSON.stringify(stop)}\n`] },
+  ])('drops $name and keeps reading', async ({ text, chunks }) => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const onEvent = vi.fn<(e: HookEvent) => void>();
+    close = await startHookServer(socketPath, onEvent, logger);
+    // when
+    await (chunks ? sendChunks(socketPath, chunks) : sendLines(socketPath, text));
+    // then
+    await vi.waitFor(() => {
+      expect(onEvent.mock.calls).toEqual([[stop]]);
+    });
+    expect(logger.warn).toHaveBeenCalledWith('hook', 'dropped', { bytes: expect.any(Number) as unknown });
   });
 
   test('skips blank lines without logging', async () => {

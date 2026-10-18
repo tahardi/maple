@@ -1,9 +1,11 @@
 import { app, ipcMain } from 'electron';
+import { z } from 'zod';
 import { send, type IpcDeps } from './index';
+import { handle } from './validated';
 
 export function registerApp({ setNotifications, warnings, sessions, status, window }: IpcDeps): void {
   let confirmed = false;
-  ipcMain.handle('app:setNotifications', (_event, on: boolean) => setNotifications(on));
+  handle('app:setNotifications', z.tuple([z.boolean()]), (on) => setNotifications(on));
   ipcMain.handle('app:warnings', () => warnings());
   ipcMain.on('app:confirmQuit', () => {
     confirmed = true;

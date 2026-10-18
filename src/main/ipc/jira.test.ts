@@ -35,9 +35,11 @@ function fixture(name: string): string {
   return readFileSync(join(fixtures, name), 'utf8');
 }
 
+const TOKEN = 'tok-3f9a1c77e2';
+
 async function writeCreds(): Promise<string> {
   const path = join(await mkdtemp(join(tmpdir(), 'maple-jira-')), 'env');
-  await writeFile(path, 'JIRA_SITE=example.atlassian.net\nJIRA_EMAIL=me@example.com\nJIRA_TOKEN=secret\n');
+  await writeFile(path, `JIRA_SITE=example.atlassian.net\nJIRA_EMAIL=me@example.com\nJIRA_TOKEN=${TOKEN}\n`);
   return path;
 }
 
@@ -128,6 +130,25 @@ describe('registerJira', () => {
     const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
     expect(got).toEqual({ ...(first as object), error: 'fetching sprint: Jira returned 500' });
+  });
+
+  test.each([
+    { name: 'a 401', fetchFn: () => Promise.resolve(new Response(TOKEN, { status: 401 })) },
+    { name: 'a 500', fetchFn: () => Promise.resolve(new Response(TOKEN, { status: 500 })) },
+    { name: 'a bad body', fetchFn: () => Promise.resolve(new Response(JSON.stringify({ values: TOKEN }))) },
+    { name: 'a network error', fetchFn: () => Promise.reject(new Error('fetch failed')) },
+  ])('never returns the token after $name', async ({ fetchFn }) => {
+    // given
+    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(fetchFn));
+    registerJira(deps, logger);
+    // when
+    const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    // then
+    const serialized = JSON.stringify(got);
+    expect(got).toMatchObject({ data: null, error: expect.stringContaining('fetching sprint:') as unknown });
+    expect(serialized).not.toContain(TOKEN);
+    expect(serialized).not.toContain(Buffer.from(`me@example.com:${TOKEN}`).toString('base64'));
   });
 
   test('logs unreadable creds at warn', async () => {
