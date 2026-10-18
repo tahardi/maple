@@ -140,6 +140,29 @@ describe('HomeTab', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  test.each([
+    { name: 'IPC prefix', reason: new Error("Error invoking remote method 'tabs:startCard': Error: x"), want: 'x' },
+    {
+      name: 'IPC prefix without Error:',
+      reason: new Error("Error invoking remote method 'tabs:startCard': x"),
+      want: 'x',
+    },
+    { name: 'plain Error', reason: new Error('starting card: x'), want: 'starting card: x' },
+    { name: 'non-Error value', reason: 'starting card: x', want: 'starting card: x' },
+  ])('a Start rejected with $name shows "$want"', async ({ reason, want }) => {
+    // given
+    fakeMaple({
+      tabs: { startCard: () => Promise.reject(reason) },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(new RegExp(`^${want}$`));
+  });
+
   test('a successful Open clears an earlier error', async () => {
     // given
     const openCard = vi
