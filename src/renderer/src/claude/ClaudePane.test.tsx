@@ -150,7 +150,11 @@ describe('ClaudePane', () => {
     render(<ClaudePane tabId="t1" actions={[]} />);
     await flush();
     // then
-    expect(Terminal).toHaveBeenCalledWith({ fontFamily: 'ui-monospace', fontSize: 13, scrollback: 10_000 });
+    expect(Terminal).toHaveBeenCalledWith({
+      fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
+      fontSize: 13,
+      scrollback: 10_000,
+    });
     expect(xterm.terminal.loadAddon).toHaveBeenCalledWith(vi.mocked(FitAddon).mock.results[0]?.value);
     expect(xterm.terminal.open).toHaveBeenCalledWith(expect.any(HTMLDivElement));
   });

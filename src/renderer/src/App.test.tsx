@@ -3,7 +3,9 @@ import { App } from './App';
 import { useMaple } from './store';
 import { fakeMaple } from './testing/fakeMaple';
 
-vi.mock('./claude/ClaudePane', () => ({ ClaudePane: () => null }));
+vi.mock('./claude/ClaudePane', () => ({
+  ClaudePane: () => <div data-testid="claude-pane" />,
+}));
 
 describe('App', () => {
   beforeEach(() => {
