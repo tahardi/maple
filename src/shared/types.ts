@@ -64,6 +64,9 @@ export type LineMark =
   | { kind: 'add'; line: number }
   | { kind: 'chg'; line: number; oldText: string | null }
   | { kind: 'del'; afterLine: number; oldText: string };
-export type PreflightProblem = { tool: 'claude' | 'gh' | 'git' | 'gh-auth' | 'jira-env'; message: string };
+export type PreflightProblem = {
+  tool: 'claude' | 'gh' | 'git' | 'gh-auth' | 'jira-env' | 'claude-trust';
+  message: string;
+};
 export type CloseResult = { closed: boolean; needsConfirm: boolean };
 export type Unsubscribe = () => void;

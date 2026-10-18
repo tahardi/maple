@@ -42,3 +42,9 @@
   padding: 12px;
   color: var(--text-muted);
 }
+
+.approveError {
+  padding: 8px 12px;
+  background: var(--bg-raised);
+  color: var(--danger);
+}
