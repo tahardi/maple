@@ -12,12 +12,12 @@
 }
 
 .stale {
-  background: #f7e27a;
-  color: #3d3200;
+  background: var(--warning-bg);
+  color: var(--warning-text);
   padding: 6px 12px;
 }
 
 .empty {
   padding: 12px;
-  color: #666;
+  color: var(--text-muted);
 }

@@ -3,7 +3,8 @@
   flex-direction: column;
   gap: 8px;
   width: 380px;
-  border-left: 1px solid #ccc;
+  border-left: 1px solid var(--border);
+  background: var(--bg-raised);
   padding: 12px;
   overflow: auto;
 }

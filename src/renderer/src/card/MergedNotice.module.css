@@ -3,6 +3,6 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #e6f4ea;
-  color: #1e4620;
+  background: var(--bg-raised);
+  color: var(--success);
 }

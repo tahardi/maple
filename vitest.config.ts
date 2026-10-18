@@ -27,6 +27,7 @@ export default defineConfig({
         test: {
           name: 'web',
           environment: 'jsdom',
+          css: { include: [/\?raw$/] },
           include: ['src/renderer/**/*.test.{ts,tsx}'],
           setupFiles: ['@testing-library/jest-dom/vitest'],
         },
