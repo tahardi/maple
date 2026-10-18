@@ -1,14 +1,13 @@
 import type { TabState } from '@shared/types';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useMaple } from '../store';
 import { Board } from './Board';
 import { CardDetail } from './CardDetail';
 import styles from './HomeTab.module.css';
+import { PlannerPane } from './PlannerPane';
 import { useSprint } from './useSprint';
 
-type Props = { projectKey: string; planner?: ReactNode };
-
-const NO_HIGHLIGHTS: ReadonlySet<string> = new Set();
+type Props = { projectKey: string };
 
 function staleMessage(fetchedAt: string | null): string {
   if (fetchedAt === null) {
@@ -19,16 +18,28 @@ function staleMessage(fetchedAt: string | null): string {
   return `Jira unreachable, last updated ${pad(at.getHours())}:${pad(at.getMinutes())}`;
 }
 
-export function HomeTab({ projectKey, planner }: Props) {
+export function HomeTab({ projectKey }: Props) {
   const { sprint } = useSprint(projectKey);
   const tabs = useMaple((s) => s.tabs);
   const activate = useMaple((s) => s.activate);
   const [selected, setSelected] = useState<string | null>(null);
+  const [suggested, setSuggested] = useState<readonly string[]>([]);
+  const toDo = new Set(sprint?.data?.cards.filter((c) => c.status === 'To Do').map((c) => c.key));
+  const batch = suggested.filter((key) => toDo.has(key));
   const card = sprint?.data?.cards.find((c) => c.key === selected) ?? null;
   const tabFor = (key: string) =>
     tabs.find((t) => t.kind === 'card' && t.projectKey === projectKey && t.cardKey === key) ?? null;
   const activateTab = (tab: TabState) => {
     activate(tab.id);
+  };
+  const startAll = async () => {
+    const started: TabState[] = [];
+    for (const key of batch) {
+      started.push(await window.maple.tabs.startCard(projectKey, key));
+    }
+    if (started[0]) {
+      activateTab(started[0]);
+    }
   };
 
   return (
@@ -40,7 +51,7 @@ export function HomeTab({ projectKey, planner }: Props) {
           </div>
         )}
         {sprint?.data ? (
-          <Board sprint={sprint.data} highlighted={NO_HIGHLIGHTS} onSelect={setSelected} />
+          <Board sprint={sprint.data} highlighted={new Set(batch)} onSelect={setSelected} />
         ) : (
           sprint?.error === null && <p className={styles.empty}>No active sprint</p>
         )}
@@ -62,7 +73,7 @@ export function HomeTab({ projectKey, planner }: Props) {
           }}
         />
       )}
-      {planner}
+      <PlannerPane projectKey={projectKey} onBatch={setSuggested} batch={batch} onStartAll={() => void startAll()} />
     </div>
   );
 }

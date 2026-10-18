@@ -40,7 +40,16 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       list: vi.fn(() => Promise.resolve([])),
       startCard: vi.fn(() => Promise.reject(new Error('starting card: not faked'))),
       openCard: vi.fn(() => Promise.reject(new Error('opening card: not faked'))),
-      openPlanner: vi.fn(() => Promise.reject(new Error('opening planner: not faked'))),
+      openPlanner: vi.fn((projectKey: string) =>
+        Promise.resolve({
+          id: `planner-${projectKey}`,
+          projectKey,
+          kind: 'planner' as const,
+          cardKey: null,
+          sessionId: `s-planner-${projectKey}`,
+          worktreePath: null,
+        }),
+      ),
       close: vi.fn(() => Promise.resolve({ closed: true, needsConfirm: false })),
       resume: vi.fn(() => Promise.resolve()),
       startFresh: vi.fn(() => Promise.resolve()),

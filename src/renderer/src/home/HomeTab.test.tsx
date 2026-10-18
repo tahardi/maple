@@ -1,10 +1,14 @@
 import type { TabState } from '@shared/types';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';
-import { SPRINT } from '../testing/sprintFixture';
+import { card, SPRINT } from '../testing/sprintFixture';
 import { HomeTab } from './HomeTab';
+
+vi.mock('../claude/ClaudePane', () => ({
+  ClaudePane: () => <div data-testid="claude-pane" />,
+}));
 
 const tab = (id: string, cardKey: string): TabState => ({
   id,
@@ -145,5 +149,67 @@ describe('HomeTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Go to tab' }));
     // then
     expect(activate).toHaveBeenCalledWith('t1');
+  });
+
+  test('a batch highlights only keys in To Do', async () => {
+    // given
+    let emit: (keys: string[]) => void = () => undefined;
+    const sprint = { ...SPRINT, cards: [...SPRINT.cards, card('DIG-46', 'To Do')] };
+    fakeMaple({
+      jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) },
+      session: {
+        onBatch: (_projectKey, cb) => {
+          emit = cb;
+          return vi.fn();
+        },
+      },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByTestId('claude-pane');
+    // when
+    act(() => {
+      emit(['DIG-46', 'DIG-44', 'DIG-99', 'DIG-41']);
+    });
+    // then
+    expect(await screen.findByRole('button', { name: 'Start all 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^DIG-46/ })).toHaveAttribute('data-highlighted', 'true');
+    expect(screen.getByRole('button', { name: /^DIG-41/ })).toHaveAttribute('data-highlighted', 'true');
+    expect(screen.getByRole('button', { name: /^DIG-44/ })).not.toHaveAttribute('data-highlighted', 'true');
+  });
+
+  test('Start all starts each card in order and activates the first new tab', async () => {
+    // given
+    let emit: (keys: string[]) => void = () => undefined;
+    const sprint = { ...SPRINT, cards: [...SPRINT.cards, card('DIG-46', 'To Do')] };
+    const started: string[] = [];
+    const startCard = vi.fn((_projectKey: string, cardKey: string) => {
+      started.push(cardKey);
+      return Promise.resolve(tab(`t-${cardKey}`, cardKey));
+    });
+    const activate = vi.fn();
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) },
+      session: {
+        onBatch: (_projectKey, cb) => {
+          emit = cb;
+          return vi.fn();
+        },
+      },
+    });
+    useMaple.setState({ activate });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByTestId('claude-pane');
+    act(() => {
+      emit(['DIG-46', 'DIG-41']);
+    });
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: 'Start all 2' }));
+    // then
+    await waitFor(() => {
+      expect(activate).toHaveBeenCalledWith('t-DIG-46');
+    });
+    expect(started).toEqual(['DIG-46', 'DIG-41']);
+    expect(activate).toHaveBeenCalledTimes(1);
   });
 });
