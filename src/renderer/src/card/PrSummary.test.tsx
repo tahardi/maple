@@ -31,8 +31,22 @@ describe('PrSummary', () => {
       info.url,
     );
     expect(screen.getByText('Used X instead of Y')).toBeInTheDocument();
-    expect(screen.getByText('- Try it on device')).toBeInTheDocument();
-    expect(screen.getByText('- MPL-21: rename foo to bar')).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'Try it on device',
+      'MPL-21: rename foo to bar',
+    ]);
+  });
+
+  test('renders section Markdown', () => {
+    // given
+    const pr = fetched({ ...info, needsTaylor: '- run `make run`\n- check the board', cardImpacts: null });
+    // when
+    render(<PrSummary pr={pr} />);
+    // then
+    const items = screen.getAllByRole('listitem');
+    expect(items.map((li) => li.textContent)).toEqual(['run make run', 'check the board']);
+    expect(screen.getByText('make run').tagName).toBe('CODE');
+    expect(screen.getByText('None')).toBeInTheDocument();
   });
 
   test('shows None for null sections in order', () => {

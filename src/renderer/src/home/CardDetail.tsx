@@ -1,6 +1,5 @@
 import type { Card, TabState } from '@shared/types';
-import Markdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { MarkdownText } from '../shell/MarkdownText';
 import styles from './CardDetail.module.css';
 
 type Props = {
@@ -10,14 +9,6 @@ type Props = {
   onOpen: () => void;
   onGoTo: () => void;
   onClose: () => void;
-};
-
-const MARKDOWN_COMPONENTS: Components = {
-  a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noreferrer">
-      {children}
-    </a>
-  ),
 };
 
 function action(card: Card, tab: TabState | null, props: Props): { label: string; run: () => void } | null {
@@ -63,11 +54,7 @@ export function CardDetail(props: Props) {
           Open in Jira
         </a>
       </div>
-      <div className={styles.description}>
-        <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-          {card.descriptionMd}
-        </Markdown>
-      </div>
+      <MarkdownText text={card.descriptionMd} />
     </aside>
   );
 }
