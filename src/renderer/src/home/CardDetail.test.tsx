@@ -48,7 +48,7 @@ describe('CardDetail', () => {
     // given
     renderDetail(card('DIG-41', 'To Do', { blockedBy: [{ key: 'DIG-44', status: 'In Progress' }] }), null);
     // then
-    expect(screen.getByText('**Goal:** do DIG-41').tagName).toBe('PRE');
+    expect(screen.getByText('Goal:').tagName).toBe('STRONG');
     expect(screen.getByRole('complementary')).toHaveTextContent('3 pts');
     expect(screen.getByRole('complementary')).toHaveTextContent('parallelizable');
     expect(screen.getByRole('complementary')).toHaveTextContent('DIG-44 In Progress');
@@ -64,6 +64,27 @@ describe('CardDetail', () => {
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
     expect(screen.getByRole('complementary')).not.toHaveTextContent('pts');
     expect(screen.getByRole('complementary')).not.toHaveTextContent('parallelizable');
+  });
+
+  test('renders the description Markdown', () => {
+    // given
+    const descriptionMd = [
+      '## Steps',
+      '',
+      '- ~~DIG-40~~ done',
+      '- read [the spec](https://example.com/spec)',
+      '',
+      '<img src=x onerror=alert(1)>',
+    ].join('\n');
+    // when
+    renderDetail(card('DIG-41', 'To Do', { descriptionMd }), null);
+    // then
+    expect(screen.getByRole('heading', { name: 'Steps' })).toBeInTheDocument();
+    expect(screen.getByText('DIG-40').tagName).toBe('DEL');
+    const link = screen.getByRole('link', { name: 'the spec' });
+    expect(link).toHaveAttribute('href', 'https://example.com/spec');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(screen.getByRole('complementary').querySelector('img')).toBeNull();
   });
 
   test('Close calls onClose', async () => {
