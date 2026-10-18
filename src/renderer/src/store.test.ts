@@ -19,12 +19,13 @@ const status = (tabId: string, dot: TabStatus['dot']): TabStatus => ({
 });
 
 function setup(tabs: TabState[] = [tab('bear-1', 'BEAR'), tab('dig-1', 'DIG')]) {
-  const events = {
-    tabsChanged: (_tabs: TabState[]): void => undefined,
-    status: (_s: TabStatus): void => undefined,
-    activate: (_tabId: string): void => undefined,
-    configChanged: (_config: Fetched<MapleConfig>): void => undefined,
-  };
+  const ignore = () => undefined;
+  const events: {
+    tabsChanged: (tabs: TabState[]) => void;
+    status: (s: TabStatus) => void;
+    activate: (tabId: string) => void;
+    configChanged: (config: Fetched<MapleConfig>) => void;
+  } = { tabsChanged: ignore, status: ignore, activate: ignore, configChanged: ignore };
   const setActive = vi.fn();
   const unsubscribe = vi.fn();
   fakeMaple({
