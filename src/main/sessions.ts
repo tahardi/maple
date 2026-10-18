@@ -43,6 +43,12 @@ type Session = {
 
 type Launch = { resume: boolean; prompt: string | null };
 
+function parentEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env.CLAUDE_CODE_CHILD_SESSION;
+  return env;
+}
+
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -225,7 +231,12 @@ export class SessionManager extends EventEmitter<Events> {
       cols: 120,
       rows: 40,
       cwd: project.plannerDir,
-      env: { ...process.env, MAPLE_TAB_ID: tab.id, MAPLE_SOCKET: this.deps.socketPath, TERM: 'xterm-256color' },
+      env: {
+        ...parentEnv(),
+        MAPLE_TAB_ID: tab.id,
+        MAPLE_SOCKET: this.deps.socketPath,
+        TERM: 'xterm-256color',
+      },
     });
     session.pty = pty;
     session.alive = true;

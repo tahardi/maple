@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: {
@@ -19,6 +19,16 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           include: ['src/main/**/*.test.ts', 'src/shared/**/*.test.ts', 'resources/*.test.ts'],
+          exclude: [...configDefaults.exclude, 'test/live/**'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'live',
+          environment: 'node',
+          include: ['test/live/**/*.live.test.ts'],
+          testTimeout: 180_000,
         },
       },
       {
