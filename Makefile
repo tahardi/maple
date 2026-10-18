@@ -14,3 +14,7 @@ pre-pr:
 .PHONY: run
 run:
 	@npm run dev
+
+.PHONY: test-live
+test-live:
+	@npm run test:live

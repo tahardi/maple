@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false",
-    "test": "vitest run",
+    "test": "vitest run --project node --project web",
+    "test:live": "vitest run --project live",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test",
     "postinstall": "install-electron && electron-rebuild -f -w node-pty"
   },
