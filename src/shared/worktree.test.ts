@@ -26,7 +26,11 @@ describe('matchWorktree', () => {
     },
     { entries: [{ name: 'dig-days-dig-44', mtimeMs: 1 }], key: 'DIG-44', expected: 'dig-days-dig-44' },
     { entries: [], key: 'DIG-9', expected: null },
-  ])('matches $key to $expected', ({ entries, key, expected }) => {
+    { entries: [{ name: 'dig-days-dig-40', mtimeMs: 1 }], key: 'DIG-4', expected: null },
+    { entries: [{ name: 'halo-halo-4-config', mtimeMs: 1 }], key: 'DIG-4', expected: null },
+    { entries: [{ name: 'maple-xdig-4-login', mtimeMs: 1 }], key: 'DIG-4', expected: null },
+    { entries: [{ name: 'dig-days-dig-4-login', mtimeMs: 1 }], key: 'dig-4', expected: 'dig-days-dig-4-login' },
+  ])('matches $key in $entries.0.name to $expected', ({ entries, key, expected }) => {
     // given
     const dirs = entries;
     // when

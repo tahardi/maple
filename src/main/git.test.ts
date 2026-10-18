@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { changes, findWorktree, mergeBase, readFilePair } from './git';
+import { changes, currentBranch, findWorktree, listFiles, mergeBase, readFilePair } from './git';
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync(
@@ -23,6 +23,8 @@ function buildRepo(root: string): string {
   writeFileSync(join(repo, 'keep.txt'), 'a\nb\nc\n');
   writeFileSync(join(repo, 'del.txt'), 'x\n');
   writeFileSync(join(repo, 'old.txt'), 'r1\nr2\nr3\nr4\n');
+  writeFileSync(join(repo, 'logo.bin'), Buffer.from([0x89, 0x00, 0x50]));
+  writeFileSync(join(repo, '.gitignore'), 'ignored.log\n');
   git(repo, 'add', '.');
   git(repo, 'commit', '-m', 'main');
   git(repo, 'remote', 'add', 'origin', origin);
@@ -104,5 +106,79 @@ describe('git', () => {
     const found = await findWorktree(worktreesDir, 'MPL-1');
     // then
     expect(found).toBe(worktree);
+  });
+
+  test('changes is empty on a branch with no edits', async () => {
+    // given
+    const clean = worktree;
+    // when
+    const set = await changes(clean);
+    // then
+    expect(set).toEqual({ base: await mergeBase(clean), files: [], added: 0, removed: 0 });
+  });
+
+  test('changes counts untracked lines and skips ignored files', async () => {
+    // given
+    writeFileSync(join(worktree, 'no-newline.txt'), 'u1\nu2');
+    writeFileSync(join(worktree, 'blob.bin'), Buffer.from([0x00, 0x0a, 0x0a]));
+    writeFileSync(join(worktree, 'ignored.log'), 'i1\ni2\n');
+    // when
+    const set = await changes(worktree);
+    // then
+    expect(set.files.map((file) => file.path).sort()).toEqual(['blob.bin', 'no-newline.txt']);
+    expect(set.added).toBe(2);
+  });
+
+  test('readFilePair handles new files, binary base files, and the size limit', async () => {
+    // given
+    writeFileSync(join(worktree, 'fresh.txt'), 'f\n');
+    writeFileSync(join(worktree, 'logo.bin'), 'now text\n');
+    writeFileSync(join(worktree, 'limit.txt'), 'a'.repeat(2_097_152));
+    const base = await mergeBase(worktree);
+    // when
+    const [fresh, logo, limit] = await Promise.all(
+      ['fresh.txt', 'logo.bin', 'limit.txt'].map((path) => readFilePair(worktree, base, path)),
+    );
+    // then
+    expect(fresh).toEqual({ kind: 'text', path: 'fresh.txt', base: null, current: 'f\n' });
+    expect(logo).toEqual({ kind: 'binary', path: 'logo.bin' });
+    expect(limit.kind).toBe('text');
+  });
+
+  test('listFiles lists tracked and untracked files but not ignored ones', async () => {
+    // given
+    writeFileSync(join(worktree, 'untracked.txt'), 'u\n');
+    writeFileSync(join(worktree, 'ignored.log'), 'i\n');
+    // when
+    const files = await listFiles(worktree);
+    // then
+    expect(files.sort()).toEqual(['.gitignore', 'del.txt', 'keep.txt', 'logo.bin', 'old.txt', 'untracked.txt']);
+  });
+
+  test('currentBranch returns the checked out branch', async () => {
+    // given
+    const feature = worktree;
+    // when
+    const branch = await currentBranch(feature);
+    // then
+    expect(branch).toBe('feature');
+  });
+
+  test('mergeBase rejects when origin/main is missing', async () => {
+    // given
+    git(worktree, 'update-ref', '-d', 'refs/remotes/origin/main');
+    // when
+    const base = mergeBase(worktree);
+    // then
+    await expect(base).rejects.toThrow('running git merge-base origin/main HEAD');
+  });
+
+  test('findWorktree returns null when no dir matches the key', async () => {
+    // given
+    const worktreesDir = join(root, 'wts');
+    // when
+    const found = await findWorktree(worktreesDir, 'MPL-2');
+    // then
+    expect(found).toBeNull();
   });
 });
