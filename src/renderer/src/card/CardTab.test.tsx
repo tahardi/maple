@@ -251,13 +251,19 @@ describe('CardTab', () => {
     expect(slot.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  test('a failed Approve hides the Electron IPC prefix', async () => {
+  test.each([
+    { name: 'a plain error', reason: new Error('approving PR: offline') },
+    {
+      name: 'an error with the Electron IPC prefix',
+      reason: new Error("Error invoking remote method 'pr:approve': Error: approving PR: offline"),
+    },
+    { name: 'a non-Error value', reason: 'approving PR: offline' },
+  ])('a failed Approve with $name shows only the message', async ({ reason }) => {
     // given
-    const err = new Error("Error invoking remote method 'pr:approve': Error: approving PR: offline");
     fakeMaple({
       pr: {
         get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
-        approve: () => Promise.reject(err),
+        approve: vi.fn<() => Promise<void>>().mockRejectedValue(reason),
       },
     });
     render(<CardTab tab={tab} />);
