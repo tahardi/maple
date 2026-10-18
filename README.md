@@ -16,4 +16,4 @@ make run     # start the app in development mode
 
 ## Status
 
-Maple is a personal proof of concept and is under active development.
+Maple is a personal proof of concept and is under active development. Expect breaking changes between versions.
