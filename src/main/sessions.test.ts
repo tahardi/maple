@@ -643,6 +643,54 @@ describe('SessionManager', () => {
     expect(save).toHaveBeenCalledTimes(saves);
   });
 
+  test('sets the worktree again when it comes back', async () => {
+    // given
+    let onChange: () => void = () => undefined;
+    vi.mocked(watchWorktrees).mockImplementation((_dir, cb) => {
+      onChange = cb;
+      return () => undefined;
+    });
+    vi.mocked(findWorktree)
+      .mockResolvedValueOnce('/tmp/wts/dig-days-dig-44')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('/tmp/wts/dig-days-dig-44-again');
+    const { manager } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    await vi.waitFor(() => {
+      expect(manager.get(tab.id)?.worktreePath).toBe('/tmp/wts/dig-days-dig-44');
+    });
+    onChange();
+    await vi.waitFor(() => {
+      expect(manager.get(tab.id)?.worktreePath).toBeNull();
+    });
+    // when
+    onChange();
+    // then
+    await vi.waitFor(() => {
+      expect(manager.get(tab.id)?.worktreePath).toBe('/tmp/wts/dig-days-dig-44-again');
+    });
+  });
+
+  test('a lookup that finishes after close changes nothing', async () => {
+    // given
+    let resolve: (path: string | null) => void = () => undefined;
+    vi.mocked(findWorktree).mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    const { manager, save } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    manager.close(tab.id);
+    const saves = save.mock.calls.length;
+    // when
+    resolve('/tmp/wts/dig-days-dig-44');
+    await Promise.resolve();
+    await Promise.resolve();
+    // then
+    expect(save).toHaveBeenCalledTimes(saves);
+  });
+
   test('logs exited with the code', () => {
     // given
     const { manager, ptys, logger } = setup();
