@@ -8,12 +8,15 @@ type MapleState = {
   tabs: TabState[];
   statuses: Record<string, TabStatus>;
   activeTabId: string | null;
+  confirmClose: string | null;
   lastActive: Record<string, string | null>;
   init: () => Promise<void>;
   selectProject: (key: string) => void;
   activate: (tabId: string | null) => void;
   setTabs: (tabs: TabState[]) => void;
   setStatus: (s: TabStatus) => void;
+  closeTab: (tabId: string, force: boolean) => Promise<void>;
+  cancelClose: () => void;
 };
 
 let unsubscribes: Unsubscribe[] = [];
@@ -29,6 +32,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
   tabs: [],
   statuses: {},
   activeTabId: null,
+  confirmClose: null,
   lastActive: {},
 
   async init() {
@@ -95,5 +99,14 @@ export const useMaple = create<MapleState>()((set, get) => ({
 
   setStatus(s) {
     set({ statuses: { ...get().statuses, [s.tabId]: s } });
+  },
+
+  async closeTab(tabId, force) {
+    const { needsConfirm } = await window.maple.tabs.close(tabId, force);
+    set({ confirmClose: needsConfirm ? tabId : null });
+  },
+
+  cancelClose() {
+    set({ confirmClose: null });
   },
 }));

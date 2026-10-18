@@ -1,4 +1,4 @@
-import { watch } from 'node:fs';
+import { watch, type WatchOptions } from 'node:fs';
 import { sep } from 'node:path';
 
 const DEBOUNCE_MS = 300;
@@ -22,8 +22,8 @@ function debounced(onChange: () => void): { trigger: () => void; cancel: () => v
   return { trigger, cancel };
 }
 
-function ignored(filename: string | null): boolean {
-  return filename !== null && filename.split(sep).some((part) => IGNORED.includes(part));
+function ignored(path: string): boolean {
+  return path.endsWith('.asar') || path.split(sep).some((part) => IGNORED.includes(part));
 }
 
 export function watchWorktrees(dir: string, onChange: () => void): () => void {
@@ -37,11 +37,8 @@ export function watchWorktrees(dir: string, onChange: () => void): () => void {
 
 export function watchWorktree(path: string, onChange: () => void): () => void {
   const { trigger, cancel } = debounced(onChange);
-  const watcher = watch(path, { recursive: true }, (_event, filename) => {
-    if (!ignored(filename)) {
-      trigger();
-    }
-  });
+  const options: WatchOptions & { ignore: (path: string) => boolean } = { recursive: true, ignore: ignored };
+  const watcher = watch(path, options, trigger);
   return () => {
     cancel();
     watcher.close();

@@ -1,5 +1,5 @@
 import type { TabState } from '@shared/types';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
@@ -82,5 +82,61 @@ describe('TabBar', () => {
     // then
     const dots = screen.getAllByRole('tab').map((t) => t.querySelector('[data-dot]')?.getAttribute('data-dot') ?? null);
     expect(dots).toEqual([null, null, 'ready']);
+  });
+
+  test('shows a close button beside each card tab only', () => {
+    // given
+    render(<TabBar />);
+    // when
+    const buttons = screen.getAllByRole('button', { name: /^Close / }).map((b) => b.getAttribute('aria-label'));
+    // then
+    expect(buttons).toEqual(['Close BEAR-1', 'Close BEAR-2']);
+  });
+
+  test('closing an idle tab closes it without asking', async () => {
+    // given
+    const close = vi.fn(() => Promise.resolve({ closed: true, needsConfirm: false }));
+    fakeMaple({ tabs: { close } });
+    render(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close BEAR-2' }));
+    // then
+    expect(close).toHaveBeenCalledWith('t2', false);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  test.each([
+    {
+      choice: 'Close',
+      calls: [
+        ['t2', false],
+        ['t2', true],
+      ],
+    },
+    { choice: 'Cancel', calls: [['t2', false]] },
+  ])('choosing $choice when a working tab asks to confirm', async ({ choice, calls }) => {
+    // given
+    const close = vi.fn((_id: string, force: boolean) => Promise.resolve({ closed: force, needsConfirm: !force }));
+    fakeMaple({ tabs: { close } });
+    render(<TabBar />);
+    await userEvent.click(screen.getByRole('button', { name: 'Close BEAR-2' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('BEAR-2 is still working. Close anyway?');
+    // when
+    await userEvent.click(within(dialog).getByRole('button', { name: choice }));
+    // then
+    expect(close.mock.calls).toEqual(calls);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  test('closing a tab does not activate it', async () => {
+    // given
+    const activate = vi.fn();
+    useMaple.setState({ activate });
+    render(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close BEAR-2' }));
+    // then
+    expect(activate).not.toHaveBeenCalled();
   });
 });
