@@ -31,6 +31,7 @@ const openPr: PrInfo = {
   state: 'OPEN',
   deviations: null,
   needsTaylor: null,
+  cardImpacts: null,
   checks: { passed: 2, failed: 0, pending: 0, total: 2 },
 };
 
