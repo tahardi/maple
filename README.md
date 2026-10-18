@@ -13,3 +13,7 @@ Personal agentic IDE for running Jira cards with Claude. Built with Electron, Re
 make pre-pr  # install dependencies and run format, lint, typecheck, and unit tests
 make run     # start the app in development mode
 ```
+
+## Status
+
+Maple is a personal proof of concept and is under active development.
