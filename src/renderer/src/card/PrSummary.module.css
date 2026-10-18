@@ -1,0 +1,25 @@
+.summary {
+  border-top: 1px solid #ccc;
+  padding: 8px;
+  font-size: 13px;
+  max-height: 45%;
+  overflow: auto;
+}
+
+.summary h4 {
+  margin: 8px 0 2px;
+}
+
+.error {
+  color: #c62828;
+}
+
+.checks {
+  margin-top: 4px;
+}
+
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+}

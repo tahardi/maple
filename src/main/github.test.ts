@@ -28,6 +28,7 @@ describe('prForBranch', () => {
       state: 'OPEN',
       deviations: 'None',
       needsTaylor: '- Try it on device',
+      cardImpacts: '- MPL-15: rename foo to bar',
       checks: { passed: 4, failed: 0, pending: 1, total: 5 },
     });
     expect(run).toHaveBeenCalledWith(

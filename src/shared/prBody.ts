@@ -14,7 +14,15 @@ function section(lines: string[], title: string): string | null {
   return (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
 }
 
-export function parsePrBody(body: string): { deviations: string | null; needsTaylor: string | null } {
+export function parsePrBody(body: string): {
+  deviations: string | null;
+  needsTaylor: string | null;
+  cardImpacts: string | null;
+} {
   const lines = body.split(/\r?\n/);
-  return { deviations: section(lines, 'deviations from the card'), needsTaylor: section(lines, 'needs taylor') };
+  return {
+    deviations: section(lines, 'deviations from the card'),
+    needsTaylor: section(lines, 'needs taylor'),
+    cardImpacts: section(lines, 'card impacts'),
+  };
 }

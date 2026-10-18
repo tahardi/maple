@@ -44,6 +44,7 @@ export type PrInfo = {
   state: 'OPEN' | 'MERGED' | 'CLOSED';
   deviations: string | null;
   needsTaylor: string | null;
+  cardImpacts: string | null;
   checks: ChecksSummary;
 };
 export type FileStatus = 'A' | 'M' | 'D' | 'R';
