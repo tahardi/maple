@@ -19,6 +19,11 @@ describe('parsePrBody', () => {
       expected: { deviations: 'None', needsTaylor: '- Try it on device' },
     },
     {
+      name: 'Windows line endings',
+      body: '## Deviations from the card\r\nNone\r\n\r\n## Needs Taylor\r\n- One\r\n- Two\r\n',
+      expected: { deviations: 'None', needsTaylor: '- One\n- Two' },
+    },
+    {
       name: 'both sections missing',
       body: '## Describe your changes\nStuff\n',
       expected: { deviations: null, needsTaylor: null },

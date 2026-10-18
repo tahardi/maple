@@ -67,14 +67,39 @@ describe('registerPr', () => {
     expect(result).toEqual({ data: pr, error: 'listing PRs: offline', fetchedAt: first.fetchedAt });
   });
 
-  test('get returns the error with no data when nothing is cached', async () => {
+  test.each([
+    { name: 'the PR lookup', fail: () => prForBranch.mockRejectedValue(new Error('listing PRs: offline')) },
+    { name: 'the branch lookup', fail: () => currentBranch.mockRejectedValue(new Error('listing PRs: offline')) },
+  ])('get returns the error with no data when $name fails with nothing cached', async ({ fail }) => {
     // given
-    prForBranch.mockRejectedValue(new Error('listing PRs: offline'));
+    fail();
     const prGet = get('/wt');
     // when
     const result = await prGet('t1');
     // then
     expect(result).toEqual({ data: null, error: 'listing PRs: offline', fetchedAt: null });
+  });
+
+  test('get never serves one tab the cached PR of another tab', async () => {
+    // given
+    prForBranch.mockResolvedValueOnce(pr).mockRejectedValueOnce(new Error('listing PRs: offline'));
+    const prGet = get('/wt');
+    await prGet('t1');
+    // when
+    const result = await prGet('t2');
+    // then
+    expect(result).toEqual({ data: null, error: 'listing PRs: offline', fetchedAt: null });
+  });
+
+  test('get clears the error once a lookup succeeds again', async () => {
+    // given
+    prForBranch.mockRejectedValueOnce(new Error('listing PRs: offline')).mockResolvedValueOnce(pr);
+    const prGet = get('/wt');
+    await prGet('t1');
+    // when
+    const result = await prGet('t1');
+    // then
+    expect(result).toEqual({ data: pr, error: null, fetchedAt: expect.any(String) as string });
   });
 
   test('get returns no PR when the tab has no worktree', async () => {

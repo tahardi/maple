@@ -79,6 +79,7 @@ describe('prForBranch', () => {
     const pr = await prForBranch(run, '/wt', 'b');
     // then
     expect(pr).toBeNull();
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   test.each([

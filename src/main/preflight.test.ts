@@ -81,4 +81,13 @@ describe('defaultRunner', () => {
     // then
     expect(result).toMatchObject({ code, stdout });
   });
+
+  test('runs in the given working directory', async () => {
+    // given
+    const run = defaultRunner;
+    // when
+    const result = await run(process.execPath, ['-e', 'process.stdout.write(process.cwd())'], dir);
+    // then
+    expect(result).toMatchObject({ code: 0, stdout: dir });
+  });
 });
