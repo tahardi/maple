@@ -10,7 +10,11 @@ const { handle, on } = vi.hoisted(() => ({
   on: vi.fn<(channel: string, listener: () => void) => void>(),
 }));
 
-vi.mock('electron', () => ({ ipcMain: { handle, on } }));
+vi.mock('electron', () => ({
+  ipcMain: { handle, on },
+  Menu: { setApplicationMenu: vi.fn(), buildFromTemplate: vi.fn() },
+}));
+vi.mock('../config', () => ({ loadConfig: () => Promise.resolve({ data: null, error: null, fetchedAt: null }) }));
 
 function channelsOf(kind: ChannelKind): string[] {
   return Object.entries(IPC_CHANNELS).flatMap(([area, methods]) =>
