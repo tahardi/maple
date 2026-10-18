@@ -25,7 +25,12 @@ export async function restoreTabs(
     }
     const opened = sessions.openCard(tab.projectKey, tab.cardKey, tab.sessionId);
     logger.info('restore', 'restored', { projectKey: tab.projectKey, cardKey: tab.cardKey });
-    const path = await findWt(tab.cardKey).catch(() => null);
+    const { cardKey } = tab;
+    const path = await findWt(cardKey).catch((err: unknown) => {
+      const error = err instanceof Error ? err.message : String(err);
+      logger.warn('worktree', 'failed', { operation: 'findWorktree', cardKey, error });
+      return null;
+    });
     if (path === null) {
       logger.info('worktree', 'gone', { cardKey: tab.cardKey });
     } else {

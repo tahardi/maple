@@ -106,4 +106,53 @@ describe('restoreTabs', () => {
     expect(result.restored).toBe(1);
     expect(jira.getCard).not.toHaveBeenCalled();
   });
+
+  test('logs each restored tab and whether its worktree was found', async () => {
+    // given
+    const { manager } = fakeSessions(['DIG']);
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const state = saved([
+      savedTab('card', 'DIG', 'DIG-44', 's1'),
+      savedTab('card', 'DIG', 'DIG-45', 's2'),
+      savedTab('planner', 'DIG', null, 's3'),
+    ]);
+    const findWt = (key: string) => Promise.resolve(key === 'DIG-44' ? '/wts/dig-44' : null);
+    // when
+    await restoreTabs(state, manager, findWt, logger);
+    // then
+    expect(logger.info.mock.calls).toEqual([
+      ['restore', 'restored', { projectKey: 'DIG', cardKey: 'DIG-44' }],
+      ['worktree', 'found', { cardKey: 'DIG-44', path: '/wts/dig-44' }],
+      ['restore', 'restored', { projectKey: 'DIG', cardKey: 'DIG-45' }],
+      ['worktree', 'gone', { cardKey: 'DIG-45' }],
+      ['restore', 'restored', { projectKey: 'DIG', kind: 'planner' }],
+    ]);
+  });
+
+  test('logs a dropped tab with the reason at warn', async () => {
+    // given
+    const { manager } = fakeSessions([]);
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    // when
+    await restoreTabs(saved([savedTab('card', 'DIG', 'DIG-44', 's1')]), manager, () => Promise.resolve(null), logger);
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('restore', 'dropped', { tab: 'DIG-44', reason: 'project not in config' });
+  });
+
+  test('logs a failed worktree lookup at warn and restores the tab', async () => {
+    // given
+    const { opened, manager } = fakeSessions(['DIG']);
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const findWt = () => Promise.reject(new Error('listing worktrees: denied'));
+    // when
+    const result = await restoreTabs(saved([savedTab('card', 'DIG', 'DIG-44', 's1')]), manager, findWt, logger);
+    // then
+    expect(result.restored).toBe(1);
+    expect(opened[0]?.worktreePath).toBeNull();
+    expect(logger.warn).toHaveBeenCalledWith('worktree', 'failed', {
+      operation: 'findWorktree',
+      cardKey: 'DIG-44',
+      error: 'listing worktrees: denied',
+    });
+  });
 });

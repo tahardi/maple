@@ -42,6 +42,37 @@ describe('createLogger', () => {
     // then
     expect(write).toHaveBeenCalledWith('info', 'jira request tabId=t');
   });
+
+  test.each([
+    {
+      name: 'numbers, booleans, and null',
+      fields: { code: 1, resumed: false, pr: null },
+      want: 'code=1 resumed=false pr=null',
+    },
+    {
+      name: 'an array item with a space',
+      fields: { args: ['--settings', '/card DIG-1'] },
+      want: 'args="--settings,/card DIG-1"',
+    },
+    { name: 'a nested object', fields: { pr: { state: 'OPEN' } }, want: 'pr={"state":"OPEN"}' },
+    { name: 'a multi-line string', fields: { line: 'a\nb' }, want: 'line="a\\nb"' },
+  ])('formats $name', ({ fields, want }) => {
+    // given
+    const { write, logger } = setup();
+    // when
+    logger.info('hook', 'received', fields);
+    // then
+    expect(write).toHaveBeenCalledWith('info', `hook received ${want}`);
+  });
+
+  test('writes no fields after the message when none are given', () => {
+    // given
+    const { write, logger } = setup();
+    // when
+    logger.info('config', 'loaded');
+    // then
+    expect(write).toHaveBeenCalledWith('info', 'config loaded');
+  });
 });
 
 describe('redact', () => {
@@ -50,6 +81,25 @@ describe('redact', () => {
     { name: 'a nested authorization', fields: { headers: { Authorization: 'Basic x' } }, want: { headers: {} } },
     { name: 'the environment', fields: { env: { A: '1' } }, want: {} },
   ])('drops $name', ({ fields, want }) => {
+    // when
+    const got = redact(fields);
+    // then
+    expect(got).toEqual(want);
+  });
+
+  test.each([
+    { name: 'password and secret keys', fields: { password: 'p', clientSecret: 's', ok: 1 }, want: { ok: 1 } },
+    {
+      name: 'a key deep in nested objects',
+      fields: { a: { b: { JIRA_TOKEN: 'x', c: 1 } } },
+      want: { a: { b: { c: 1 } } },
+    },
+    {
+      name: 'nothing from safe fields',
+      fields: { tabId: 't', args: ['a'], pr: null },
+      want: { tabId: 't', args: ['a'], pr: null },
+    },
+  ])('handles $name', ({ fields, want }) => {
     // when
     const got = redact(fields);
     // then

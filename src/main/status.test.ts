@@ -370,4 +370,90 @@ describe('StatusEngine', () => {
     // then
     expect(engine.statuses().map((s) => s.tabId)).toEqual(['t1']);
   });
+
+  test('logs the card status, PR state, and failed checks on a Stop', async () => {
+    // given
+    const { sessions, engine, logger } = setup();
+    sessions.emit('spawn', 't1', true);
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    // then
+    await vi.waitFor(() => {
+      expect(logger.info).toHaveBeenCalledWith('dot', 'changed', {
+        tabId: 't1',
+        from: 'working',
+        to: 'ready',
+        input: 'stop',
+        cardStatus: 'In Review',
+        pr: 'OPEN',
+        failedChecks: 0,
+      });
+    });
+  });
+
+  test.each([
+    {
+      name: 'card',
+      scope: 'jira',
+      operation: 'getCard',
+      getCard: () => Promise.reject(new Error('fetching card: down')),
+      prFor: undefined,
+      error: 'fetching card: down',
+    },
+    {
+      name: 'PR',
+      scope: 'gh',
+      operation: 'prFor',
+      getCard: undefined,
+      prFor: () => Promise.reject(new Error('listing PRs: down')),
+      error: 'listing PRs: down',
+    },
+  ])('logs a failed $name fetch at warn', async ({ scope, operation, getCard, prFor, error }) => {
+    // given
+    const { sessions, engine, logger } = setup({ getCard, prFor });
+    sessions.emit('spawn', 't1', true);
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    // then
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith(scope, 'failed', { operation, error });
+    });
+  });
+
+  test('logs a failed resume at warn', () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, logger } = setup();
+    sessions.emit('spawn', 't1', false, true);
+    vi.advanceTimersByTime(10);
+    // when
+    sessions.emit('exit', 't1', 1);
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('session', 'resume failed', { tabId: 't1', code: 1 });
+  });
+
+  test('logs a respawn that changes the dot', () => {
+    // given
+    const { sessions, logger } = setup();
+    sessions.emit('spawn', 't1', false);
+    // when
+    sessions.emit('spawn', 't1', true);
+    // then
+    expect(logger.info).toHaveBeenCalledWith('dot', 'changed', {
+      tabId: 't1',
+      from: 'idle',
+      to: 'working',
+      input: 'spawn',
+    });
+  });
+
+  test('logs nothing when the dot stays the same', () => {
+    // given
+    const { sessions, engine, logger } = setup();
+    sessions.emit('spawn', 't1', true);
+    // when
+    engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    // then
+    expect(logger.info).not.toHaveBeenCalled();
+  });
 });

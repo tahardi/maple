@@ -10,7 +10,7 @@ import { prForBranch } from './github';
 import { registerIpc } from './ipc';
 import { notificationsDefault, projectByKey } from './ipc/config';
 import { JiraClient, jiraEnvPath, readCreds } from './jira';
-import { startLogging } from './log';
+import { appLogger, startLogging } from './log';
 import { checkNotifications } from './menu';
 import { notifyTab, shouldNotify } from './notify';
 import { defaultRunner } from './preflight';
@@ -106,6 +106,9 @@ async function start(): Promise<void> {
   const restored = config
     ? await restoreTabs(state, sessions, (key) => findWorktree(config.worktreesDir, key))
     : { restored: 0, warnings: [] };
+  if (warning !== null) {
+    appLogger.warn('restore', 'state unreadable', { warning });
+  }
   const warnings = [...(warning === null ? [] : [warning]), ...restored.warnings];
 
   let activeTabId: string | null = null;

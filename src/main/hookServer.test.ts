@@ -121,6 +121,47 @@ describe('startHookServer', () => {
       expect(onEvent).toHaveBeenCalledWith(stop);
     });
   });
+
+  test('logs each event received', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    close = await startHookServer(socketPath, () => undefined, logger);
+    // when
+    await sendLines(socketPath, `${JSON.stringify(notify)}\n`);
+    // then
+    await vi.waitFor(() => {
+      expect(logger.info).toHaveBeenCalledWith('hook', 'received', notify);
+    });
+  });
+
+  test('logs the first 200 characters of a malformed line', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    close = await startHookServer(socketPath, () => undefined, logger);
+    // when
+    await sendLines(socketPath, `${'x'.repeat(300)}\n`);
+    // then
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith('hook', 'malformed', { line: 'x'.repeat(200) });
+    });
+  });
+
+  test('skips blank lines without logging', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const onEvent = vi.fn<(e: HookEvent) => void>();
+    close = await startHookServer(socketPath, onEvent, logger);
+    // when
+    await sendLines(socketPath, `\n${JSON.stringify(stop)}\n`);
+    // then
+    await vi.waitFor(() => {
+      expect(onEvent).toHaveBeenCalledWith(stop);
+    });
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
 });
 
 describe('hookSocketPath', () => {

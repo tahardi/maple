@@ -18,6 +18,7 @@ vi.mock('electron', () => ({ ipcMain: { handle } }));
 const project: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
 
 const sessions = {} as SessionManager;
+const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const fixtures = resolve(import.meta.dirname, '../../../test/fixtures/jira');
 const deps = {
   window: () => null,
@@ -75,7 +76,7 @@ describe('registerJira', () => {
     { name: 'unknown project', key: 'NOPE', want: 'fetching sprint: unknown project NOPE' },
   ])('returns the error for $name', async ({ key, want }) => {
     // given
-    registerJira(deps);
+    registerJira(deps, logger);
     // when
     const got = await sprintHandler()({} as IpcMainInvokeEvent, key);
     // then
@@ -89,7 +90,7 @@ describe('registerJira', () => {
       'fetch',
       jiraFetch(() => 200),
     );
-    registerJira(deps);
+    registerJira(deps, logger);
     // when
     const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
@@ -104,7 +105,7 @@ describe('registerJira', () => {
       'fetch',
       jiraFetch(() => 200),
     );
-    registerJira(deps);
+    registerJira(deps, logger);
     await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     await rm(path);
     // when
@@ -121,11 +122,55 @@ describe('registerJira', () => {
       'fetch',
       jiraFetch(() => statuses.shift() ?? 500),
     );
-    registerJira(deps);
+    registerJira(deps, logger);
     const first = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // when
     const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
     expect(got).toEqual({ ...(first as object), error: 'fetching sprint: Jira returned 500' });
+  });
+
+  test('logs unreadable creds at warn', async () => {
+    // given
+    registerJira(deps, logger);
+    // when
+    await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('jira', 'failed', {
+      operation: 'readCreds',
+      error: expect.stringContaining('reading jira creds:') as unknown,
+    });
+  });
+
+  test('logs a failed sprint fetch at warn', async () => {
+    // given
+    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+    vi.stubGlobal(
+      'fetch',
+      jiraFetch(() => 500),
+    );
+    registerJira(deps, logger);
+    // when
+    await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('jira', 'failed', {
+      operation: 'activeSprint',
+      projectKey: 'HALO',
+      error: 'fetching sprint: Jira returned 500',
+    });
+  });
+
+  test('logs nothing when the sprint loads', async () => {
+    // given
+    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+    vi.stubGlobal(
+      'fetch',
+      jiraFetch(() => 200),
+    );
+    registerJira(deps, logger);
+    // when
+    await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    // then
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });

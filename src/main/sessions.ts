@@ -43,6 +43,10 @@ type Session = {
 
 type Launch = { resume: boolean; prompt: string | null };
 
+function message(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export class SessionManager extends EventEmitter<Events> {
   private readonly sessions = new Map<string, Session>();
   private readonly closed: Record<string, string>;
@@ -267,7 +271,10 @@ export class SessionManager extends EventEmitter<Events> {
     let done = false;
     let stop: () => void = () => undefined;
     const check = async () => {
-      const path = await findWorktree(worktreesDir, cardKey).catch(() => null);
+      const path = await findWorktree(worktreesDir, cardKey).catch((err: unknown) => {
+        this.log.warn('worktree', 'failed', { operation: 'findWorktree', cardKey, error: message(err) });
+        return null;
+      });
       if (done || path === null || this.sessions.get(session.tab.id) !== session) {
         return;
       }
@@ -277,7 +284,8 @@ export class SessionManager extends EventEmitter<Events> {
     };
     try {
       stop = watchWorktrees(worktreesDir, () => void check());
-    } catch {
+    } catch (err) {
+      this.log.warn('worktree', 'failed', { operation: 'watchWorktrees', cardKey, error: message(err) });
       stop = () => undefined;
     }
     session.stopWatch = () => {
@@ -290,7 +298,7 @@ export class SessionManager extends EventEmitter<Events> {
   private changed(): void {
     const tabs = this.list();
     this.deps.save(tabs, { ...this.closed }).catch((err: unknown) => {
-      console.error(`saving state: ${err instanceof Error ? err.message : String(err)}`);
+      this.log.error('session', 'failed', { operation: 'saveState', error: message(err) });
     });
     this.emit('changed', tabs);
   }
