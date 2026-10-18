@@ -4,6 +4,7 @@ import { buildTree } from './buildTree';
 import { CardHeader } from './CardHeader';
 import styles from './CardTab.module.css';
 import { FileTree } from './FileTree';
+import { FileViewer } from './FileViewer';
 import { PrSummary } from './PrSummary';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
@@ -20,11 +21,25 @@ export function CardTab({ tab }: { tab: TabState }) {
   const { changes, files, pr, card } = useCardData(tab);
   const [columns, setColumns] = useColumns();
   const [changedOverride, setChangedOverride] = useState<boolean | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
+  const [activeFile, setActiveFile] = useState<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const changed = changes?.files ?? [];
+
+  const openFile = (path: string) => {
+    setOpenFiles((files) => (files.includes(path) ? files : [...files, path]));
+    setActiveFile(path);
+  };
+
+  const closeFile = (path: string) => {
+    const rest = openFiles.filter((file) => file !== path);
+    setOpenFiles(rest);
+    if (path === activeFile) {
+      setActiveFile(rest.at(-1) ?? null);
+    }
+  };
 
   const drag = (side: 'left' | 'right') => (e: React.PointerEvent) => {
     const rect = body.current?.getBoundingClientRect();
@@ -64,8 +79,8 @@ export function CardTab({ tab }: { tab: TabState }) {
           ) : (
             <FileTree
               nodes={buildTree(files, changed, changedOnly)}
-              selected={selected}
-              onSelect={setSelected}
+              selected={activeFile}
+              onSelect={openFile}
               changedOnly={changedOnly}
               onToggle={setChangedOverride}
               changedCount={changed.length}
@@ -75,7 +90,17 @@ export function CardTab({ tab }: { tab: TabState }) {
         </div>
         <div className={styles.divider} onPointerDown={drag('left')} />
         <div className={styles.middle} data-testid="viewer-slot">
-          {tab.worktreePath === null && <div className={styles.waiting}>{WAITING}</div>}
+          {tab.worktreePath === null ? (
+            <div className={styles.waiting}>{WAITING}</div>
+          ) : (
+            <FileViewer
+              tabId={tab.id}
+              openFiles={openFiles}
+              activeFile={activeFile}
+              onActivate={setActiveFile}
+              onCloseFile={closeFile}
+            />
+          )}
         </div>
         <div className={styles.divider} onPointerDown={drag('right')} />
         <div className={styles.right} style={{ width: `${String(columns.right)}%` }} data-testid="claude-slot" />
