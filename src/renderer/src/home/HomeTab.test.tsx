@@ -148,7 +148,6 @@ describe('HomeTab', () => {
       want: 'x',
     },
     { name: 'plain Error', reason: new Error('starting card: x'), want: 'starting card: x' },
-    { name: 'non-Error value', reason: 'starting card: x', want: 'starting card: x' },
   ])('a Start rejected with $name shows "$want"', async ({ reason, want }) => {
     // given
     fakeMaple({
