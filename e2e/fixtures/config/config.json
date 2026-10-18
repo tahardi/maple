@@ -1,0 +1,5 @@
+{
+  "worktreesDir": "__WORKTREES_DIR__",
+  "notifications": false,
+  "projects": [{ "name": "Halo", "jiraKey": "HALO", "jiraBoardId": 1, "plannerDir": "__PLANNER_DIR__" }]
+}

@@ -18,3 +18,8 @@ run:
 .PHONY: test-live
 test-live:
 	@npm run test:live
+
+.PHONY: e2e
+e2e:
+	@npm run build
+	@npx playwright test
