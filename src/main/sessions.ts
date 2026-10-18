@@ -5,6 +5,7 @@ import { parseBatch } from '@shared/batch';
 import { cardPrompt } from '@shared/prompts';
 import type { MapleConfig, TabState } from '@shared/types';
 import { findWorktree } from './git';
+import { appLogger, type Logger } from './log';
 import { watchWorktrees } from './worktreeWatcher';
 
 const BACKLOG_CHARS = 200_000;
@@ -19,6 +20,7 @@ export type SessionDeps = {
   closedSessions: Record<string, string>;
   uuid: () => string;
   hasTranscript: (sessionId: string) => boolean;
+  logger?: Logger;
 };
 
 type Events = {
@@ -44,10 +46,12 @@ type Launch = { resume: boolean; prompt: string | null };
 export class SessionManager extends EventEmitter<Events> {
   private readonly sessions = new Map<string, Session>();
   private readonly closed: Record<string, string>;
+  private readonly log: Logger;
 
   constructor(private readonly deps: SessionDeps) {
     super();
     this.closed = { ...deps.closedSessions };
+    this.log = deps.logger ?? appLogger;
   }
 
   startCard(projectKey: string, cardKey: string): TabState {
@@ -137,6 +141,7 @@ export class SessionManager extends EventEmitter<Events> {
       return;
     }
     session.pty?.write(text);
+    this.log.info('session', 'prompt sent', { tabId, text: text.slice(0, 80) });
     setTimeout(() => {
       if (session.alive) {
         session.pty?.write('\r');
@@ -199,6 +204,9 @@ export class SessionManager extends EventEmitter<Events> {
     session.pty?.kill();
     const { tab } = session;
     const resumable = resume && this.deps.hasTranscript(tab.sessionId);
+    if (resume && !resumable) {
+      this.log.warn('session', 'no transcript, starting fresh', { tabId: tab.id, sessionId: tab.sessionId });
+    }
     const project = this.deps.config().projects.find((p) => p.jiraKey === tab.projectKey);
     if (!project) {
       throw new Error(`starting session: unknown project ${tab.projectKey}`);
@@ -217,6 +225,14 @@ export class SessionManager extends EventEmitter<Events> {
     });
     session.pty = pty;
     session.alive = true;
+    this.log.info('session', 'spawned', {
+      tabId: tab.id,
+      cardKey: tab.cardKey,
+      sessionId: tab.sessionId,
+      cwd: project.plannerDir,
+      args,
+      resumed: resumable,
+    });
     this.emit('spawn', tab.id, prompt !== null, resumable);
     pty.onData((data) => {
       this.onData(session, data);
@@ -224,6 +240,7 @@ export class SessionManager extends EventEmitter<Events> {
     pty.onExit(({ exitCode }) => {
       if (session.pty === pty) {
         session.alive = false;
+        this.log.info('session', 'exited', { tabId: session.tab.id, code: exitCode });
         this.emit('exit', session.tab.id, exitCode);
       }
     });
@@ -255,6 +272,7 @@ export class SessionManager extends EventEmitter<Events> {
         return;
       }
       session.stopWatch();
+      this.log.info('worktree', 'found', { cardKey, path });
       this.setWorktree(session.tab.id, path);
     };
     try {

@@ -46,16 +46,18 @@ function setup(overrides: Overrides = {}) {
   const sessions = Object.assign(new EventEmitter(), { get: vi.fn(() => tab) });
   const getCard = vi.fn(overrides.getCard ?? (() => Promise.resolve(card)));
   const prFor = vi.fn(overrides.prFor ?? (() => Promise.resolve(openPr)));
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const engine = new StatusEngine({
     sessions: sessions as unknown as SessionManager,
     getCard,
     prFor,
+    logger,
   });
   const emitted: TabStatus[] = [];
   engine.on('status', (s) => {
     emitted.push(s);
   });
-  return { sessions, engine, emitted, getCard, prFor };
+  return { sessions, engine, emitted, getCard, prFor, logger };
 }
 
 describe('StatusEngine', () => {
@@ -75,6 +77,21 @@ describe('StatusEngine', () => {
     expect(engine.statuses()).toEqual([
       { tabId: 't1', dot: want, sessionAlive: true, exitCode: null, resumeFailed: false },
     ]);
+  });
+
+  test('logs a dot change', () => {
+    // given
+    const { sessions, engine, logger } = setup();
+    sessions.emit('spawn', 't1', false);
+    // when
+    engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    // then
+    expect(logger.info).toHaveBeenCalledWith('dot', 'changed', {
+      tabId: 't1',
+      from: 'idle',
+      to: 'working',
+      input: 'prompt',
+    });
   });
 
   test('a Stop hook for a reviewable card tab emits ready', async () => {

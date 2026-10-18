@@ -65,6 +65,19 @@ describe('startHookServer', () => {
     });
   });
 
+  test('logs a malformed line at warn', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    close = await startHookServer(socketPath, () => undefined, logger);
+    // when
+    await sendLines(socketPath, 'not json\n');
+    // then
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith('hook', 'malformed', { line: 'not json' });
+    });
+  });
+
   test('replaces a stale socket file', async () => {
     // given
     const socketPath = join(dir, 'maple.sock');

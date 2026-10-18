@@ -74,6 +74,7 @@ function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: 
   let n = 0;
   const save = vi.fn<(tabs: TabState[], closed: Record<string, string>) => Promise<void>>(() => Promise.resolve());
   const spawnFn = fakeSpawn(ptys);
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const manager = new SessionManager({
     spawn: spawnFn,
     config: () => config,
@@ -83,8 +84,9 @@ function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: 
     closedSessions,
     uuid: () => `uuid-${String(++n)}`,
     hasTranscript,
+    logger,
   });
-  return { manager, ptys, save, spawnFn };
+  return { manager, ptys, save, spawnFn, logger };
 }
 
 function fresh(manager: SessionManager, tab: TabState): TabState {
@@ -126,6 +128,19 @@ describe('SessionManager', () => {
       MAPLE_SOCKET: '/tmp/maple.sock',
       TERM: 'xterm-256color',
     });
+  });
+
+  test('logs spawned with the args', () => {
+    // given
+    const { manager, logger } = setup();
+    // when
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // then
+    expect(logger.info).toHaveBeenCalledWith(
+      'session',
+      'spawned',
+      expect.objectContaining({ tabId: tab.id, args: [...base, '--session-id', tab.sessionId, '/card DIG-44'] }),
+    );
   });
 
   test.each([

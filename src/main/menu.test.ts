@@ -2,13 +2,17 @@ import type { MenuItemConstructorOptions } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { checkNotifications, setAppMenu } from './menu';
 
-const { buildFromTemplate, setApplicationMenu, getApplicationMenu } = vi.hoisted(() => ({
+const { buildFromTemplate, setApplicationMenu, getApplicationMenu, openPath } = vi.hoisted(() => ({
   buildFromTemplate: vi.fn((template: MenuItemConstructorOptions[]) => template),
   setApplicationMenu: vi.fn(),
   getApplicationMenu: vi.fn(),
+  openPath: vi.fn(() => Promise.resolve('')),
 }));
 
-vi.mock('electron', () => ({ Menu: { buildFromTemplate, setApplicationMenu, getApplicationMenu } }));
+vi.mock('electron', () => ({
+  Menu: { buildFromTemplate, setApplicationMenu, getApplicationMenu },
+  shell: { openPath },
+}));
 
 function menuItems(): MenuItemConstructorOptions[] {
   const template = buildFromTemplate.mock.calls[0]?.[0] ?? [];
@@ -56,6 +60,22 @@ describe('setAppMenu', () => {
     // then
     expect(item?.type).toBe('checkbox');
     expect(setNotifications).toHaveBeenCalledWith(checked);
+  });
+
+  test('Help > Open logs opens the logs folder', () => {
+    // given
+    vi.stubEnv('MAPLE_CONFIG_DIR', '/tmp/maple');
+    setAppMenu(
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+    );
+    const help = buildFromTemplate.mock.calls[0]?.[0].find((top) => top.label === 'Help');
+    const item = Array.isArray(help?.submenu) ? help.submenu.find((entry) => entry.label === 'Open logs') : undefined;
+    // when
+    item?.click?.({} as never, undefined, {});
+    // then
+    expect(openPath).toHaveBeenCalledWith('/tmp/maple/logs');
+    vi.unstubAllEnvs();
   });
 
   test('the Desktop notifications checkbox sits under Settings', () => {

@@ -3,6 +3,7 @@ import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
 import type { Fetched, PrInfo } from '@shared/types';
 import { currentBranch } from '../git';
 import { commentOnPr, prForBranch } from '../github';
+import { appLogger, type Logger } from '../log';
 import { defaultRunner } from '../preflight';
 import type { IpcDeps } from './index';
 
@@ -10,7 +11,7 @@ async function lookup(worktree: string): Promise<PrInfo | null> {
   return prForBranch(defaultRunner, worktree, await currentBranch(worktree));
 }
 
-export function registerPr(deps: IpcDeps): void {
+export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
   const lastGood = new Map<string, Fetched<PrInfo>>();
   ipcMain.handle('pr:get', async (_event, tabId: string): Promise<Fetched<PrInfo>> => {
     const worktree = deps.worktreeFor(tabId);
@@ -24,6 +25,7 @@ export function registerPr(deps: IpcDeps): void {
     } catch (err) {
       const cached = lastGood.get(tabId);
       const error = err instanceof Error ? err.message : String(err);
+      logger.warn('gh', 'failed', { operation: 'pr:get', tabId, error });
       return { data: cached?.data ?? null, error, fetchedAt: cached?.fetchedAt ?? null };
     }
   });
@@ -41,6 +43,11 @@ export function registerPr(deps: IpcDeps): void {
       await commentOnPr(defaultRunner, worktree, pr.number, APPROVE_COMMENT);
       deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
     } catch (err) {
+      logger.warn('gh', 'failed', {
+        operation: 'pr:approve',
+        tabId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw new Error(`approving PR: ${err instanceof Error ? err.message : String(err)}`);
     }
   });

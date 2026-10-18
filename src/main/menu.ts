@@ -1,4 +1,5 @@
-import { Menu } from 'electron';
+import { Menu, shell } from 'electron';
+import { logsDir } from './log';
 
 const NOTIFICATIONS_ID = 'notifications';
 
@@ -42,6 +43,7 @@ export function setAppMenu(
         ],
       },
       { role: 'windowMenu' },
+      { label: 'Help', submenu: [{ label: 'Open logs', click: () => void shell.openPath(logsDir()) }] },
     ]),
   );
 }

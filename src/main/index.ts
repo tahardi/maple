@@ -10,6 +10,7 @@ import { prForBranch } from './github';
 import { registerIpc } from './ipc';
 import { notificationsDefault, projectByKey } from './ipc/config';
 import { JiraClient, jiraEnvPath, readCreds } from './jira';
+import { startLogging } from './log';
 import { checkNotifications } from './menu';
 import { notifyTab, shouldNotify } from './notify';
 import { defaultRunner } from './preflight';
@@ -61,6 +62,7 @@ function createWindow(): void {
 }
 
 async function start(): Promise<void> {
+  startLogging(!app.isPackaged);
   const [{ data: config }, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
   const socketPath = hookSocketPath();
