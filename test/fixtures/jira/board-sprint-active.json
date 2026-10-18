@@ -1,0 +1,18 @@
+{
+  "maxResults": 50,
+  "startAt": 0,
+  "total": 1,
+  "isLast": true,
+  "values": [
+    {
+      "id": 6,
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/sprint/6",
+      "state": "active",
+      "name": "HALO Sprint 1",
+      "startDate": "2026-10-12T13:00:00.000Z",
+      "endDate": "2026-10-26T21:00:00.000Z",
+      "createdDate": "2026-10-14T08:01:13.847Z",
+      "originBoardId": 7
+    }
+  ]
+}

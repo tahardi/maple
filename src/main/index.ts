@@ -31,7 +31,7 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
-  registerIpc({ window: () => mainWindow, worktreeFor: () => null });
+  registerIpc({ window: () => mainWindow, worktreeFor: () => null, project: () => null });
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
