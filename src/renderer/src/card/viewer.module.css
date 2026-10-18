@@ -3,15 +3,15 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: #1e1e1e;
-  color: #ccc;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #252526;
+  background: var(--bg-raised);
 }
 
 .tabs {
@@ -27,12 +27,12 @@
   padding: 6px 10px;
   cursor: pointer;
   white-space: nowrap;
-  border-right: 1px solid #1e1e1e;
+  border-right: 1px solid var(--border);
 }
 
 .active {
-  background: #1e1e1e;
-  color: #fff;
+  background: var(--bg);
+  color: var(--text-strong);
 }
 
 .close {
@@ -51,16 +51,16 @@
 
 .toggle button {
   background: transparent;
-  border: 1px solid #555;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  color: #ccc;
+  color: var(--text);
   padding: 2px 8px;
   cursor: pointer;
 }
 
 .toggle button[aria-pressed='true'] {
-  background: #ccc;
-  color: #1e1e1e;
+  background: var(--accent);
+  color: var(--text-strong);
 }
 
 .body {
@@ -78,37 +78,37 @@
 .message,
 .notice {
   padding: 12px;
-  color: #999;
+  color: var(--text-muted);
 }
 
 .notice {
-  color: #e5534b;
+  color: var(--danger);
 }
 
 :global(.line-add) {
-  background: rgba(87, 171, 90, 0.15);
+  background: var(--diff-add-bg);
 }
 
 :global(.line-chg) {
-  background: rgba(212, 177, 6, 0.15);
+  background: var(--diff-chg-bg);
 }
 
 :global(.del-above) {
-  border-top: 2px solid #e5534b;
+  border-top: 2px solid var(--diff-del);
 }
 
 :global(.del-below) {
-  border-bottom: 2px solid #e5534b;
+  border-bottom: 2px solid var(--diff-del);
 }
 
 :global(.margin-add) {
-  border-left: 3px solid #57ab5a;
+  border-left: 3px solid var(--success);
 }
 
 :global(.margin-chg) {
-  border-left: 3px solid #d4b106;
+  border-left: 3px solid var(--warning);
 }
 
 :global(.margin-del) {
-  border-left: 3px solid #e5534b;
+  border-left: 3px solid var(--diff-del);
 }

@@ -3,7 +3,7 @@
   align-items: center;
   gap: 12px;
   padding: 6px 12px;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid var(--border);
   font-size: 13px;
 }
 
@@ -12,7 +12,7 @@
 }
 
 .pill {
-  background: #e0e0e0;
+  background: var(--surface);
   border-radius: 10px;
   padding: 1px 8px;
 }

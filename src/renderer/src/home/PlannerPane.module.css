@@ -3,7 +3,7 @@
   flex-direction: column;
   width: 40%;
   min-width: 320px;
-  border-left: 1px solid #ddd;
+  border-left: 1px solid var(--border);
 }
 
 .bar {
@@ -14,5 +14,5 @@
 }
 
 .nothing {
-  color: #666;
+  color: var(--text-muted);
 }

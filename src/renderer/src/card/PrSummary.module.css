@@ -1,5 +1,5 @@
 .summary {
-  border-top: 1px solid #ccc;
+  border-top: 1px solid var(--border);
   padding: 8px;
   font-size: 13px;
   max-height: 45%;
@@ -11,7 +11,7 @@
 }
 
 .error {
-  color: #c62828;
+  color: var(--danger);
 }
 
 .checks {
