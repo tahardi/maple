@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import type { PreflightProblem } from '@shared/types';
+import { appLogger, type Logger } from './log';
 
 export type Runner = (
   cmd: string,
@@ -18,7 +19,11 @@ export const defaultRunner: Runner = (cmd, args, cwd) =>
 
 const tools = ['claude', 'gh', 'git'] as const;
 
-export async function runPreflight(run: Runner, jiraEnvPath: string): Promise<PreflightProblem[]> {
+export async function runPreflight(
+  run: Runner,
+  jiraEnvPath: string,
+  logger: Logger = appLogger,
+): Promise<PreflightProblem[]> {
   const problems: PreflightProblem[] = [];
   for (const tool of tools) {
     if ((await run(tool, ['--version'])).code === 127) {
@@ -32,6 +37,12 @@ export async function runPreflight(run: Runner, jiraEnvPath: string): Promise<Pr
     await access(jiraEnvPath);
   } catch {
     problems.push({ tool: 'jira-env', message: `Jira credentials file ${jiraEnvPath} does not exist` });
+  }
+  for (const { tool, message } of problems) {
+    logger.warn('preflight', 'problem', { tool, message });
+  }
+  if (problems.length === 0) {
+    logger.info('preflight', 'passed');
   }
   return problems;
 }

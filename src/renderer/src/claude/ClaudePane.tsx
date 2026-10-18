@@ -41,7 +41,12 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       return;
     }
     const { session } = window.maple;
-    const term = new Terminal({ fontFamily: 'ui-monospace', fontSize: 13, scrollback: 10_000 });
+    const term = new Terminal({
+      fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
+      fontSize: 13,
+      scrollback: 10_000,
+      theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
+    });
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(el);
@@ -79,7 +84,9 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       <ActionBar actions={actions} />
       <div className={styles.body}>
         <div ref={host} className={styles.terminal} />
-        {status?.sessionAlive === false && <SessionEnded tabId={tabId} exitCode={status.exitCode} />}
+        {status?.sessionAlive === false && (
+          <SessionEnded tabId={tabId} exitCode={status.exitCode} resumeFailed={status.resumeFailed} />
+        )}
       </div>
     </div>
   );

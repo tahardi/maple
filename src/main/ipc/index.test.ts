@@ -14,6 +14,7 @@ const { handle, on } = vi.hoisted(() => ({
 
 vi.mock('electron', () => ({
   ipcMain: { handle, on },
+  app: { on: vi.fn(), quit: vi.fn() },
   Menu: { setApplicationMenu: vi.fn(), buildFromTemplate: vi.fn() },
 }));
 vi.mock('../config', () => ({ loadConfig: () => Promise.resolve({ data: null, error: null, fetchedAt: null }) }));
@@ -35,6 +36,7 @@ describe('registerIpc', () => {
     save: vi.fn(),
     closedSessions: {},
     uuid: vi.fn(),
+    hasTranscript: vi.fn(),
   });
   const status = new StatusEngine({
     sessions,
@@ -48,6 +50,7 @@ describe('registerIpc', () => {
     sessions,
     status,
     setActiveTab: vi.fn(),
+    warnings: () => [],
     setNotifications: vi.fn(),
   };
 
@@ -73,15 +76,5 @@ describe('registerIpc', () => {
     // then
     const registered = on.mock.calls.map(([channel]) => channel);
     expect(registered.sort()).toEqual(expected);
-  });
-
-  test('rejects stub requests as not implemented', async () => {
-    // given
-    registerIpc(deps);
-    const call = handle.mock.calls.find(([channel]) => channel === 'pr:approve');
-    // when
-    const result = call?.[1]({} as IpcMainInvokeEvent);
-    // then
-    await expect(result).rejects.toThrow('pr:approve is not implemented');
   });
 });

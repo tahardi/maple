@@ -1,4 +1,5 @@
 import type { ChecksSummary, Fetched, PrInfo } from '@shared/types';
+import { MarkdownText } from '../shell/MarkdownText';
 import styles from './PrSummary.module.css';
 
 function checksText({ passed, failed, pending, total }: ChecksSummary): string {
@@ -31,7 +32,7 @@ export function PrSummary({ pr }: { pr: Fetched<PrInfo> }) {
           {sections.map((s) => (
             <div key={s.title}>
               <h4>{s.title}</h4>
-              <pre className={styles.text}>{s.text ?? 'None'}</pre>
+              {s.text === null ? <p className={styles.none}>None</p> : <MarkdownText text={s.text} />}
             </div>
           ))}
         </>

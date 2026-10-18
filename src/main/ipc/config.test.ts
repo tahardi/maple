@@ -45,6 +45,7 @@ function deps(window: () => BrowserWindow | null = () => null) {
     sessions,
     status: {} as StatusEngine,
     setActiveTab: vi.fn(),
+    warnings: () => [],
     setNotifications: vi.fn(() => Promise.resolve()),
   };
 }

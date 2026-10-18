@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { HookEvent } from '@shared/types';
 import { z } from 'zod';
 import { configDir } from './config';
+import { appLogger, type Logger } from './log';
 
 const eventSchema = z.object({
   tabId: z.string(),
@@ -27,6 +28,7 @@ function parseLine(line: string): HookEvent | null {
 export async function startHookServer(
   socketPath: string,
   onEvent: (e: HookEvent) => void,
+  logger: Logger = appLogger,
 ): Promise<() => Promise<void>> {
   await rm(socketPath, { force: true });
   const server = createServer((socket) => {
@@ -39,11 +41,16 @@ export async function startHookServer(
       for (const line of lines) {
         const event = parseLine(line);
         if (event) {
+          logger.info('hook', 'received', { ...event });
           onEvent(event);
+        } else if (line.trim() !== '') {
+          logger.warn('hook', 'malformed', { line: line.slice(0, 200) });
         }
       }
     });
-    socket.on('error', () => undefined);
+    socket.on('error', (err) => {
+      logger.warn('hook', 'failed', { operation: 'socket', error: err.message });
+    });
   });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);

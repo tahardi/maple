@@ -5,6 +5,7 @@ import { parseBatch } from '@shared/batch';
 import { cardPrompt } from '@shared/prompts';
 import type { MapleConfig, TabState } from '@shared/types';
 import { findWorktree } from './git';
+import { appLogger, type Logger } from './log';
 import { watchWorktrees } from './worktreeWatcher';
 
 const BACKLOG_CHARS = 200_000;
@@ -18,11 +19,13 @@ export type SessionDeps = {
   save: (tabs: TabState[], closedSessions: Record<string, string>) => Promise<void>;
   closedSessions: Record<string, string>;
   uuid: () => string;
+  hasTranscript: (sessionId: string) => boolean;
+  logger?: Logger;
 };
 
 type Events = {
   data: [tabId: string, data: string];
-  spawn: [tabId: string, prompted: boolean];
+  spawn: [tabId: string, prompted: boolean, resumed: boolean];
   exit: [tabId: string, code: number];
   input: [tabId: string];
   batch: [projectKey: string, keys: string[]];
@@ -40,13 +43,19 @@ type Session = {
 
 type Launch = { resume: boolean; prompt: string | null };
 
+function message(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export class SessionManager extends EventEmitter<Events> {
   private readonly sessions = new Map<string, Session>();
   private readonly closed: Record<string, string>;
+  private readonly log: Logger;
 
   constructor(private readonly deps: SessionDeps) {
     super();
     this.closed = { ...deps.closedSessions };
+    this.log = deps.logger ?? appLogger;
   }
 
   startCard(projectKey: string, cardKey: string): TabState {
@@ -97,6 +106,10 @@ export class SessionManager extends EventEmitter<Events> {
     }
   }
 
+  hasProject(projectKey: string): boolean {
+    return this.deps.config().projects.some((p) => p.jiraKey === projectKey);
+  }
+
   get(tabId: string): TabState | null {
     return this.sessions.get(tabId)?.tab ?? null;
   }
@@ -112,7 +125,7 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   write(tabId: string, data: string): void {
-    const session = this.sessions.get(tabId);
+    const session = this.live(tabId);
     if (!session) {
       return;
     }
@@ -121,17 +134,22 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   resize(tabId: string, cols: number, rows: number): void {
-    this.sessions.get(tabId)?.pty?.resize(cols, rows);
+    if (cols >= 1 && rows >= 1) {
+      this.live(tabId)?.pty?.resize(cols, rows);
+    }
   }
 
   sendPrompt(tabId: string, text: string): void {
-    const session = this.sessions.get(tabId);
+    const session = this.live(tabId);
     if (!session) {
       return;
     }
     session.pty?.write(text);
+    this.log.info('session', 'prompt sent', { tabId, text: text.slice(0, 80) });
     setTimeout(() => {
-      session.pty?.write('\r');
+      if (session.alive) {
+        session.pty?.write('\r');
+      }
     }, 100);
     this.emit('input', tabId);
   }
@@ -142,6 +160,11 @@ export class SessionManager extends EventEmitter<Events> {
 
   isAlive(tabId: string): boolean {
     return this.sessions.get(tabId)?.alive ?? false;
+  }
+
+  private live(tabId: string): Session | undefined {
+    const session = this.sessions.get(tabId);
+    return session?.alive ? session : undefined;
   }
 
   private findCard(projectKey: string, cardKey: string): TabState | undefined {
@@ -184,12 +207,16 @@ export class SessionManager extends EventEmitter<Events> {
   private launch(session: Session, { resume, prompt }: Launch): void {
     session.pty?.kill();
     const { tab } = session;
+    const resumable = resume && this.deps.hasTranscript(tab.sessionId);
+    if (resume && !resumable) {
+      this.log.warn('session', 'no transcript, starting fresh', { tabId: tab.id, sessionId: tab.sessionId });
+    }
     const project = this.deps.config().projects.find((p) => p.jiraKey === tab.projectKey);
     if (!project) {
       throw new Error(`starting session: unknown project ${tab.projectKey}`);
     }
     const args = ['--dangerously-skip-permissions', '--settings', this.deps.hooksFile];
-    args.push(resume ? '--resume' : '--session-id', tab.sessionId);
+    args.push(resumable ? '--resume' : '--session-id', tab.sessionId);
     if (prompt !== null) {
       args.push(prompt);
     }
@@ -202,13 +229,22 @@ export class SessionManager extends EventEmitter<Events> {
     });
     session.pty = pty;
     session.alive = true;
-    this.emit('spawn', tab.id, prompt !== null);
+    this.log.info('session', 'spawned', {
+      tabId: tab.id,
+      cardKey: tab.cardKey,
+      sessionId: tab.sessionId,
+      cwd: project.plannerDir,
+      args,
+      resumed: resumable,
+    });
+    this.emit('spawn', tab.id, prompt !== null, resumable);
     pty.onData((data) => {
       this.onData(session, data);
     });
     pty.onExit(({ exitCode }) => {
       if (session.pty === pty) {
         session.alive = false;
+        this.log.info('session', 'exited', { tabId: session.tab.id, code: exitCode });
         this.emit('exit', session.tab.id, exitCode);
       }
     });
@@ -235,16 +271,21 @@ export class SessionManager extends EventEmitter<Events> {
     let done = false;
     let stop: () => void = () => undefined;
     const check = async () => {
-      const path = await findWorktree(worktreesDir, cardKey).catch(() => null);
+      const path = await findWorktree(worktreesDir, cardKey).catch((err: unknown) => {
+        this.log.warn('worktree', 'failed', { operation: 'findWorktree', cardKey, error: message(err) });
+        return null;
+      });
       if (done || path === null || this.sessions.get(session.tab.id) !== session) {
         return;
       }
       session.stopWatch();
+      this.log.info('worktree', 'found', { cardKey, path });
       this.setWorktree(session.tab.id, path);
     };
     try {
       stop = watchWorktrees(worktreesDir, () => void check());
-    } catch {
+    } catch (err) {
+      this.log.warn('worktree', 'failed', { operation: 'watchWorktrees', cardKey, error: message(err) });
       stop = () => undefined;
     }
     session.stopWatch = () => {
@@ -257,7 +298,7 @@ export class SessionManager extends EventEmitter<Events> {
   private changed(): void {
     const tabs = this.list();
     this.deps.save(tabs, { ...this.closed }).catch((err: unknown) => {
-      console.error(`saving state: ${err instanceof Error ? err.message : String(err)}`);
+      this.log.error('session', 'failed', { operation: 'saveState', error: message(err) });
     });
     this.emit('changed', tabs);
   }

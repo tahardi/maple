@@ -1,9 +1,14 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, watch, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { watchWorktree, watchWorktrees } from './worktreeWatcher';
+
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs')>();
+  return { ...fs, watch: vi.fn(fs.watch) };
+});
 
 describe('watchWorktree', () => {
   let dir: string;
@@ -64,6 +69,7 @@ describe('watchWorktree', () => {
   test.each([
     { name: '.git', parts: ['.git', 'index'] },
     { name: 'node_modules', parts: ['node_modules', 'pkg', 'index.js'] },
+    { name: 'an .asar file', parts: ['src', 'app.asar'] },
   ])('ignores writes under $name', async ({ parts }) => {
     // given
     const onChange = vi.fn();
@@ -74,6 +80,21 @@ describe('watchWorktree', () => {
     await sleep(600);
     // then
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { path: 'node_modules', want: true },
+    { path: join('node_modules', 'electron', 'dist', 'resources', 'default_app.asar'), want: true },
+    { path: join('.git', 'index'), want: true },
+    { path: join('src', 'app.asar'), want: true },
+    { path: join('src', 'deep', 'file.ts'), want: false },
+  ])('tells the watcher to skip $path: $want', ({ path, want }) => {
+    // given
+    stop = watchWorktree(dir, vi.fn());
+    // when
+    const options = vi.mocked(watch).mock.calls.at(-1)?.[1] as { ignore?: (path: string) => boolean } | undefined;
+    // then
+    expect(options?.ignore?.(path)).toBe(want);
   });
 
   test('stops calling onChange once stopped, even with a call pending', async () => {

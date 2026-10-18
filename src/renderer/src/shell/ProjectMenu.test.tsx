@@ -51,7 +51,13 @@ describe('ProjectMenu', () => {
       sessionId: id,
       worktreePath: null,
     });
-    const status = (tabId: string, dot: Dot) => ({ tabId, dot, sessionAlive: true, exitCode: null });
+    const status = (tabId: string, dot: Dot) => ({
+      tabId,
+      dot,
+      sessionAlive: true,
+      exitCode: null,
+      resumeFailed: false,
+    });
     useMaple.setState({
       tabs: [tab('1', 'DIG'), tab('2', 'DIG'), tab('3', 'BEAR')],
       statuses: { '1': status('1', 'waiting'), '2': status('2', 'ready'), '3': status('3', 'idle') },
@@ -80,7 +86,10 @@ describe('ProjectMenu', () => {
     useMaple.setState({
       tabs: [tab('1'), tab('2')],
       statuses: Object.fromEntries(
-        dots.map((dot: Dot, i) => [String(i + 1), { tabId: String(i + 1), dot, sessionAlive: true, exitCode: null }]),
+        dots.map((dot: Dot, i) => [
+          String(i + 1),
+          { tabId: String(i + 1), dot, sessionAlive: true, exitCode: null, resumeFailed: false },
+        ]),
       ),
     });
     // when

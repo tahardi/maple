@@ -1,7 +1,7 @@
 .bar {
   display: flex;
   align-items: center;
-  background: #2b2b2b;
+  background: var(--bar);
   padding: 0 8px;
   height: 36px;
 }
@@ -11,17 +11,30 @@
   height: 100%;
 }
 
-.tab {
+.item {
+  display: flex;
+  color: var(--text-muted);
+}
+
+.tab,
+.close {
   background: transparent;
-  color: #b0b0b0;
+  color: inherit;
   border: none;
-  padding: 0 14px;
   cursor: pointer;
 }
 
+.tab {
+  padding: 0 14px;
+}
+
+.close {
+  padding: 0 8px 0 0;
+}
+
 .active {
-  background: #f3f3f3;
-  color: #1e1e1e;
+  background: var(--bg);
+  color: var(--text-strong);
 }
 .dot {
   display: inline-block;
@@ -32,17 +45,17 @@
 }
 
 .dot[data-dot='working'] {
-  background: #d4b106;
+  background: var(--warning);
 }
 
 .dot[data-dot='waiting'] {
-  background: #e5534b;
+  background: var(--danger);
 }
 
 .dot[data-dot='ready'] {
-  background: #57ab5a;
+  background: var(--success);
 }
 
 .dot[data-dot='idle'] {
-  background: #8b949e;
+  background: var(--idle);
 }

@@ -7,19 +7,21 @@ import { registerPr } from './pr';
 
 type Handler = (event: IpcMainInvokeEvent, tabId: string) => Promise<unknown>;
 
-const { handle, prForBranch, defaultRunner, currentBranch } = vi.hoisted(() => ({
+const { handle, prForBranch, commentOnPr, defaultRunner, currentBranch } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
   prForBranch: vi.fn(),
+  commentOnPr: vi.fn(),
   defaultRunner: vi.fn(),
   currentBranch: vi.fn(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 vi.mock('../git', () => ({ currentBranch }));
-vi.mock('../github', () => ({ prForBranch }));
+vi.mock('../github', () => ({ prForBranch, commentOnPr }));
 vi.mock('../preflight', () => ({ defaultRunner }));
 
 const event = {} as IpcMainInvokeEvent;
+const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const pr: PrInfo = {
   number: 33,
   url: 'https://github.com/tahardi/maple/pull/33',
@@ -31,21 +33,46 @@ const pr: PrInfo = {
   checks: { passed: 1, failed: 0, pending: 0, total: 1 },
 };
 
-function get(worktree: string | null): (tabId: string) => Promise<unknown> {
-  registerPr({
-    window: () => null,
-    worktreeFor: () => worktree,
-    project: () => Promise.resolve(null),
-    sessions: {} as SessionManager,
-    status: {} as StatusEngine,
-    setActiveTab: () => undefined,
-    setNotifications: () => Promise.resolve(),
-  });
-  const call = handle.mock.calls.find(([name]) => name === 'pr:get');
+function register(
+  channel: string,
+  worktree: string | null,
+  sessions: SessionManager = {} as SessionManager,
+): (tabId: string) => Promise<unknown> {
+  registerPr(
+    {
+      window: () => null,
+      worktreeFor: () => worktree,
+      project: () => Promise.resolve(null),
+      sessions,
+      status: {} as StatusEngine,
+      setActiveTab: () => undefined,
+      warnings: () => [],
+      setNotifications: () => Promise.resolve(),
+    },
+    logger,
+  );
+  const call = handle.mock.calls.find(([name]) => name === channel);
   if (!call) {
-    throw new Error('finding handler for pr:get');
+    throw new Error(`finding handler for ${channel}`);
   }
   return (tabId) => call[1](event, tabId);
+}
+
+function get(worktree: string | null): (tabId: string) => Promise<unknown> {
+  return register('pr:get', worktree);
+}
+
+function approver(worktree: string | null = '/wt', cardKey: string | null = 'DIG-44') {
+  const calls: string[] = [];
+  commentOnPr.mockImplementation(() => {
+    calls.push('comment');
+    return Promise.resolve();
+  });
+  const sendPrompt = vi.fn(() => {
+    calls.push('prompt');
+  });
+  const sessions = { get: () => ({ cardKey }), sendPrompt } as unknown as SessionManager;
+  return { approve: register('pr:approve', worktree, sessions), sendPrompt, calls };
 }
 
 describe('registerPr', () => {
@@ -121,5 +148,102 @@ describe('registerPr', () => {
     // then
     expect(result).toEqual({ data: null, error: null, fetchedAt: null });
     expect(prForBranch).not.toHaveBeenCalled();
+  });
+
+  test('approve comments LGTM on the PR, then sends the card prompt', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const { approve, sendPrompt, calls } = approver();
+    // when
+    await approve('t1');
+    // then
+    expect(commentOnPr).toHaveBeenCalledWith(defaultRunner, '/wt', 33, 'LGTM');
+    expect(sendPrompt).toHaveBeenCalledWith('t1', '/card DIG-44');
+    expect(calls).toEqual(['comment', 'prompt']);
+  });
+
+  test('approve rejects and sends nothing when commenting fails', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const { approve, sendPrompt } = approver();
+    commentOnPr.mockRejectedValue(new Error('commenting on PR: offline'));
+    // when
+    const result = approve('t1');
+    // then
+    await expect(result).rejects.toThrow('approving PR: commenting on PR: offline');
+    expect(sendPrompt).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'the tab has no worktree', worktree: null, cardKey: 'DIG-44', want: 'tab has no card worktree' },
+    { name: 'the tab has no card', worktree: '/wt', cardKey: null, want: 'tab has no card worktree' },
+  ])('approve rejects and comments nothing when $name', async ({ worktree, cardKey, want }) => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const { approve, sendPrompt } = approver(worktree, cardKey);
+    // when
+    const result = approve('t1');
+    // then
+    await expect(result).rejects.toThrow(`approving PR: ${want}`);
+    expect(prForBranch).not.toHaveBeenCalled();
+    expect(commentOnPr).not.toHaveBeenCalled();
+    expect(sendPrompt).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'there is no PR', found: null },
+    { name: 'the PR is merged', found: { ...pr, state: 'MERGED' as const } },
+    { name: 'the PR is closed', found: { ...pr, state: 'CLOSED' as const } },
+  ])('approve rejects and comments nothing when $name', async ({ found }) => {
+    // given
+    prForBranch.mockResolvedValue(found);
+    const { approve, sendPrompt } = approver();
+    // when
+    const result = approve('t1');
+    // then
+    await expect(result).rejects.toThrow('approving PR: branch has no open PR');
+    expect(commentOnPr).not.toHaveBeenCalled();
+    expect(sendPrompt).not.toHaveBeenCalled();
+  });
+
+  test('approve rejects with the cause when the PR lookup fails', async () => {
+    // given
+    prForBranch.mockRejectedValue(new Error('listing PRs: offline'));
+    const { approve, sendPrompt } = approver();
+    // when
+    const result = approve('t1');
+    // then
+    await expect(result).rejects.toThrow('approving PR: listing PRs: offline');
+    expect(commentOnPr).not.toHaveBeenCalled();
+    expect(sendPrompt).not.toHaveBeenCalled();
+  });
+
+  test('logs a failed PR lookup at warn', async () => {
+    // given
+    prForBranch.mockRejectedValue(new Error('listing PRs: offline'));
+    const prGet = get('/wt');
+    // when
+    await prGet('t1');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:get',
+      tabId: 't1',
+      error: 'listing PRs: offline',
+    });
+  });
+
+  test('logs a failed approve at warn', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const { approve } = approver();
+    commentOnPr.mockRejectedValue(new Error('commenting on PR: offline'));
+    // when
+    await approve('t1').catch(() => undefined);
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:approve',
+      tabId: 't1',
+      error: 'commenting on PR: offline',
+    });
   });
 });

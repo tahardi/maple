@@ -30,7 +30,13 @@ export type TabState = {
   worktreePath: string | null;
 };
 export type Dot = 'working' | 'waiting' | 'ready' | 'idle';
-export type TabStatus = { tabId: string; dot: Dot; sessionAlive: boolean; exitCode: number | null };
+export type TabStatus = {
+  tabId: string;
+  dot: Dot;
+  sessionAlive: boolean;
+  exitCode: number | null;
+  resumeFailed: boolean;
+};
 export type HookEvent = {
   tabId: string;
   event: 'Stop' | 'Notification' | 'UserPromptSubmit';

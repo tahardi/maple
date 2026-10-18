@@ -12,9 +12,19 @@ describe('SessionEnded', () => {
     // given
     fakeMaple();
     // when
-    render(<SessionEnded tabId="t1" exitCode={exitCode} />);
+    render(<SessionEnded tabId="t1" exitCode={exitCode} resumeFailed={false} />);
     // then
     expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  test('a failed resume shows "Resume failed (exit code 1)"', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<SessionEnded tabId="t1" exitCode={1} resumeFailed />);
+    // then
+    expect(screen.getByText('Resume failed (exit code 1)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start fresh' })).toBeInTheDocument();
   });
 
   test.each([
@@ -24,7 +34,7 @@ describe('SessionEnded', () => {
     // given
     const calls = { resume: vi.fn(() => Promise.resolve()), startFresh: vi.fn(() => Promise.resolve()) };
     fakeMaple({ tabs: calls });
-    render(<SessionEnded tabId="t1" exitCode={0} />);
+    render(<SessionEnded tabId="t1" exitCode={0} resumeFailed={false} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: button }));
     // then

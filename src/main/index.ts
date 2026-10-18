@@ -1,23 +1,27 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, dialog, shell } from 'electron';
 import { spawn } from 'node-pty';
 import { configDir, loadConfig } from './config';
 import { hookSocketPath, startHookServer } from './hookServer';
 import { writeHooksFile } from './hooksFile';
-import { currentBranch } from './git';
+import { currentBranch, findWorktree } from './git';
 import { prForBranch } from './github';
 import { registerIpc } from './ipc';
 import { notificationsDefault, projectByKey } from './ipc/config';
 import { JiraClient, jiraEnvPath, readCreds } from './jira';
+import { appLogger, logUncaught, startLogging } from './log';
 import { checkNotifications } from './menu';
 import { notifyTab, shouldNotify } from './notify';
 import { defaultRunner } from './preflight';
+import { restoreTabs } from './restore';
 import { SessionManager } from './sessions';
 import { saveState, loadState, type SavedState } from './state';
 import { StatusEngine } from './status';
+import { hasTranscript } from './transcripts';
 
 let mainWindow: BrowserWindow | null = null;
+let quitting = false;
 
 function createWindow(): void {
   const window = new BrowserWindow({
@@ -39,6 +43,12 @@ function createWindow(): void {
     }
     return { action: 'deny' };
   });
+  window.on('close', (event) => {
+    if (!quitting && process.platform !== 'darwin') {
+      event.preventDefault();
+      app.quit();
+    }
+  });
   window.on('closed', () => {
     mainWindow = null;
   });
@@ -52,7 +62,12 @@ function createWindow(): void {
 }
 
 async function start(): Promise<void> {
-  const [{ data: config }, { state }] = await Promise.all([loadConfig(), loadState()]);
+  startLogging(!app.isPackaged);
+  logUncaught();
+  process.on('uncaughtException', (err) => {
+    dialog.showErrorBox('A JavaScript error occurred in the main process', err.stack ?? err.message);
+  });
+  const [{ data: config }, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
   const socketPath = hookSocketPath();
   let saved = state;
@@ -76,6 +91,7 @@ async function start(): Promise<void> {
     save: (tabs, closedSessions) => persist({ tabs, closedSessions }),
     closedSessions: state.closedSessions,
     uuid: randomUUID,
+    hasTranscript,
   });
   const jira = readCreds(jiraEnvPath()).then((creds) => new JiraClient(creds));
   jira.catch(() => undefined);
@@ -91,6 +107,13 @@ async function start(): Promise<void> {
     sessions.killAll();
     void stopHooks();
   });
+  const restored = config
+    ? await restoreTabs(state, sessions, (key) => findWorktree(config.worktreesDir, key))
+    : { restored: 0, warnings: [] };
+  if (warning !== null) {
+    appLogger.warn('restore', 'state unreadable', { warning });
+  }
+  const warnings = [...(warning === null ? [] : [warning]), ...restored.warnings];
 
   let activeTabId: string | null = null;
   const enabled = async () => saved.notifications ?? (await notificationsDefault());
@@ -118,6 +141,10 @@ async function start(): Promise<void> {
       checkNotifications(on);
       await persist({ notifications: on });
     },
+    warnings: () => warnings,
+  });
+  app.on('before-quit', (event) => {
+    quitting = !event.defaultPrevented;
   });
   checkNotifications(await enabled());
 }

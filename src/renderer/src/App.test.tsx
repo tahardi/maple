@@ -1,7 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { App } from './App';
 import { useMaple } from './store';
 import { fakeMaple } from './testing/fakeMaple';
+
+vi.mock('./claude/ClaudePane', () => ({
+  ClaudePane: () => <div data-testid="claude-pane" />,
+}));
 
 describe('App', () => {
   beforeEach(() => {
@@ -10,12 +14,30 @@ describe('App', () => {
 
   test('shows the Home tab of the first project', async () => {
     // given
-    fakeMaple();
+    const sprint = vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null }));
+    fakeMaple({ jira: { sprint } });
     // when
     render(<App />);
     // then
-    expect(await screen.findByTestId('home')).toHaveTextContent('Bearclave');
+    expect(await screen.findByText('No active sprint')).toBeInTheDocument();
+    expect(sprint).toHaveBeenCalledWith('BEAR');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('switching project shows that project board', async () => {
+    // given
+    const sprint = vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null }));
+    fakeMaple({ jira: { sprint } });
+    render(<App />);
+    await screen.findByText('No active sprint');
+    // when
+    act(() => {
+      useMaple.getState().selectProject('DIG');
+    });
+    // then
+    await waitFor(() => {
+      expect(sprint).toHaveBeenLastCalledWith('DIG');
+    });
   });
 
   test('shows Home when tabs fail to load', async () => {
@@ -29,7 +51,7 @@ describe('App', () => {
     // when
     render(<App />);
     // then
-    expect(await screen.findByTestId('home')).toHaveTextContent('Bearclave');
+    expect(await screen.findByTestId('home')).toBeInTheDocument();
   });
 
   test('shows a config error with the reload hint', async () => {
@@ -65,6 +87,28 @@ describe('App', () => {
     const banner = await screen.findByRole('alert');
     expect(banner).toHaveTextContent('gh is not installed');
     expect(banner).toHaveTextContent('Jira credentials are missing');
+  });
+
+  test('shows state and restore warnings', async () => {
+    // given
+    const warnings = ['reading state: state.json is unreadable', 'dropped DIG-44: project DIG is not in config'];
+    fakeMaple({ app: { warnings: () => Promise.resolve(warnings) } });
+    // when
+    render(<App />);
+    // then
+    const banner = await screen.findByRole('alert');
+    expect(banner).toHaveTextContent('reading state: state.json is unreadable');
+    expect(banner).toHaveTextContent('dropped DIG-44: project DIG is not in config');
+  });
+
+  test('shows Home when warnings fail to load', async () => {
+    // given
+    fakeMaple({ app: { warnings: () => Promise.reject(new Error('invoking app:warnings: gone')) } });
+    // when
+    render(<App />);
+    // then
+    expect(await screen.findByText('No active sprint')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   test('shows preflight problems and a config error in one banner', async () => {

@@ -31,6 +31,7 @@ function setup() {
     sessions: sessions as unknown as SessionManager,
     status: {} as StatusEngine,
     setActiveTab: () => undefined,
+    warnings: () => [],
     setNotifications: () => Promise.resolve(),
   });
   return { sessions, sendToWindow };

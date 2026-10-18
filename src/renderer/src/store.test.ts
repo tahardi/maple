@@ -16,6 +16,7 @@ const status = (tabId: string, dot: TabStatus['dot']): TabStatus => ({
   dot,
   sessionAlive: true,
   exitCode: null,
+  resumeFailed: false,
 });
 
 function setup(tabs: TabState[] = [tab('bear-1', 'BEAR'), tab('dig-1', 'DIG')]) {

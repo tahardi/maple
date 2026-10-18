@@ -1,0 +1,18 @@
+.planner {
+  display: flex;
+  flex-direction: column;
+  width: 40%;
+  min-width: 320px;
+  border-left: 1px solid var(--border);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.nothing {
+  color: var(--text-muted);
+}

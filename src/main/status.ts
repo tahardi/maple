@@ -1,35 +1,49 @@
 import { EventEmitter } from 'node:events';
 import { nextDot, type DotInput } from '@shared/dots';
 import type { Card, Dot, HookEvent, PrInfo, TabStatus } from '@shared/types';
+import { appLogger, type Logger } from './log';
 import type { SessionManager } from './sessions';
 
 export type StatusDeps = {
   sessions: SessionManager;
   getCard: (key: string) => Promise<Card>;
   prFor: (worktree: string) => Promise<PrInfo | null>;
+  logger?: Logger;
 };
 
 type Events = { status: [status: TabStatus, prev: Dot] };
 
-type Tracked = { status: TabStatus; seq: number };
+const RESUME_FAIL_MS = 5000;
+
+type Tracked = { status: TabStatus; seq: number; resumedAt: number | null };
 
 export class StatusEngine extends EventEmitter<Events> {
   private readonly tabs = new Map<string, Tracked>();
+  private readonly log: Logger;
 
   constructor(private readonly deps: StatusDeps) {
     super();
+    this.log = deps.logger ?? appLogger;
     const { sessions } = deps;
-    sessions.on('spawn', (tabId, prompted) => {
+    sessions.on('spawn', (tabId, prompted, resumed) => {
       const prev = this.tabs.get(tabId);
       const dot = prompted ? 'working' : 'idle';
-      const status: TabStatus = { tabId, dot, sessionAlive: true, exitCode: null };
-      this.tabs.set(tabId, { status, seq: (prev?.seq ?? 0) + 1 });
+      const status: TabStatus = { tabId, dot, sessionAlive: true, exitCode: null, resumeFailed: false };
+      this.tabs.set(tabId, { status, seq: (prev?.seq ?? 0) + 1, resumedAt: resumed ? Date.now() : null });
+      if (prev && prev.status.dot !== dot) {
+        this.log.info('dot', 'changed', { tabId, from: prev.status.dot, to: dot, input: 'spawn' });
+      }
       this.emitStatus(tabId, prev?.status.dot ?? dot);
     });
     sessions.on('exit', (tabId, exitCode) => {
       const tracked = this.tabs.get(tabId);
       if (tracked) {
-        tracked.status = { ...tracked.status, sessionAlive: false, exitCode };
+        const { resumedAt } = tracked;
+        const resumeFailed = exitCode !== 0 && resumedAt !== null && Date.now() - resumedAt < RESUME_FAIL_MS;
+        tracked.status = { ...tracked.status, sessionAlive: false, exitCode, resumeFailed };
+        if (resumeFailed) {
+          this.log.warn('session', 'resume failed', { tabId, code: exitCode });
+        }
         this.emitStatus(tabId, tracked.status.dot);
       }
     });
@@ -73,8 +87,10 @@ export class StatusEngine extends EventEmitter<Events> {
     let input: DotInput | null;
     try {
       const [card, pr] = await Promise.all([
-        this.deps.getCard(tab.cardKey),
-        worktreePath === null ? null : this.deps.prFor(worktreePath),
+        this.deps.getCard(tab.cardKey).catch((err: unknown) => this.fail('jira', 'getCard', err)),
+        worktreePath === null
+          ? null
+          : this.deps.prFor(worktreePath).catch((err: unknown) => this.fail('gh', 'prFor', err)),
       ]);
       input = { type: 'stop', kind: 'card', cardStatus: card.status, pr };
     } catch {
@@ -82,8 +98,21 @@ export class StatusEngine extends EventEmitter<Events> {
     }
     const tracked = this.tabs.get(tabId);
     if (tracked?.seq === seq) {
-      this.setDot(tracked, input === null ? 'waiting' : nextDot(input));
+      this.setDot(tracked, input === null ? 'waiting' : nextDot(input), this.inputFields(input));
     }
+  }
+
+  private fail(scope: 'jira' | 'gh', operation: string, err: unknown): never {
+    this.log.warn(scope, 'failed', { operation, error: err instanceof Error ? err.message : String(err) });
+    throw err;
+  }
+
+  private inputFields(input: DotInput | null): Record<string, unknown> {
+    if (input?.type !== 'stop') {
+      return { input: input?.type ?? 'stop' };
+    }
+    const { cardStatus, pr } = input;
+    return { input: 'stop', cardStatus, pr: pr?.state ?? null, failedChecks: pr?.checks.failed ?? null };
   }
 
   private bump(tabId: string): number | null {
@@ -100,13 +129,14 @@ export class StatusEngine extends EventEmitter<Events> {
     if (!tracked) {
       return;
     }
-    this.setDot(tracked, nextDot(input));
+    this.setDot(tracked, nextDot(input), this.inputFields(input));
   }
 
-  private setDot(tracked: Tracked, dot: Dot): void {
+  private setDot(tracked: Tracked, dot: Dot, fields: Record<string, unknown>): void {
     const prev = tracked.status.dot;
     if (dot !== prev) {
       tracked.status = { ...tracked.status, dot };
+      this.log.info('dot', 'changed', { tabId: tracked.status.tabId, from: prev, to: dot, ...fields });
       this.emit('status', tracked.status, prev);
     }
   }

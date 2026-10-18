@@ -5,8 +5,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgb(0 0 0 / 70%);
-  color: #e6e6e6;
+  background: var(--overlay);
+  color: var(--text);
 }
 
 .buttons {

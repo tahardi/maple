@@ -1,7 +1,9 @@
 import { ipcMain } from 'electron';
+import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
 import type { Fetched, PrInfo } from '@shared/types';
 import { currentBranch } from '../git';
-import { prForBranch } from '../github';
+import { commentOnPr, prForBranch } from '../github';
+import { appLogger, type Logger } from '../log';
 import { defaultRunner } from '../preflight';
 import type { IpcDeps } from './index';
 
@@ -9,7 +11,7 @@ async function lookup(worktree: string): Promise<PrInfo | null> {
   return prForBranch(defaultRunner, worktree, await currentBranch(worktree));
 }
 
-export function registerPr(deps: IpcDeps): void {
+export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
   const lastGood = new Map<string, Fetched<PrInfo>>();
   ipcMain.handle('pr:get', async (_event, tabId: string): Promise<Fetched<PrInfo>> => {
     const worktree = deps.worktreeFor(tabId);
@@ -23,8 +25,30 @@ export function registerPr(deps: IpcDeps): void {
     } catch (err) {
       const cached = lastGood.get(tabId);
       const error = err instanceof Error ? err.message : String(err);
+      logger.warn('gh', 'failed', { operation: 'pr:get', tabId, error });
       return { data: cached?.data ?? null, error, fetchedAt: cached?.fetchedAt ?? null };
     }
   });
-  ipcMain.handle('pr:approve', () => Promise.reject(new Error('pr:approve is not implemented')));
+  ipcMain.handle('pr:approve', async (_event, tabId: string): Promise<void> => {
+    try {
+      const worktree = deps.worktreeFor(tabId);
+      const cardKey = deps.sessions.get(tabId)?.cardKey ?? null;
+      if (worktree === null || cardKey === null) {
+        throw new Error('tab has no card worktree');
+      }
+      const pr = await lookup(worktree);
+      if (pr?.state !== 'OPEN') {
+        throw new Error('branch has no open PR');
+      }
+      await commentOnPr(defaultRunner, worktree, pr.number, APPROVE_COMMENT);
+      deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
+    } catch (err) {
+      logger.warn('gh', 'failed', {
+        operation: 'pr:approve',
+        tabId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw new Error(`approving PR: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
 }

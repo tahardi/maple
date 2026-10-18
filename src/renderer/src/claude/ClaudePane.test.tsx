@@ -143,14 +143,19 @@ describe('ClaudePane', () => {
     expect(close).not.toHaveBeenCalled();
   });
 
-  test('mounting opens a terminal with the pane font and scrollback', async () => {
+  test('mounting opens a terminal with the pane font, scrollback, and dark theme', async () => {
     // given
     fakeMaple();
     // when
     render(<ClaudePane tabId="t1" actions={[]} />);
     await flush();
     // then
-    expect(Terminal).toHaveBeenCalledWith({ fontFamily: 'ui-monospace', fontSize: 13, scrollback: 10_000 });
+    expect(Terminal).toHaveBeenCalledWith({
+      fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
+      fontSize: 13,
+      scrollback: 10_000,
+      theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
+    });
     expect(xterm.terminal.loadAddon).toHaveBeenCalledWith(vi.mocked(FitAddon).mock.results[0]?.value);
     expect(xterm.terminal.open).toHaveBeenCalledWith(expect.any(HTMLDivElement));
   });
@@ -251,7 +256,9 @@ describe('ClaudePane', () => {
   ])('sessionAlive $sessionAlive shows the overlay: $shown', ({ sessionAlive, shown }) => {
     // given
     fakeMaple();
-    useMaple.setState({ statuses: { t1: { tabId: 't1', dot: 'idle', sessionAlive, exitCode: 1 } } });
+    useMaple.setState({
+      statuses: { t1: { tabId: 't1', dot: 'idle', sessionAlive, exitCode: 1, resumeFailed: false } },
+    });
     // when
     render(<ClaudePane tabId="t1" actions={[]} />);
     // then
@@ -262,7 +269,7 @@ describe('ClaudePane', () => {
     { name: 'no status', statuses: {} },
     {
       name: 'another tab ended',
-      statuses: { t2: { tabId: 't2', dot: 'idle', sessionAlive: false, exitCode: 1 } },
+      statuses: { t2: { tabId: 't2', dot: 'idle', sessionAlive: false, exitCode: 1, resumeFailed: false } },
     },
   ] as { name: string; statuses: Record<string, TabStatus> }[])('$name shows no overlay', ({ statuses }) => {
     // given
@@ -277,13 +284,29 @@ describe('ClaudePane', () => {
   test('the overlay appears when the session ends while mounted', () => {
     // given
     fakeMaple();
-    useMaple.setState({ statuses: { t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null } } });
+    useMaple.setState({
+      statuses: { t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false } },
+    });
     render(<ClaudePane tabId="t1" actions={[]} />);
     // when
     act(() => {
-      useMaple.getState().setStatus({ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 137 });
+      useMaple
+        .getState()
+        .setStatus({ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 137, resumeFailed: false });
     });
     // then
     expect(screen.getByText('Session ended (exit code 137)')).toBeInTheDocument();
+  });
+
+  test('a failed resume shows the resume failure overlay', () => {
+    // given
+    fakeMaple();
+    useMaple.setState({
+      statuses: { t1: { tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 1, resumeFailed: true } },
+    });
+    // when
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    // then
+    expect(screen.getByText('Resume failed (exit code 1)')).toBeInTheDocument();
   });
 });

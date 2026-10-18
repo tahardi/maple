@@ -12,6 +12,7 @@ type FakePty = {
   args: string[];
   options: { cwd?: string; cols?: number; rows?: number; env?: Record<string, string | undefined> };
   written: string[];
+  resized: [number, number][];
   killed: boolean;
   emitData: (data: string) => void;
   emitExit: (exitCode: number) => void;
@@ -35,6 +36,7 @@ function fakeSpawn(ptys: FakePty[]): typeof spawn {
       args: typeof args === 'string' ? [args] : args,
       options,
       written: [],
+      resized: [],
       killed: false,
       emitData: (data) => {
         onData(data);
@@ -56,7 +58,9 @@ function fakeSpawn(ptys: FakePty[]): typeof spawn {
       write: (data: string) => {
         fake.written.push(data);
       },
-      resize: vi.fn(),
+      resize: (cols: number, rows: number) => {
+        fake.resized.push([cols, rows]);
+      },
       kill: () => {
         fake.killed = true;
       },
@@ -65,11 +69,12 @@ function fakeSpawn(ptys: FakePty[]): typeof spawn {
   });
 }
 
-function setup(closedSessions: Record<string, string> = {}) {
+function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: string) => boolean = () => true) {
   const ptys: FakePty[] = [];
   let n = 0;
   const save = vi.fn<(tabs: TabState[], closed: Record<string, string>) => Promise<void>>(() => Promise.resolve());
   const spawnFn = fakeSpawn(ptys);
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const manager = new SessionManager({
     spawn: spawnFn,
     config: () => config,
@@ -78,8 +83,10 @@ function setup(closedSessions: Record<string, string> = {}) {
     save,
     closedSessions,
     uuid: () => `uuid-${String(++n)}`,
+    hasTranscript,
+    logger,
   });
-  return { manager, ptys, save, spawnFn };
+  return { manager, ptys, save, spawnFn, logger };
 }
 
 function fresh(manager: SessionManager, tab: TabState): TabState {
@@ -123,6 +130,19 @@ describe('SessionManager', () => {
     });
   });
 
+  test('logs spawned with the args', () => {
+    // given
+    const { manager, logger } = setup();
+    // when
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // then
+    expect(logger.info).toHaveBeenCalledWith(
+      'session',
+      'spawned',
+      expect.objectContaining({ tabId: tab.id, args: [...base, '--session-id', tab.sessionId, '/card DIG-44'] }),
+    );
+  });
+
   test.each([
     { name: 'startCard', open: (m: SessionManager) => m.startCard('DIG', 'DIG-44') },
     { name: 'openCard', open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', null) },
@@ -139,21 +159,39 @@ describe('SessionManager', () => {
   });
 
   test.each([
-    { name: 'startCard', open: (m: SessionManager) => m.startCard('DIG', 'DIG-44'), prompted: true },
-    { name: 'openCard', open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', null), prompted: false },
-    { name: 'openPlanner', open: (m: SessionManager) => m.openPlanner('DIG', null), prompted: false },
+    { name: 'startCard', open: (m: SessionManager) => m.startCard('DIG', 'DIG-44'), prompted: true, resumes: false },
+    {
+      name: 'openCard',
+      open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', null),
+      prompted: false,
+      resumes: false,
+    },
+    {
+      name: 'openCard with a resume id',
+      open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', 'old'),
+      prompted: false,
+      resumes: true,
+    },
+    { name: 'openPlanner', open: (m: SessionManager) => m.openPlanner('DIG', null), prompted: false, resumes: false },
     {
       name: 'startFresh on a card',
       open: (m: SessionManager) => fresh(m, m.startCard('DIG', 'DIG-44')),
       prompted: true,
+      resumes: false,
     },
     {
       name: 'startFresh on a planner',
       open: (m: SessionManager) => fresh(m, m.openPlanner('DIG', null)),
       prompted: false,
+      resumes: false,
     },
-    { name: 'resume', open: (m: SessionManager) => resumed(m, m.startCard('DIG', 'DIG-44')), prompted: false },
-  ])('$name emits spawn with prompted $prompted', ({ open, prompted }) => {
+    {
+      name: 'resume',
+      open: (m: SessionManager) => resumed(m, m.startCard('DIG', 'DIG-44')),
+      prompted: false,
+      resumes: true,
+    },
+  ])('$name emits spawn with prompted $prompted and resumes $resumes', ({ open, prompted, resumes }) => {
     // given
     const { manager } = setup();
     const spawned = vi.fn();
@@ -161,7 +199,7 @@ describe('SessionManager', () => {
     // when
     const tab = open(manager);
     // then
-    expect(spawned).toHaveBeenLastCalledWith(tab.id, prompted);
+    expect(spawned).toHaveBeenLastCalledWith(tab.id, prompted, resumes);
   });
 
   test.each([
@@ -209,6 +247,45 @@ describe('SessionManager', () => {
     manager.startFresh(tab.id);
     // then
     expect(ptys[1].args).toEqual([...base, '--session-id', manager.get(tab.id)?.sessionId]);
+  });
+
+  test('openCard with a resume id that has no transcript starts that session fresh', () => {
+    // given
+    const { manager, ptys } = setup({}, () => false);
+    const spawned = vi.fn();
+    manager.on('spawn', spawned);
+    // when
+    const tab = manager.openCard('DIG', 'DIG-44', 'old-session');
+    // then
+    expect(ptys[0].args).toEqual([...base, '--session-id', 'old-session']);
+    expect(spawned).toHaveBeenCalledWith(tab.id, false, false);
+  });
+
+  test('resize and write after the session exits leave the dead pty alone', () => {
+    // given
+    const { manager, ptys } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    ptys[0].emitExit(1);
+    // when
+    manager.resize(tab.id, 80, 24);
+    manager.write(tab.id, 'x');
+    manager.sendPrompt(tab.id, 'hi');
+    // then
+    expect(ptys[0].resized).toEqual([]);
+    expect(ptys[0].written).toEqual([]);
+  });
+
+  test.each([
+    { cols: 0, rows: 24 },
+    { cols: 80, rows: 0 },
+  ])('resize to $cols x $rows is ignored', ({ cols, rows }) => {
+    // given
+    const { manager, ptys } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // when
+    manager.resize(tab.id, cols, rows);
+    // then
+    expect(ptys[0].resized).toEqual([]);
   });
 
   test('resume respawns the tab with its session id', () => {
@@ -415,6 +492,18 @@ describe('SessionManager', () => {
   });
 
   test.each([
+    { key: 'DIG', want: true },
+    { key: 'NOPE', want: false },
+  ])('hasProject $key is $want', ({ key, want }) => {
+    // given
+    const { manager } = setup();
+    // when
+    const has = manager.hasProject(key);
+    // then
+    expect(has).toBe(want);
+  });
+
+  test.each([
     {
       name: 'resume',
       restart: (m: SessionManager, id: string) => {
@@ -482,5 +571,108 @@ describe('SessionManager', () => {
       expect(manager.get(tab.id)?.worktreePath).toBe('/tmp/wts/dig-days-dig-44');
     });
     expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  test('logs exited with the code', () => {
+    // given
+    const { manager, ptys, logger } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // when
+    ptys[0].emitExit(3);
+    // then
+    expect(logger.info).toHaveBeenCalledWith('session', 'exited', { tabId: tab.id, code: 3 });
+  });
+
+  test('logs spawned with resumed true for a resume', () => {
+    // given
+    const { manager, logger } = setup();
+    // when
+    manager.openCard('DIG', 'DIG-44', 'old');
+    // then
+    expect(logger.info).toHaveBeenCalledWith('session', 'spawned', expect.objectContaining({ resumed: true }));
+  });
+
+  test('logs the first 80 characters of a sent prompt', () => {
+    // given
+    const { manager, logger } = setup();
+    const tab = manager.openPlanner('DIG', null);
+    // when
+    manager.sendPrompt(tab.id, 'x'.repeat(100));
+    // then
+    expect(logger.info).toHaveBeenCalledWith('session', 'prompt sent', { tabId: tab.id, text: 'x'.repeat(80) });
+  });
+
+  test('logs a fresh start when a resume has no transcript', () => {
+    // given
+    const { manager, logger } = setup({}, () => false);
+    // when
+    const tab = manager.openCard('DIG', 'DIG-44', 'old');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('session', 'no transcript, starting fresh', {
+      tabId: tab.id,
+      sessionId: 'old',
+    });
+  });
+
+  test('logs a found worktree', async () => {
+    // given
+    vi.mocked(findWorktree).mockResolvedValue('/tmp/wts/dig-days-dig-44');
+    const { manager, logger } = setup();
+    // when
+    manager.startCard('DIG', 'DIG-44');
+    // then
+    await vi.waitFor(() => {
+      expect(logger.info).toHaveBeenCalledWith('worktree', 'found', {
+        cardKey: 'DIG-44',
+        path: '/tmp/wts/dig-days-dig-44',
+      });
+    });
+  });
+
+  test('logs a failed worktree lookup at warn', async () => {
+    // given
+    vi.mocked(findWorktree).mockRejectedValue(new Error('listing worktrees: denied'));
+    const { manager, logger } = setup();
+    // when
+    manager.startCard('DIG', 'DIG-44');
+    // then
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith('worktree', 'failed', {
+        operation: 'findWorktree',
+        cardKey: 'DIG-44',
+        error: 'listing worktrees: denied',
+      });
+    });
+  });
+
+  test('logs a failed worktree watch at warn', () => {
+    // given
+    vi.mocked(watchWorktrees).mockImplementation(() => {
+      throw new Error('watching worktrees: ENOENT');
+    });
+    const { manager, logger } = setup();
+    // when
+    manager.startCard('DIG', 'DIG-44');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('worktree', 'failed', {
+      operation: 'watchWorktrees',
+      cardKey: 'DIG-44',
+      error: 'watching worktrees: ENOENT',
+    });
+  });
+
+  test('logs a failed state save at error', async () => {
+    // given
+    const { manager, save, logger } = setup();
+    save.mockRejectedValue(new Error('writing state: disk full'));
+    // when
+    manager.startCard('DIG', 'DIG-44');
+    // then
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith('session', 'failed', {
+        operation: 'saveState',
+        error: 'writing state: disk full',
+      });
+    });
   });
 });

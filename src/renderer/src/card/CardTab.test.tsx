@@ -1,8 +1,25 @@
-import type { PrInfo, TabState } from '@shared/types';
-import { render, screen } from '@testing-library/react';
+import type { Card, PrInfo, TabState } from '@shared/types';
+import type { PaneAction } from '../claude/ClaudePane';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
-import { fakeMaple } from '../testing/fakeMaple';
+import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
 import { CardTab } from './CardTab';
+
+vi.mock('./monacoSetup', () => ({}));
+
+vi.mock('../claude/ClaudePane', async () => {
+  const { ActionBar } = await import('../claude/ActionBar');
+  return {
+    ClaudePane: ({ actions }: { actions: readonly PaneAction[] }) => <ActionBar actions={actions} />,
+  };
+});
+
+vi.mock('@monaco-editor/react', () => ({
+  useMonaco: () => null,
+  Editor: () => <div data-testid="editor" />,
+  DiffEditor: () => <div data-testid="diff-editor" />,
+}));
 
 const tab: TabState = {
   id: 't1',
@@ -43,6 +60,7 @@ function fakeRepo(withPr: boolean) {
 describe('CardTab', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
+    useMaple.setState({ config: FAKE_CONFIG });
     localStorage.clear();
   });
 
@@ -89,5 +107,163 @@ describe('CardTab', () => {
     expect(screen.getByTestId('viewer-slot').previousElementSibling?.previousElementSibling).toHaveStyle({
       width: '300px',
     });
+  });
+
+  test('opens tree selections as file tabs and closes them', async () => {
+    // given
+    fakeRepo(false);
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await screen.findByText('README.md'));
+    await userEvent.click(screen.getByText('a.ts'));
+    await userEvent.click(screen.getByText('README.md', { selector: 'li span' }));
+    // then
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['README.md', 'a.ts']);
+    expect(screen.getByRole('tab', { name: 'README.md', selected: true })).toBeInTheDocument();
+    expect(screen.getByTestId('viewer-slot')).not.toHaveTextContent('Waiting for worktree…');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close README.md' }));
+    // then
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+    expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  test('keeps the active file when closing another file tab', async () => {
+    // given
+    fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    await userEvent.click(screen.getByText('a.ts'));
+    await userEvent.click(screen.getByText('b.ts'));
+    await userEvent.click(screen.getByText('README.md', { selector: 'li span' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close a.ts' }));
+    // then
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['README.md', 'b.ts']);
+    expect(screen.getByRole('tab', { name: 'README.md', selected: true })).toBeInTheDocument();
+  });
+
+  test('clears the selection when the last file tab closes', async () => {
+    // given
+    fakeRepo(false);
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close README.md' }));
+    // then
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByText('README.md').closest('li')?.className).not.toMatch(/selected/);
+  });
+
+  test('shows the config actions and Approve in the Claude pane', async () => {
+    // given
+    const sendPrompt = vi.fn();
+    const approve = vi.fn(() => Promise.resolve());
+    fakeMaple({
+      session: { sendPrompt },
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), approve },
+    });
+    const config = {
+      worktreesDir: '',
+      notifications: false,
+      projects: [],
+      actions: [{ label: 'Sync', prompt: 'Sync {key}' }],
+    };
+    useMaple.setState({ config: { ...FAKE_CONFIG, data: config } });
+    render(<CardTab tab={tab} />);
+    const slot = within(screen.getByTestId('claude-slot'));
+    // when
+    await userEvent.click(slot.getByRole('button', { name: 'Sync' }));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    // then
+    expect(sendPrompt).toHaveBeenCalledWith('t1', 'Sync MPL-20');
+    expect(approve).toHaveBeenCalledWith('t1');
+  });
+
+  test.each([
+    { name: 'a Done card without a worktree', status: 'Done', worktreePath: null, shown: true },
+    { name: 'a Done card with a worktree', status: 'Done', worktreePath: tab.worktreePath, shown: false },
+    { name: 'an In Review card without a worktree', status: 'In Review', worktreePath: null, shown: false },
+  ] as const)('the merged notice for $name is shown: $shown', async ({ status, worktreePath, shown }) => {
+    // given
+    const card: Card = {
+      key: 'MPL-20',
+      summary: 'File Tree',
+      status,
+      points: 3,
+      labels: [],
+      blockedBy: [],
+      descriptionMd: '',
+      url: 'https://example.atlassian.net/browse/MPL-20',
+    };
+    const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath }} />);
+    await screen.findByText('MPL-20 File Tree');
+    // then
+    const slot = within(screen.getByTestId('claude-slot'));
+    expect(slot.queryByText('Merged') !== null).toBe(shown);
+    expect(slot.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+  });
+
+  test('Close tab on the merged notice closes the tab', async () => {
+    // given
+    const card: Card = {
+      key: 'MPL-20',
+      summary: 'File Tree',
+      status: 'Done',
+      points: 3,
+      labels: [],
+      blockedBy: [],
+      descriptionMd: '',
+      url: 'https://example.atlassian.net/browse/MPL-20',
+    };
+    const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+    const close = vi.fn(() => Promise.resolve({ closed: true, needsConfirm: false }));
+    fakeMaple({
+      jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) },
+      tabs: { close },
+    });
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
+    // then
+    expect(close).toHaveBeenCalledWith('t1', false);
+  });
+
+  test('a failed Approve is logged', async () => {
+    // given
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fakeMaple({
+      pr: {
+        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
+        approve: () => Promise.reject(new Error('approving PR: offline')),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    // then
+    await vi.waitFor(() => {
+      expect(error).toHaveBeenCalledWith('approving PR: offline');
+    });
+    error.mockRestore();
+  });
+
+  test('a working tab disables Approve', async () => {
+    // given
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
+    useMaple.setState({
+      statuses: { t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false } },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' });
+    await vi.waitFor(() => {
+      expect(approve).toHaveAttribute('title', 'Agent is working');
+    });
+    expect(approve).toBeDisabled();
   });
 });

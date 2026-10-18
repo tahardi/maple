@@ -40,7 +40,9 @@ describe('useCardData', () => {
       changed();
     });
     act(() => {
-      useMaple.getState().setStatus({ tabId: 't1', dot: 'idle', sessionAlive: true, exitCode: null });
+      useMaple
+        .getState()
+        .setStatus({ tabId: 't1', dot: 'idle', sessionAlive: true, exitCode: null, resumeFailed: false });
     });
     // then
     await waitFor(() => {
@@ -63,7 +65,7 @@ describe('useCardData', () => {
     });
     // when
     act(() => {
-      useMaple.getState().setStatus({ tabId: 't1', dot, sessionAlive: true, exitCode: null });
+      useMaple.getState().setStatus({ tabId: 't1', dot, sessionAlive: true, exitCode: null, resumeFailed: false });
     });
     // then
     await waitFor(() => {
@@ -125,5 +127,30 @@ describe('useCardData', () => {
       expect(result.current.card).toEqual(card);
     });
     expect(changes).not.toHaveBeenCalled();
+  });
+
+  test('a slow load from before the worktree appeared does not overwrite the files', async () => {
+    // given
+    let finishFirst: () => void = () => undefined;
+    const first = new Promise<{ data: null; error: null; fetchedAt: null }>((resolve) => {
+      finishFirst = () => {
+        resolve({ data: null, error: null, fetchedAt: null });
+      };
+    });
+    const get = vi.fn().mockReturnValueOnce(first).mockResolvedValue({ data: null, error: null, fetchedAt: null });
+    fakeMaple({ pr: { get }, repo: { listFiles: vi.fn(() => Promise.resolve(['a.go'])) } });
+    const noWorktree: TabState = { ...tab, worktreePath: null };
+    const { result, rerender } = renderHook((t: TabState) => useCardData(t), { initialProps: noWorktree });
+    rerender(tab);
+    await waitFor(() => {
+      expect(result.current.files).toEqual(['a.go']);
+    });
+    // when
+    await act(async () => {
+      finishFirst();
+      await first;
+    });
+    // then
+    expect(result.current.files).toEqual(['a.go']);
   });
 });

@@ -129,4 +129,25 @@ describe('loadConfig', () => {
     expect(result.data).toBeNull();
     expect(result.error).toBe(`reading config: ${path} does not exist`);
   });
+
+  test('logs the project count on load', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify(validConfig));
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    // when
+    await loadConfig(dir, logger);
+    // then
+    expect(logger.info).toHaveBeenCalledWith('config', 'loaded', { projects: 2 });
+  });
+
+  test('logs the error when loading fails', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), '{');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    // when
+    const result = await loadConfig(dir, logger);
+    // then
+    expect(logger.error).toHaveBeenCalledWith('config', 'failed', { error: result.error });
+    expect(logger.info).not.toHaveBeenCalled();
+  });
 });
