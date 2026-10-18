@@ -57,7 +57,7 @@ function get(worktree: string | null): (tabId: string) => Promise<unknown> {
   return register('pr:get', worktree);
 }
 
-function approver() {
+function approver(worktree: string | null = '/wt', cardKey: string | null = 'DIG-44') {
   const calls: string[] = [];
   commentOnPr.mockImplementation(() => {
     calls.push('comment');
@@ -66,8 +66,8 @@ function approver() {
   const sendPrompt = vi.fn(() => {
     calls.push('prompt');
   });
-  const sessions = { get: () => ({ cardKey: 'DIG-44' }), sendPrompt } as unknown as SessionManager;
-  return { approve: register('pr:approve', '/wt', sessions), sendPrompt, calls };
+  const sessions = { get: () => ({ cardKey }), sendPrompt } as unknown as SessionManager;
+  return { approve: register('pr:approve', worktree, sessions), sendPrompt, calls };
 }
 
 describe('registerPr', () => {
@@ -166,6 +166,50 @@ describe('registerPr', () => {
     const result = approve('t1');
     // then
     await expect(result).rejects.toThrow('approving PR: commenting on PR: offline');
+    expect(sendPrompt).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'the tab has no worktree', worktree: null, cardKey: 'DIG-44', want: 'tab has no card worktree' },
+    { name: 'the tab has no card', worktree: '/wt', cardKey: null, want: 'tab has no card worktree' },
+  ])('approve rejects and comments nothing when $name', async ({ worktree, cardKey, want }) => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const { approve, sendPrompt } = approver(worktree, cardKey);
+    // when
+    const result = approve('t1');
+    // then
+    await expect(result).rejects.toThrow(`approving PR: ${want}`);
+    expect(prForBranch).not.toHaveBeenCalled();
+    expect(commentOnPr).not.toHaveBeenCalled();
+    expect(sendPrompt).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'there is no PR', found: null },
+    { name: 'the PR is merged', found: { ...pr, state: 'MERGED' as const } },
+    { name: 'the PR is closed', found: { ...pr, state: 'CLOSED' as const } },
+  ])('approve rejects and comments nothing when $name', async ({ found }) => {
+    // given
+    prForBranch.mockResolvedValue(found);
+    const { approve, sendPrompt } = approver();
+    // when
+    const result = approve('t1');
+    // then
+    await expect(result).rejects.toThrow('approving PR: branch has no open PR');
+    expect(commentOnPr).not.toHaveBeenCalled();
+    expect(sendPrompt).not.toHaveBeenCalled();
+  });
+
+  test('approve rejects with the cause when the PR lookup fails', async () => {
+    // given
+    prForBranch.mockRejectedValue(new Error('listing PRs: offline'));
+    const { approve, sendPrompt } = approver();
+    // when
+    const result = approve('t1');
+    // then
+    await expect(result).rejects.toThrow('approving PR: listing PRs: offline');
+    expect(commentOnPr).not.toHaveBeenCalled();
     expect(sendPrompt).not.toHaveBeenCalled();
   });
 });

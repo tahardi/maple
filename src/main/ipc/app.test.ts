@@ -21,6 +21,7 @@ const tabs: Record<string, TabState> = {
   t1: { id: 't1', projectKey: 'DIG', kind: 'card', cardKey: 'DIG-44', sessionId: 's1', worktreePath: null },
   t2: { id: 't2', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-12', sessionId: 's2', worktreePath: null },
   t3: { id: 't3', projectKey: 'DIG', kind: 'card', cardKey: 'DIG-45', sessionId: 's3', worktreePath: null },
+  t4: { id: 't4', projectKey: 'DIG', kind: 'planner', cardKey: null, sessionId: 's4', worktreePath: null },
 };
 
 function setup(dots: Record<string, TabStatus['dot']> = {}) {
@@ -94,5 +95,29 @@ describe('registerApp', () => {
     expect(quit).toHaveBeenCalledOnce();
     expect(event.preventDefault).not.toHaveBeenCalled();
     expect(sendToWindow).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'a working planner tab', tabId: 't4' },
+    { name: 'a working tab that is gone', tabId: 'gone' },
+  ])('quitting with only $name goes ahead', ({ tabId }) => {
+    // given
+    const { sendToWindow, requestQuit } = setup({ [tabId]: 'working' });
+    // when
+    const event = requestQuit();
+    // then
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(sendToWindow).not.toHaveBeenCalled();
+  });
+
+  test('cancelling and quitting again asks again', () => {
+    // given
+    const { sendToWindow, requestQuit } = setup({ t1: 'working' });
+    requestQuit();
+    // when
+    const event = requestQuit();
+    // then
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(sendToWindow).toHaveBeenCalledTimes(2);
   });
 });

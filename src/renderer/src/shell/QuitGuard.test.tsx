@@ -66,4 +66,15 @@ describe('QuitGuard', () => {
     expect(confirmQuit).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  test('unmounting stops listening for quit requests', () => {
+    // given
+    const stop = vi.fn();
+    fakeMaple({ app: { onQuitRequested: () => stop } });
+    const { unmount } = render(<QuitGuard />);
+    // when
+    unmount();
+    // then
+    expect(stop).toHaveBeenCalledOnce();
+  });
 });

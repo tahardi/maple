@@ -153,4 +153,18 @@ describe('registerTabs', () => {
     // then
     expect(setActiveTab).toHaveBeenCalledWith(tabId);
   });
+
+  test.each([
+    { name: 'another tab is working', statuses: [{ ...status, tabId: 't2', dot: 'working' as const }] },
+    { name: 'the tab has no status', statuses: [] },
+  ])('tabs:close closes without asking when $name', ({ statuses }) => {
+    // given
+    const { sessions, engine } = setup();
+    engine.statuses.mockReturnValue(statuses);
+    // when
+    const got = invoke('tabs:close', 't1', false);
+    // then
+    expect(sessions.close).toHaveBeenCalledWith('t1');
+    expect(got).toEqual({ closed: true, needsConfirm: false });
+  });
 });

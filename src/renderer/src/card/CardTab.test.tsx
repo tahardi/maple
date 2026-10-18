@@ -231,4 +231,37 @@ describe('CardTab', () => {
     // then
     expect(close).toHaveBeenCalledWith('t1', false);
   });
+
+  test('a failed Approve is logged', async () => {
+    // given
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fakeMaple({
+      pr: {
+        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
+        approve: () => Promise.reject(new Error('approving PR: offline')),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    // then
+    await vi.waitFor(() => {
+      expect(error).toHaveBeenCalledWith('approving PR: offline');
+    });
+    error.mockRestore();
+  });
+
+  test('a working tab disables Approve', async () => {
+    // given
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
+    useMaple.setState({ statuses: { t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null } } });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' });
+    await vi.waitFor(() => {
+      expect(approve).toHaveAttribute('title', 'Agent is working');
+    });
+    expect(approve).toBeDisabled();
+  });
 });

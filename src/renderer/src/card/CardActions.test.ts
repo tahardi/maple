@@ -96,4 +96,76 @@ describe('cardActions', () => {
     // then
     expect(states).toEqual(Array(3).fill({ disabled: true, title: 'No worktree' }));
   });
+
+  test.each([
+    { name: 'the PR number', pr, want: 'Review PR 7 for DIG-44' },
+    { name: 'nothing without a PR', pr: null, want: 'Review PR  for DIG-44' },
+  ])('fills {pr} with $name', ({ pr: withPr, want }) => {
+    // given
+    const send = vi.fn();
+    const list = cardActions({
+      config: { ...config, actions: [{ label: 'Review', prompt: 'Review PR {pr} for {key}' }] },
+      cardKey: 'DIG-44',
+      pr: withPr,
+      dot: 'ready',
+      worktreeExists: true,
+      send,
+      approve: vi.fn(),
+    });
+    // when
+    list[0].onClick();
+    // then
+    expect(send).toHaveBeenCalledWith(want);
+  });
+
+  test.each(['waiting', 'ready', 'idle'] as const)('Approve is enabled when the dot is %s', (dot) => {
+    // given
+    const { list } = actions({ dot });
+    // when
+    const approve = list.find((a) => a.label === 'Approve');
+    // then
+    expect(approve?.disabled).toBeUndefined();
+  });
+
+  test('Approve is enabled while checks are only pending', () => {
+    // given
+    const { list } = actions({ pr: { ...pr, checks: { passed: 1, failed: 0, pending: 2, total: 3 } } });
+    // when
+    const approve = list.find((a) => a.label === 'Approve');
+    // then
+    expect(approve?.disabled).toBeUndefined();
+  });
+
+  test.each([
+    { name: 'working beats no PR', overrides: { dot: 'working' as const, pr: null }, title: 'Agent is working' },
+    {
+      name: 'no worktree beats working',
+      overrides: { dot: 'working' as const, worktreeExists: false },
+      title: 'No worktree',
+    },
+  ])('Approve shows one reason: $name', ({ overrides, title }) => {
+    // given
+    const { list } = actions(overrides);
+    // when
+    const approve = list.find((a) => a.label === 'Approve');
+    // then
+    expect(approve?.title).toBe(title);
+  });
+
+  test('a config with no actions gives only Approve', () => {
+    // given
+    const list = cardActions({
+      config: { ...config, actions: [] },
+      cardKey: 'DIG-44',
+      pr,
+      dot: 'ready',
+      worktreeExists: true,
+      send: vi.fn(),
+      approve: vi.fn(),
+    });
+    // when
+    const labels = list.map((a) => a.label);
+    // then
+    expect(labels).toEqual(['Approve']);
+  });
 });

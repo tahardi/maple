@@ -128,4 +128,15 @@ describe('TabBar', () => {
     expect(close.mock.calls).toEqual(calls);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  test('closing a tab does not activate it', async () => {
+    // given
+    const activate = vi.fn();
+    useMaple.setState({ activate });
+    render(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close BEAR-2' }));
+    // then
+    expect(activate).not.toHaveBeenCalled();
+  });
 });
