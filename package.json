@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false",
     "test": "vitest run",
+    "e2e": "playwright test",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test",
     "postinstall": "install-electron && electron-rebuild -f -w node-pty"
   },
@@ -34,6 +35,7 @@
   "devDependencies": {
     "@electron/rebuild": "4.2.1",
     "@eslint-community/eslint-plugin-eslint-comments": "4.8.1",
+    "@playwright/test": "1.63.0",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",

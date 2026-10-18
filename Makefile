@@ -14,3 +14,8 @@ pre-pr:
 .PHONY: run
 run:
 	@npm run dev
+
+.PHONY: e2e
+e2e:
+	@npm run build
+	@npx playwright test
