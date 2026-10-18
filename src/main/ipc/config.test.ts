@@ -1,5 +1,6 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import type { SessionManager } from '../sessions';
 import { registerConfig } from './config';
 
 type Handler = (event: IpcMainInvokeEvent) => Promise<unknown>;
@@ -15,6 +16,7 @@ vi.mock('../config', () => ({ loadConfig }));
 vi.mock('../menu', () => ({ setAppMenu }));
 
 const event = {} as IpcMainInvokeEvent;
+const sessions = {} as SessionManager;
 const first = { data: null, error: 'reading config: missing', fetchedAt: null };
 const second = { data: null, error: null, fetchedAt: '2026-10-17T00:00:00.000Z' };
 
@@ -40,7 +42,7 @@ describe('registerConfig', () => {
 
   test('get serves the startup load without loading again', async () => {
     // given
-    registerConfig({ window: () => null, worktreeFor: () => null, project: () => null });
+    registerConfig({ window: () => null, worktreeFor: () => null, project: () => null, sessions });
     // when
     const results = [await handler('config:get')(event), await handler('config:get')(event)];
     // then
@@ -51,7 +53,7 @@ describe('registerConfig', () => {
   test('reload refreshes the cached config and notifies the window', async () => {
     // given
     const { win, sendToWindow } = fakeWindow(false);
-    registerConfig({ window: () => win, worktreeFor: () => null, project: () => null });
+    registerConfig({ window: () => win, worktreeFor: () => null, project: () => null, sessions });
     // when
     const reloaded = await handler('config:reload')(event);
     const after = await handler('config:get')(event);
@@ -67,7 +69,12 @@ describe('registerConfig', () => {
   ])('reload skips notifying $name', async ({ destroyed }) => {
     // given
     const { win, sendToWindow } = fakeWindow(destroyed ?? false);
-    registerConfig({ window: () => (destroyed === null ? null : win), worktreeFor: () => null, project: () => null });
+    registerConfig({
+      window: () => (destroyed === null ? null : win),
+      worktreeFor: () => null,
+      project: () => null,
+      sessions,
+    });
     // when
     const reloaded = await handler('config:reload')(event);
     // then
@@ -78,7 +85,7 @@ describe('registerConfig', () => {
   test('menu reload refreshes the cache and notifies the window', async () => {
     // given
     const { win, sendToWindow } = fakeWindow(false);
-    registerConfig({ window: () => win, worktreeFor: () => null, project: () => null });
+    registerConfig({ window: () => win, worktreeFor: () => null, project: () => null, sessions });
     const [[menuReload]] = setAppMenu.mock.calls;
     // when
     await menuReload();

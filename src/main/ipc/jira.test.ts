@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import type { IpcMainInvokeEvent } from 'electron';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ProjectConfig } from '@shared/types';
+import type { SessionManager } from '../sessions';
 import { registerJira } from './jira';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
@@ -15,8 +16,14 @@ vi.mock('electron', () => ({ ipcMain: { handle } }));
 
 const project: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
 
+const sessions = {} as SessionManager;
 const fixtures = resolve(import.meta.dirname, '../../../test/fixtures/jira');
-const deps = { window: () => null, worktreeFor: () => null, project: (k: string) => (k === 'HALO' ? project : null) };
+const deps = {
+  window: () => null,
+  worktreeFor: () => null,
+  project: (k: string) => (k === 'HALO' ? project : null),
+  sessions,
+};
 
 function fixture(name: string): string {
   return readFileSync(join(fixtures, name), 'utf8');
