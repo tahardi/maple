@@ -25,7 +25,7 @@ function fakeFetch(routes: Record<string, string>): typeof fetch {
 
 const activeRoutes = {
   '/rest/agile/1.0/board/7/sprint': fixture('board-sprint-active.json'),
-  '/rest/agile/1.0/sprint/6/issue': fixture('sprint-issues.json'),
+  '/rest/api/3/search/jql': fixture('sprint-issues.json'),
 };
 
 describe('JiraClient', () => {
@@ -70,7 +70,28 @@ describe('JiraClient', () => {
       },
     ]);
     expect(got?.cards[0]?.summary).toBe('Repo Bootstrap');
-    expect(got?.cards[0]?.descriptionMd).toContain('Plan:');
+    expect(got?.cards[0]?.descriptionMd).toContain('**Plan:** Obsidian vault `Projects/Halo/Implementation Plan.md`');
+  });
+
+  test('activeSprint follows nextPageToken until the last page', async () => {
+    // given
+    const all = JSON.parse(fixture('sprint-issues.json')) as { issues: unknown[] };
+    const pages = [
+      { issues: all.issues.slice(0, 2), nextPageToken: 'page2' },
+      { issues: all.issues.slice(2), isLast: true },
+    ];
+    const fetchFn = vi.fn<typeof fetch>((input) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      const body = url.pathname.endsWith('/sprint')
+        ? fixture('board-sprint-active.json')
+        : JSON.stringify(url.searchParams.get('nextPageToken') === 'page2' ? pages[1] : pages[0]);
+      return Promise.resolve(new Response(body, { status: 200 }));
+    });
+    const client = new JiraClient(creds, fetchFn);
+    // when
+    const got = await client.activeSprint(7);
+    // then
+    expect(got?.cards.map((c) => c.key)).toEqual(['HALO-11', 'HALO-19', 'HALO-13']);
   });
 
   test('activeSprint returns null when no sprint is active', async () => {

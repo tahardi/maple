@@ -30,7 +30,7 @@ const sprintsSchema = z.object({
   values: z.array(z.object({ id: z.number(), name: z.string(), startDate: z.string(), endDate: z.string() })),
 });
 
-const sprintIssuesSchema = z.object({ issues: z.array(issueSchema) });
+const searchSchema = z.object({ issues: z.array(issueSchema), nextPageToken: z.string().optional() });
 
 export async function readCreds(path: string): Promise<JiraCreds> {
   let text: string;
@@ -76,15 +76,22 @@ export class JiraClient {
       if (!sprint) {
         return null;
       }
-      const issues = sprintIssuesSchema.parse(
-        await this.get(`/rest/agile/1.0/sprint/${String(sprint.id)}/issue?maxResults=200&fields=${FIELDS}`),
-      );
-      return {
-        name: sprint.name,
-        startDate: sprint.startDate,
-        endDate: sprint.endDate,
-        cards: issues.issues.map((issue) => this.toCard(issue)),
-      };
+      const cards: Card[] = [];
+      let pageToken: string | undefined;
+      do {
+        const query = new URLSearchParams({
+          jql: `sprint=${String(sprint.id)} ORDER BY Rank`,
+          maxResults: '200',
+          fields: FIELDS,
+        });
+        if (pageToken) {
+          query.set('nextPageToken', pageToken);
+        }
+        const page = searchSchema.parse(await this.get(`/rest/api/3/search/jql?${query.toString()}`));
+        cards.push(...page.issues.map((issue) => this.toCard(issue)));
+        pageToken = page.nextPageToken;
+      } while (pageToken);
+      return { name: sprint.name, startDate: sprint.startDate, endDate: sprint.endDate, cards };
     } catch (err) {
       throw new Error(`fetching sprint: ${errorMessage(err)}`, { cause: err });
     }
@@ -123,7 +130,7 @@ export class JiraClient {
       points: fields.customfield_10016 ?? null,
       labels: fields.labels,
       blockedBy,
-      descriptionMd: typeof fields.description === 'string' ? fields.description : adfToMarkdown(fields.description),
+      descriptionMd: adfToMarkdown(fields.description),
       url: `${this.creds.site}/browse/${issue.key}`,
     };
   }
