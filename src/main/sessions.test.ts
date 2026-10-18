@@ -20,7 +20,10 @@ type FakePty = {
 const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
   notifications: true,
-  projects: [{ name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig-days' }],
+  projects: [
+    { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig-days' },
+    { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 2, plannerDir: '/tmp/halo' },
+  ],
   actions: [],
 };
 
@@ -329,5 +332,119 @@ describe('SessionManager', () => {
       expect(manager.get(tab.id)?.worktreePath).toBe('/tmp/wts/dig-days-dig-44');
     });
     expect(findWorktree).toHaveBeenCalledWith('/tmp/wts', 'DIG-44');
+  });
+
+  test.each([
+    { name: 'an explicit resume id over a closed session', resumeId: 'explicit', want: 'explicit' },
+    { name: 'a closed session from startup state', resumeId: null, want: 'from-state' },
+  ])('openCard prefers $name', ({ resumeId, want }) => {
+    // given
+    const { manager, ptys } = setup({ 'DIG-44': 'from-state' });
+    // when
+    const tab = manager.openCard('DIG', 'DIG-44', resumeId);
+    // then
+    expect(ptys[0].args).toEqual([...base, '--resume', want]);
+    expect(tab.sessionId).toBe(want);
+  });
+
+  test('openPlanner with a resume id resumes it in the planner dir', () => {
+    // given
+    const { manager, ptys } = setup();
+    // when
+    const tab = manager.openPlanner('HALO', 'planner-session');
+    // then
+    expect(ptys[0].args).toEqual([...base, '--resume', 'planner-session']);
+    expect(ptys[0].options.cwd).toBe('/tmp/halo');
+    expect(tab).toMatchObject({ kind: 'planner', cardKey: null, sessionId: 'planner-session' });
+  });
+
+  test('openPlanner opens one tab per project', () => {
+    // given
+    const { manager, spawnFn } = setup();
+    const dig = manager.openPlanner('DIG', null);
+    // when
+    const halo = manager.openPlanner('HALO', null);
+    // then
+    expect(halo.id).not.toBe(dig.id);
+    expect(spawnFn).toHaveBeenCalledTimes(2);
+  });
+
+  test('startCard for an unknown project throws', () => {
+    // given
+    const { manager } = setup();
+    // when
+    const start = () => manager.startCard('NOPE', 'NOPE-1');
+    // then
+    expect(start).toThrow('starting session: unknown project NOPE');
+  });
+
+  test.each([
+    {
+      name: 'resume',
+      restart: (m: SessionManager, id: string) => {
+        m.resume(id);
+      },
+    },
+    {
+      name: 'startFresh',
+      restart: (m: SessionManager, id: string) => {
+        m.startFresh(id);
+      },
+    },
+  ])('$name kills the old pty and ignores its late exit', ({ restart }) => {
+    // given
+    const { manager, ptys } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    const exit = vi.fn();
+    manager.on('exit', exit);
+    // when
+    restart(manager, tab.id);
+    ptys[0].emitExit(0);
+    // then
+    expect(ptys[0].killed).toBe(true);
+    expect(exit).not.toHaveBeenCalled();
+    expect(manager.isAlive(tab.id)).toBe(true);
+  });
+
+  test('card output never emits batch', () => {
+    // given
+    const { manager, ptys } = setup();
+    manager.startCard('DIG', 'DIG-44');
+    const batch = vi.fn();
+    manager.on('batch', batch);
+    // when
+    ptys[0].emitData('MAPLE-BATCH: DIG-1\r\n');
+    // then
+    expect(batch).not.toHaveBeenCalled();
+  });
+
+  test('close stops watching for the worktree', async () => {
+    // given
+    const stop = vi.fn();
+    vi.mocked(watchWorktrees).mockReturnValue(stop);
+    const { manager } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    await vi.waitFor(() => {
+      expect(findWorktree).toHaveBeenCalledTimes(1);
+    });
+    // when
+    manager.close(tab.id);
+    // then
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  test('a worktree found on the first check stops the watch', async () => {
+    // given
+    const stop = vi.fn();
+    vi.mocked(watchWorktrees).mockReturnValue(stop);
+    vi.mocked(findWorktree).mockResolvedValue('/tmp/wts/dig-days-dig-44');
+    const { manager } = setup();
+    // when
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // then
+    await vi.waitFor(() => {
+      expect(manager.get(tab.id)?.worktreePath).toBe('/tmp/wts/dig-days-dig-44');
+    });
+    expect(stop).toHaveBeenCalledTimes(1);
   });
 });

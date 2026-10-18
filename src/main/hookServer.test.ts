@@ -15,6 +15,21 @@ function sendLines(socketPath: string, text: string): Promise<void> {
   });
 }
 
+function sendChunks(socketPath: string, chunks: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const client = connect(socketPath, () => {
+      void (async () => {
+        for (const chunk of chunks) {
+          client.write(chunk);
+          await new Promise((r) => setTimeout(r, 20));
+        }
+        client.end(resolve);
+      })();
+    });
+    client.on('error', reject);
+  });
+}
+
 const stop: HookEvent = { tabId: 't1', event: 'Stop', notificationType: null };
 const notify: HookEvent = { tabId: 't2', event: 'Notification', notificationType: 'permission_prompt' };
 
@@ -55,6 +70,36 @@ describe('startHookServer', () => {
     const socketPath = join(dir, 'maple.sock');
     await writeFile(socketPath, '');
     const onEvent = vi.fn<(e: HookEvent) => void>();
+    // when
+    close = await startHookServer(socketPath, onEvent);
+    await sendLines(socketPath, `${JSON.stringify(stop)}\n`);
+    // then
+    await vi.waitFor(() => {
+      expect(onEvent).toHaveBeenCalledWith(stop);
+    });
+  });
+
+  test('joins a line split across writes', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const onEvent = vi.fn<(e: HookEvent) => void>();
+    close = await startHookServer(socketPath, onEvent);
+    const line = `${JSON.stringify(notify)}\n`;
+    // when
+    await sendChunks(socketPath, [line.slice(0, 10), line.slice(10)]);
+    // then
+    await vi.waitFor(() => {
+      expect(onEvent.mock.calls).toEqual([[notify]]);
+    });
+  });
+
+  test('close frees the socket so the server can start again', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const onEvent = vi.fn<(e: HookEvent) => void>();
+    await (
+      await startHookServer(socketPath, vi.fn())
+    )();
     // when
     close = await startHookServer(socketPath, onEvent);
     await sendLines(socketPath, `${JSON.stringify(stop)}\n`);

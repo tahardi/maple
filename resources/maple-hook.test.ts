@@ -7,9 +7,13 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 const script = join(import.meta.dirname, 'maple-hook.mjs');
 
-function runHook(env: Record<string, string>, stdin: string): Promise<{ code: number | null; stdout: string }> {
+function runHook(
+  event: string,
+  env: Record<string, string>,
+  stdin: string,
+): Promise<{ code: number | null; stdout: string }> {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [script, 'Notification'], { env: { ...process.env, ...env } });
+    const child = spawn(process.execPath, [script, event], { env: { ...process.env, ...env } });
     let stdout = '';
     child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -55,6 +59,7 @@ describe('maple-hook', () => {
     server = await listen(socketPath, received);
     // when
     const result = await runHook(
+      'Notification',
       { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-1' },
       '{"notification_type":"permission_prompt"}',
     );
@@ -67,9 +72,25 @@ describe('maple-hook', () => {
     // given
     const start = Date.now();
     // when
-    const result = await runHook({ MAPLE_SOCKET: join(dir, 'missing.sock'), MAPLE_TAB_ID: 'tab-1' }, '{}');
+    const result = await runHook(
+      'Notification',
+      { MAPLE_SOCKET: join(dir, 'missing.sock'), MAPLE_TAB_ID: 'tab-1' },
+      '{}',
+    );
     // then
     expect(result).toEqual({ code: 0, stdout: '' });
     expect(Date.now() - start).toBeLessThan(1000);
+  });
+
+  test('sends a null notification type when stdin is not JSON', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const received: string[] = [];
+    server = await listen(socketPath, received);
+    // when
+    const result = await runHook('Stop', { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-2' }, 'not json');
+    // then
+    expect(result).toEqual({ code: 0, stdout: '' });
+    expect(received.join('')).toBe('{"tabId":"tab-2","event":"Stop","notificationType":null}\n');
   });
 });

@@ -45,4 +45,13 @@ describe('writeHooksFile', () => {
     const parsed = JSON.parse(await readFile(path, 'utf8')) as Hooks;
     expect(parsed.hooks.Stop[0].hooks[0].command).toBe(`ELECTRON_RUN_AS_NODE=1 '/home/o'\\''neil/maple' '/s.mjs' Stop`);
   });
+
+  test('creates the config dir when it is missing', async () => {
+    // given
+    const missing = join(dir, 'nested', 'maple');
+    // when
+    const path = await writeHooksFile(missing, '/maple', '/s.mjs');
+    // then
+    expect(JSON.parse(await readFile(path, 'utf8'))).toHaveProperty('hooks.Stop');
+  });
 });
