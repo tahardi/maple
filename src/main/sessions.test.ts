@@ -215,6 +215,36 @@ describe('SessionManager', () => {
     expect(input).toHaveBeenCalledWith(tab.id);
   });
 
+  test.each([
+    {
+      name: 'write',
+      call: (m: SessionManager) => {
+        m.write('missing', 'x');
+      },
+    },
+    {
+      name: 'resize',
+      call: (m: SessionManager) => {
+        m.resize('missing', 80, 24);
+      },
+    },
+    {
+      name: 'sendPrompt',
+      call: (m: SessionManager) => {
+        m.sendPrompt('missing', 'hi');
+      },
+    },
+  ])('$name on an unknown tab does nothing', ({ call }) => {
+    // given
+    const { manager } = setup();
+    const input = vi.fn();
+    manager.on('input', input);
+    // when
+    call(manager);
+    // then
+    expect(input).not.toHaveBeenCalled();
+  });
+
   test('planner output split across chunks emits batch once', () => {
     // given
     const { manager, ptys } = setup();

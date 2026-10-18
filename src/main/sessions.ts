@@ -111,16 +111,23 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   write(tabId: string, data: string): void {
-    this.require(tabId).pty?.write(data);
+    const session = this.sessions.get(tabId);
+    if (!session) {
+      return;
+    }
+    session.pty?.write(data);
     this.emit('input', tabId);
   }
 
   resize(tabId: string, cols: number, rows: number): void {
-    this.require(tabId).pty?.resize(cols, rows);
+    this.sessions.get(tabId)?.pty?.resize(cols, rows);
   }
 
   sendPrompt(tabId: string, text: string): void {
-    const session = this.require(tabId);
+    const session = this.sessions.get(tabId);
+    if (!session) {
+      return;
+    }
     session.pty?.write(text);
     setTimeout(() => {
       session.pty?.write('\r');
