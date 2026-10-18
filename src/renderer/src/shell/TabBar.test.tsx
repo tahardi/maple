@@ -73,4 +73,14 @@ describe('TabBar', () => {
     const dot = screen.getByRole('tab', { name: 'BEAR-2' }).querySelector('[data-dot]');
     expect(dot).toHaveAttribute('data-dot', 'waiting');
   });
+
+  test('shows no dot on Home or on a tab without a status', () => {
+    // given
+    useMaple.setState({ statuses: { t2: { tabId: 't2', dot: 'ready', sessionAlive: true, exitCode: null } } });
+    // when
+    render(<TabBar />);
+    // then
+    const dots = screen.getAllByRole('tab').map((t) => t.querySelector('[data-dot]')?.getAttribute('data-dot') ?? null);
+    expect(dots).toEqual([null, null, 'ready']);
+  });
 });

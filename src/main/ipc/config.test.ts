@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
 import type { Fetched, MapleConfig, ProjectConfig } from '@shared/types';
-import { projectByKey, registerConfig } from './config';
+import { notificationsDefault, projectByKey, registerConfig } from './config';
 
 type Handler = (event: IpcMainInvokeEvent) => Promise<unknown>;
 
 const { handle, loadConfig, setAppMenu } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
   loadConfig: vi.fn(),
-  setAppMenu: vi.fn<(reload: () => Promise<unknown>) => void>(),
+  setAppMenu: vi.fn<(reload: () => Promise<unknown>, setNotifications: (on: boolean) => Promise<void>) => void>(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
@@ -23,8 +23,8 @@ const first = { data: null, error: 'reading config: missing', fetchedAt: null };
 const second = { data: null, error: null, fetchedAt: '2026-10-17T00:00:00.000Z' };
 const halo: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
 const dig: ProjectConfig = { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 8, plannerDir: '/tmp/dig' };
-const loaded = (projects: ProjectConfig[]): Fetched<MapleConfig> => ({
-  data: { worktreesDir: '/tmp/wts', notifications: true, projects, actions: [] },
+const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleConfig> => ({
+  data: { worktreesDir: '/tmp/wts', notifications, projects, actions: [] },
   error: null,
   fetchedAt: '2026-10-18T00:00:00.000Z',
 });
@@ -133,5 +133,71 @@ describe('projectByKey', () => {
     const got = await projectByKey(key);
     // then
     expect(got).toEqual(want);
+  });
+
+  test('returns null before the config is registered', async () => {
+    // given
+    vi.resetModules();
+    const fresh = await import('./config');
+    // when
+    const got = await fresh.projectByKey('HALO');
+    // then
+    expect(got).toBeNull();
+    expect(loadConfig).not.toHaveBeenCalled();
+  });
+});
+
+describe('notificationsDefault', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test.each([
+    { name: 'a config with notifications on', loads: [loaded([halo], true)], reload: false, want: true },
+    { name: 'a config with notifications off', loads: [loaded([halo], false)], reload: false, want: false },
+    { name: 'a failed load', loads: [first], reload: false, want: true },
+    {
+      name: 'a reload that turns them off',
+      loads: [loaded([halo], true), loaded([halo], false)],
+      reload: true,
+      want: false,
+    },
+  ])('follows $name', async ({ loads, reload, want }) => {
+    // given
+    loadConfig.mockReset();
+    loads.forEach((result) => loadConfig.mockResolvedValueOnce(result));
+    registerConfig(deps());
+    if (reload) {
+      await handler('config:reload')(event);
+    }
+    // when
+    const got = await notificationsDefault();
+    // then
+    expect(got).toBe(want);
+  });
+
+  test('defaults to on before the config is registered', async () => {
+    // given
+    vi.resetModules();
+    const fresh = await import('./config');
+    // when
+    const got = await fresh.notificationsDefault();
+    // then
+    expect(got).toBe(true);
+  });
+});
+
+describe('registerConfig menu', () => {
+  test('passes the notifications setter to the menu', async () => {
+    // given
+    vi.clearAllMocks();
+    loadConfig.mockResolvedValue(first);
+    const d = deps();
+    registerConfig(d);
+    const [[, setNotifications]] = setAppMenu.mock.calls;
+    // when
+    await setNotifications(false);
+    // then
+    expect(d.setNotifications).toHaveBeenCalledWith(false);
   });
 });

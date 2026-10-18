@@ -62,4 +62,30 @@ describe('ProjectMenu', () => {
     const options = screen.getAllByRole('option').map((o) => o.textContent);
     expect(options).toEqual(['Bearclave (BEAR)', 'Dig Days (DIG) · 1 waiting · 1 ready']);
   });
+
+  test.each([
+    { name: 'only waiting', dots: ['waiting', 'working'], want: 'Dig Days (DIG) · 1 waiting · 0 ready' },
+    { name: 'only ready', dots: ['ready', 'ready'], want: 'Dig Days (DIG) · 0 waiting · 2 ready' },
+    { name: 'neither', dots: ['working', 'idle'], want: 'Dig Days (DIG)' },
+  ] as const)('labels a project with $name', ({ dots, want }) => {
+    // given
+    const tab = (id: string): TabState => ({
+      id,
+      projectKey: 'DIG',
+      kind: 'card',
+      cardKey: `DIG-${id}`,
+      sessionId: id,
+      worktreePath: null,
+    });
+    useMaple.setState({
+      tabs: [tab('1'), tab('2')],
+      statuses: Object.fromEntries(
+        dots.map((dot: Dot, i) => [String(i + 1), { tabId: String(i + 1), dot, sessionAlive: true, exitCode: null }]),
+      ),
+    });
+    // when
+    render(<ProjectMenu />);
+    // then
+    expect(screen.getByRole('option', { name: want })).toBeInTheDocument();
+  });
 });
