@@ -7,6 +7,7 @@ import type { HookEvent } from '@shared/types';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { startHookServer } from '../../src/main/hookServer';
 import { writeHooksFile } from '../../src/main/hooksFile';
+import { createLogger } from '../../src/main/log';
 import { hasTranscript } from '../../src/main/transcripts';
 
 function runClaude(args: string[], env: Record<string, string>): Promise<{ code: number | null; stdout: string }> {
@@ -35,7 +36,11 @@ describe('claude hooks', () => {
     dir = await mkdtemp(join(tmpdir(), 'maple-live-'));
     socket = join(dir, 'maple.sock');
     events = [];
-    stop = await startHookServer(socket, (e) => events.push(e));
+    stop = await startHookServer(
+      socket,
+      (e) => events.push(e),
+      createLogger(() => undefined),
+    );
     const hooks = await writeHooksFile(dir, process.execPath, resolve('resources/maple-hook.mjs'));
     flags = ['--dangerously-skip-permissions', '--settings', hooks];
   });
