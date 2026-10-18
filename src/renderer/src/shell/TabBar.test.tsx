@@ -66,7 +66,9 @@ describe('TabBar', () => {
 
   test('shows each tab status as a dot', () => {
     // given
-    useMaple.setState({ statuses: { t2: { tabId: 't2', dot: 'waiting', sessionAlive: true, exitCode: null } } });
+    useMaple.setState({
+      statuses: { t2: { tabId: 't2', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false } },
+    });
     // when
     render(<TabBar />);
     // then
@@ -76,7 +78,9 @@ describe('TabBar', () => {
 
   test('shows no dot on Home or on a tab without a status', () => {
     // given
-    useMaple.setState({ statuses: { t2: { tabId: 't2', dot: 'ready', sessionAlive: true, exitCode: null } } });
+    useMaple.setState({
+      statuses: { t2: { tabId: 't2', dot: 'ready', sessionAlive: true, exitCode: null, resumeFailed: false } },
+    });
     // when
     render(<TabBar />);
     // then

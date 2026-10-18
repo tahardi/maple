@@ -36,6 +36,7 @@ describe('registerIpc', () => {
     save: vi.fn(),
     closedSessions: {},
     uuid: vi.fn(),
+    hasTranscript: vi.fn(),
   });
   const status = new StatusEngine({
     sessions,
@@ -49,6 +50,7 @@ describe('registerIpc', () => {
     sessions,
     status,
     setActiveTab: vi.fn(),
+    warnings: () => [],
     setNotifications: vi.fn(),
   };
 

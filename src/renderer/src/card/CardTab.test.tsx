@@ -254,7 +254,9 @@ describe('CardTab', () => {
   test('a working tab disables Approve', async () => {
     // given
     fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
-    useMaple.setState({ statuses: { t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null } } });
+    useMaple.setState({
+      statuses: { t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false } },
+    });
     // when
     render(<CardTab tab={tab} />);
     // then

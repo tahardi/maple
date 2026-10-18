@@ -89,6 +89,28 @@ describe('App', () => {
     expect(banner).toHaveTextContent('Jira credentials are missing');
   });
 
+  test('shows state and restore warnings', async () => {
+    // given
+    const warnings = ['reading state: state.json is unreadable', 'dropped DIG-44: project DIG is not in config'];
+    fakeMaple({ app: { warnings: () => Promise.resolve(warnings) } });
+    // when
+    render(<App />);
+    // then
+    const banner = await screen.findByRole('alert');
+    expect(banner).toHaveTextContent('reading state: state.json is unreadable');
+    expect(banner).toHaveTextContent('dropped DIG-44: project DIG is not in config');
+  });
+
+  test('shows Home when warnings fail to load', async () => {
+    // given
+    fakeMaple({ app: { warnings: () => Promise.reject(new Error('invoking app:warnings: gone')) } });
+    // when
+    render(<App />);
+    // then
+    expect(await screen.findByText('No active sprint')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   test('shows preflight problems and a config error in one banner', async () => {
     // given
     fakeMaple({

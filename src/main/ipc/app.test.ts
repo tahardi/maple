@@ -24,10 +24,16 @@ const tabs: Record<string, TabState> = {
   t4: { id: 't4', projectKey: 'DIG', kind: 'planner', cardKey: null, sessionId: 's4', worktreePath: null },
 };
 
-function setup(dots: Record<string, TabStatus['dot']> = {}) {
+function setup(dots: Record<string, TabStatus['dot']> = {}, warnings: string[] = []) {
   const sendToWindow = vi.fn();
   const setNotifications = vi.fn(() => Promise.resolve());
-  const statuses = Object.entries(dots).map(([tabId, dot]) => ({ tabId, dot, sessionAlive: true, exitCode: null }));
+  const statuses = Object.entries(dots).map(([tabId, dot]) => ({
+    tabId,
+    dot,
+    sessionAlive: true,
+    exitCode: null,
+    resumeFailed: false,
+  }));
   registerApp({
     window: () => ({ isDestroyed: () => false, webContents: { send: sendToWindow } }) as unknown as BrowserWindow,
     worktreeFor: () => null,
@@ -36,6 +42,7 @@ function setup(dots: Record<string, TabStatus['dot']> = {}) {
     status: { statuses: () => statuses } as unknown as StatusEngine,
     setActiveTab: () => undefined,
     setNotifications,
+    warnings: () => warnings,
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];
   const confirmQuit = on.mock.calls.find(([name]) => name === 'app:confirmQuit')?.[1];
@@ -63,6 +70,22 @@ describe('registerApp', () => {
     await call?.[1]({} as IpcMainInvokeEvent, on);
     // then
     expect(setNotifications).toHaveBeenCalledWith(on);
+  });
+
+  test.each([
+    { name: 'no warnings', warnings: [] },
+    {
+      name: 'state and restore warnings',
+      warnings: ['reading state: bad', 'dropped DIG-44: project DIG is not in config'],
+    },
+  ])('app:warnings returns $name', async ({ warnings }) => {
+    // given
+    setup({}, warnings);
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:warnings');
+    // when
+    const got = await call?.[1]({} as IpcMainInvokeEvent);
+    // then
+    expect(got).toEqual(warnings);
   });
 
   test('quitting while cards work is prevented and asks the window with their keys', () => {

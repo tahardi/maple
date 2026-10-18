@@ -84,7 +84,9 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       <ActionBar actions={actions} />
       <div className={styles.body}>
         <div ref={host} className={styles.terminal} />
-        {status?.sessionAlive === false && <SessionEnded tabId={tabId} exitCode={status.exitCode} />}
+        {status?.sessionAlive === false && (
+          <SessionEnded tabId={tabId} exitCode={status.exitCode} resumeFailed={status.resumeFailed} />
+        )}
       </div>
     </div>
   );

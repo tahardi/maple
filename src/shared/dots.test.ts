@@ -95,7 +95,13 @@ const tab = (id: string, projectKey: string): TabState => ({
   sessionId: id,
   worktreePath: null,
 });
-const status = (tabId: string, dot: Dot): TabStatus => ({ tabId, dot, sessionAlive: true, exitCode: null });
+const status = (tabId: string, dot: Dot): TabStatus => ({
+  tabId,
+  dot,
+  sessionAlive: true,
+  exitCode: null,
+  resumeFailed: false,
+});
 
 describe('projectCounts', () => {
   test('counts waiting and ready tabs per project', () => {
