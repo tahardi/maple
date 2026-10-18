@@ -11,6 +11,11 @@ export async function projectByKey(key: string): Promise<ProjectConfig | null> {
   return config?.data?.projects.find((p) => p.jiraKey === key) ?? null;
 }
 
+export async function projects(): Promise<ProjectConfig[]> {
+  const config = await cached;
+  return config?.data?.projects ?? [];
+}
+
 export async function notificationsDefault(): Promise<boolean> {
   const config = await cached;
   return config?.data?.notifications ?? true;
