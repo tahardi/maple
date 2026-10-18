@@ -1,6 +1,7 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { PrInfo } from '@shared/types';
+import type { SessionManager } from '../sessions';
 import { registerPr } from './pr';
 
 type Handler = (event: IpcMainInvokeEvent, tabId: string) => Promise<unknown>;
@@ -29,7 +30,12 @@ const pr: PrInfo = {
 };
 
 function get(worktree: string | null): (tabId: string) => Promise<unknown> {
-  registerPr({ window: () => null, worktreeFor: () => worktree, project: () => null });
+  registerPr({
+    window: () => null,
+    worktreeFor: () => worktree,
+    project: () => null,
+    sessions: {} as SessionManager,
+  });
   const call = handle.mock.calls.find(([name]) => name === 'pr:get');
   if (!call) {
     throw new Error('finding handler for pr:get');
