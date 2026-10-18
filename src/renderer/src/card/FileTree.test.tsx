@@ -47,4 +47,36 @@ describe('FileTree', () => {
     // then
     expect(onSelect).toHaveBeenCalledWith('src/b.ts');
   });
+
+  test('toggle returns to all files and marks the pressed button', async () => {
+    // given
+    render(<Harness onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Changed (3)' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'All files' }));
+    // then
+    expect(screen.getByText('README.md')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All files' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Changed (3)' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('clicking a folder selects nothing', async () => {
+    // given
+    const onSelect = vi.fn();
+    render(<Harness onSelect={onSelect} />);
+    // when
+    await userEvent.click(screen.getByText('src'));
+    // then
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  test('shows a badge for each changed file only', () => {
+    // given
+    render(<Harness onSelect={vi.fn()} />);
+    // when
+    const badges = ['A', 'M', 'D'].map((s) => screen.getAllByText(s).length);
+    // then
+    expect(badges).toEqual([1, 1, 1]);
+    expect(screen.getByText('c.ts').parentElement).toHaveTextContent(/^c\.ts$/);
+  });
 });

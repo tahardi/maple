@@ -50,6 +50,8 @@ describe('PrSummary', () => {
     { checks: { passed: 5, failed: 0, pending: 0, total: 5 }, text: '✓ 5/5' },
     { checks: { passed: 4, failed: 1, pending: 0, total: 5 }, text: '✗ 1 failing' },
     { checks: { passed: 3, failed: 0, pending: 2, total: 5 }, text: '● 2 pending' },
+    { checks: { passed: 2, failed: 1, pending: 2, total: 5 }, text: '✗ 1 failing' },
+    { checks: { passed: 0, failed: 0, pending: 0, total: 0 }, text: '✓ 0/0' },
   ])('shows checks as $text', ({ checks, text }) => {
     // given
     const pr = fetched({ ...info, checks });
@@ -67,5 +69,19 @@ describe('PrSummary', () => {
     // then
     expect(screen.getByText('GitHub unreachable')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /PR #33/ })).toBeInTheDocument();
+  });
+
+  test.each([
+    { name: 'no PR yet', pr: fetched(null), unreachable: false },
+    { name: 'an error before any data', pr: fetched(null, 'listing PRs: network down'), unreachable: true },
+  ])('shows no PR details with $name', ({ pr, unreachable }) => {
+    // given
+    const input = pr;
+    // when
+    render(<PrSummary pr={input} />);
+    // then
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+    expect(screen.queryByText('GitHub unreachable') !== null).toBe(unreachable);
   });
 });

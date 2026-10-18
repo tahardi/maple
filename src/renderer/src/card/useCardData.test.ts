@@ -48,6 +48,52 @@ describe('useCardData', () => {
     });
   });
 
+  test.each([
+    { dot: 'idle' as const, calls: 2 },
+    { dot: 'ready' as const, calls: 2 },
+    { dot: 'waiting' as const, calls: 2 },
+    { dot: 'working' as const, calls: 1 },
+  ])('a $dot status refreshes $calls times in total', async ({ dot, calls }) => {
+    // given
+    const changes = vi.fn(() => Promise.resolve(null));
+    fakeMaple({ repo: { changes } });
+    renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(changes).toHaveBeenCalledTimes(1);
+    });
+    // when
+    act(() => {
+      useMaple.getState().setStatus({ tabId: 't1', dot, sessionAlive: true, exitCode: null });
+    });
+    // then
+    await waitFor(() => {
+      expect(changes).toHaveBeenCalledTimes(calls);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(changes).toHaveBeenCalledTimes(calls);
+  });
+
+  test('refreshes every 60 seconds and stops after unmount', () => {
+    // given
+    vi.useFakeTimers();
+    const changes = vi.fn(() => Promise.resolve(null));
+    const unsubscribe = vi.fn();
+    fakeMaple({ repo: { changes, onChanged: vi.fn(() => unsubscribe) } });
+    const { unmount } = renderHook(() => useCardData(tab));
+    // when
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    unmount();
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    vi.useRealTimers();
+    // then
+    expect(changes).toHaveBeenCalledTimes(2);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
   test('finds the card in the sprint and skips the repo without a worktree', async () => {
     // given
     const card = {

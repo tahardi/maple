@@ -48,4 +48,14 @@ describe('CardHeader', () => {
     expect(screen.getByText('mpl-20-file-tree')).toBeInTheDocument();
     expect(screen.getByText('3 files · +68 −29')).toBeInTheDocument();
   });
+
+  test('shows only the card key before anything loads', () => {
+    // given
+    const props = { cardKey: 'MPL-20', card: null, pr: null, branch: null, changes: null };
+    // when
+    const { container } = render(<CardHeader {...props} />);
+    // then
+    expect(container).toHaveTextContent(/^MPL-20$/);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
 });

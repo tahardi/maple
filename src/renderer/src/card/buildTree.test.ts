@@ -50,4 +50,36 @@ describe('buildTree', () => {
     // then
     expect(tree).toEqual(expected);
   });
+
+  test.each([
+    { name: 'no files', paths: [], changes: [], changedOnly: false, expected: [] },
+    {
+      name: 'a renamed file at the root',
+      paths: ['new.ts'],
+      changes: [{ path: 'new.ts', status: 'R' as const, oldPath: 'old.ts' }],
+      changedOnly: true,
+      expected: [file('new.ts', 'R')],
+    },
+    {
+      name: 'a deeply nested changed file',
+      paths: ['a/b/c/d.ts', 'a/e.ts'],
+      changes: [{ path: 'a/b/c/d.ts', status: 'A' as const, oldPath: null }],
+      changedOnly: true,
+      expected: [dir('a', [dir('a/b', [dir('a/b/c', [file('a/b/c/d.ts', 'A')])])])],
+    },
+    {
+      name: 'folders before files and names in order at the root',
+      paths: ['b.ts', 'z/x.ts', 'a.ts', 'm/y.ts'],
+      changes: [],
+      changedOnly: false,
+      expected: [dir('m', [file('m/y.ts')]), dir('z', [file('z/x.ts')]), file('a.ts'), file('b.ts')],
+    },
+  ])('handles $name', ({ paths: input, changes: changed, changedOnly, expected }) => {
+    // given
+    const args = { input, changed };
+    // when
+    const tree = buildTree(args.input, args.changed, changedOnly);
+    // then
+    expect(tree).toEqual(expected);
+  });
 });
