@@ -1,4 +1,5 @@
 import { useMaple } from '../store';
+import { ConfirmDialog } from './ConfirmDialog';
 import { ProjectMenu } from './ProjectMenu';
 import styles from './TabBar.module.css';
 
@@ -8,6 +9,9 @@ export function TabBar() {
   const activeTabId = useMaple((s) => s.activeTabId);
   const activate = useMaple((s) => s.activate);
   const statuses = useMaple((s) => s.statuses);
+  const confirmClose = useMaple((s) => s.confirmClose);
+  const closeTab = useMaple((s) => s.closeTab);
+  const cancelClose = useMaple((s) => s.cancelClose);
   const cardTabs = tabs.filter((t) => t.projectKey === projectKey && t.kind === 'card');
   const items = [
     { id: null, label: 'Home', dot: undefined },
@@ -17,26 +21,49 @@ export function TabBar() {
       dot: Object.hasOwn(statuses, t.id) ? statuses[t.id].dot : undefined,
     })),
   ];
+  const closing = tabs.find((t) => t.id === confirmClose);
 
   return (
     <div className={styles.bar}>
       <ProjectMenu />
       <div role="tablist" className={styles.tabs}>
         {items.map((item) => (
-          <button
+          <div
             key={item.id ?? 'home'}
-            role="tab"
-            aria-selected={item.id === activeTabId}
-            className={item.id === activeTabId ? `${styles.tab} ${styles.active}` : styles.tab}
-            onClick={() => {
-              activate(item.id);
-            }}
+            className={item.id === activeTabId ? `${styles.item} ${styles.active}` : styles.item}
           >
-            {item.dot && <span className={styles.dot} data-dot={item.dot} />}
-            {item.label}
-          </button>
+            <button
+              role="tab"
+              aria-selected={item.id === activeTabId}
+              className={styles.tab}
+              onClick={() => {
+                activate(item.id);
+              }}
+            >
+              {item.dot && <span className={styles.dot} data-dot={item.dot} />}
+              {item.label}
+            </button>
+            {item.id !== null && (
+              <button
+                className={styles.close}
+                aria-label={`Close ${item.label}`}
+                onClick={() => void closeTab(item.id, false)}
+              >
+                ×
+              </button>
+            )}
+          </div>
         ))}
       </div>
+      {closing && (
+        <ConfirmDialog
+          title="Close tab"
+          body={`${closing.cardKey ?? closing.id} is still working. Close anyway?`}
+          confirmLabel="Close"
+          onConfirm={() => void closeTab(closing.id, true)}
+          onCancel={cancelClose}
+        />
+      )}
     </div>
   );
 }

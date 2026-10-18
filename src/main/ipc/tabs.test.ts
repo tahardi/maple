@@ -92,11 +92,26 @@ describe('registerTabs', () => {
     expect(got).toEqual(result);
   });
 
-  test('tabs:close closes the tab without asking to confirm', () => {
+  test('tabs:close asks to confirm when the tab is working and not forced', () => {
     // given
-    const { sessions } = setup();
+    const { sessions, engine } = setup();
+    engine.statuses.mockReturnValue([{ ...status, dot: 'working' }]);
     // when
     const got = invoke('tabs:close', 't1', false);
+    // then
+    expect(sessions.close).not.toHaveBeenCalled();
+    expect(got).toEqual({ closed: false, needsConfirm: true });
+  });
+
+  test.each([
+    { name: 'a working tab when forced', dot: 'working', force: true },
+    { name: 'an idle tab', dot: 'idle', force: false },
+  ] as const)('tabs:close closes $name', ({ dot, force }) => {
+    // given
+    const { sessions, engine } = setup();
+    engine.statuses.mockReturnValue([{ ...status, dot }]);
+    // when
+    const got = invoke('tabs:close', 't1', force);
     // then
     expect(sessions.close).toHaveBeenCalledWith('t1');
     expect(got).toEqual({ closed: true, needsConfirm: false });

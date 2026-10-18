@@ -3,6 +3,8 @@ import { App } from './App';
 import { useMaple } from './store';
 import { fakeMaple } from './testing/fakeMaple';
 
+vi.mock('./claude/ClaudePane', () => ({ ClaudePane: () => null }));
+
 describe('App', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);

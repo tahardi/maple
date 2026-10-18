@@ -3,6 +3,7 @@ import styles from './App.module.css';
 import { CardTab } from './card/CardTab';
 import { HomeTab } from './home/HomeTab';
 import { Banner } from './shell/Banner';
+import { QuitGuard } from './shell/QuitGuard';
 import { TabBar } from './shell/TabBar';
 import { useMaple } from './store';
 
@@ -30,6 +31,7 @@ export function App() {
       ) : (
         projectKey !== null && <HomeTab key={projectKey} projectKey={projectKey} />
       )}
+      <QuitGuard />
     </div>
   );
 }

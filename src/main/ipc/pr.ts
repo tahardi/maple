@@ -1,7 +1,8 @@
 import { ipcMain } from 'electron';
+import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
 import type { Fetched, PrInfo } from '@shared/types';
 import { currentBranch } from '../git';
-import { prForBranch } from '../github';
+import { commentOnPr, prForBranch } from '../github';
 import { defaultRunner } from '../preflight';
 import type { IpcDeps } from './index';
 
@@ -26,5 +27,21 @@ export function registerPr(deps: IpcDeps): void {
       return { data: cached?.data ?? null, error, fetchedAt: cached?.fetchedAt ?? null };
     }
   });
-  ipcMain.handle('pr:approve', () => Promise.reject(new Error('pr:approve is not implemented')));
+  ipcMain.handle('pr:approve', async (_event, tabId: string): Promise<void> => {
+    try {
+      const worktree = deps.worktreeFor(tabId);
+      const cardKey = deps.sessions.get(tabId)?.cardKey ?? null;
+      if (worktree === null || cardKey === null) {
+        throw new Error('tab has no card worktree');
+      }
+      const pr = await lookup(worktree);
+      if (pr?.state !== 'OPEN') {
+        throw new Error('branch has no open PR');
+      }
+      await commentOnPr(defaultRunner, worktree, pr.number, APPROVE_COMMENT);
+      deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
+    } catch (err) {
+      throw new Error(`approving PR: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
 }

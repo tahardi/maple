@@ -18,6 +18,7 @@ import { saveState, loadState, type SavedState } from './state';
 import { StatusEngine } from './status';
 
 let mainWindow: BrowserWindow | null = null;
+let quitting = false;
 
 function createWindow(): void {
   const window = new BrowserWindow({
@@ -38,6 +39,12 @@ function createWindow(): void {
       void shell.openExternal(url);
     }
     return { action: 'deny' };
+  });
+  window.on('close', (event) => {
+    if (!quitting && process.platform !== 'darwin') {
+      event.preventDefault();
+      app.quit();
+    }
   });
   window.on('closed', () => {
     mainWindow = null;
@@ -118,6 +125,9 @@ async function start(): Promise<void> {
       checkNotifications(on);
       await persist({ notifications: on });
     },
+  });
+  app.on('before-quit', (event) => {
+    quitting = !event.defaultPrevented;
   });
   checkNotifications(await enabled());
 }

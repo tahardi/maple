@@ -1,10 +1,14 @@
 import type { TabState } from '@shared/types';
 import { useRef, useState } from 'react';
+import { ClaudePane } from '../claude/ClaudePane';
+import { useMaple } from '../store';
 import { buildTree } from './buildTree';
+import { cardActions } from './CardActions';
 import { CardHeader } from './CardHeader';
 import styles from './CardTab.module.css';
 import { FileTree } from './FileTree';
 import { FileViewer } from './FileViewer';
+import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
@@ -19,6 +23,9 @@ function branchName(worktreePath: string | null, cardKey: string): string | null
 
 export function CardTab({ tab }: { tab: TabState }) {
   const { changes, files, pr, card } = useCardData(tab);
+  const config = useMaple((s) => s.config?.data ?? null);
+  const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
+  const closeTab = useMaple((s) => s.closeTab);
   const [columns, setColumns] = useColumns();
   const [changedOverride, setChangedOverride] = useState<boolean | null>(null);
   const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
@@ -27,6 +34,25 @@ export function CardTab({ tab }: { tab: TabState }) {
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const changed = changes?.files ?? [];
+  const worktreeExists = tab.worktreePath !== null;
+  const actions =
+    config === null
+      ? []
+      : cardActions({
+          config,
+          cardKey,
+          pr: pr?.data ?? null,
+          dot,
+          worktreeExists,
+          send: (text) => {
+            window.maple.session.sendPrompt(tab.id, text);
+          },
+          approve: () => {
+            window.maple.pr.approve(tab.id).catch((err: unknown) => {
+              console.error(err instanceof Error ? err.message : String(err));
+            });
+          },
+        });
 
   const openFile = (path: string) => {
     setOpenFiles((files) => (files.includes(path) ? files : [...files, path]));
@@ -103,7 +129,10 @@ export function CardTab({ tab }: { tab: TabState }) {
           )}
         </div>
         <div className={styles.divider} onPointerDown={drag('right')} />
-        <div className={styles.right} style={{ width: `${String(columns.right)}%` }} data-testid="claude-slot" />
+        <div className={styles.right} style={{ width: `${String(columns.right)}%` }} data-testid="claude-slot">
+          {card?.status === 'Done' && !worktreeExists && <MergedNotice onClose={() => void closeTab(tab.id, false)} />}
+          <ClaudePane tabId={tab.id} actions={actions} />
+        </div>
       </div>
     </div>
   );

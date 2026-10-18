@@ -11,7 +11,11 @@ export function registerTabs({ sessions, status, window, setActiveTab }: IpcDeps
     sessions.openCard(projectKey, cardKey, null),
   );
   ipcMain.handle('tabs:openPlanner', (_event, projectKey: string) => sessions.openPlanner(projectKey, null));
-  ipcMain.handle('tabs:close', (_event, tabId: string): CloseResult => {
+  ipcMain.handle('tabs:close', (_event, tabId: string, force: boolean): CloseResult => {
+    const working = status.statuses().some((s) => s.tabId === tabId && s.dot === 'working');
+    if (working && !force) {
+      return { closed: false, needsConfirm: true };
+    }
     sessions.close(tabId);
     return { closed: true, needsConfirm: false };
   });
