@@ -48,7 +48,9 @@ export async function startHookServer(
         }
       }
     });
-    socket.on('error', () => undefined);
+    socket.on('error', (err) => {
+      logger.warn('hook', 'failed', { operation: 'socket', error: err.message });
+    });
   });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);

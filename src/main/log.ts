@@ -2,7 +2,8 @@ import { join } from 'node:path';
 import log from 'electron-log/node';
 import { configDir } from './config';
 
-export type LogScope = 'session' | 'hook' | 'dot' | 'jira' | 'gh' | 'worktree' | 'restore' | 'config';
+export type LogScope =
+  'session' | 'hook' | 'dot' | 'jira' | 'gh' | 'worktree' | 'restore' | 'config' | 'preflight' | 'repo' | 'app';
 
 type Level = 'info' | 'warn' | 'error';
 
@@ -42,6 +43,35 @@ export function createLogger(write: (level: Level, line: string) => void): Logge
       write(level, `${scope} ${msg}${pairs.join('')}`);
     };
   return { info: at('info'), warn: at('warn'), error: at('error') };
+}
+
+function message(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+export function logFailure<T>(logger: Logger, scope: LogScope, fields: Fields, run: () => T): T {
+  const fail = (err: unknown): never => {
+    logger.warn(scope, 'failed', { ...fields, error: message(err) });
+    throw err;
+  };
+  try {
+    const result = run();
+    return result instanceof Promise ? (result.catch(fail) as T) : result;
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export function logUncaught(logger: Logger = appLogger, proc: NodeJS.EventEmitter = process): void {
+  proc.on('uncaughtException', (err: Error) => {
+    logger.error('app', 'uncaught exception', { error: err.message, stack: err.stack });
+  });
+  proc.on('unhandledRejection', (reason: unknown) => {
+    logger.error('app', 'unhandled rejection', {
+      error: message(reason),
+      stack: reason instanceof Error ? reason.stack : undefined,
+    });
+  });
 }
 
 export function logsDir(): string {

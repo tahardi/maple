@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import type { PreflightProblem } from '@shared/types';
 import { defaultRunner, runPreflight, type Runner } from './preflight';
 
@@ -65,6 +65,28 @@ describe('runPreflight', () => {
     const problems = await runPreflight(run, envPath);
     // then
     expect(problems).toEqual(expected);
+  });
+
+  test('logs each problem at warn', async () => {
+    // given
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    // when
+    await runPreflight(fakeRunner({ 'claude --version': 127 }), missingEnv, logger);
+    // then
+    expect(logger.warn.mock.calls).toEqual([
+      ['preflight', 'problem', { tool: 'claude', message: 'claude is not on PATH' }],
+      ['preflight', 'problem', { tool: 'jira-env', message: `Jira credentials file ${missingEnv} does not exist` }],
+    ]);
+  });
+
+  test('logs passed when there are no problems', async () => {
+    // given
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    // when
+    await runPreflight(fakeRunner({}), presentEnv, logger);
+    // then
+    expect(logger.info).toHaveBeenCalledWith('preflight', 'passed');
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });
 

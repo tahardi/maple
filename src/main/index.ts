@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, dialog, shell } from 'electron';
 import { spawn } from 'node-pty';
 import { configDir, loadConfig } from './config';
 import { hookSocketPath, startHookServer } from './hookServer';
@@ -10,7 +10,7 @@ import { prForBranch } from './github';
 import { registerIpc } from './ipc';
 import { notificationsDefault, projectByKey } from './ipc/config';
 import { JiraClient, jiraEnvPath, readCreds } from './jira';
-import { appLogger, startLogging } from './log';
+import { appLogger, logUncaught, startLogging } from './log';
 import { checkNotifications } from './menu';
 import { notifyTab, shouldNotify } from './notify';
 import { defaultRunner } from './preflight';
@@ -63,6 +63,10 @@ function createWindow(): void {
 
 async function start(): Promise<void> {
   startLogging(!app.isPackaged);
+  logUncaught();
+  process.on('uncaughtException', (err) => {
+    dialog.showErrorBox('A JavaScript error occurred in the main process', err.stack ?? err.message);
+  });
   const [{ data: config }, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
   const socketPath = hookSocketPath();
