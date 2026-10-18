@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, shell } from 'electron';
 import { spawn } from 'node-pty';
 import { configDir, loadConfig } from './config';
 import { hookSocketPath, startHookServer } from './hookServer';
@@ -33,6 +33,12 @@ function createWindow(): void {
   });
 
   mainWindow = window;
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) {
+      void shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
   window.on('closed', () => {
     mainWindow = null;
   });
