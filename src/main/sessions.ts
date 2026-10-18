@@ -18,6 +18,7 @@ export type SessionDeps = {
   save: (tabs: TabState[], closedSessions: Record<string, string>) => Promise<void>;
   closedSessions: Record<string, string>;
   uuid: () => string;
+  hasTranscript: (sessionId: string) => boolean;
 };
 
 type Events = {
@@ -116,7 +117,7 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   write(tabId: string, data: string): void {
-    const session = this.sessions.get(tabId);
+    const session = this.live(tabId);
     if (!session) {
       return;
     }
@@ -125,17 +126,21 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   resize(tabId: string, cols: number, rows: number): void {
-    this.sessions.get(tabId)?.pty?.resize(cols, rows);
+    if (cols >= 1 && rows >= 1) {
+      this.live(tabId)?.pty?.resize(cols, rows);
+    }
   }
 
   sendPrompt(tabId: string, text: string): void {
-    const session = this.sessions.get(tabId);
+    const session = this.live(tabId);
     if (!session) {
       return;
     }
     session.pty?.write(text);
     setTimeout(() => {
-      session.pty?.write('\r');
+      if (session.alive) {
+        session.pty?.write('\r');
+      }
     }, 100);
     this.emit('input', tabId);
   }
@@ -146,6 +151,11 @@ export class SessionManager extends EventEmitter<Events> {
 
   isAlive(tabId: string): boolean {
     return this.sessions.get(tabId)?.alive ?? false;
+  }
+
+  private live(tabId: string): Session | undefined {
+    const session = this.sessions.get(tabId);
+    return session?.alive ? session : undefined;
   }
 
   private findCard(projectKey: string, cardKey: string): TabState | undefined {
@@ -188,12 +198,13 @@ export class SessionManager extends EventEmitter<Events> {
   private launch(session: Session, { resume, prompt }: Launch): void {
     session.pty?.kill();
     const { tab } = session;
+    const resumable = resume && this.deps.hasTranscript(tab.sessionId);
     const project = this.deps.config().projects.find((p) => p.jiraKey === tab.projectKey);
     if (!project) {
       throw new Error(`starting session: unknown project ${tab.projectKey}`);
     }
     const args = ['--dangerously-skip-permissions', '--settings', this.deps.hooksFile];
-    args.push(resume ? '--resume' : '--session-id', tab.sessionId);
+    args.push(resumable ? '--resume' : '--session-id', tab.sessionId);
     if (prompt !== null) {
       args.push(prompt);
     }
@@ -206,7 +217,7 @@ export class SessionManager extends EventEmitter<Events> {
     });
     session.pty = pty;
     session.alive = true;
-    this.emit('spawn', tab.id, prompt !== null, resume);
+    this.emit('spawn', tab.id, prompt !== null, resumable);
     pty.onData((data) => {
       this.onData(session, data);
     });

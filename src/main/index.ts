@@ -17,6 +17,7 @@ import { restoreTabs } from './restore';
 import { SessionManager } from './sessions';
 import { saveState, loadState, type SavedState } from './state';
 import { StatusEngine } from './status';
+import { hasTranscript } from './transcripts';
 
 let mainWindow: BrowserWindow | null = null;
 let quitting = false;
@@ -84,6 +85,7 @@ async function start(): Promise<void> {
     save: (tabs, closedSessions) => persist({ tabs, closedSessions }),
     closedSessions: state.closedSessions,
     uuid: randomUUID,
+    hasTranscript,
   });
   const jira = readCreds(jiraEnvPath()).then((creds) => new JiraClient(creds));
   jira.catch(() => undefined);
