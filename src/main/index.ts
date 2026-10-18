@@ -1,5 +1,8 @@
 import { join } from 'node:path';
 import { app, BrowserWindow } from 'electron';
+import { registerIpc } from './ipc';
+
+let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
   const window = new BrowserWindow({
@@ -14,6 +17,11 @@ function createWindow(): void {
     },
   });
 
+  mainWindow = window;
+  window.on('closed', () => {
+    mainWindow = null;
+  });
+
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   if (rendererUrl) {
     void window.loadURL(rendererUrl);
@@ -23,6 +31,7 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  registerIpc({ window: () => mainWindow, worktreeFor: () => null });
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -1,0 +1,39 @@
+import { describe, expect, test } from 'vitest';
+import { cardPrompt, fillAction, SUGGEST_PROMPT } from './prompts';
+
+describe('cardPrompt', () => {
+  test('builds the card command', () => {
+    // given
+    const key = 'DIG-44';
+    // when
+    const prompt = cardPrompt(key);
+    // then
+    expect(prompt).toBe('/card DIG-44');
+  });
+});
+
+describe('fillAction', () => {
+  test.each([
+    { pr: 33, expected: '/card DIG-44 33' },
+    { pr: null, expected: '/card DIG-44 ' },
+  ])('fills key and pr $pr', ({ pr, expected }) => {
+    // given
+    const template = '/card {key} {pr}';
+    // when
+    const prompt = fillAction(template, { key: 'DIG-44', pr });
+    // then
+    expect(prompt).toBe(expected);
+  });
+});
+
+describe('SUGGEST_PROMPT', () => {
+  test('names the sprint and ends with the batch format', () => {
+    // given
+    const jiraKey = 'DIG';
+    // when
+    const prompt = SUGGEST_PROMPT(jiraKey);
+    // then
+    expect(prompt).toContain('active DIG sprint');
+    expect(prompt.endsWith('(or MAPLE-BATCH: none).')).toBe(true);
+  });
+});
