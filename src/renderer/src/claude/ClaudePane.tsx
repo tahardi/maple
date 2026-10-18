@@ -41,7 +41,11 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       return;
     }
     const { session } = window.maple;
-    const term = new Terminal({ fontFamily: 'ui-monospace', fontSize: 13, scrollback: 10_000 });
+    const term = new Terminal({
+      fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
+      fontSize: 13,
+      scrollback: 10_000,
+    });
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(el);
