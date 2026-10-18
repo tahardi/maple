@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionManager } from '../sessions';
+import type { StatusEngine } from '../status';
 import { registerSession } from './session';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
@@ -26,8 +27,11 @@ function setup() {
   registerSession({
     window: () => win,
     worktreeFor: () => null,
-    project: () => null,
+    project: () => Promise.resolve(null),
     sessions: sessions as unknown as SessionManager,
+    status: {} as StatusEngine,
+    setActiveTab: () => undefined,
+    setNotifications: () => Promise.resolve(),
   });
   return { sessions, sendToWindow };
 }

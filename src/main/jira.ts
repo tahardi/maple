@@ -1,4 +1,6 @@
 import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { z } from 'zod';
 import type { Blocker, Card, Sprint } from '@shared/types';
 import { adfToMarkdown } from './adf';
@@ -31,6 +33,10 @@ const sprintsSchema = z.object({
 });
 
 const searchSchema = z.object({ issues: z.array(issueSchema), nextPageToken: z.string().optional() });
+
+export function jiraEnvPath(): string {
+  return process.env.MAPLE_JIRA_ENV ?? join(homedir(), '.config/jira/env');
+}
 
 export async function readCreds(path: string): Promise<JiraCreds> {
   let text: string;

@@ -85,9 +85,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
       activeTabId: tabId,
       lastActive: projectKey === null ? lastActive : { ...lastActive, [projectKey]: tabId },
     });
-    if (tabId !== null) {
-      window.maple.tabs.setActive(tabId);
-    }
+    window.maple.tabs.setActive(tabId);
   },
 
   setTabs(tabs) {

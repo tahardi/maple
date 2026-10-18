@@ -105,8 +105,8 @@ describe('useMaple', () => {
 
   test.each([
     { tabId: 'bear-1', calls: [['bear-1']] },
-    { tabId: null, calls: [] },
-  ])('activate($tabId) tells the main process only about real tabs', async ({ tabId, calls }) => {
+    { tabId: null, calls: [[null]] },
+  ])('activate($tabId) tells the main process which tab is active', async ({ tabId, calls }) => {
     // given
     const { setActive } = setup();
     await useMaple.getState().init();
