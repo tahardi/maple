@@ -118,4 +118,31 @@ describe('CardTab', () => {
     expect(screen.getAllByRole('tab')).toHaveLength(1);
     expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
   });
+
+  test('keeps the active file when closing another file tab', async () => {
+    // given
+    fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    await userEvent.click(screen.getByText('a.ts'));
+    await userEvent.click(screen.getByText('b.ts'));
+    await userEvent.click(screen.getByText('README.md', { selector: 'li span' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close a.ts' }));
+    // then
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['README.md', 'b.ts']);
+    expect(screen.getByRole('tab', { name: 'README.md', selected: true })).toBeInTheDocument();
+  });
+
+  test('clears the selection when the last file tab closes', async () => {
+    // given
+    fakeRepo(false);
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close README.md' }));
+    // then
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByText('README.md').closest('li')?.className).not.toMatch(/selected/);
+  });
 });

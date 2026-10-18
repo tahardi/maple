@@ -1,12 +1,19 @@
 import type { LineMark } from '@shared/types';
-import { toDecorations } from './inFileDecorations';
+import { type DecorationSpec, toDecorations } from './inFileDecorations';
 
 describe('toDecorations', () => {
-  test.each<{ name: string; mark: LineMark; want: Partial<ReturnType<typeof toDecorations>[number]> }>([
+  test.each<{ name: string; mark: LineMark; want: DecorationSpec }>([
     {
       name: 'an add as a green line with no hover',
       mark: { kind: 'add', line: 3 },
-      want: { startLine: 3, endLine: 3, className: 'line-add', overviewColor: '#57ab5a', hover: null },
+      want: {
+        startLine: 3,
+        endLine: 3,
+        className: 'line-add',
+        marginClassName: 'margin-add',
+        overviewColor: '#57ab5a',
+        hover: null,
+      },
     },
     {
       name: 'a chg with its old text in the hover',
@@ -15,6 +22,7 @@ describe('toDecorations', () => {
         startLine: 2,
         endLine: 2,
         className: 'line-chg',
+        marginClassName: 'margin-chg',
         overviewColor: '#d4b106',
         hover: 'Was:\n```\na\nb\n```',
       },
@@ -22,7 +30,14 @@ describe('toDecorations', () => {
     {
       name: 'a chg without old text with no hover',
       mark: { kind: 'chg', line: 4, oldText: null },
-      want: { startLine: 4, className: 'line-chg', hover: null },
+      want: {
+        startLine: 4,
+        endLine: 4,
+        className: 'line-chg',
+        marginClassName: 'margin-chg',
+        overviewColor: '#d4b106',
+        hover: null,
+      },
     },
     {
       name: 'a del after line 0 on line 1 above it',
@@ -31,6 +46,7 @@ describe('toDecorations', () => {
         startLine: 1,
         endLine: 1,
         className: 'del-above',
+        marginClassName: 'margin-del',
         overviewColor: '#e5534b',
         hover: 'Was:\n```\ngone\n```',
       },
@@ -38,7 +54,14 @@ describe('toDecorations', () => {
     {
       name: 'a del after line 5 on line 5 below it',
       mark: { kind: 'del', afterLine: 5, oldText: 'gone' },
-      want: { startLine: 5, endLine: 5, className: 'del-below' },
+      want: {
+        startLine: 5,
+        endLine: 5,
+        className: 'del-below',
+        marginClassName: 'margin-del',
+        overviewColor: '#e5534b',
+        hover: 'Was:\n```\ngone\n```',
+      },
     },
   ])('maps $name', ({ mark, want }) => {
     // given
@@ -46,8 +69,24 @@ describe('toDecorations', () => {
     // when
     const specs = toDecorations(marks);
     // then
-    expect(specs).toHaveLength(1);
-    expect(specs[0]).toMatchObject(want);
+    expect(specs).toEqual([want]);
+  });
+
+  test('keeps marks in order', () => {
+    // given
+    const marks: LineMark[] = [
+      { kind: 'add', line: 1 },
+      { kind: 'del', afterLine: 3, oldText: 'x' },
+      { kind: 'chg', line: 7, oldText: 'y' },
+    ];
+    // when
+    const specs = toDecorations(marks);
+    // then
+    expect(specs.map((spec) => [spec.startLine, spec.className])).toEqual([
+      [1, 'line-add'],
+      [3, 'del-below'],
+      [7, 'line-chg'],
+    ]);
   });
 
   test('maps no marks to no specs', () => {

@@ -1,5 +1,5 @@
 import type { FilePair } from '@shared/types';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
 import { FileViewer } from './FileViewer';
@@ -8,10 +8,19 @@ vi.mock('./monacoSetup', () => ({}));
 
 const monaco = vi.hoisted(() => {
   const collection = { clear: vi.fn() };
-  const editor = { createDecorationsCollection: vi.fn(() => collection), getScrollTop: () => 0, setScrollTop: vi.fn() };
+  const editor = {
+    createDecorationsCollection: vi.fn(() => collection),
+    getScrollTop: vi.fn(() => 120),
+    setScrollTop: vi.fn(),
+  };
   const api = {
     editor: { OverviewRulerLane: { Full: 7 } },
-    languages: { getLanguages: () => [{ id: 'typescript', extensions: ['.ts'] }] },
+    languages: {
+      getLanguages: () => [
+        { id: 'typescript', extensions: ['.ts'] },
+        { id: 'makefile', filenames: ['Makefile'] },
+      ],
+    },
   };
   return { editor, collection, api, enabled: { value: false } };
 });
@@ -39,14 +48,25 @@ vi.mock('@monaco-editor/react', async () => {
         />
       );
     },
-    DiffEditor: (props: { original: string; modified: string; options: { renderSideBySide: boolean } }) => (
-      <div
-        data-testid="diff-editor"
-        data-original={props.original}
-        data-modified={props.modified}
-        data-side-by-side={String(props.options.renderSideBySide)}
-      />
-    ),
+    DiffEditor: (props: {
+      original: string;
+      modified: string;
+      options: { renderSideBySide: boolean };
+      onMount: (editor: unknown) => void;
+    }) => {
+      const { onMount } = props;
+      useEffect(() => {
+        onMount({ getModifiedEditor: () => monaco.editor });
+      }, [onMount]);
+      return (
+        <div
+          data-testid="diff-editor"
+          data-original={props.original}
+          data-modified={props.modified}
+          data-side-by-side={String(props.options.renderSideBySide)}
+        />
+      );
+    },
   };
 });
 
@@ -69,6 +89,7 @@ describe('FileViewer', () => {
     localStorage.clear();
     monaco.enabled.value = false;
     vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   test('renders a read-only editor in file mode by default', async () => {
@@ -207,5 +228,163 @@ describe('FileViewer', () => {
         },
       ]);
     });
+  });
+
+  test.each([
+    { name: 'in file', start: 'side-by-side', click: 'In file', want: 'in-file', testId: 'editor' },
+    { name: 'side by side', start: 'in-file', click: 'Side by side', want: 'side-by-side', testId: 'diff-editor' },
+  ])('saves $name when chosen', async ({ start, click, want, testId }) => {
+    // given
+    localStorage.setItem('maple.viewMode', start);
+    renderViewer(changed);
+    await screen.findByTestId(start === 'in-file' ? 'editor' : 'diff-editor');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: click }));
+    // then
+    expect(screen.getByTestId(testId)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: click, pressed: true })).toBeInTheDocument();
+    expect(localStorage.getItem('maple.viewMode')).toBe(want);
+  });
+
+  test('falls back to in file for an unknown saved mode', async () => {
+    // given
+    localStorage.setItem('maple.viewMode', 'sideways');
+    // when
+    renderViewer(changed);
+    // then
+    expect(await screen.findByTestId('editor')).toBeInTheDocument();
+  });
+
+  test('works when storage throws', async () => {
+    // given
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('reading storage: blocked');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('writing storage: blocked');
+    });
+    renderViewer(changed);
+    await screen.findByTestId('editor');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Side by side' }));
+    // then
+    expect(screen.getByTestId('diff-editor')).toBeInTheDocument();
+  });
+
+  test('shows a deleted file in a plain editor in side by side mode', async () => {
+    // given
+    localStorage.setItem('maple.viewMode', 'side-by-side');
+    // when
+    renderViewer({ kind: 'text', path: 'src/old.ts', current: null, base: 'old\n' });
+    // then
+    expect(await screen.findByText('Deleted in this branch')).toBeInTheDocument();
+    expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'old\n');
+    expect(screen.queryByTestId('diff-editor')).not.toBeInTheDocument();
+  });
+
+  test('renders no file and reads nothing without an active file', () => {
+    // given
+    const readFile = vi.fn();
+    const onChanged = vi.fn();
+    fakeMaple({ repo: { readFile, onChanged } });
+    // when
+    render(<FileViewer tabId="t1" openFiles={[]} activeFile={null} onActivate={vi.fn()} onCloseFile={vi.fn()} />);
+    // then
+    expect(readFile).not.toHaveBeenCalled();
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('editor')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  test('ignores a load that finishes after switching files', async () => {
+    // given
+    let finishFirst: (pair: FilePair) => void = () => undefined;
+    fakeMaple({
+      repo: {
+        readFile: (_tabId, path) =>
+          path === 'a.ts'
+            ? new Promise((resolve) => {
+                finishFirst = resolve;
+              })
+            : Promise.resolve({ kind: 'text', path, current: 'b\n', base: 'b\n' }),
+      },
+    });
+    const props = { tabId: 't1', openFiles: ['a.ts', 'b.ts'], onActivate: vi.fn(), onCloseFile: vi.fn() };
+    const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
+    rerender(<FileViewer {...props} activeFile="b.ts" />);
+    await screen.findByTestId('editor');
+    // when
+    await act(async () => {
+      finishFirst({ kind: 'text', path: 'a.ts', current: 'a\n', base: 'a\n' });
+      await Promise.resolve();
+    });
+    // then
+    expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'b\n');
+  });
+
+  test('stops listening for repo changes on unmount', async () => {
+    // given
+    const stop = vi.fn();
+    fakeMaple({ repo: { onChanged: () => stop } });
+    const { unmount } = render(
+      <FileViewer tabId="t1" openFiles={['a.png']} activeFile="a.png" onActivate={vi.fn()} onCloseFile={vi.fn()} />,
+    );
+    await screen.findByText('Binary file, not shown');
+    // when
+    unmount();
+    // then
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
+  test.each(['in-file', 'side-by-side'])('keeps the scroll position on reload in %s mode', async (mode) => {
+    // given
+    localStorage.setItem('maple.viewMode', mode);
+    let changedCb: () => void = () => undefined;
+    let current = 'one\n';
+    fakeMaple({
+      repo: {
+        readFile: (_tabId, path) => Promise.resolve({ kind: 'text', path, current, base: 'zero\n' }),
+        onChanged: (_tabId, cb) => {
+          changedCb = cb;
+          return () => undefined;
+        },
+      },
+    });
+    render(<FileViewer tabId="t1" openFiles={['a.ts']} activeFile="a.ts" onActivate={vi.fn()} onCloseFile={vi.fn()} />);
+    await screen.findByTestId(mode === 'in-file' ? 'editor' : 'diff-editor');
+    expect(monaco.editor.setScrollTop).not.toHaveBeenCalled();
+    // when
+    current = 'two\n';
+    changedCb();
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.editor.setScrollTop).toHaveBeenCalledWith(120);
+    });
+  });
+
+  test.each([
+    { path: 'Makefile', want: 'makefile' },
+    { path: 'notes.xyz', want: null },
+  ])('picks language $want for $path', async ({ path, want }) => {
+    // given
+    monaco.enabled.value = true;
+    // when
+    renderViewer({ kind: 'text', path, current: 'x\n', base: 'x\n' });
+    // then
+    const editor = await screen.findByTestId('editor');
+    expect(editor.getAttribute('data-language')).toBe(want);
+  });
+
+  test('adds no decorations to an unchanged file', async () => {
+    // given
+    monaco.enabled.value = true;
+    // when
+    renderViewer({ kind: 'text', path: 'src/a.ts', current: 'same\n', base: 'same\n' });
+    // then
+    await screen.findByTestId('editor');
+    await vi.waitFor(() => {
+      expect(monaco.editor.createDecorationsCollection).toHaveBeenCalled();
+    });
+    expect(monaco.editor.createDecorationsCollection).toHaveBeenLastCalledWith([]);
   });
 });
