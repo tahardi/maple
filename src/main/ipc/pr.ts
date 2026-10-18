@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { z } from 'zod';
 import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
 import type { Fetched, PrInfo } from '@shared/types';
 import { currentBranch } from '../git';
@@ -6,6 +6,7 @@ import { commentOnPr, prForBranch } from '../github';
 import { appLogger, type Logger } from '../log';
 import { defaultRunner } from '../preflight';
 import type { IpcDeps } from './index';
+import { handle, tabIdArg } from './validated';
 
 async function lookup(worktree: string): Promise<PrInfo | null> {
   return prForBranch(defaultRunner, worktree, await currentBranch(worktree));
@@ -13,7 +14,7 @@ async function lookup(worktree: string): Promise<PrInfo | null> {
 
 export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
   const lastGood = new Map<string, Fetched<PrInfo>>();
-  ipcMain.handle('pr:get', async (_event, tabId: string): Promise<Fetched<PrInfo>> => {
+  handle('pr:get', z.tuple([tabIdArg]), async (tabId): Promise<Fetched<PrInfo>> => {
     const worktree = deps.worktreeFor(tabId);
     if (!worktree) {
       return { data: null, error: null, fetchedAt: null };
@@ -29,7 +30,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       return { data: cached?.data ?? null, error, fetchedAt: cached?.fetchedAt ?? null };
     }
   });
-  ipcMain.handle('pr:approve', async (_event, tabId: string): Promise<void> => {
+  handle('pr:approve', z.tuple([tabIdArg]), async (tabId): Promise<void> => {
     try {
       const worktree = deps.worktreeFor(tabId);
       const cardKey = deps.sessions.get(tabId)?.cardKey ?? null;

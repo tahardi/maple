@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -39,11 +40,18 @@ describe('writeHooksFile', () => {
   test('escapes single quotes in paths', async () => {
     // given
     const execPath = "/home/o'neil/maple";
+    const scriptPath = "/home/o'neil/maple-hook.mjs";
     // when
-    const path = await writeHooksFile(dir, execPath, '/s.mjs');
+    const path = await writeHooksFile(dir, execPath, scriptPath);
     // then
     const parsed = JSON.parse(await readFile(path, 'utf8')) as Hooks;
-    expect(parsed.hooks.Stop[0].hooks[0].command).toBe(`ELECTRON_RUN_AS_NODE=1 '/home/o'\\''neil/maple' '/s.mjs' Stop`);
+    const command = parsed.hooks.Stop[0].hooks[0].command;
+    expect(command).toBe(`ELECTRON_RUN_AS_NODE=1 '/home/o'\\''neil/maple' '/home/o'\\''neil/maple-hook.mjs' Stop`);
+    expect(
+      execFileSync('sh', ['-c', `set -- ${command.replace('ELECTRON_RUN_AS_NODE=1 ', '')}; printf '%s\\n' "$@"`], {
+        encoding: 'utf8',
+      }),
+    ).toBe(`${execPath}\n${scriptPath}\nStop\n`);
   });
 
   test('creates the config dir when it is missing', async () => {

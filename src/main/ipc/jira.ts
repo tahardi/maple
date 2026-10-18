@@ -1,9 +1,10 @@
-import { ipcMain } from 'electron';
+import { z } from 'zod';
 import type { Fetched, Sprint } from '@shared/types';
 import { JiraClient, jiraEnvPath, readCreds } from '../jira';
 import { appLogger, type Logger } from '../log';
 import { SprintCache } from '../sprintCache';
 import type { IpcDeps } from './index';
+import { handle, projectKeyArg } from './validated';
 
 export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
   const ready = readCreds(jiraEnvPath()).then(
@@ -17,7 +18,7 @@ export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
       return { cache: null, error };
     },
   );
-  ipcMain.handle('jira:sprint', async (_event, projectKey: string): Promise<Fetched<Sprint>> => {
+  handle('jira:sprint', z.tuple([projectKeyArg]), async (projectKey): Promise<Fetched<Sprint>> => {
     const project = await deps.project(projectKey);
     if (!project) {
       return { data: null, fetchedAt: null, error: `fetching sprint: unknown project ${projectKey}` };

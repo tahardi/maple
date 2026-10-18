@@ -20,6 +20,9 @@ const copyResources: Plugin = {
 
 export default defineConfig({
   main: { resolve: { alias }, plugins: [copyResources] },
-  preload: { resolve: { alias } },
+  preload: {
+    resolve: { alias },
+    build: { rolldownOptions: { output: { format: 'cjs', entryFileNames: '[name].cjs' } } },
+  },
   renderer: { resolve: { alias }, plugins: [react()] },
 });

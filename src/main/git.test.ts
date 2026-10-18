@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
@@ -70,6 +70,19 @@ describe('git', () => {
     expect(set.removed).toBe(2);
   });
 
+  test.each([
+    { name: 'a symlink to a device', link: '/dev/zero' },
+    { name: 'a symlink pointing out', link: '/etc/passwd' },
+  ])('changes counts no lines for $name', async ({ link }) => {
+    // given
+    symlinkSync(link, join(worktree, 'link'));
+    // when
+    const set = await changes(worktree);
+    // then
+    expect(set.files).toEqual([{ path: 'link', status: 'A', oldPath: null }]);
+    expect(set.added).toBe(0);
+  });
+
   test('readFilePair returns text, deleted, binary, and too large pairs', async () => {
     // given
     writeFileSync(join(worktree, 'keep.txt'), 'a\nB\nc\n');
@@ -90,13 +103,32 @@ describe('git', () => {
     ]);
   });
 
-  test('readFilePair rejects paths outside the worktree', async () => {
+  test.each([
+    { name: 'a parent path', path: '../repo/keep.txt' },
+    { name: 'a deep parent path', path: '../../.ssh/id_rsa' },
+    { name: 'an absolute path', path: '/etc/passwd' },
+    { name: 'a symlink pointing out', path: 'passwd', link: '/etc/passwd' },
+    { name: 'a path through a symlinked dir', path: 'etc/passwd', link: '/etc', linkName: 'etc' },
+  ])('readFilePair rejects $name outside the worktree', async ({ path, link, linkName }) => {
     // given
+    if (link) {
+      symlinkSync(link, join(worktree, linkName ?? path));
+    }
     const base = await mergeBase(worktree);
     // when
-    const pair = readFilePair(worktree, base, '../repo/keep.txt');
+    const pair = readFilePair(worktree, base, path);
     // then
-    await expect(pair).rejects.toThrow('reading file: ../repo/keep.txt is outside the worktree');
+    await expect(pair).rejects.toThrow('reading file: path is outside the worktree');
+  });
+
+  test('readFilePair follows a symlink that stays inside the worktree', async () => {
+    // given
+    symlinkSync('keep.txt', join(worktree, 'alias.txt'));
+    const base = await mergeBase(worktree);
+    // when
+    const pair = await readFilePair(worktree, base, 'alias.txt');
+    // then
+    expect(pair).toEqual({ kind: 'text', path: 'alias.txt', base: null, current: 'a\nb\nc\n' });
   });
 
   test('findWorktree finds the worktree dir by card key', async () => {

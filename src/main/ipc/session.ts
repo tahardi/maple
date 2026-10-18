@@ -1,17 +1,18 @@
-import { ipcMain } from 'electron';
+import { z } from 'zod';
 import { send, type IpcDeps } from './index';
+import { handle, on, sizeArg, tabIdArg } from './validated';
 
 export function registerSession({ sessions, window }: IpcDeps): void {
-  ipcMain.on('session:write', (_event, tabId: string, data: string) => {
+  on('session:write', z.tuple([tabIdArg, z.string()]), (tabId, data) => {
     sessions.write(tabId, data);
   });
-  ipcMain.on('session:resize', (_event, tabId: string, cols: number, rows: number) => {
+  on('session:resize', z.tuple([tabIdArg, sizeArg, sizeArg]), (tabId, cols, rows) => {
     sessions.resize(tabId, cols, rows);
   });
-  ipcMain.on('session:sendPrompt', (_event, tabId: string, text: string) => {
+  on('session:sendPrompt', z.tuple([tabIdArg, z.string()]), (tabId, text) => {
     sessions.sendPrompt(tabId, text);
   });
-  ipcMain.handle('session:backlog', (_event, tabId: string) => sessions.backlog(tabId));
+  handle('session:backlog', z.tuple([tabIdArg]), (tabId) => sessions.backlog(tabId));
   sessions.on('data', (tabId, data) => {
     send(window(), `session:data:${tabId}`, data);
   });
