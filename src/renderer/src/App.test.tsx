@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { App } from './App';
 import { useMaple } from './store';
 import { fakeMaple } from './testing/fakeMaple';
@@ -18,6 +18,22 @@ describe('App', () => {
     expect(await screen.findByText('No active sprint')).toBeInTheDocument();
     expect(sprint).toHaveBeenCalledWith('BEAR');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('switching project shows that project board', async () => {
+    // given
+    const sprint = vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null }));
+    fakeMaple({ jira: { sprint } });
+    render(<App />);
+    await screen.findByText('No active sprint');
+    // when
+    act(() => {
+      useMaple.getState().selectProject('DIG');
+    });
+    // then
+    await waitFor(() => {
+      expect(sprint).toHaveBeenLastCalledWith('DIG');
+    });
   });
 
   test('shows Home when tabs fail to load', async () => {

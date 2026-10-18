@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SPRINT } from '../testing/sprintFixture';
+import { card, SPRINT } from '../testing/sprintFixture';
 import { Board } from './Board';
 
 describe('Board', () => {
@@ -30,6 +30,26 @@ describe('Board', () => {
     expect(doneBlocker).not.toHaveAttribute('data-blocked');
   });
 
+  test('lists every unfinished blocker', () => {
+    // given
+    const sprint = {
+      ...SPRINT,
+      cards: [
+        card('DIG-50', 'To Do', {
+          blockedBy: [
+            { key: 'DIG-44', status: 'In Progress' as const },
+            { key: 'DIG-40', status: 'Done' as const },
+            { key: 'DIG-41', status: 'To Do' as const },
+          ],
+        }),
+      ],
+    };
+    // when
+    render(<Board sprint={sprint} highlighted={new Set()} onSelect={vi.fn()} />);
+    // then
+    expect(screen.getByRole('button', { name: /^DIG-50/ })).toHaveTextContent('blocked by DIG-44, DIG-41');
+  });
+
   test('shows the sprint name, dates, and done count', () => {
     // given
     render(<Board sprint={SPRINT} highlighted={new Set()} onSelect={vi.fn()} />);
@@ -51,6 +71,15 @@ describe('Board', () => {
     expect(tile).toHaveTextContent('Summary of DIG-44');
     expect(tile).toHaveTextContent('3 pts');
     expect(tile).toHaveTextContent('parallelizable');
+  });
+
+  test('hides points and labels a card does not have', () => {
+    // given
+    render(<Board sprint={SPRINT} highlighted={new Set()} onSelect={vi.fn()} />);
+    // when
+    const tile = screen.getByRole('button', { name: /^DIG-39/ });
+    // then
+    expect(tile).toHaveTextContent(/^DIG-39Summary of DIG-39$/);
   });
 
   test('marks highlighted cards and selects a card on click', async () => {

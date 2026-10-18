@@ -100,6 +100,40 @@ describe('HomeTab', () => {
     });
   });
 
+  test('Close hides the card detail', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    // then
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  test('the card detail follows a refreshed sprint', async () => {
+    // given
+    const moved = {
+      ...SPRINT,
+      cards: SPRINT.cards.map((c) => (c.key === 'DIG-41' ? { ...c, status: 'Done' as const } : c)),
+    };
+    const sprint = vi
+      .fn()
+      .mockResolvedValueOnce({ data: SPRINT, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: moved, error: null, fetchedAt: null });
+    fakeMaple({ jira: { sprint } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    expect(screen.getByRole('button', { name: 'Start' })).toBeInTheDocument();
+    // when
+    window.dispatchEvent(new Event('focus'));
+    // then
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('complementary')).toHaveTextContent('Done');
+  });
+
   test('Go to tab activates the existing tab', async () => {
     // given
     const activate = vi.fn();

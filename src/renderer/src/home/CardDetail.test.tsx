@@ -22,6 +22,7 @@ function renderDetail(c: Card, t: TabState | null) {
 describe('CardDetail', () => {
   test.each([
     { name: 'a card with a tab', status: 'In Progress' as const, hasTab: true, button: 'Go to tab', handler: 'onGoTo' },
+    { name: 'a Done card with a tab', status: 'Done' as const, hasTab: true, button: 'Go to tab', handler: 'onGoTo' },
     { name: 'a To Do card', status: 'To Do' as const, hasTab: false, button: 'Start', handler: 'onStart' },
     { name: 'an In Progress card', status: 'In Progress' as const, hasTab: false, button: 'Open', handler: 'onOpen' },
     { name: 'an In Review card', status: 'In Review' as const, hasTab: false, button: 'Open', handler: 'onOpen' },
@@ -54,6 +55,15 @@ describe('CardDetail', () => {
     const link = screen.getByRole('link', { name: 'Open in Jira' });
     expect(link).toHaveAttribute('href', 'https://example.atlassian.net/browse/DIG-41');
     expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  test('a card without blockers, points, or labels shows none', () => {
+    // given
+    renderDetail(card('DIG-39', 'Done', { points: null, labels: [] }), null);
+    // then
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary')).not.toHaveTextContent('pts');
+    expect(screen.getByRole('complementary')).not.toHaveTextContent('parallelizable');
   });
 
   test('Close calls onClose', async () => {
