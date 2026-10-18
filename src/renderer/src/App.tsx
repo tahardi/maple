@@ -13,6 +13,7 @@ export function App() {
   const init = useMaple((s) => s.init);
   const configError = useMaple((s) => s.config?.error ?? null);
   const problems = useMaple((s) => s.problems);
+  const warnings = useMaple((s) => s.warnings);
   const projectKey = useMaple((s) => s.projectKey);
   const activeTab = useMaple((s) => s.tabs.find((t) => t.id === s.activeTabId));
 
@@ -20,7 +21,11 @@ export function App() {
     void init();
   }, [init]);
 
-  const messages = [...problems.map((p) => p.message), ...(configError === null ? [] : [configError, RELOAD_HINT])];
+  const messages = [
+    ...problems.map((p) => p.message),
+    ...warnings,
+    ...(configError === null ? [] : [configError, RELOAD_HINT]),
+  ];
 
   return (
     <div className={styles.app}>

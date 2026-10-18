@@ -19,6 +19,7 @@ export type IpcDeps = {
   status: StatusEngine;
   setActiveTab: (tabId: string | null) => void;
   setNotifications: (on: boolean) => Promise<void>;
+  warnings: () => string[];
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [

@@ -22,7 +22,7 @@ export type SessionDeps = {
 
 type Events = {
   data: [tabId: string, data: string];
-  spawn: [tabId: string, prompted: boolean];
+  spawn: [tabId: string, prompted: boolean, resumed: boolean];
   exit: [tabId: string, code: number];
   input: [tabId: string];
   batch: [projectKey: string, keys: string[]];
@@ -95,6 +95,10 @@ export class SessionManager extends EventEmitter<Events> {
       session.stopWatch();
       session.pty?.kill();
     }
+  }
+
+  hasProject(projectKey: string): boolean {
+    return this.deps.config().projects.some((p) => p.jiraKey === projectKey);
   }
 
   get(tabId: string): TabState | null {
@@ -202,7 +206,7 @@ export class SessionManager extends EventEmitter<Events> {
     });
     session.pty = pty;
     session.alive = true;
-    this.emit('spawn', tab.id, prompt !== null);
+    this.emit('spawn', tab.id, prompt !== null, resume);
     pty.onData((data) => {
       this.onData(session, data);
     });

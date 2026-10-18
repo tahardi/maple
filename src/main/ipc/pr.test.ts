@@ -44,6 +44,7 @@ function register(
     sessions,
     status: {} as StatusEngine,
     setActiveTab: () => undefined,
+    warnings: () => [],
     setNotifications: () => Promise.resolve(),
   });
   const call = handle.mock.calls.find(([name]) => name === channel);

@@ -26,6 +26,7 @@ const deps = {
   sessions,
   status: {} as StatusEngine,
   setActiveTab: () => undefined,
+  warnings: () => [],
   setNotifications: () => Promise.resolve(),
 };
 

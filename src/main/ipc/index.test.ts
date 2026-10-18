@@ -49,6 +49,7 @@ describe('registerIpc', () => {
     sessions,
     status,
     setActiveTab: vi.fn(),
+    warnings: () => [],
     setNotifications: vi.fn(),
   };
 

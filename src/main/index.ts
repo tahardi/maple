@@ -5,7 +5,7 @@ import { spawn } from 'node-pty';
 import { configDir, loadConfig } from './config';
 import { hookSocketPath, startHookServer } from './hookServer';
 import { writeHooksFile } from './hooksFile';
-import { currentBranch } from './git';
+import { currentBranch, findWorktree } from './git';
 import { prForBranch } from './github';
 import { registerIpc } from './ipc';
 import { notificationsDefault, projectByKey } from './ipc/config';
@@ -13,6 +13,7 @@ import { JiraClient, jiraEnvPath, readCreds } from './jira';
 import { checkNotifications } from './menu';
 import { notifyTab, shouldNotify } from './notify';
 import { defaultRunner } from './preflight';
+import { restoreTabs } from './restore';
 import { SessionManager } from './sessions';
 import { saveState, loadState, type SavedState } from './state';
 import { StatusEngine } from './status';
@@ -59,7 +60,7 @@ function createWindow(): void {
 }
 
 async function start(): Promise<void> {
-  const [{ data: config }, { state }] = await Promise.all([loadConfig(), loadState()]);
+  const [{ data: config }, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
   const socketPath = hookSocketPath();
   let saved = state;
@@ -98,6 +99,10 @@ async function start(): Promise<void> {
     sessions.killAll();
     void stopHooks();
   });
+  const restored = config
+    ? await restoreTabs(state, sessions, (key) => findWorktree(config.worktreesDir, key))
+    : { restored: 0, warnings: [] };
+  const warnings = [...(warning === null ? [] : [warning]), ...restored.warnings];
 
   let activeTabId: string | null = null;
   const enabled = async () => saved.notifications ?? (await notificationsDefault());
@@ -125,6 +130,7 @@ async function start(): Promise<void> {
       checkNotifications(on);
       await persist({ notifications: on });
     },
+    warnings: () => warnings,
   });
   app.on('before-quit', (event) => {
     quitting = !event.defaultPrevented;

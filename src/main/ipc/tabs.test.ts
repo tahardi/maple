@@ -36,7 +36,7 @@ function fakeSessions() {
   });
 }
 
-const status: TabStatus = { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null };
+const status: TabStatus = { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false };
 
 function setup() {
   const sessions = fakeSessions();
@@ -52,6 +52,7 @@ function setup() {
     status: engine as unknown as StatusEngine,
     setActiveTab,
     setNotifications: () => Promise.resolve(),
+    warnings: () => [],
   });
   return { sessions, engine, setActiveTab, sendToWindow };
 }

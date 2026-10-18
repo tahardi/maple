@@ -1,9 +1,10 @@
 import { app, ipcMain } from 'electron';
 import { send, type IpcDeps } from './index';
 
-export function registerApp({ setNotifications, sessions, status, window }: IpcDeps): void {
+export function registerApp({ setNotifications, warnings, sessions, status, window }: IpcDeps): void {
   let confirmed = false;
   ipcMain.handle('app:setNotifications', (_event, on: boolean) => setNotifications(on));
+  ipcMain.handle('app:warnings', () => warnings());
   ipcMain.on('app:confirmQuit', () => {
     confirmed = true;
     app.quit();

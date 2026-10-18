@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { Card, PrInfo, TabState, TabStatus } from '@shared/types';
 import type { SessionManager } from './sessions';
 import { StatusEngine } from './status';
@@ -59,6 +59,10 @@ function setup(overrides: Overrides = {}) {
 }
 
 describe('StatusEngine', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test.each([
     { prompted: true, want: 'working' },
     { prompted: false, want: 'idle' },
@@ -68,7 +72,9 @@ describe('StatusEngine', () => {
     // when
     sessions.emit('spawn', 't1', prompted);
     // then
-    expect(engine.statuses()).toEqual([{ tabId: 't1', dot: want, sessionAlive: true, exitCode: null }]);
+    expect(engine.statuses()).toEqual([
+      { tabId: 't1', dot: want, sessionAlive: true, exitCode: null, resumeFailed: false },
+    ]);
   });
 
   test('a Stop hook for a reviewable card tab emits ready', async () => {
@@ -80,7 +86,7 @@ describe('StatusEngine', () => {
     engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
     // then
     await vi.waitFor(() => {
-      expect(emitted).toEqual([{ tabId: 't1', dot: 'ready', sessionAlive: true, exitCode: null }]);
+      expect(emitted).toEqual([{ tabId: 't1', dot: 'ready', sessionAlive: true, exitCode: null, resumeFailed: false }]);
     });
   });
 
@@ -171,7 +177,41 @@ describe('StatusEngine', () => {
     // when
     sessions.emit('exit', 't1', 2);
     // then
-    expect(emitted.at(-1)).toEqual({ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 2 });
+    expect(emitted.at(-1)).toEqual({ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 2, resumeFailed: false });
+  });
+
+  test.each([
+    { name: 'a resume exiting 1 after 4999 ms', resumes: true, ms: 4999, code: 1, want: true },
+    { name: 'a resume exiting 1 after 5000 ms', resumes: true, ms: 5000, code: 1, want: false },
+    { name: 'a resume exiting 0 after 10 ms', resumes: true, ms: 10, code: 0, want: false },
+    { name: 'a fresh session exiting 1 after 10 ms', resumes: false, ms: 10, code: 1, want: false },
+  ])('$name sets resumeFailed $want', ({ resumes, ms, code, want }) => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, emitted } = setup();
+    sessions.emit('spawn', 't1', false, resumes);
+    vi.advanceTimersByTime(ms);
+    // when
+    sessions.emit('exit', 't1', code);
+    // then
+    expect(emitted.at(-1)).toEqual({
+      tabId: 't1',
+      dot: 'idle',
+      sessionAlive: false,
+      exitCode: code,
+      resumeFailed: want,
+    });
+  });
+
+  test('a respawn after a failed resume clears resumeFailed', () => {
+    // given
+    const { sessions, engine } = setup();
+    sessions.emit('spawn', 't1', false, true);
+    sessions.emit('exit', 't1', 1);
+    // when
+    sessions.emit('spawn', 't1', true, false);
+    // then
+    expect(engine.statuses()[0]?.resumeFailed).toBe(false);
   });
 
   test('a closed tab drops its status', () => {
@@ -275,7 +315,7 @@ describe('StatusEngine', () => {
     engine.hook({ tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' });
     // then
     expect(listener).toHaveBeenCalledWith(
-      { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null },
+      { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false },
       'working',
     );
   });
@@ -291,8 +331,16 @@ describe('StatusEngine', () => {
     engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
     await new Promise((resolve) => setTimeout(resolve, 10));
     // then
-    expect(emitted.at(-1)).toEqual({ tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null });
-    expect(engine.statuses()).toEqual([{ tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null }]);
+    expect(emitted.at(-1)).toEqual({
+      tabId: 't1',
+      dot: 'working',
+      sessionAlive: true,
+      exitCode: null,
+      resumeFailed: false,
+    });
+    expect(engine.statuses()).toEqual([
+      { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false },
+    ]);
   });
 
   test('a changed tab list keeps open tabs', () => {

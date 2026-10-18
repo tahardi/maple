@@ -11,7 +11,9 @@ export type StatusDeps = {
 
 type Events = { status: [status: TabStatus, prev: Dot] };
 
-type Tracked = { status: TabStatus; seq: number };
+const RESUME_FAIL_MS = 5000;
+
+type Tracked = { status: TabStatus; seq: number; resumedAt: number | null };
 
 export class StatusEngine extends EventEmitter<Events> {
   private readonly tabs = new Map<string, Tracked>();
@@ -19,17 +21,19 @@ export class StatusEngine extends EventEmitter<Events> {
   constructor(private readonly deps: StatusDeps) {
     super();
     const { sessions } = deps;
-    sessions.on('spawn', (tabId, prompted) => {
+    sessions.on('spawn', (tabId, prompted, resumed) => {
       const prev = this.tabs.get(tabId);
       const dot = prompted ? 'working' : 'idle';
-      const status: TabStatus = { tabId, dot, sessionAlive: true, exitCode: null };
-      this.tabs.set(tabId, { status, seq: (prev?.seq ?? 0) + 1 });
+      const status: TabStatus = { tabId, dot, sessionAlive: true, exitCode: null, resumeFailed: false };
+      this.tabs.set(tabId, { status, seq: (prev?.seq ?? 0) + 1, resumedAt: resumed ? Date.now() : null });
       this.emitStatus(tabId, prev?.status.dot ?? dot);
     });
     sessions.on('exit', (tabId, exitCode) => {
       const tracked = this.tabs.get(tabId);
       if (tracked) {
-        tracked.status = { ...tracked.status, sessionAlive: false, exitCode };
+        const { resumedAt } = tracked;
+        const resumeFailed = exitCode !== 0 && resumedAt !== null && Date.now() - resumedAt < RESUME_FAIL_MS;
+        tracked.status = { ...tracked.status, sessionAlive: false, exitCode, resumeFailed };
         this.emitStatus(tabId, tracked.status.dot);
       }
     });

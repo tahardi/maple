@@ -139,21 +139,39 @@ describe('SessionManager', () => {
   });
 
   test.each([
-    { name: 'startCard', open: (m: SessionManager) => m.startCard('DIG', 'DIG-44'), prompted: true },
-    { name: 'openCard', open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', null), prompted: false },
-    { name: 'openPlanner', open: (m: SessionManager) => m.openPlanner('DIG', null), prompted: false },
+    { name: 'startCard', open: (m: SessionManager) => m.startCard('DIG', 'DIG-44'), prompted: true, resumes: false },
+    {
+      name: 'openCard',
+      open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', null),
+      prompted: false,
+      resumes: false,
+    },
+    {
+      name: 'openCard with a resume id',
+      open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', 'old'),
+      prompted: false,
+      resumes: true,
+    },
+    { name: 'openPlanner', open: (m: SessionManager) => m.openPlanner('DIG', null), prompted: false, resumes: false },
     {
       name: 'startFresh on a card',
       open: (m: SessionManager) => fresh(m, m.startCard('DIG', 'DIG-44')),
       prompted: true,
+      resumes: false,
     },
     {
       name: 'startFresh on a planner',
       open: (m: SessionManager) => fresh(m, m.openPlanner('DIG', null)),
       prompted: false,
+      resumes: false,
     },
-    { name: 'resume', open: (m: SessionManager) => resumed(m, m.startCard('DIG', 'DIG-44')), prompted: false },
-  ])('$name emits spawn with prompted $prompted', ({ open, prompted }) => {
+    {
+      name: 'resume',
+      open: (m: SessionManager) => resumed(m, m.startCard('DIG', 'DIG-44')),
+      prompted: false,
+      resumes: true,
+    },
+  ])('$name emits spawn with prompted $prompted and resumes $resumes', ({ open, prompted, resumes }) => {
     // given
     const { manager } = setup();
     const spawned = vi.fn();
@@ -161,7 +179,7 @@ describe('SessionManager', () => {
     // when
     const tab = open(manager);
     // then
-    expect(spawned).toHaveBeenLastCalledWith(tab.id, prompted);
+    expect(spawned).toHaveBeenLastCalledWith(tab.id, prompted, resumes);
   });
 
   test.each([
@@ -412,6 +430,18 @@ describe('SessionManager', () => {
     const start = () => manager.startCard('NOPE', 'NOPE-1');
     // then
     expect(start).toThrow('starting session: unknown project NOPE');
+  });
+
+  test.each([
+    { key: 'DIG', want: true },
+    { key: 'NOPE', want: false },
+  ])('hasProject $key is $want', ({ key, want }) => {
+    // given
+    const { manager } = setup();
+    // when
+    const has = manager.hasProject(key);
+    // then
+    expect(has).toBe(want);
   });
 
   test.each([

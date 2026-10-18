@@ -4,6 +4,7 @@ import { create } from 'zustand';
 type MapleState = {
   config: Fetched<MapleConfig> | null;
   problems: PreflightProblem[];
+  warnings: string[];
   projectKey: string | null;
   tabs: TabState[];
   statuses: Record<string, TabStatus>;
@@ -28,6 +29,7 @@ function firstProject(config: Fetched<MapleConfig>): string | null {
 export const useMaple = create<MapleState>()((set, get) => ({
   config: null,
   problems: [],
+  warnings: [],
   projectKey: null,
   tabs: [],
   statuses: {},
@@ -60,15 +62,17 @@ export const useMaple = create<MapleState>()((set, get) => ({
         set({ config, projectKey: current !== null && keys.includes(current) ? current : firstProject(config) });
       }),
     ];
-    const [config, problems, tabs, statuses] = await Promise.all([
+    const [config, problems, warnings, tabs, statuses] = await Promise.all([
       maple.config.get(),
       maple.preflight.run(),
+      maple.app.warnings().catch((): string[] => []),
       maple.tabs.list().catch((): TabState[] => []),
       maple.tabs.statuses().catch((): TabStatus[] => []),
     ]);
     set({
       config,
       problems,
+      warnings,
       tabs,
       statuses: Object.fromEntries(statuses.map((s) => [s.tabId, s])),
       projectKey: firstProject(config),
