@@ -54,10 +54,10 @@ describe('registerIpc', () => {
   test('rejects stub requests as not implemented', async () => {
     // given
     registerIpc(deps);
-    const call = handle.mock.calls.find(([channel]) => channel === 'pr:get');
+    const call = handle.mock.calls.find(([channel]) => channel === 'pr:approve');
     // when
     const result = call?.[1]({} as IpcMainInvokeEvent);
     // then
-    await expect(result).rejects.toThrow('pr:get is not implemented');
+    await expect(result).rejects.toThrow('pr:approve is not implemented');
   });
 });
