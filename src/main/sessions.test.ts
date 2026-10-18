@@ -130,6 +130,19 @@ describe('SessionManager', () => {
     });
   });
 
+  test('drops CLAUDE_CODE_CHILD_SESSION so claude writes a transcript', () => {
+    // given
+    vi.stubEnv('CLAUDE_CODE_CHILD_SESSION', '1');
+    vi.stubEnv('MAPLE_TEST_KEEP', 'kept');
+    const { manager, ptys } = setup();
+    // when
+    manager.openPlanner('DIG', null);
+    // then
+    vi.unstubAllEnvs();
+    expect(ptys[0].options.env).not.toHaveProperty('CLAUDE_CODE_CHILD_SESSION');
+    expect(ptys[0].options.env).toMatchObject({ MAPLE_TEST_KEEP: 'kept' });
+  });
+
   test('logs spawned with the args', () => {
     // given
     const { manager, logger } = setup();
