@@ -10,6 +10,7 @@ import { FileTree } from './FileTree';
 import { FileViewer } from './FileViewer';
 import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
+import { PR_DESCRIPTION } from './prDescription';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
 
@@ -115,7 +116,14 @@ export function CardTab({ tab }: { tab: TabState }) {
               changedCount={changed.length}
             />
           )}
-          {pr && <PrSummary pr={pr} />}
+          {pr && (
+            <PrSummary
+              pr={pr}
+              onOpenDescription={() => {
+                openFile(PR_DESCRIPTION);
+              }}
+            />
+          )}
         </div>
         <div className={styles.divider} onPointerDown={drag('left')} />
         <div className={styles.middle} data-testid="viewer-slot">
@@ -128,6 +136,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               activeFile={activeFile}
               onActivate={setActiveFile}
               onCloseFile={closeFile}
+              prBody={pr?.data?.body ?? null}
             />
           )}
         </div>

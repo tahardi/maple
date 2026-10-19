@@ -3,6 +3,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
 import { FileViewer } from './FileViewer';
+import { PR_DESCRIPTION } from './prDescription';
 
 vi.mock('./monacoSetup', () => ({}));
 
@@ -80,6 +81,7 @@ function renderViewer(pair: FilePair) {
     activeFile: pair.path,
     onActivate: vi.fn(),
     onCloseFile: vi.fn(),
+    prBody: null,
   };
   return { maple, props, ...render(<FileViewer {...props} />) };
 }
@@ -90,6 +92,28 @@ describe('FileViewer', () => {
     monaco.enabled.value = false;
     vi.clearAllMocks();
     vi.restoreAllMocks();
+  });
+
+  test('renders the PR description as Markdown', () => {
+    // given
+    const readFile = vi.fn();
+    fakeMaple({ repo: { readFile } });
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={[PR_DESCRIPTION]}
+        activeFile={PR_DESCRIPTION}
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={'## Summary\n\nHello'}
+      />,
+    );
+    // then
+    expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'PR description' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'In file' })).not.toBeInTheDocument();
+    expect(readFile).not.toHaveBeenCalled();
   });
 
   test('renders a read-only editor in file mode by default', async () => {
@@ -196,7 +220,16 @@ describe('FileViewer', () => {
         },
       },
     });
-    render(<FileViewer tabId="t1" openFiles={['a.ts']} activeFile="a.ts" onActivate={vi.fn()} onCloseFile={vi.fn()} />);
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['a.ts']}
+        activeFile="a.ts"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+      />,
+    );
     await screen.findByTestId('editor');
     // when
     current = 'two\n';
@@ -288,7 +321,16 @@ describe('FileViewer', () => {
     const onChanged = vi.fn();
     fakeMaple({ repo: { readFile, onChanged } });
     // when
-    render(<FileViewer tabId="t1" openFiles={[]} activeFile={null} onActivate={vi.fn()} onCloseFile={vi.fn()} />);
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={[]}
+        activeFile={null}
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+      />,
+    );
     // then
     expect(readFile).not.toHaveBeenCalled();
     expect(onChanged).not.toHaveBeenCalled();
@@ -309,7 +351,7 @@ describe('FileViewer', () => {
             : Promise.resolve({ kind: 'text', path, current: 'b\n', base: 'b\n' }),
       },
     });
-    const props = { tabId: 't1', openFiles: ['a.ts', 'b.ts'], onActivate: vi.fn(), onCloseFile: vi.fn() };
+    const props = { tabId: 't1', openFiles: ['a.ts', 'b.ts'], onActivate: vi.fn(), onCloseFile: vi.fn(), prBody: null };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
     rerender(<FileViewer {...props} activeFile="b.ts" />);
     await screen.findByTestId('editor');
@@ -327,7 +369,14 @@ describe('FileViewer', () => {
     const stop = vi.fn();
     fakeMaple({ repo: { onChanged: () => stop } });
     const { unmount } = render(
-      <FileViewer tabId="t1" openFiles={['a.png']} activeFile="a.png" onActivate={vi.fn()} onCloseFile={vi.fn()} />,
+      <FileViewer
+        tabId="t1"
+        openFiles={['a.png']}
+        activeFile="a.png"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+      />,
     );
     await screen.findByText('Binary file, not shown');
     // when
@@ -350,7 +399,16 @@ describe('FileViewer', () => {
         },
       },
     });
-    render(<FileViewer tabId="t1" openFiles={['a.ts']} activeFile="a.ts" onActivate={vi.fn()} onCloseFile={vi.fn()} />);
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['a.ts']}
+        activeFile="a.ts"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+      />,
+    );
     await screen.findByTestId(mode === 'in-file' ? 'editor' : 'diff-editor');
     expect(monaco.editor.setScrollTop).not.toHaveBeenCalled();
     // when

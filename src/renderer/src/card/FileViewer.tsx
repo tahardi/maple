@@ -3,8 +3,10 @@ import { lineMarks } from '@shared/diffMarks';
 import type { FilePair } from '@shared/types';
 import type { editor } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { MarkdownText } from '../shell/MarkdownText';
 import { toDecorations } from './inFileDecorations';
 import './monacoSetup';
+import { PR_DESCRIPTION } from './prDescription';
 import styles from './viewer.module.css';
 
 type Props = {
@@ -13,6 +15,7 @@ type Props = {
   activeFile: string | null;
   onActivate: (path: string) => void;
   onCloseFile: (path: string) => void;
+  prBody: string | null;
 };
 
 type Mode = 'in-file' | 'side-by-side';
@@ -38,10 +41,13 @@ function saveMode(mode: Mode) {
 }
 
 function baseName(path: string): string {
+  if (path === PR_DESCRIPTION) {
+    return 'PR description';
+  }
   return path.split('/').at(-1) ?? path;
 }
 
-export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile }: Props) {
+export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody }: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
@@ -49,8 +55,10 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   const scrollTarget = useRef<editor.ICodeEditor | null>(null);
   const keepScroll = useRef<number | null>(null);
 
+  const showsDescription = activeFile === PR_DESCRIPTION;
+
   useEffect(() => {
-    if (activeFile === null) {
+    if (activeFile === null || activeFile === PR_DESCRIPTION) {
       return;
     }
     let live = true;
@@ -128,6 +136,13 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   };
 
   const body = () => {
+    if (showsDescription) {
+      return (
+        <div className={styles.description}>
+          <MarkdownText text={prBody ?? ''} />
+        </div>
+      );
+    }
     if (shown === null) {
       return null;
     }
@@ -205,24 +220,26 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             </div>
           ))}
         </div>
-        <div className={styles.toggle}>
-          <button
-            aria-pressed={mode === 'in-file'}
-            onClick={() => {
-              choose('in-file');
-            }}
-          >
-            In file
-          </button>
-          <button
-            aria-pressed={mode === 'side-by-side'}
-            onClick={() => {
-              choose('side-by-side');
-            }}
-          >
-            Side by side
-          </button>
-        </div>
+        {!showsDescription && (
+          <div className={styles.toggle}>
+            <button
+              aria-pressed={mode === 'in-file'}
+              onClick={() => {
+                choose('in-file');
+              }}
+            >
+              In file
+            </button>
+            <button
+              aria-pressed={mode === 'side-by-side'}
+              onClick={() => {
+                choose('side-by-side');
+              }}
+            >
+              Side by side
+            </button>
+          </div>
+        )}
       </div>
       <div className={styles.body}>{body()}</div>
     </div>

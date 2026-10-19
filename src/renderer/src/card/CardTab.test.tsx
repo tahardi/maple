@@ -38,6 +38,7 @@ const pr: PrInfo = {
   deviations: null,
   needsTaylor: null,
   cardImpacts: null,
+  body: '',
   checks: { passed: 4, failed: 0, pending: 0, total: 4 },
 };
 

@@ -10,6 +10,7 @@ const pr = (state: PrInfo['state'], failed: number): PrInfo => ({
   deviations: null,
   needsTaylor: null,
   cardImpacts: null,
+  body: '',
   checks: { passed: 3 - failed, failed, pending: 0, total: 3 },
 });
 

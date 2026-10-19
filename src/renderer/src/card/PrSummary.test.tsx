@@ -1,5 +1,6 @@
 import type { ChecksSummary, Fetched, PrInfo } from '@shared/types';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { PrSummary } from './PrSummary';
 
 const info: PrInfo = {
@@ -10,6 +11,7 @@ const info: PrInfo = {
   deviations: 'Used X instead of Y',
   needsTaylor: '- Try it on device',
   cardImpacts: '- MPL-21: rename foo to bar',
+  body: '',
   checks: { passed: 5, failed: 0, pending: 0, total: 5 },
 };
 
@@ -24,7 +26,7 @@ describe('PrSummary', () => {
     // given
     const pr = fetched(info);
     // when
-    render(<PrSummary pr={pr} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
     // then
     expect(screen.getByRole('link', { name: 'PR #33 [MPL-20] File Tree and PR Summary' })).toHaveAttribute(
       'href',
@@ -37,11 +39,21 @@ describe('PrSummary', () => {
     ]);
   });
 
+  test('opens the full description', async () => {
+    // given
+    const onOpenDescription = vi.fn();
+    render(<PrSummary pr={fetched(info)} onOpenDescription={onOpenDescription} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Full description' }));
+    // then
+    expect(onOpenDescription).toHaveBeenCalledOnce();
+  });
+
   test('renders section Markdown', () => {
     // given
     const pr = fetched({ ...info, needsTaylor: '- run `make run`\n- check the board', cardImpacts: null });
     // when
-    render(<PrSummary pr={pr} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
     // then
     const items = screen.getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual(['run make run', 'check the board']);
@@ -53,7 +65,7 @@ describe('PrSummary', () => {
     // given
     const pr = fetched({ ...info, deviations: null, needsTaylor: null, cardImpacts: null });
     // when
-    render(<PrSummary pr={pr} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
     // then
     const headings = screen.getAllByRole('heading').map((h) => h.textContent);
     expect(headings).toEqual(['Deviations from the card', 'Needs Taylor', 'Card impacts']);
@@ -70,7 +82,7 @@ describe('PrSummary', () => {
     // given
     const pr = fetched({ ...info, checks });
     // when
-    render(<PrSummary pr={pr} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
     // then
     expect(screen.getByText(text)).toBeInTheDocument();
   });
@@ -79,7 +91,7 @@ describe('PrSummary', () => {
     // given
     const pr = fetched(info, 'listing PRs: network down');
     // when
-    render(<PrSummary pr={pr} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
     // then
     expect(screen.getByText('GitHub unreachable')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /PR #33/ })).toBeInTheDocument();
@@ -92,7 +104,7 @@ describe('PrSummary', () => {
     // given
     const input = pr;
     // when
-    render(<PrSummary pr={input} />);
+    render(<PrSummary pr={input} onOpenDescription={vi.fn()} />);
     // then
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading')).not.toBeInTheDocument();
