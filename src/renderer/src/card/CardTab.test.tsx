@@ -75,6 +75,28 @@ describe('CardTab', () => {
     expect(screen.queryByRole('button', { name: 'All files' })).not.toBeInTheDocument();
   });
 
+  test('shows Merged instead of waiting when the card is Done and the worktree is gone', async () => {
+    // given
+    const card: Card = {
+      key: 'MPL-20',
+      summary: 'File Tree',
+      status: 'Done',
+      points: 3,
+      labels: [],
+      blockedBy: [],
+      descriptionMd: '',
+      url: 'https://example.atlassian.net/browse/MPL-20',
+    };
+    const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    expect(await screen.findAllByText('Merged, worktree removed')).toHaveLength(2);
+    expect(screen.getByTestId('viewer-slot')).toHaveTextContent('Merged, worktree removed');
+    expect(screen.queryByText('Waiting for worktree…')).not.toBeInTheDocument();
+  });
+
   test.each([
     { name: 'All before a PR exists', withPr: false, pressed: 'All files' },
     { name: 'Changed once a PR exists', withPr: true, pressed: 'Changed (1)' },

@@ -19,6 +19,7 @@
   --warning-text: #f7e27a;
   --success: #57ab5a;
   --idle: #8b949e;
+  --merged: #8957e5;
   --diff-add-bg: rgba(87, 171, 90, 0.15);
   --diff-chg-bg: rgba(212, 177, 6, 0.15);
   --diff-del: #e5534b;

@@ -24,16 +24,22 @@ describe('nextDot', () => {
       want: 'idle',
     },
     {
-      name: 'done card is idle',
+      name: 'planner stop with a done status is idle',
 
-      input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: null },
+      input: { type: 'stop', kind: 'planner', cardStatus: 'Done', pr: null },
       want: 'idle',
     },
     {
-      name: 'done card with failing checks is idle',
+      name: 'done card is merged',
+
+      input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: null },
+      want: 'merged',
+    },
+    {
+      name: 'done card with failing checks is merged',
 
       input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: pr('OPEN', 2) },
-      want: 'idle',
+      want: 'merged',
     },
     {
       name: 'reviewable card is ready',
@@ -106,8 +112,8 @@ const status = (tabId: string, dot: Dot): TabStatus => ({
 describe('projectCounts', () => {
   test('counts waiting and ready tabs per project', () => {
     // given
-    const tabs = [tab('1', 'DIG'), tab('2', 'DIG'), tab('3', 'BEAR')];
-    const statuses = [status('1', 'waiting'), status('2', 'ready'), status('3', 'idle')];
+    const tabs = [tab('1', 'DIG'), tab('2', 'DIG'), tab('3', 'BEAR'), tab('4', 'DIG')];
+    const statuses = [status('1', 'waiting'), status('2', 'ready'), status('3', 'idle'), status('4', 'merged')];
     // when
     const got = projectCounts(tabs, statuses);
     // then
