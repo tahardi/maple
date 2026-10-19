@@ -8,6 +8,7 @@ type MapleState = {
   projectKey: string | null;
   tabs: TabState[];
   statuses: Record<string, TabStatus>;
+  since: Record<string, number>;
   activeTabId: string | null;
   confirmClose: string | null;
   lastActive: Record<string, string | null>;
@@ -33,6 +34,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
   projectKey: null,
   tabs: [],
   statuses: {},
+  since: {},
   activeTabId: null,
   confirmClose: null,
   lastActive: {},
@@ -75,6 +77,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
       warnings,
       tabs,
       statuses: Object.fromEntries(statuses.map((s) => [s.tabId, s])),
+      since: Object.fromEntries(statuses.map((s) => [s.tabId, Date.now()])),
       projectKey: firstProject(config),
       activeTabId: null,
     });
@@ -102,7 +105,9 @@ export const useMaple = create<MapleState>()((set, get) => ({
   },
 
   setStatus(s) {
-    set({ statuses: { ...get().statuses, [s.tabId]: s } });
+    const { statuses, since } = get();
+    const changed = !Object.hasOwn(statuses, s.tabId) || statuses[s.tabId].dot !== s.dot;
+    set({ statuses: { ...statuses, [s.tabId]: s }, since: changed ? { ...since, [s.tabId]: Date.now() } : since });
   },
 
   async closeTab(tabId, force) {

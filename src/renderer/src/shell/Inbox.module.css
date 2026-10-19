@@ -1,0 +1,56 @@
+.inbox {
+  position: relative;
+  margin-right: 12px;
+}
+
+.button,
+.row {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.button {
+  padding: 4px 8px;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  min-width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.header,
+.empty {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+}
+
+.empty {
+  margin: 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  width: 100%;
+  text-align: left;
+  border: none;
+  padding: 4px 6px;
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}

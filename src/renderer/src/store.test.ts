@@ -154,6 +154,30 @@ describe('useMaple', () => {
     });
   });
 
+  test('tabs:status records when a tab dot changed', async () => {
+    // given
+    vi.useFakeTimers();
+    const loaded = new Date('2026-10-19T10:00:00Z').getTime();
+    vi.setSystemTime(loaded);
+    const { events } = setup();
+    await useMaple.getState().init();
+    const sinceAtInit = useMaple.getState().since;
+    // when
+    events.status(status('bear-1', 'waiting'));
+    const sinceWaiting = useMaple.getState().since['bear-1'];
+    vi.setSystemTime(loaded + 60_000);
+    events.status(status('bear-1', 'waiting'));
+    const sinceRepeated = useMaple.getState().since['bear-1'];
+    vi.setSystemTime(loaded + 120_000);
+    events.status(status('bear-1', 'ready'));
+    // then
+    vi.useRealTimers();
+    expect(sinceAtInit).toEqual({ 'bear-1': loaded });
+    expect(sinceWaiting).toBe(loaded);
+    expect(sinceRepeated).toBe(loaded);
+    expect(useMaple.getState().since['bear-1']).toBe(loaded + 120_000);
+  });
+
   test('tabs:activate switches to the tab project and activates the tab', async () => {
     // given
     const { events, setActive } = setup();

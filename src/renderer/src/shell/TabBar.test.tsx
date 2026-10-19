@@ -37,6 +37,11 @@ describe('TabBar', () => {
     const labels = screen.getAllByRole('tab').map((t) => t.textContent);
     // then
     expect(labels).toEqual(['Home', 'BEAR-1', 'BEAR-2']);
+    const inbox = screen.getByRole('button', { name: /^Inbox/ });
+    expect(within(screen.getByRole('tablist')).queryByRole('button', { name: /^Inbox/ })).not.toBeInTheDocument();
+    expect(inbox.compareDocumentPosition(screen.getByRole('combobox', { name: 'Project' }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   test.each([
