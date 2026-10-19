@@ -29,6 +29,13 @@ export type TabState = {
   sessionId: string;
   worktreePath: string | null;
 };
+export type SessionCost = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
+  dollars: number | null;
+};
 export type Dot = 'working' | 'waiting' | 'ready' | 'idle';
 export type TabStatus = {
   tabId: string;

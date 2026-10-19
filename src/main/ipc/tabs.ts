@@ -2,10 +2,15 @@ import { ipcMain } from 'electron';
 import { z } from 'zod';
 import type { CloseResult } from '@shared/types';
 import { appLogger, logFailure, type Logger } from '../log';
+import { sessionCost } from '../sessionCost';
 import { send, type IpcDeps } from './index';
 import { cardKeyArg, handle, on, projectKeyArg, tabIdArg } from './validated';
 
-export function registerTabs({ sessions, status, window, setActiveTab }: IpcDeps, logger: Logger = appLogger): void {
+export function registerTabs(
+  { sessions, status, window, setActiveTab }: IpcDeps,
+  logger: Logger = appLogger,
+  costOf: typeof sessionCost = sessionCost,
+): void {
   const logged = <T>(operation: string, args: string[], run: () => T): T =>
     logFailure(logger, 'session', { operation, args }, run);
   ipcMain.handle('tabs:list', () => sessions.list());
@@ -38,6 +43,10 @@ export function registerTabs({ sessions, status, window, setActiveTab }: IpcDeps
   });
   on('tabs:setActive', z.tuple([tabIdArg.nullable()]), (tabId) => {
     setActiveTab(tabId);
+  });
+  handle('tabs:cost', z.tuple([tabIdArg]), (tabId) => {
+    const tab = sessions.get(tabId);
+    return tab ? costOf(tab.sessionId) : null;
   });
   ipcMain.handle('tabs:statuses', () => status.statuses());
   status.on('status', (s) => {

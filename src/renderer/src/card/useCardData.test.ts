@@ -1,4 +1,4 @@
-import type { TabState } from '@shared/types';
+import type { SessionCost, TabState } from '@shared/types';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';
@@ -16,6 +16,26 @@ const tab: TabState = {
 describe('useCardData', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
+  });
+
+  test('loads the session cost for the tab', async () => {
+    // given
+    const want: SessionCost = {
+      inputTokens: 1,
+      outputTokens: 2,
+      cacheWriteTokens: 3,
+      cacheReadTokens: 4,
+      dollars: 0.01,
+    };
+    const cost = vi.fn<(tabId: string) => Promise<SessionCost | null>>(() => Promise.resolve(want));
+    fakeMaple({ tabs: { cost } });
+    // when
+    const { result } = renderHook(() => useCardData(tab));
+    // then
+    await waitFor(() => {
+      expect(result.current.cost).toEqual(want);
+    });
+    expect(cost).toHaveBeenCalledWith('t1');
   });
 
   test('refreshes on repo changes and when the tab goes idle', async () => {

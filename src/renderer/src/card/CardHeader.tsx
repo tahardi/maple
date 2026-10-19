@@ -1,4 +1,4 @@
-import type { Card, ChangeSet, PrInfo } from '@shared/types';
+import type { Card, ChangeSet, PrInfo, SessionCost } from '@shared/types';
 import styles from './CardHeader.module.css';
 
 type Props = {
@@ -7,9 +7,18 @@ type Props = {
   pr: PrInfo | null;
   branch: string | null;
   changes: ChangeSet | null;
+  cost: SessionCost | null;
 };
 
-export function CardHeader({ cardKey, card, pr, branch, changes }: Props) {
+const compact = new Intl.NumberFormat('en', { notation: 'compact' });
+
+function costLabel(cost: SessionCost): string {
+  const tokens = cost.inputTokens + cost.outputTokens + cost.cacheWriteTokens + cost.cacheReadTokens;
+  const label = `${compact.format(tokens)} tokens`;
+  return cost.dollars === null ? label : `${label} · $${cost.dollars.toFixed(2)}`;
+}
+
+export function CardHeader({ cardKey, card, pr, branch, changes, cost }: Props) {
   return (
     <header className={styles.header}>
       <span className={styles.title}>{card ? `${cardKey} ${card.summary}` : cardKey}</span>
@@ -23,6 +32,7 @@ export function CardHeader({ cardKey, card, pr, branch, changes }: Props) {
       {changes && (
         <span>{`${String(changes.files.length)} files · +${String(changes.added)} −${String(changes.removed)}`}</span>
       )}
+      {cost && <span>{costLabel(cost)}</span>}
     </header>
   );
 }
