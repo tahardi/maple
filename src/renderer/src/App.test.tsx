@@ -143,4 +143,63 @@ describe('App', () => {
     // then
     expect(await screen.findByTestId('card-tab')).toHaveTextContent('BEAR-1');
   });
+  test('keeps inactive card tabs mounted and hidden', async () => {
+    // given
+    fakeMaple({
+      tabs: {
+        list: () =>
+          Promise.resolve([
+            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
+            { id: 't2', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-2', sessionId: 's2', worktreePath: null },
+          ]),
+      },
+    });
+    render(<App />);
+    await screen.findAllByTestId('card-tab');
+    // when
+    act(() => {
+      useMaple.getState().activate('t1');
+    });
+    // then
+    const tabs = screen.getAllByTestId('card-tab');
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0]).toHaveTextContent('BEAR-1');
+    expect(tabs[0]).toBeVisible();
+    expect(tabs[1]).toHaveTextContent('BEAR-2');
+    expect(tabs[1]).not.toBeVisible();
+  });
+
+  test('keeps Home mounted while a card tab is active', async () => {
+    // given
+    fakeMaple({
+      tabs: {
+        list: () =>
+          Promise.resolve([
+            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
+          ]),
+      },
+    });
+    render(<App />);
+    await screen.findByTestId('home');
+    // when
+    act(() => {
+      useMaple.getState().activate('t1');
+    });
+    // then
+    expect(screen.getByTestId('card-tab')).toBeVisible();
+    expect(screen.getByTestId('home')).toBeInTheDocument();
+    expect(screen.getByTestId('home')).not.toBeVisible();
+  });
+
+  test('does not mount Home for projects never visited', async () => {
+    // given
+    const sprint = vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null }));
+    fakeMaple({ jira: { sprint } });
+    // when
+    render(<App />);
+    await screen.findByText('No active sprint');
+    // then
+    expect(screen.getAllByTestId('home')).toHaveLength(1);
+    expect(sprint).not.toHaveBeenCalledWith('DIG');
+  });
 });
