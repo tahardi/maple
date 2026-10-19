@@ -42,3 +42,19 @@
   font-size: 12px;
   color: var(--danger);
 }
+
+.selectable {
+  position: relative;
+}
+
+.selectable .tile {
+  padding-right: 28px;
+}
+
+.check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  margin: 0;
+  cursor: pointer;
+}

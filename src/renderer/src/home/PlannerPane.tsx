@@ -6,11 +6,24 @@ import styles from './PlannerPane.module.css';
 type Props = {
   projectKey: string;
   onBatch: (keys: string[]) => void;
-  batch: readonly string[];
-  onStartAll: () => void;
+  selected: readonly string[];
+  readyCount: number;
+  onSelectReady: () => void;
+  onStart: () => void;
+  onClear: () => void;
+  failure: string | null;
 };
 
-export function PlannerPane({ projectKey, onBatch, batch, onStartAll }: Props) {
+export function PlannerPane({
+  projectKey,
+  onBatch,
+  selected,
+  readyCount,
+  onSelectReady,
+  onStart,
+  onClear,
+  failure,
+}: Props) {
   const [tabId, setTabId] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
 
@@ -50,8 +63,19 @@ export function PlannerPane({ projectKey, onBatch, batch, onStartAll }: Props) {
         <button onClick={suggest} disabled={tabId === null}>
           Suggest next batch
         </button>
-        {batch.length > 0 && <button onClick={onStartAll}>{`Start all ${String(batch.length)}`}</button>}
-        {answered && batch.length === 0 && <span className={styles.nothing}>Nothing to start right now</span>}
+        <button onClick={onSelectReady} disabled={readyCount === 0}>{`Select ready (${String(readyCount)})`}</button>
+        {selected.length > 0 && (
+          <>
+            <button onClick={onStart}>{`Start ${String(selected.length)}`}</button>
+            <button onClick={onClear}>Clear</button>
+          </>
+        )}
+        {answered && selected.length === 0 && <span className={styles.nothing}>Nothing to start right now</span>}
+        {failure !== null && (
+          <span role="alert" className={styles.failure}>
+            {failure}
+          </span>
+        )}
       </div>
       {tabId !== null && <ClaudePane tabId={tabId} actions={[]} />}
     </div>

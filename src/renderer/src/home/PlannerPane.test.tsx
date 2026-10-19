@@ -18,7 +18,12 @@ const PLANNER: TabState = {
   worktreePath: null,
 };
 
-function setup(batch: readonly string[] = [], planner: Promise<TabState> = Promise.resolve(PLANNER)) {
+type Options = { selected?: readonly string[]; readyCount?: number; failure?: string | null };
+
+function setup(
+  { selected = [], readyCount = 0, failure = null }: Options = {},
+  planner: Promise<TabState> = Promise.resolve(PLANNER),
+) {
   let emit: (keys: string[]) => void = () => undefined;
   const unsubscribe = vi.fn();
   const onBatchEvent = vi.fn((_projectKey: string, cb: (keys: string[]) => void) => {
@@ -29,15 +34,30 @@ function setup(batch: readonly string[] = [], planner: Promise<TabState> = Promi
   const sendPrompt = vi.fn();
   fakeMaple({ tabs: { openPlanner }, session: { onBatch: onBatchEvent, sendPrompt } });
   const onBatch = vi.fn();
-  const onStartAll = vi.fn();
-  const { unmount } = render(<PlannerPane projectKey="DIG" onBatch={onBatch} batch={batch} onStartAll={onStartAll} />);
+  const onSelectReady = vi.fn();
+  const onStart = vi.fn();
+  const onClear = vi.fn();
+  const { unmount } = render(
+    <PlannerPane
+      projectKey="DIG"
+      onBatch={onBatch}
+      selected={selected}
+      readyCount={readyCount}
+      onSelectReady={onSelectReady}
+      onStart={onStart}
+      onClear={onClear}
+      failure={failure}
+    />,
+  );
   return {
     unmount,
     unsubscribe,
     openPlanner,
     sendPrompt,
     onBatch,
-    onStartAll,
+    onSelectReady,
+    onStart,
+    onClear,
     onBatchEvent,
     emit: (keys: string[]) => {
       act(() => {
@@ -60,7 +80,7 @@ describe('PlannerPane', () => {
 
   test('Suggest next batch sends the exact prompt and clears the batch', async () => {
     // given
-    const { sendPrompt, onBatch } = setup(['DIG-44']);
+    const { sendPrompt, onBatch } = setup({ selected: ['DIG-44'] });
     await screen.findByTestId('claude-pane');
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Suggest next batch' }));
@@ -80,19 +100,73 @@ describe('PlannerPane', () => {
     expect(onBatch).toHaveBeenCalledWith(['DIG-44', 'DIG-99']);
   });
 
-  test('Start all N shows the count and calls onStartAll', async () => {
+  test('Select ready (2) calls onSelectReady', async () => {
     // given
-    const { onStartAll } = setup(['DIG-41']);
+    const { onSelectReady } = setup({ readyCount: 2 });
     await screen.findByTestId('claude-pane');
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Start all 1' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Select ready (2)' }));
     // then
-    expect(onStartAll).toHaveBeenCalledTimes(1);
+    expect(onSelectReady).toHaveBeenCalledTimes(1);
   });
 
-  test('an empty batch shows Nothing to start and no Start all button', async () => {
+  test('Select ready (0) is disabled', async () => {
     // given
-    const { emit } = setup([]);
+    setup({ readyCount: 0 });
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.getByRole('button', { name: 'Select ready (0)' })).toBeDisabled();
+  });
+
+  test('a selection shows Start N and Clear', async () => {
+    // given
+    const { onStart, onClear } = setup({ selected: ['DIG-41', 'DIG-42'] });
+    await screen.findByTestId('claude-pane');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start 2' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    // then
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(onClear).toHaveBeenCalledTimes(1);
+  });
+
+  test('no selection shows neither Start nor Clear', async () => {
+    // given
+    setup();
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.queryByRole('button', { name: /^Start/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument();
+  });
+
+  test('the bar shows its buttons in order', async () => {
+    // given
+    setup({ selected: ['DIG-41'], readyCount: 1 });
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'Suggest next batch',
+      'Select ready (1)',
+      'Start 1',
+      'Clear',
+    ]);
+  });
+
+  test('a failure shows in an alert', async () => {
+    // given
+    setup({ selected: ['DIG-42'], failure: 'starting DIG-41: boom' });
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.getByRole('alert')).toHaveTextContent(/^starting DIG-41: boom$/);
+  });
+
+  test('an empty batch shows Nothing to start and no Start button', async () => {
+    // given
+    const { emit } = setup();
     await screen.findByTestId('claude-pane');
     // when
     emit([]);
@@ -100,24 +174,24 @@ describe('PlannerPane', () => {
     await waitFor(() => {
       expect(screen.getByText('Nothing to start right now')).toBeInTheDocument();
     });
-    expect(screen.queryByRole('button', { name: /^Start all/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Start/ })).not.toBeInTheDocument();
   });
 
-  test('no batch answer yet shows neither Start all nor Nothing to start', async () => {
+  test('no batch answer yet shows neither Start nor Nothing to start', async () => {
     // given
-    setup([]);
+    setup();
     // when
     await screen.findByTestId('claude-pane');
     // then
     expect(screen.queryByText('Nothing to start right now')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Start all/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Start/ })).not.toBeInTheDocument();
   });
 
   test('Suggest next batch is disabled until the planner opens', async () => {
     // given
     let open: (tab: TabState) => void = () => undefined;
     const { sendPrompt } = setup(
-      [],
+      {},
       new Promise<TabState>((resolve) => {
         open = resolve;
       }),
@@ -137,7 +211,7 @@ describe('PlannerPane', () => {
 
   test('Suggest next batch hides Nothing to start until the next answer', async () => {
     // given
-    const { emit } = setup([]);
+    const { emit } = setup();
     await screen.findByTestId('claude-pane');
     emit([]);
     expect(screen.getByText('Nothing to start right now')).toBeInTheDocument();

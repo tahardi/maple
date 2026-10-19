@@ -11,16 +11,27 @@ describe('Board', () => {
     { column: 'Done', keys: ['DIG-40', 'DIG-39'] },
   ])('puts $keys in the $column column', ({ column, keys }) => {
     // given
-    render(<Board sprint={SPRINT} highlighted={new Set()} onSelect={vi.fn()} />);
+    render(<Board sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
     // when
     const tiles = within(screen.getByRole('region', { name: column })).getAllByRole('button');
     // then
     expect(tiles.map((t) => t.dataset.key)).toEqual(keys);
   });
 
+  test('only To Do tiles have checkboxes', async () => {
+    // given
+    const onToggle = vi.fn();
+    render(<Board sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={onToggle} />);
+    // when
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select DIG-41' }));
+    // then
+    expect(screen.getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'))).toEqual(['Select DIG-41']);
+    expect(onToggle).toHaveBeenCalledWith('DIG-41');
+  });
+
   test('fades a card blocked by an unfinished card', () => {
     // given
-    render(<Board sprint={SPRINT} highlighted={new Set()} onSelect={vi.fn()} />);
+    render(<Board sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
     // when
     const blocked = screen.getByRole('button', { name: /^DIG-41/ });
     const doneBlocker = screen.getByRole('button', { name: /^DIG-45/ });
@@ -45,14 +56,14 @@ describe('Board', () => {
       ],
     };
     // when
-    render(<Board sprint={sprint} highlighted={new Set()} onSelect={vi.fn()} />);
+    render(<Board sprint={sprint} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
     // then
     expect(screen.getByRole('button', { name: /^DIG-50/ })).toHaveTextContent('blocked by DIG-44, DIG-41');
   });
 
   test('shows the sprint name, dates, and done count', () => {
     // given
-    render(<Board sprint={SPRINT} highlighted={new Set()} onSelect={vi.fn()} />);
+    render(<Board sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
     // when
     const header = screen.getByRole('banner');
     // then
@@ -63,7 +74,7 @@ describe('Board', () => {
 
   test('tiles show key, summary, points, and labels', () => {
     // given
-    render(<Board sprint={SPRINT} highlighted={new Set()} onSelect={vi.fn()} />);
+    render(<Board sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
     // when
     const tile = screen.getByRole('button', { name: /^DIG-44/ });
     // then
@@ -75,17 +86,17 @@ describe('Board', () => {
 
   test('hides points and labels a card does not have', () => {
     // given
-    render(<Board sprint={SPRINT} highlighted={new Set()} onSelect={vi.fn()} />);
+    render(<Board sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
     // when
     const tile = screen.getByRole('button', { name: /^DIG-39/ });
     // then
     expect(tile).toHaveTextContent(/^DIG-39Summary of DIG-39$/);
   });
 
-  test('marks highlighted cards and selects a card on click', async () => {
+  test('marks selected cards and selects a card on click', async () => {
     // given
     const onSelect = vi.fn();
-    render(<Board sprint={SPRINT} highlighted={new Set(['DIG-41'])} onSelect={onSelect} />);
+    render(<Board sprint={SPRINT} selected={new Set(['DIG-41'])} onSelect={onSelect} onToggle={vi.fn()} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: /^DIG-44/ }));
     // then
