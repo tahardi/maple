@@ -202,4 +202,101 @@ describe('App', () => {
     expect(screen.getAllByTestId('home')).toHaveLength(1);
     expect(sprint).not.toHaveBeenCalledWith('DIG');
   });
+  test('switching away and back keeps the same card tab', async () => {
+    // given
+    fakeMaple({
+      tabs: {
+        list: () =>
+          Promise.resolve([
+            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
+            { id: 't2', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-2', sessionId: 's2', worktreePath: null },
+          ]),
+      },
+    });
+    render(<App />);
+    await screen.findByTestId('home');
+    act(() => {
+      useMaple.getState().activate('t1');
+    });
+    const before = await screen.findByText('BEAR-1', { selector: '[data-testid="card-tab"] *' });
+    // when
+    act(() => {
+      useMaple.getState().activate('t2');
+    });
+    act(() => {
+      useMaple.getState().activate(null);
+    });
+    act(() => {
+      useMaple.getState().activate('t1');
+    });
+    // then
+    expect(screen.getByText('BEAR-1', { selector: '[data-testid="card-tab"] *' })).toBe(before);
+  });
+
+  test('switching to a card tab and back keeps the same Home and planner session', async () => {
+    // given
+    const openPlanner = vi.fn((projectKey: string) =>
+      Promise.resolve({
+        id: `planner-${projectKey}`,
+        projectKey,
+        kind: 'planner' as const,
+        cardKey: null,
+        sessionId: `s-planner-${projectKey}`,
+        worktreePath: null,
+      }),
+    );
+    fakeMaple({
+      tabs: {
+        openPlanner,
+        list: () =>
+          Promise.resolve([
+            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
+          ]),
+      },
+    });
+    render(<App />);
+    const before = await screen.findByTestId('home');
+    // when
+    act(() => {
+      useMaple.getState().activate('t1');
+    });
+    act(() => {
+      useMaple.getState().activate(null);
+    });
+    // then
+    expect(screen.getByTestId('home')).toBe(before);
+    expect(before).toBeVisible();
+    expect(openPlanner).toHaveBeenCalledOnce();
+  });
+
+  test('switching to another project and back keeps the first Home', async () => {
+    // given
+    const openPlanner = vi.fn((projectKey: string) =>
+      Promise.resolve({
+        id: `planner-${projectKey}`,
+        projectKey,
+        kind: 'planner' as const,
+        cardKey: null,
+        sessionId: `s-planner-${projectKey}`,
+        worktreePath: null,
+      }),
+    );
+    fakeMaple({ tabs: { openPlanner } });
+    render(<App />);
+    const bear = await screen.findByTestId('home');
+    // when
+    act(() => {
+      useMaple.getState().selectProject('DIG');
+    });
+    act(() => {
+      useMaple.getState().selectProject('BEAR');
+    });
+    // then
+    const homes = screen.getAllByTestId('home');
+    expect(homes).toHaveLength(2);
+    expect(homes[0]).toBe(bear);
+    expect(bear).toBeVisible();
+    expect(homes[1]).not.toBeVisible();
+    expect(openPlanner.mock.calls).toEqual([['BEAR'], ['DIG']]);
+  });
 });
