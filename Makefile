@@ -11,15 +11,18 @@ pre-pr:
 	@npm ci
 	@npm run check
 
+node_modules/.package-lock.json: package-lock.json
+	@npm ci
+
 .PHONY: run
-run:
+run: node_modules/.package-lock.json
 	@npm run dev
 
 .PHONY: test-live
-test-live:
+test-live: node_modules/.package-lock.json
 	@npm run test:live
 
 .PHONY: e2e
-e2e:
+e2e: node_modules/.package-lock.json
 	@npm run build
 	@npx playwright test
