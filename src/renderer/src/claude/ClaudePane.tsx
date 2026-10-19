@@ -8,6 +8,8 @@ import { ActionBar } from './ActionBar';
 import styles from './ClaudePane.module.css';
 import { SessionEnded } from './SessionEnded';
 
+const WHEEL_LINES = 3;
+
 export type PaneAction = { label: string; onClick: () => void; disabled?: boolean; title?: string };
 
 type ClaudePaneProps = { tabId: string; actions: readonly PaneAction[] };
@@ -31,6 +33,20 @@ function clipboardKeys(term: Terminal) {
   };
 }
 
+function wheelReports(term: Terminal, host: HTMLElement, write: (data: string) => void) {
+  return (e: WheelEvent): boolean => {
+    if (term.buffer.active.type !== 'alternate' || term.modes.mouseTrackingMode === 'none' || e.deltaY === 0) {
+      return true;
+    }
+    const rect = host.getBoundingClientRect();
+    const col = Math.min(term.cols, Math.max(1, Math.floor(((e.clientX - rect.left) / rect.width) * term.cols) + 1));
+    const row = Math.min(term.rows, Math.max(1, Math.floor(((e.clientY - rect.top) / rect.height) * term.rows) + 1));
+    const button = e.deltaY < 0 ? '64' : '65';
+    write(`\x1b[<${button};${String(col)};${String(row)}M`.repeat(WHEEL_LINES));
+    return false;
+  };
+}
+
 export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
   const host = useRef<HTMLDivElement>(null);
   const status = useMaple((s): TabStatus | undefined => s.statuses[tabId]);
@@ -51,6 +67,11 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
     term.loadAddon(fit);
     term.open(el);
     term.attachCustomKeyEventHandler(clipboardKeys(term));
+    term.attachCustomWheelEventHandler(
+      wheelReports(term, el, (data) => {
+        session.write(tabId, data);
+      }),
+    );
     const typing = term.onData((data) => {
       session.write(tabId, data);
     });
