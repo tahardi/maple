@@ -87,6 +87,9 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       session.write(tabId, data);
     });
     const observer = new ResizeObserver(() => {
+      if (el.clientWidth === 0 || el.clientHeight === 0) {
+        return;
+      }
       fit.fit();
       session.resize(tabId, term.cols, term.rows);
     });

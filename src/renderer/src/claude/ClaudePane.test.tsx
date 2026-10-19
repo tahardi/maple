@@ -68,6 +68,14 @@ vi.mock('@xterm/addon-fit', () => ({
 let resize: () => void = () => undefined;
 const disconnect = vi.fn();
 
+function terminalHost(): HTMLElement {
+  const host: unknown = vi.mocked(xterm.terminal.open).mock.calls[0]?.[0];
+  if (!(host instanceof HTMLElement)) {
+    throw new Error('finding the terminal host');
+  }
+  return host;
+}
+
 function flush() {
   return act(() => Promise.resolve());
 }
@@ -131,11 +139,30 @@ describe('ClaudePane', () => {
     fakeMaple({ session: { resize: sessionResize } });
     render(<ClaudePane tabId="t1" actions={[]} />);
     await flush();
+    const host = terminalHost();
+    vi.spyOn(host, 'clientWidth', 'get').mockReturnValue(800);
+    vi.spyOn(host, 'clientHeight', 'get').mockReturnValue(480);
     // when
     resize();
     // then
     expect(xterm.fit).toHaveBeenCalled();
     expect(sessionResize).toHaveBeenCalledWith('t1', 80, 24);
+  });
+
+  test('does not resize the session while hidden', async () => {
+    // given
+    const sessionResize = vi.fn();
+    fakeMaple({ session: { resize: sessionResize } });
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+    const host = terminalHost();
+    vi.spyOn(host, 'clientWidth', 'get').mockReturnValue(0);
+    vi.spyOn(host, 'clientHeight', 'get').mockReturnValue(0);
+    // when
+    resize();
+    // then
+    expect(xterm.fit).not.toHaveBeenCalled();
+    expect(sessionResize).not.toHaveBeenCalled();
   });
 
   test('unmount unsubscribes and disposes, but never closes the tab', async () => {
@@ -256,10 +283,7 @@ describe('ClaudePane', () => {
     fakeMaple({ session: { write } });
     render(<ClaudePane tabId="t1" actions={[]} />);
     await flush();
-    const host: unknown = vi.mocked(xterm.terminal.open).mock.calls[0]?.[0];
-    if (!(host instanceof HTMLElement)) {
-      throw new Error('finding the terminal host');
-    }
+    const host = terminalHost();
     vi.spyOn(host, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 50, 800, 480));
     return { write, send: () => xterm.wheel(new WheelEvent('wheel', { deltaY, clientX, clientY })) };
   }
