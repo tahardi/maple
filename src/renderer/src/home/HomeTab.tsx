@@ -1,10 +1,12 @@
 import type { TabState } from '@shared/types';
 import { useState } from 'react';
 import { useMaple } from '../store';
+import { Backlog } from './Backlog';
 import { Board } from './Board';
 import { CardDetail } from './CardDetail';
 import styles from './HomeTab.module.css';
 import { PlannerPane } from './PlannerPane';
+import { useBacklog } from './useBacklog';
 import { useSprint } from './useSprint';
 
 type Props = { projectKey: string };
@@ -25,6 +27,7 @@ function failureMessage(err: unknown): string {
 
 export function HomeTab({ projectKey }: Props) {
   const { sprint } = useSprint(projectKey);
+  const { backlog } = useBacklog(projectKey);
   const tabs = useMaple((s) => s.tabs);
   const activate = useMaple((s) => s.activate);
   const [selected, setSelected] = useState<string | null>(null);
@@ -75,6 +78,7 @@ export function HomeTab({ projectKey }: Props) {
         ) : (
           sprint?.error === null && <p className={styles.empty}>No active sprint</p>
         )}
+        {backlog?.data && <Backlog groups={backlog.data} />}
       </div>
       {card && (
         <CardDetail
