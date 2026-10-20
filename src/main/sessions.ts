@@ -153,7 +153,6 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   resize(tabId: string, cols: number, rows: number): void {
-    this.log.info('session', 'resize', { tabId, cols, rows });
     if (cols >= 1 && rows >= 1) {
       this.live(tabId)?.pty?.resize(cols, rows);
     }

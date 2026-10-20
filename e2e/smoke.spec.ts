@@ -70,21 +70,6 @@ test.describe('smoke', () => {
       await expect(cardTabs).toHaveCount(1);
       await expect(cardTabs).toHaveAttribute('aria-selected', 'true');
     } finally {
-      const tmuxEnv = { ...env, TMUX_TMPDIR: root };
-      const tmux = (...args: string[]) => execFileSync('tmux', ['-L', 'maple', ...args], { env: tmuxEnv }).toString();
-      const panes =
-        '#{session_name} #{pane_width}x#{pane_height} history=#{history_size} cursor=#{cursor_x},#{cursor_y}';
-      console.log(`DIAG panes\n${tmux('list-panes', '-a', '-F', panes)}`);
-      for (const name of tmux('ls', '-F', '#{session_name}').trim().split('\n')) {
-        console.log(`DIAG capture ${name}\n${tmux('capture-pane', '-p', '-S', '-', '-t', name)}`);
-      }
-      const log = readFileSync(join(configDir, 'logs', 'main.log'), 'utf8');
-      console.log(
-        `DIAG log\n${log
-          .split('\n')
-          .filter((l) => /resize|spawned|restore/.test(l))
-          .join('\n')}`,
-      );
       const closed = app.waitForEvent('close');
       app.process().kill('SIGKILL');
       execFileSync('tmux', ['-L', 'maple', 'kill-server'], { env: { ...env, TMUX_TMPDIR: root } });
