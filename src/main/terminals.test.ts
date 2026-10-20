@@ -222,6 +222,18 @@ describe('Terminals', () => {
     expect(terminals.backlog('t1')).toBe('');
   });
 
+  test('closeTab kills the tab shell and its extra shells only', () => {
+    // given
+    const { terminals, ptys } = setup();
+    terminals.open('t1', '/tmp/a');
+    terminals.open('t1:2', '/tmp/a');
+    terminals.open('t10', '/tmp/b');
+    // when
+    terminals.closeTab('t1');
+    // then
+    expect(ptys.map((p) => p.killed)).toEqual([true, true, false]);
+  });
+
   test('closeAll kills every pty', () => {
     // given
     const { terminals, ptys } = setup();

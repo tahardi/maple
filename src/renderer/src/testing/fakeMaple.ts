@@ -74,6 +74,7 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
     },
     terminal: {
       open: vi.fn(() => Promise.resolve()),
+      close: vi.fn(() => Promise.resolve()),
       write: vi.fn(),
       resize: vi.fn(),
       backlog: vi.fn(() => Promise.resolve('')),
