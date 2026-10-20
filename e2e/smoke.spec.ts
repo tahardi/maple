@@ -48,9 +48,32 @@ async function sandbox() {
     TMUX_TMPDIR: root,
   };
   const tmux = (...args: string[]) => execFileSync('tmux', ['-L', 'maple', ...args], { env }).toString();
-  const launch = () => {
-    appendFileSync(test.info().outputPath('launches.log'), `${new Date().toISOString()}\n`);
-    return _electron.launch({ args: ['out/main/index.js'], env });
+  const events = (line: string) => {
+    appendFileSync(test.info().outputPath('events.log'), `${new Date().toISOString()} ${line}\n`);
+  };
+  const launch = async () => {
+    events('launch');
+    const app = await _electron.launch({ args: ['out/main/index.js'], env });
+    await app.context().tracing.start({ screenshots: true, snapshots: true });
+    app.on('window', (page) => {
+      events(`window ${page.url()}`);
+      page.on('load', () => {
+        events('page load');
+      });
+      page.on('crash', () => {
+        events('page crash');
+      });
+      page.on('close', () => {
+        events('page close');
+      });
+      page.on('console', (msg) => {
+        events(`console ${msg.type()} ${msg.text()}`);
+      });
+      page.on('pageerror', (err) => {
+        events(`pageerror ${err.message}`);
+      });
+    });
+    return app;
   };
   const crash = async (app: ElectronApplication) => {
     const exited = new Promise((resolve) => app.process().once('exit', resolve));
@@ -58,6 +81,13 @@ async function sandbox() {
     await exited;
   };
   const cleanup = async (app: ElectronApplication) => {
+    for (const [i, page] of app.windows().entries()) {
+      await page.screenshot({ path: test.info().outputPath(`window-${String(i)}.png`) }).catch(() => undefined);
+    }
+    await app
+      .context()
+      .tracing.stop({ path: test.info().outputPath('app-trace.zip') })
+      .catch(() => undefined);
     const closed = app.waitForEvent('close');
     app.process().kill('SIGKILL');
     tmux('kill-server');
