@@ -62,18 +62,21 @@ test-e2e: node_modules/.package-lock.json
 	@npm run build
 	@npx playwright test
 
+app_dir := $(HOME)/.local/share/maple/app
+apparmor_profile := /etc/apparmor.d/maple
+login_shell := $(shell getent passwd $(USER) | cut -d: -f7)
+
 .PHONY: package
 package: node_modules/.package-lock.json
 	@npm run build
-	@npx electron-builder --linux AppImage
+	@npx electron-builder --linux dir
 
 .PHONY: install
 install: package
-	@install \
-	    -D \
-	    -m 755 \
-	    dist/maple.AppImage \
-	    $(HOME)/.local/bin/maple.AppImage
+	@rm -rf $(app_dir)
+	@mkdir -p $(dir $(app_dir))
+	@cp -r dist/linux-unpacked $(app_dir)
+	@rm -f $(HOME)/.local/bin/maple.AppImage
 	@install \
 	    -D \
 	    -m 644 \
@@ -84,8 +87,23 @@ install: package
 	    '[Desktop Entry]' \
 	    'Type=Application' \
 	    'Name=Maple' \
-	    'Exec=env PATH=$(PATH) $(HOME)/.local/bin/maple.AppImage' \
+	    'Exec=$(login_shell) -ic "exec $(app_dir)/maple"' \
 	    'Icon=$(HOME)/.local/share/icons/maple.png' \
 	    'Terminal=false' \
 	    'Categories=Development;' \
 	    > $(HOME)/.local/share/applications/maple.desktop
+	@sed 's|@HOME@|$(HOME)|g' resources/apparmor/maple \
+	    | cmp -s - $(apparmor_profile) \
+	    || echo 'Run make install-apparmor: the AppArmor profile is missing or out of date.'
+
+.PHONY: install-apparmor
+install-apparmor:
+	@sed \
+	    's|@HOME@|$(HOME)|g' \
+	    resources/apparmor/maple \
+	    | sudo tee \
+	    $(apparmor_profile) \
+	    > /dev/null
+	@sudo apparmor_parser \
+	    -r \
+	    $(apparmor_profile)

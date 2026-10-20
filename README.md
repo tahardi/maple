@@ -23,10 +23,13 @@ make clean  # delete node_modules and build and test output
 make run     # start the app in development mode
 make try  # start a separate Maple with its own tabs and sessions, safe to close next to your main one
 make test-live  # check Maple's assumptions against the real claude, Jira, and GitHub
-make install  # build the AppImage and add Maple to the desktop launcher
+make install-apparmor  # install the AppArmor profile Maple needs, with sudo
+make install  # build Maple, copy it to ~/.local/share/maple/app, and add it to the desktop launcher
 ```
 
-Rerun `make install` after changing your PATH, because the launcher entry keeps the PATH from install time.
+Run `make install-apparmor` once before the first `make install`, and again whenever `resources/apparmor/maple` changes; `make install` tells you when it is missing or out of date. It needs sudo. The Claude sandbox and Electron's own sandbox need user namespaces, which Ubuntu allows only for programs with an AppArmor profile, so without it the installed Maple may not start and its Claude sessions cannot run commands.
+
+The launcher starts Maple through your login shell, so Maple and its Claude sessions get the PATH from your shell config each launch.
 
 Only one Maple runs per config dir: opening a second one, from the launcher or `make run`, focuses the open window. To test a card's branch next to your main Maple, run `make try` in its worktree. It copies your `config.json` into `.maple-try/` in the worktree and keeps that copy's tabs, sessions, and settings there, so closing it never touches your main Maple's sessions.
 
