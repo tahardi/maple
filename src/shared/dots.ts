@@ -7,7 +7,7 @@ export type DotInput =
 
 function stopDot(cardStatus: JiraStatus | null, pr: PrInfo | null): Dot {
   if (cardStatus === 'Done') {
-    return 'idle';
+    return 'merged';
   }
   const reviewable = cardStatus === 'In Review' && pr?.state === 'OPEN' && pr.checks.failed === 0;
   return reviewable ? 'ready' : 'waiting';

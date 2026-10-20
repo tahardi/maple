@@ -29,6 +29,9 @@ describe('prForBranch', () => {
       deviations: 'None',
       needsTaylor: '- Try it on device',
       cardImpacts: '- MPL-15: rename foo to bar',
+      body:
+        '## Describe your changes\n\nAdds the GitHub client.\n\n## Deviations from the card\n\nNone\n\n' +
+        '## Needs Taylor\n\n- Try it on device\n\n## Card impacts\n\n- MPL-15: rename foo to bar\n',
       checks: { passed: 4, failed: 0, pending: 1, total: 5 },
     });
     expect(run).toHaveBeenCalledWith(

@@ -10,6 +10,17 @@
   margin: 8px 0 2px;
 }
 
+.open {
+  display: block;
+  margin-top: 4px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
 .error {
   color: var(--danger);
 }

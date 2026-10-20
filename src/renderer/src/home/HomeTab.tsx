@@ -6,6 +6,7 @@ import { Board } from './Board';
 import { CardDetail } from './CardDetail';
 import styles from './HomeTab.module.css';
 import { PlannerPane } from './PlannerPane';
+import { readyToStart } from './readyToStart';
 import { useBacklog } from './useBacklog';
 import { useSprint } from './useSprint';
 
@@ -30,19 +31,22 @@ export function HomeTab({ projectKey }: Props) {
   const { backlog } = useBacklog(projectKey);
   const tabs = useMaple((s) => s.tabs);
   const activate = useMaple((s) => s.activate);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [detailKey, setDetailKey] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const [suggested, setSuggested] = useState<readonly string[]>([]);
-  const toDo = new Set(sprint?.data?.cards.filter((c) => c.status === 'To Do').map((c) => c.key));
-  const batch = suggested.filter((key) => toDo.has(key));
-  const card = sprint?.data?.cards.find((c) => c.key === selected) ?? null;
+  const [picked, setPicked] = useState<readonly string[]>([]);
+  const [startFailure, setStartFailure] = useState<string | null>(null);
+  const toDo = sprint?.data?.cards.filter((c) => c.status === 'To Do') ?? [];
+  const selected = toDo.map((c) => c.key).filter((key) => picked.includes(key));
+  const openKeys = new Set(tabs.filter((t) => t.projectKey === projectKey).flatMap((t) => t.cardKey ?? []));
+  const ready = readyToStart(toDo, openKeys);
+  const card = sprint?.data?.cards.find((c) => c.key === detailKey) ?? null;
   const tabFor = (key: string) =>
     tabs.find((t) => t.kind === 'card' && t.projectKey === projectKey && t.cardKey === key) ?? null;
   const activateTab = (tab: TabState) => {
     activate(tab.id);
   };
   const select = (key: string) => {
-    setSelected(key);
+    setDetailKey(key);
     setFailure(null);
   };
   const run = (action: Promise<TabState>) => {
@@ -55,11 +59,22 @@ export function HomeTab({ projectKey }: Props) {
         setFailure(failureMessage(err));
       });
   };
-  const startAll = async () => {
+  const toggle = (key: string) => {
+    setPicked(selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key]);
+  };
+  const start = async (keys: readonly string[]) => {
+    setStartFailure(null);
     const started: TabState[] = [];
-    for (const key of batch) {
-      started.push(await window.maple.tabs.startCard(projectKey, key));
+    for (const [i, key] of keys.entries()) {
+      try {
+        started.push(await window.maple.tabs.startCard(projectKey, key));
+      } catch (err: unknown) {
+        setStartFailure(`starting ${key}: ${failureMessage(err)}`);
+        setPicked(keys.slice(i));
+        return;
+      }
     }
+    setPicked([]);
     if (started[0]) {
       activateTab(started[0]);
     }
@@ -74,7 +89,7 @@ export function HomeTab({ projectKey }: Props) {
           </div>
         )}
         {sprint?.data ? (
-          <Board sprint={sprint.data} highlighted={new Set(batch)} onSelect={select} />
+          <Board sprint={sprint.data} selected={new Set(selected)} onSelect={select} onToggle={toggle} />
         ) : (
           sprint?.error === null && <p className={styles.empty}>No active sprint</p>
         )}
@@ -98,11 +113,25 @@ export function HomeTab({ projectKey }: Props) {
             }
           }}
           onClose={() => {
-            setSelected(null);
+            setDetailKey(null);
           }}
         />
       )}
-      <PlannerPane projectKey={projectKey} onBatch={setSuggested} batch={batch} onStartAll={() => void startAll()} />
+      <PlannerPane
+        projectKey={projectKey}
+        onBatch={setPicked}
+        selected={selected}
+        readyCount={ready.length}
+        onSelectReady={() => {
+          setPicked(ready.every((key) => selected.includes(key)) ? [] : [...new Set([...selected, ...ready])]);
+        }}
+        onStart={() => void start(selected)}
+        onClear={() => {
+          setPicked([]);
+          setStartFailure(null);
+        }}
+        failure={startFailure}
+      />
     </div>
   );
 }

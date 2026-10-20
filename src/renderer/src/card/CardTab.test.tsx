@@ -1,6 +1,6 @@
 import type { Card, PrInfo, TabState } from '@shared/types';
 import type { PaneAction } from '../claude/ClaudePane';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
@@ -38,6 +38,7 @@ const pr: PrInfo = {
   deviations: null,
   needsTaylor: null,
   cardImpacts: null,
+  body: '',
   checks: { passed: 4, failed: 0, pending: 0, total: 4 },
 };
 
@@ -75,6 +76,79 @@ describe('CardTab', () => {
     expect(screen.queryByRole('button', { name: 'All files' })).not.toBeInTheDocument();
   });
 
+  test('shows Merged instead of waiting when the card is Done and the worktree is gone', async () => {
+    // given
+    const card: Card = {
+      key: 'MPL-20',
+      summary: 'File Tree',
+      status: 'Done',
+      points: 3,
+      labels: [],
+      blockedBy: [],
+      descriptionMd: '',
+      url: 'https://example.atlassian.net/browse/MPL-20',
+    };
+    const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    expect(await screen.findAllByText('Merged, worktree removed')).toHaveLength(2);
+    expect(screen.getByTestId('viewer-slot')).toHaveTextContent('Merged, worktree removed');
+    expect(screen.queryByText('Waiting for worktree…')).not.toBeInTheDocument();
+  });
+
+  test.each(['To Do', 'In Progress', 'In Review'] as const)(
+    'shows the waiting text without a worktree when the card is %s',
+    async (status) => {
+      // given
+      const card: Card = {
+        key: 'MPL-20',
+        summary: 'File Tree',
+        status,
+        points: 3,
+        labels: [],
+        blockedBy: [],
+        descriptionMd: '',
+        url: 'https://example.atlassian.net/browse/MPL-20',
+      };
+      const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+      fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
+      // when
+      render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+      await screen.findByText('MPL-20 File Tree');
+      // then
+      expect(screen.getAllByText('Waiting for worktree…')).toHaveLength(2);
+      expect(screen.queryByText('Merged, worktree removed')).not.toBeInTheDocument();
+    },
+  );
+
+  test('shows the file tree instead of the merged text for a Done card that still has a worktree', async () => {
+    // given
+    const card: Card = {
+      key: 'MPL-20',
+      summary: 'File Tree',
+      status: 'Done',
+      points: 3,
+      labels: [],
+      blockedBy: [],
+      descriptionMd: '',
+      url: 'https://example.atlassian.net/browse/MPL-20',
+    };
+    const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+    fakeMaple({
+      repo: { listFiles: () => Promise.resolve(['README.md']) },
+      jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    await screen.findByText('MPL-20 File Tree');
+    // then
+    expect(await screen.findByRole('button', { name: 'All files' })).toBeInTheDocument();
+    expect(screen.queryByText('Merged, worktree removed')).not.toBeInTheDocument();
+    expect(screen.queryByText('Waiting for worktree…')).not.toBeInTheDocument();
+  });
+
   test.each([
     { name: 'All before a PR exists', withPr: false, pressed: 'All files' },
     { name: 'Changed once a PR exists', withPr: true, pressed: 'Changed (1)' },
@@ -85,6 +159,26 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     // then
     expect(await screen.findByRole('button', { name: pressed, pressed: true })).toBeInTheDocument();
+  });
+
+  test('shows the session cost in the header', async () => {
+    // given
+    fakeMaple({
+      tabs: {
+        cost: () =>
+          Promise.resolve({
+            inputTokens: 1200,
+            outputTokens: 34000,
+            cacheWriteTokens: 200000,
+            cacheReadTokens: 1000000,
+            dollars: 3.4,
+          }),
+      },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByText('1.2M tokens · $3.40')).toBeInTheDocument();
   });
 
   test('shows the branch from the worktree folder name', async () => {
@@ -126,6 +220,64 @@ describe('CardTab', () => {
     // then
     expect(screen.getAllByRole('tab')).toHaveLength(1);
     expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  test('opens the PR description on first load when the card has a PR', async () => {
+    // given
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: { ...pr, body: '## Summary' }, error: null, fetchedAt: null }) },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+  });
+
+  test('keeps the PR description closed until Full description opens it', async () => {
+    // given
+    fakeRepo(true);
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('tab', { name: 'PR description' });
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close PR description' }));
+    await userEvent.click(screen.getByText('a.ts'));
+    // then
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['a.ts']);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Full description' }));
+    // then
+    expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
+  });
+
+  test('keeps a file opened before the PR exists active when the PR appears', async () => {
+    // given
+    const listeners: (() => void)[] = [];
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: null, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: pr, error: null, fetchedAt: null });
+    fakeMaple({
+      repo: {
+        listFiles: () => Promise.resolve(['README.md']),
+        onChanged: (_tabId, callback) => {
+          listeners.push(callback);
+          return () => undefined;
+        },
+      },
+      pr: { get },
+    });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    // when
+    act(() => {
+      listeners.forEach((listener) => {
+        listener();
+      });
+    });
+    // then
+    expect(await screen.findByRole('tab', { name: 'PR description', selected: false })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'README.md', selected: true })).toBeInTheDocument();
   });
 
   test('keeps the active file when closing another file tab', async () => {

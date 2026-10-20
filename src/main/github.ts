@@ -48,8 +48,7 @@ export async function prForBranch(run: Runner, worktree: string, branch: string)
   if (!pr) {
     return null;
   }
-  const { body, ...info } = pr;
-  return { ...info, ...parsePrBody(body), checks: await checksFor(run, worktree, pr.number) };
+  return { ...pr, ...parsePrBody(pr.body), checks: await checksFor(run, worktree, pr.number) };
 }
 
 export async function commentOnPr(run: Runner, worktree: string, num: number, body: string): Promise<void> {

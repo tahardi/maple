@@ -1,5 +1,6 @@
 import type { TabStatus, Unsubscribe } from '@shared/types';
 import { FitAddon } from '@xterm/addon-fit';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useEffect, useRef } from 'react';
@@ -68,9 +69,12 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       fontSize: 13,
       scrollback: 10_000,
       theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
+      allowProposedApi: true,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    term.loadAddon(new Unicode11Addon());
+    term.unicode.activeVersion = '11';
     term.open(el);
     term.attachCustomKeyEventHandler(clipboardKeys(term));
     term.attachCustomWheelEventHandler(

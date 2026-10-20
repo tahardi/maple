@@ -32,6 +32,7 @@ const openPr: PrInfo = {
   deviations: null,
   needsTaylor: null,
   cardImpacts: null,
+  body: '',
   checks: { passed: 2, failed: 0, pending: 0, total: 2 },
 };
 
@@ -155,10 +156,10 @@ describe('StatusEngine', () => {
     expect(emitted.at(-1)?.dot).toBe('waiting');
   });
 
-  test.each(['idle', 'waiting', 'ready'] as const)('output and keystrokes leave a %s tab alone', async (want) => {
+  test.each(['merged', 'waiting', 'ready'] as const)('output and keystrokes leave a %s tab alone', async (want) => {
     // given
     const getCard = () =>
-      Promise.resolve({ ...card, status: want === 'idle' ? ('Done' as const) : ('In Progress' as const) });
+      Promise.resolve({ ...card, status: want === 'merged' ? ('Done' as const) : ('In Progress' as const) });
     const prFor = () => Promise.resolve(want === 'ready' ? openPr : null);
     const ready = () => Promise.resolve({ ...card, status: 'In Review' as const });
     const { sessions, engine, emitted } = setup({ getCard: want === 'ready' ? ready : getCard, prFor });
@@ -256,7 +257,7 @@ describe('StatusEngine', () => {
   });
 
   test.each([
-    { name: 'Done', status: 'Done', want: 'idle' },
+    { name: 'Done', status: 'Done', want: 'merged' },
     { name: 'In Progress', status: 'In Progress', want: 'waiting' },
   ] as const)('a Stop hook for a $name card emits $want', async ({ status, want }) => {
     // given

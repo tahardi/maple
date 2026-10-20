@@ -12,7 +12,7 @@ function checksText({ passed, failed, pending, total }: ChecksSummary): string {
   return `✓ ${String(passed)}/${String(total)}`;
 }
 
-export function PrSummary({ pr }: { pr: Fetched<PrInfo> }) {
+export function PrSummary({ pr, onOpenDescription }: { pr: Fetched<PrInfo>; onOpenDescription: () => void }) {
   const info = pr.data;
   const sections = info
     ? [
@@ -28,6 +28,9 @@ export function PrSummary({ pr }: { pr: Fetched<PrInfo> }) {
       {info && (
         <>
           <a href={info.url} target="_blank" rel="noreferrer">{`PR #${String(info.number)} ${info.title}`}</a>
+          <button className={styles.open} onClick={onOpenDescription}>
+            Full description
+          </button>
           <div className={styles.checks}>{checksText(info.checks)}</div>
           {sections.map((s) => (
             <div key={s.title}>
