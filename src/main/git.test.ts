@@ -139,6 +139,15 @@ describe('git', () => {
     expect(readFileSync(path, 'utf8')).toBe('new\n');
   });
 
+  test('writeWorktreeFile creates a new file inside the worktree', async () => {
+    // given
+    const path = join(worktree, 'fresh.txt');
+    // when
+    await writeWorktreeFile(worktree, 'fresh.txt', 'made\n');
+    // then
+    expect(readFileSync(path, 'utf8')).toBe('made\n');
+  });
+
   test.each([
     { name: 'a parent path', path: '../repo/keep.txt' },
     { name: 'a deep parent path', path: '../../.ssh/id_rsa' },

@@ -711,4 +711,112 @@ describe('FileViewer', () => {
       expect(writeFile).toHaveBeenCalledWith('t1', 'a.ts', 'four\n');
     });
   });
+
+  test('typing back to the file text clears the draft', async () => {
+    // given
+    renderViewer({ kind: 'text', path: 'a.ts', current: 'one\n', base: 'one\n' });
+    await screen.findByTestId('editor');
+    act(() => {
+      monaco.change.value('two\n');
+    });
+    // when
+    act(() => {
+      monaco.change.value('one\n');
+    });
+    // then
+    expect(screen.getByRole('tab', { name: 'a.ts' })).toBeInTheDocument();
+    expect(useMaple.getState().drafts.t1).toEqual({});
+  });
+
+  test.each([
+    { name: 'Ctrl+S without a draft', type: false, key: 's', ctrlKey: true },
+    { name: 'a plain s', type: true, key: 's', ctrlKey: false },
+    { name: 'Ctrl+A', type: true, key: 'a', ctrlKey: true },
+  ])('does not save on $name', async ({ type, key, ctrlKey }) => {
+    // given
+    const writeFile = vi.fn(() => Promise.resolve());
+    renderViewer({ kind: 'text', path: 'a.ts', current: 'one\n', base: 'one\n' }, writeFile);
+    const editor = await screen.findByTestId('editor');
+    if (type) {
+      act(() => {
+        monaco.change.value('two\n');
+      });
+    }
+    // when
+    const handled = !fireEvent.keyDown(editor, { key, ctrlKey });
+    // then
+    expect(writeFile).not.toHaveBeenCalled();
+    expect(handled).toBe(ctrlKey && key === 's');
+  });
+
+  test('keeps the draft when saving fails', async () => {
+    // given
+    const writeFile = vi.fn(() => Promise.reject(new Error('writing file: disk full')));
+    fakeMaple({
+      repo: {
+        readFile: (_tabId, path) => Promise.resolve({ kind: 'text', path, current: 'one\n', base: 'one\n' }),
+        writeFile,
+      },
+    });
+    const props = {
+      tabId: 't1',
+      openFiles: ['a.ts', 'b.ts'],
+      onActivate: vi.fn(),
+      onCloseFile: vi.fn(),
+      prBody: null,
+      line: null,
+    };
+    const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
+    const editor = await screen.findByTestId('editor');
+    act(() => {
+      monaco.change.value('two\n');
+    });
+    // when
+    fireEvent.keyDown(editor, { key: 's', ctrlKey: true });
+    // then
+    await vi.waitFor(() => {
+      expect(writeFile).toHaveBeenCalledWith('t1', 'a.ts', 'two\n');
+    });
+    await screen.findByRole('alert');
+    expect(screen.getByRole('tab', { name: '● a.ts' })).toBeInTheDocument();
+    expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'two\n');
+    expect(screen.getByRole('alert')).toHaveTextContent('Saving failed: writing file: disk full');
+    // when
+    rerender(<FileViewer {...props} activeFile="b.ts" />);
+    // then
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'one\n');
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('marks changed lines from the draft text', async () => {
+    // given
+    monaco.enabled.value = true;
+    renderViewer({ kind: 'text', path: 'src/a.ts', current: 'one\n', base: 'one\n' });
+    await screen.findByTestId('editor');
+    // when
+    act(() => {
+      monaco.change.value('one\ntwo\n');
+    });
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.editor.createDecorationsCollection).toHaveBeenLastCalledWith([
+        expect.objectContaining({
+          range: { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 },
+          options: expect.objectContaining({ className: 'line-add' }) as unknown,
+        }),
+      ]);
+    });
+  });
+
+  test('shows a dot on every open file with a draft', async () => {
+    // given
+    useMaple.getState().setDraft('t1', 'README.md', { text: 'x\n', disk: 'y\n' });
+    // when
+    renderViewer(changed);
+    // then
+    expect(await screen.findByRole('tab', { name: '● README.md' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'a.ts' })).toBeInTheDocument();
+  });
 });

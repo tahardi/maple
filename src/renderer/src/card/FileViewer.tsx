@@ -64,6 +64,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   const keepScroll = useRef<number | null>(null);
   const drafts = useMaple((s) => (Object.hasOwn(s.drafts, tabId) ? s.drafts[tabId] : NO_DRAFTS));
   const setDraft = useMaple((s) => s.setDraft);
+  const [saveError, setSaveError] = useState<{ path: string; message: string } | null>(null);
   const pendingLine = useRef<number | null>(null);
 
   const showsDescription = activeFile === PR_DESCRIPTION;
@@ -199,10 +200,20 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
     if (text === null || draft === null) {
       return;
     }
-    void window.maple.repo.writeFile(tabId, text.path, draft.text).then(() => {
-      setPair({ ...text, current: draft.text });
-      setDraft(tabId, text.path, null);
-    });
+    setSaveError(null);
+    window.maple.repo.writeFile(tabId, text.path, draft.text).then(
+      () => {
+        setPair({ ...text, current: draft.text });
+        setDraft(tabId, text.path, null);
+      },
+      (err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        setSaveError({
+          path: text.path,
+          message: message.replace(/^Error invoking remote method '[^']+': Error: /, ''),
+        });
+      },
+    );
   };
 
   const label = (path: string) => (Object.hasOwn(drafts, path) ? `● ${baseName(path)}` : baseName(path));
@@ -253,6 +264,11 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
     return (
       <>
         {shown.current === null && <div className={styles.notice}>Deleted in this branch</div>}
+        {saveError?.path === shown.path && (
+          <div className={styles.notice} role="alert">
+            {`Saving failed: ${saveError.message}`}
+          </div>
+        )}
         {stale && (
           <div className={styles.notice}>
             File changed on disk
