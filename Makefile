@@ -64,6 +64,7 @@ test-e2e: node_modules/.package-lock.json
 
 app_dir := $(HOME)/.local/share/maple/app
 apparmor_profile := /etc/apparmor.d/maple
+login_shell := $(shell getent passwd $(USER) | cut -d: -f7)
 
 .PHONY: package
 package: node_modules/.package-lock.json
@@ -86,12 +87,14 @@ install: package
 	    '[Desktop Entry]' \
 	    'Type=Application' \
 	    'Name=Maple' \
-	    'Exec=env PATH=$(PATH) $(app_dir)/maple' \
+	    'Exec=$(login_shell) -ic "exec $(app_dir)/maple"' \
 	    'Icon=$(HOME)/.local/share/icons/maple.png' \
 	    'Terminal=false' \
 	    'Categories=Development;' \
 	    > $(HOME)/.local/share/applications/maple.desktop
-	@test -e $(apparmor_profile) || echo 'Run make install-apparmor so Maple can use the Claude sandbox.'
+	@sed 's|@HOME@|$(HOME)|g' resources/apparmor/maple \
+	    | cmp -s - $(apparmor_profile) \
+	    || echo 'Run make install-apparmor: the AppArmor profile is missing or out of date.'
 
 .PHONY: install-apparmor
 install-apparmor:
