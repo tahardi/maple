@@ -48,12 +48,13 @@ async function sandbox() {
     TMUX_TMPDIR: root,
   };
   const tmux = (...args: string[]) => execFileSync('tmux', ['-L', 'maple', ...args], { env }).toString();
+  const eventsLog = test.info().outputPath('events.log');
   const events = (line: string) => {
-    appendFileSync(test.info().outputPath('events.log'), `${new Date().toISOString()} ${line}\n`);
+    appendFileSync(eventsLog, `${new Date().toISOString()} ${line}\n`);
   };
   const launch = async () => {
     events('launch');
-    const app = await _electron.launch({ args: ['out/main/index.js'], env });
+    const app = await _electron.launch({ args: ['--disable-gpu', 'out/main/index.js'], env });
     await app.context().tracing.start({ screenshots: true, snapshots: true });
     app.process().stderr?.on('data', (chunk: Buffer) => {
       events(`stderr ${chunk.toString().trim()}`);
@@ -75,27 +76,6 @@ async function sandbox() {
       page.on('pageerror', (err) => {
         events(`pageerror ${err.message}`);
       });
-      void (async () => {
-        for (let i = 0; i < 50 && !page.isClosed(); i++) {
-          const state = await page
-            .evaluate(
-              'JSON.stringify({ visibility: document.visibilityState, focus: document.hasFocus(), ' +
-                "heading: document.querySelector('h3') !== null, size: [innerWidth, innerHeight] })",
-            )
-            .catch((err: unknown) => String(err));
-          const win = await app
-            .evaluate(({ BrowserWindow }) =>
-              BrowserWindow.getAllWindows().map((w) => ({
-                visible: w.isVisible(),
-                minimized: w.isMinimized(),
-                focused: w.isFocused(),
-              })),
-            )
-            .catch((err: unknown) => String(err));
-          events(`probe ${String(state)} ${JSON.stringify(win)}`);
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-      })();
     });
     return app;
   };
@@ -136,8 +116,7 @@ test.describe('smoke', () => {
     const cardTabs = page.getByRole('tab', { name: cardKey });
 
     try {
-      await expect(page.getByRole('heading', { name: 'To Do', exact: true })).toBeVisible({ timeout: 20_000 });
-      for (const status of ['In Progress', 'In Review', 'Done']) {
+      for (const status of ['To Do', 'In Progress', 'In Review', 'Done']) {
         await expect(page.getByRole('heading', { name: status, exact: true })).toBeVisible();
       }
 
