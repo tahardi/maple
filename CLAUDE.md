@@ -54,3 +54,6 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
 - Never call real Jira, GitHub, or `claude` - Jira and GitHub tests use recorded JSON in `test/fixtures/`.
 - Run `git` only on repos built in a temp dir - tests never touch a real checkout.
 - Mock `node-pty` in session tests - no real terminals in CI.
+- Sessions run only `make pre-pr` - the sandbox blocks Unix sockets and the display, so `make test-socket`,
+  `make test-e2e`, and `make run` fail there by design; CI runs the tests and Taylor runs the app. `make test-live`
+  costs money and is Taylor's to run.

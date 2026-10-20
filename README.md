@@ -17,10 +17,10 @@ make lint
 make typecheck
 make test-unit  # run the unit tests, except the socket tests
 make test-socket  # run the tests that open Unix sockets, which sandboxed runs cannot do
-make test-e2e  # build the app and run the Playwright smoke test
+make test-e2e  # build the app and run the Playwright smoke test (needs a display and tmux, so not in the sandbox)
 make test-all  # run test-unit, test-socket, test-live, and test-e2e
 make clean  # delete node_modules and build and test output
-make run     # start the app in development mode
+make run     # start the app in development mode (needs a display, so not in the sandbox)
 make try  # start a separate Maple with its own tabs and sessions, safe to close next to your main one
 make test-live  # check Maple's assumptions against the real claude, Jira, and GitHub
 make install-apparmor  # install the AppArmor profile Maple needs, with sudo
