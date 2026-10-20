@@ -68,6 +68,7 @@ export type FilePair =
   | { kind: 'text'; path: string; current: string | null; base: string | null }
   | { kind: 'binary'; path: string }
   | { kind: 'tooLarge'; path: string; bytes: number };
+export type Draft = { text: string; disk: string | null };
 export type LineMark =
   | { kind: 'add'; line: number }
   | { kind: 'chg'; line: number; oldText: string | null }

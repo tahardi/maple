@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
-import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { lstat, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import type { ChangeSet, FileChange, FilePair } from '@shared/types';
 import { matchWorktree } from '@shared/worktree';
@@ -148,16 +148,30 @@ async function realOrSelf(path: string): Promise<string> {
     return await realpath(path);
   } catch (err) {
     if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-      return path;
+      const parent = dirname(path);
+      return parent === path ? path : join(await realOrSelf(parent), basename(path));
     }
     throw err;
   }
 }
 
-export async function readFilePair(worktree: string, base: string, path: string): Promise<FilePair> {
+async function insidePath(worktree: string, path: string): Promise<string | null> {
   const root = await realpath(worktree);
   const full = await realOrSelf(resolve(root, path));
-  if (!isInside(root, full)) {
+  return isInside(root, full) ? full : null;
+}
+
+export async function writeWorktreeFile(worktree: string, path: string, text: string): Promise<void> {
+  const full = await insidePath(worktree, path);
+  if (full === null) {
+    throw new Error('writing file: path is outside the worktree');
+  }
+  await writeFile(full, text);
+}
+
+export async function readFilePair(worktree: string, base: string, path: string): Promise<FilePair> {
+  const full = await insidePath(worktree, path);
+  if (full === null) {
     throw new Error('reading file: path is outside the worktree');
   }
   const info = await stat(full).catch(() => null);

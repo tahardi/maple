@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { changes, currentBranch, findWorktree, listFiles, mergeBase, readFilePair } from './git';
+import { changes, currentBranch, findWorktree, listFiles, mergeBase, readFilePair, writeWorktreeFile } from './git';
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync(
@@ -119,6 +119,35 @@ describe('git', () => {
     const pair = readFilePair(worktree, base, path);
     // then
     await expect(pair).rejects.toThrow('reading file: path is outside the worktree');
+  });
+
+  test('writeWorktreeFile replaces a file inside the worktree', async () => {
+    // given
+    const path = join(worktree, 'keep.txt');
+    // when
+    await writeWorktreeFile(worktree, 'keep.txt', 'new\n');
+    // then
+    expect(readFileSync(path, 'utf8')).toBe('new\n');
+  });
+
+  test.each([
+    { name: 'a parent path', path: '../repo/keep.txt' },
+    { name: 'a deep parent path', path: '../../.ssh/id_rsa' },
+    { name: 'an absolute path', path: '/etc/passwd' },
+    { name: 'a symlink pointing out', path: 'passwd', link: '/etc/passwd' },
+    { name: 'a path through a symlinked dir', path: 'etc/passwd', link: '/etc', linkName: 'etc' },
+    { name: 'a new file through a symlinked dir', path: 'etc/maple-new', link: '/etc', linkName: 'etc' },
+  ])('writeWorktreeFile rejects $name outside the worktree', async ({ path, link, linkName }) => {
+    // given
+    if (link) {
+      symlinkSync(link, join(worktree, linkName ?? path));
+    }
+    const passwd = readFileSync('/etc/passwd', 'utf8');
+    // when
+    const write = writeWorktreeFile(worktree, path, 'x');
+    // then
+    await expect(write).rejects.toThrow('writing file: path is outside the worktree');
+    expect(readFileSync('/etc/passwd', 'utf8')).toBe(passwd);
   });
 
   test('readFilePair follows a symlink that stays inside the worktree', async () => {
