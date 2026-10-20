@@ -1,0 +1,43 @@
+.backlog {
+  flex-shrink: 0;
+  max-height: 40%;
+  overflow: auto;
+  padding: 0 12px 12px;
+}
+
+.summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 8px 0;
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.group h3 {
+  margin: 8px 0 4px;
+  font-size: 13px;
+}
+
+.group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.key {
+  font-weight: 600;
+}
+
+.points {
+  color: var(--text-muted);
+  font-size: 12px;
+}
