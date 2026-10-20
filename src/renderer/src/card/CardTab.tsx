@@ -33,6 +33,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [descriptionOpened, setDescriptionOpened] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
@@ -64,6 +65,12 @@ export function CardTab({ tab }: { tab: TabState }) {
     setOpenFiles((files) => (files.includes(path) ? files : [...files, path]));
     setActiveFile(path);
   };
+
+  if (!descriptionOpened && pr?.data) {
+    setDescriptionOpened(true);
+    setOpenFiles((files) => [PR_DESCRIPTION, ...files]);
+    setActiveFile((active) => active ?? PR_DESCRIPTION);
+  }
 
   const closeFile = (path: string) => {
     const rest = openFiles.filter((file) => file !== path);

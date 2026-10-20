@@ -208,7 +208,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             >
               {baseName(path)}
               <button
-                aria-label={`Close ${path}`}
+                aria-label={`Close ${path === PR_DESCRIPTION ? baseName(path) : path}`}
                 className={styles.close}
                 onClick={(e) => {
                   e.stopPropagation();

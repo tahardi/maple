@@ -97,7 +97,8 @@ describe('FileViewer', () => {
   test('renders the PR description as Markdown', () => {
     // given
     const readFile = vi.fn();
-    fakeMaple({ repo: { readFile } });
+    const onChanged = vi.fn();
+    fakeMaple({ repo: { readFile, onChanged } });
     // when
     render(
       <FileViewer
@@ -114,6 +115,7 @@ describe('FileViewer', () => {
     expect(screen.getByRole('tab', { name: 'PR description' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'In file' })).not.toBeInTheDocument();
     expect(readFile).not.toHaveBeenCalled();
+    expect(onChanged).not.toHaveBeenCalled();
   });
 
   test('renders a read-only editor in file mode by default', async () => {

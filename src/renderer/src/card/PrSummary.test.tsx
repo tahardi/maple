@@ -107,6 +107,7 @@ describe('PrSummary', () => {
     render(<PrSummary pr={input} onOpenDescription={vi.fn()} />);
     // then
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Full description' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading')).not.toBeInTheDocument();
     expect(screen.queryByText('GitHub unreachable') !== null).toBe(unreachable);
   });

@@ -1,6 +1,6 @@
 import type { Card, PrInfo, TabState } from '@shared/types';
 import type { PaneAction } from '../claude/ClaudePane';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
@@ -220,6 +220,64 @@ describe('CardTab', () => {
     // then
     expect(screen.getAllByRole('tab')).toHaveLength(1);
     expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  test('opens the PR description on first load when the card has a PR', async () => {
+    // given
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: { ...pr, body: '## Summary' }, error: null, fetchedAt: null }) },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+  });
+
+  test('keeps the PR description closed until Full description opens it', async () => {
+    // given
+    fakeRepo(true);
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('tab', { name: 'PR description' });
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close PR description' }));
+    await userEvent.click(screen.getByText('a.ts'));
+    // then
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['a.ts']);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Full description' }));
+    // then
+    expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
+  });
+
+  test('keeps a file opened before the PR exists active when the PR appears', async () => {
+    // given
+    const listeners: (() => void)[] = [];
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: null, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: pr, error: null, fetchedAt: null });
+    fakeMaple({
+      repo: {
+        listFiles: () => Promise.resolve(['README.md']),
+        onChanged: (_tabId, callback) => {
+          listeners.push(callback);
+          return () => undefined;
+        },
+      },
+      pr: { get },
+    });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    // when
+    act(() => {
+      listeners.forEach((listener) => {
+        listener();
+      });
+    });
+    // then
+    expect(await screen.findByRole('tab', { name: 'PR description', selected: false })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'README.md', selected: true })).toBeInTheDocument();
   });
 
   test('keeps the active file when closing another file tab', async () => {
