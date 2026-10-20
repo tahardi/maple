@@ -3,10 +3,11 @@ import { z } from 'zod';
 import { send, type IpcDeps } from './index';
 import { handle } from './validated';
 
-export function registerApp({ setNotifications, warnings, sessions, status, window }: IpcDeps): void {
+export function registerApp({ setNotifications, warnings, usage, sessions, status, window }: IpcDeps): void {
   let confirmed = false;
   handle('app:setNotifications', z.tuple([z.boolean()]), (on) => setNotifications(on));
   ipcMain.handle('app:warnings', () => warnings());
+  ipcMain.handle('app:usage', () => usage());
   ipcMain.on('app:confirmQuit', () => {
     confirmed = true;
     app.quit();

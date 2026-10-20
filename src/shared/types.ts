@@ -51,6 +51,8 @@ export type HookEvent = {
   event: 'Stop' | 'Notification' | 'UserPromptSubmit';
   notificationType: string | null;
 };
+export type UsageWindow = { usedPercentage: number; resetsAt: number };
+export type Usage = { fiveHour: UsageWindow | null; sevenDay: UsageWindow | null };
 export type ChecksSummary = { passed: number; failed: number; pending: number; total: number };
 export type PrInfo = {
   number: number;

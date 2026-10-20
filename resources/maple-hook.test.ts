@@ -93,4 +93,47 @@ describe('maple-hook', () => {
     expect(result).toEqual({ code: 0, stdout: '' });
     expect(received.join('')).toBe('{"tabId":"tab-2","event":"Stop","notificationType":null}\n');
   });
+
+  test('StatusLine sends usage and prints it', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const received: string[] = [];
+    server = await listen(socketPath, received);
+    const stdin = JSON.stringify({
+      session_id: 's1',
+      rate_limits: {
+        five_hour: { used_percentage: 42.4, resets_at: 1792500000 },
+        seven_day: { used_percentage: 18, resets_at: 1793000000 },
+      },
+    });
+    // when
+    const result = await runHook('StatusLine', { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-1' }, stdin);
+    // then
+    expect(result).toEqual({ code: 0, stdout: '5h 42% · 7d 18%' });
+    expect(received.join('')).toBe(
+      '{"usage":{"fiveHour":{"usedPercentage":42.4,"resetsAt":1792500000},' +
+        '"sevenDay":{"usedPercentage":18,"resetsAt":1793000000}}}\n',
+    );
+  });
+
+  test.each([
+    {
+      name: 'only five_hour present',
+      stdin: '{"session_id":"s1","rate_limits":{"five_hour":{"used_percentage":42.4,"resets_at":1792500000}}}',
+      stdout: '5h 42%',
+      sent: '{"usage":{"fiveHour":{"usedPercentage":42.4,"resetsAt":1792500000},"sevenDay":null}}\n',
+    },
+    { name: 'no rate_limits', stdin: '{"session_id":"s1"}', stdout: '', sent: '' },
+    { name: 'stdin not JSON', stdin: 'not json', stdout: '', sent: '' },
+  ])('StatusLine with $name', async ({ stdin, stdout, sent }) => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const received: string[] = [];
+    server = await listen(socketPath, received);
+    // when
+    const result = await runHook('StatusLine', { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-1' }, stdin);
+    // then
+    expect(result).toEqual({ code: 0, stdout });
+    expect(received.join('')).toBe(sent);
+  });
 });

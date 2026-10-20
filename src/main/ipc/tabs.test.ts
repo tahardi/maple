@@ -70,6 +70,7 @@ function setup() {
       setNotifications: () => Promise.resolve(),
       setZoom: () => Promise.resolve(),
       warnings: () => [],
+      usage: () => null,
     },
     logger,
     sessionCost,

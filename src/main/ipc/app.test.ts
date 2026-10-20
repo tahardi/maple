@@ -1,6 +1,6 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { TabState, TabStatus } from '@shared/types';
+import type { TabState, TabStatus, Usage } from '@shared/types';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
 import type { Terminals } from '../terminals';
@@ -25,7 +25,7 @@ const tabs: Record<string, TabState> = {
   t4: { id: 't4', projectKey: 'DIG', kind: 'planner', cardKey: null, sessionId: 's4', worktreePath: null },
 };
 
-function setup(dots: Record<string, TabStatus['dot']> = {}, warnings: string[] = []) {
+function setup(dots: Record<string, TabStatus['dot']> = {}, warnings: string[] = [], usage: Usage | null = null) {
   const sendToWindow = vi.fn();
   const setNotifications = vi.fn(() => Promise.resolve());
   const statuses = Object.entries(dots).map(([tabId, dot]) => ({
@@ -46,6 +46,7 @@ function setup(dots: Record<string, TabStatus['dot']> = {}, warnings: string[] =
     setNotifications,
     setZoom: () => Promise.resolve(),
     warnings: () => warnings,
+    usage: () => usage,
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];
   const confirmQuit = on.mock.calls.find(([name]) => name === 'app:confirmQuit')?.[1];
@@ -89,6 +90,22 @@ describe('registerApp', () => {
     const got = await call?.[1]({} as IpcMainInvokeEvent);
     // then
     expect(got).toEqual(warnings);
+  });
+
+  test.each([
+    { name: 'null before any session has replied', usage: null },
+    {
+      name: 'the latest usage',
+      usage: { fiveHour: { usedPercentage: 42.4, resetsAt: 1792500000 }, sevenDay: null },
+    },
+  ])('app:usage returns $name', async ({ usage }) => {
+    // given
+    setup({}, [], usage);
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:usage');
+    // when
+    const got = await call?.[1]({} as IpcMainInvokeEvent);
+    // then
+    expect(got).toEqual(usage);
   });
 
   test('quitting while cards work is prevented and asks the window with their keys', () => {

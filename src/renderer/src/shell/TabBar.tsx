@@ -3,6 +3,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { Inbox } from './Inbox';
 import { ProjectMenu } from './ProjectMenu';
 import styles from './TabBar.module.css';
+import { UsageMeter } from './UsageMeter';
 
 export function TabBar() {
   const tabs = useMaple((s) => s.tabs);
@@ -57,6 +58,7 @@ export function TabBar() {
           </div>
         ))}
       </div>
+      <UsageMeter />
       {closing && (
         <ConfirmDialog
           title="Close tab"

@@ -39,6 +39,7 @@ describe('claude hooks', () => {
     stop = await startHookServer(
       socket,
       (e) => events.push(e),
+      () => undefined,
       createLogger(() => undefined),
     );
     const hooks = await writeHooksFile(dir, process.execPath, resolve('resources/maple-hook.mjs'));

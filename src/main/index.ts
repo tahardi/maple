@@ -3,13 +3,14 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog } from 'electron';
 import { spawn } from 'node-pty';
+import type { Usage } from '@shared/types';
 import { configDir, loadConfig } from './config';
 import { hookSocketPath, startHookServer } from './hookServer';
 import { claimInstance } from './instance';
 import { writeHooksFile } from './hooksFile';
 import { currentBranch, findWorktree } from './git';
 import { prForBranch } from './github';
-import { registerIpc } from './ipc';
+import { registerIpc, send } from './ipc';
 import { notificationsDefault, projectByKey } from './ipc/config';
 import { JiraClient, jiraEnvPath, readCreds } from './jira';
 import { appLogger, logUncaught, startLogging } from './log';
@@ -104,9 +105,19 @@ async function start(): Promise<() => number> {
     getCard: async (key) => (await jira).getCard(key),
     prFor: async (worktree) => prForBranch(defaultRunner, worktree, await currentBranch(worktree)),
   });
-  const stopHooks = await startHookServer(socketPath, (e) => {
-    status.hook(e);
-  });
+  let usage: Usage | null = null;
+  const stopHooks = await startHookServer(
+    socketPath,
+    (e) => {
+      status.hook(e);
+    },
+    (u) => {
+      if (JSON.stringify(u) !== JSON.stringify(usage)) {
+        usage = u;
+        send(mainWindow, 'app:usage', u);
+      }
+    },
+  );
   app.on('will-quit', () => {
     sessions.killAll();
     terminals.closeAll();
@@ -148,6 +159,7 @@ async function start(): Promise<() => number> {
       await persist({ notifications: on });
     },
     warnings: () => warnings,
+    usage: () => usage,
     setZoom: async (change) => {
       const contents = mainWindow?.webContents;
       if (!contents) {

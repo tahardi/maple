@@ -1,7 +1,7 @@
 import { chmod, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
-import type { HookEvent } from '@shared/types';
+import type { HookEvent, Usage } from '@shared/types';
 import { z } from 'zod';
 import { configDir } from './config';
 import { appLogger, type Logger } from './log';
@@ -14,14 +14,25 @@ const eventSchema = z.object({
   notificationType: z.string().nullable(),
 });
 
+const usageWindowSchema = z.object({ usedPercentage: z.number(), resetsAt: z.number() }).nullable();
+
+const usageSchema = z.object({ usage: z.object({ fiveHour: usageWindowSchema, sevenDay: usageWindowSchema }) });
+
 export function hookSocketPath(): string {
   return join(process.env.MAPLE_CONFIG_DIR ?? process.env.XDG_RUNTIME_DIR ?? configDir(), 'maple.sock');
 }
 
-function parseLine(line: string): HookEvent | null {
+type Line = { event: HookEvent } | { usage: Usage };
+
+function parseLine(line: string): Line | null {
   try {
-    const parsed = eventSchema.safeParse(JSON.parse(line));
-    return parsed.success ? parsed.data : null;
+    const json: unknown = JSON.parse(line);
+    const event = eventSchema.safeParse(json);
+    if (event.success) {
+      return { event: event.data };
+    }
+    const usage = usageSchema.safeParse(json);
+    return usage.success ? usage.data : null;
   } catch {
     return null;
   }
@@ -30,6 +41,7 @@ function parseLine(line: string): HookEvent | null {
 export async function startHookServer(
   socketPath: string,
   onEvent: (e: HookEvent) => void,
+  onUsage: (u: Usage) => void,
   logger: Logger = appLogger,
 ): Promise<() => Promise<void>> {
   await rm(socketPath, { force: true });
@@ -55,10 +67,12 @@ export async function startHookServer(
           logger.warn('hook', 'dropped', { bytes: line.length });
           continue;
         }
-        const event = parseLine(line);
-        if (event) {
-          logger.info('hook', 'received', { ...event });
-          onEvent(event);
+        const parsed = parseLine(line);
+        if (parsed && 'event' in parsed) {
+          logger.info('hook', 'received', { ...parsed.event });
+          onEvent(parsed.event);
+        } else if (parsed) {
+          onUsage(parsed.usage);
         } else if (line.trim() !== '') {
           logger.warn('hook', 'malformed', { line: line.slice(0, 200) });
         }

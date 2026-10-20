@@ -63,3 +63,12 @@
 .dot[data-dot='merged'] {
   background: var(--merged);
 }
+
+.usage {
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
+.warning {
+  color: var(--warning);
+}

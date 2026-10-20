@@ -14,6 +14,7 @@ export async function writeHooksFile(dir: string, execPath: string, scriptPath: 
       UserPromptSubmit: [{ hooks: hook('UserPromptSubmit') }],
       Notification: [{ matcher: 'permission_prompt', hooks: hook('Notification') }],
     },
+    statusLine: { type: 'command', command: `${cmd} StatusLine` },
   };
   const path = join(dir, 'hooksFile.json');
   await mkdir(dir, { recursive: true });

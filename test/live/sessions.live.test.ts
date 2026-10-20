@@ -40,7 +40,12 @@ describe('SessionManager with a real claude', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'maple-live-'));
     events = [];
-    stop = await startHookServer(join(dir, 'maple.sock'), (e) => events.push(e), silent);
+    stop = await startHookServer(
+      join(dir, 'maple.sock'),
+      (e) => events.push(e),
+      () => undefined,
+      silent,
+    );
   });
 
   afterEach(async () => {

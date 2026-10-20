@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron';
-import type { ProjectConfig } from '@shared/types';
+import type { ProjectConfig, Usage } from '@shared/types';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
 import type { Terminals } from '../terminals';
@@ -26,6 +26,7 @@ export type IpcDeps = {
   setNotifications: (on: boolean) => Promise<void>;
   setZoom: (change: ZoomChange) => Promise<void>;
   warnings: () => string[];
+  usage: () => Usage | null;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [

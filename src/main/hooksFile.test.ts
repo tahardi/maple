@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { writeHooksFile } from './hooksFile';
 
-type Hooks = { hooks: Record<string, { matcher?: string; hooks: { type: string; command: string }[] }[]> };
+type Command = { type: string; command: string };
+type Hooks = { hooks: Record<string, { matcher?: string; hooks: Command[] }[]>; statusLine: Command };
 
 describe('writeHooksFile', () => {
   let dir = '';
@@ -35,6 +36,10 @@ describe('writeHooksFile', () => {
       });
     }
     expect(parsed.hooks.Notification[0].matcher).toBe('permission_prompt');
+    expect(parsed.statusLine).toEqual({
+      type: 'command',
+      command: `ELECTRON_RUN_AS_NODE=1 '${execPath}' '${scriptPath}' StatusLine`,
+    });
   });
 
   test('escapes single quotes in paths', async () => {

@@ -34,6 +34,7 @@ function setup() {
     status: {} as StatusEngine,
     setActiveTab: () => undefined,
     warnings: () => [],
+    usage: () => null,
     setNotifications: () => Promise.resolve(),
     setZoom: () => Promise.resolve(),
   });

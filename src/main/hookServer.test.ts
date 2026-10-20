@@ -3,7 +3,7 @@ import { connect } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { HookEvent } from '@shared/types';
+import type { HookEvent, Usage } from '@shared/types';
 import { hookSocketPath, startHookServer } from './hookServer';
 
 function sendLines(socketPath: string, text: string): Promise<void> {
@@ -32,6 +32,7 @@ function sendChunks(socketPath: string, chunks: string[]): Promise<void> {
 
 const stop: HookEvent = { tabId: 't1', event: 'Stop', notificationType: null };
 const notify: HookEvent = { tabId: 't2', event: 'Notification', notificationType: 'permission_prompt' };
+const usage: Usage = { fiveHour: { usedPercentage: 42.4, resetsAt: 1792500000 }, sevenDay: null };
 
 describe('startHookServer', () => {
   let dir = '';
@@ -56,7 +57,7 @@ describe('startHookServer', () => {
     // given
     const socketPath = join(dir, 'maple.sock');
     const onEvent = vi.fn<(e: HookEvent) => void>();
-    close = await startHookServer(socketPath, onEvent);
+    close = await startHookServer(socketPath, onEvent, vi.fn());
     // when
     await sendLines(socketPath, text);
     // then
@@ -69,7 +70,7 @@ describe('startHookServer', () => {
     // given
     const socketPath = join(dir, 'maple.sock');
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    close = await startHookServer(socketPath, () => undefined, logger);
+    close = await startHookServer(socketPath, () => undefined, vi.fn(), logger);
     // when
     await sendLines(socketPath, 'not json\n');
     // then
@@ -84,7 +85,7 @@ describe('startHookServer', () => {
     await writeFile(socketPath, '');
     const onEvent = vi.fn<(e: HookEvent) => void>();
     // when
-    close = await startHookServer(socketPath, onEvent);
+    close = await startHookServer(socketPath, onEvent, vi.fn());
     await sendLines(socketPath, `${JSON.stringify(stop)}\n`);
     // then
     await vi.waitFor(() => {
@@ -96,7 +97,7 @@ describe('startHookServer', () => {
     // given
     const socketPath = join(dir, 'maple.sock');
     const onEvent = vi.fn<(e: HookEvent) => void>();
-    close = await startHookServer(socketPath, onEvent);
+    close = await startHookServer(socketPath, onEvent, vi.fn());
     const line = `${JSON.stringify(notify)}\n`;
     // when
     await sendChunks(socketPath, [line.slice(0, 10), line.slice(10)]);
@@ -111,10 +112,10 @@ describe('startHookServer', () => {
     const socketPath = join(dir, 'maple.sock');
     const onEvent = vi.fn<(e: HookEvent) => void>();
     await (
-      await startHookServer(socketPath, vi.fn())
+      await startHookServer(socketPath, vi.fn(), vi.fn())
     )();
     // when
-    close = await startHookServer(socketPath, onEvent);
+    close = await startHookServer(socketPath, onEvent, vi.fn());
     await sendLines(socketPath, `${JSON.stringify(stop)}\n`);
     // then
     await vi.waitFor(() => {
@@ -126,7 +127,7 @@ describe('startHookServer', () => {
     // given
     const socketPath = join(dir, 'maple.sock');
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    close = await startHookServer(socketPath, () => undefined, logger);
+    close = await startHookServer(socketPath, () => undefined, vi.fn(), logger);
     // when
     await sendLines(socketPath, `${JSON.stringify(notify)}\n`);
     // then
@@ -139,7 +140,7 @@ describe('startHookServer', () => {
     // given
     const socketPath = join(dir, 'maple.sock');
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    close = await startHookServer(socketPath, () => undefined, logger);
+    close = await startHookServer(socketPath, () => undefined, vi.fn(), logger);
     // when
     await sendLines(socketPath, `${'x'.repeat(300)}\n`);
     // then
@@ -152,7 +153,7 @@ describe('startHookServer', () => {
     // given
     const socketPath = join(dir, 'maple.sock');
     // when
-    close = await startHookServer(socketPath, vi.fn());
+    close = await startHookServer(socketPath, vi.fn(), vi.fn());
     // then
     expect((await stat(socketPath)).mode & 0o777).toBe(0o600);
   });
@@ -165,7 +166,7 @@ describe('startHookServer', () => {
     const socketPath = join(dir, 'maple.sock');
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     const onEvent = vi.fn<(e: HookEvent) => void>();
-    close = await startHookServer(socketPath, onEvent, logger);
+    close = await startHookServer(socketPath, onEvent, vi.fn(), logger);
     // when
     await (chunks ? sendChunks(socketPath, chunks) : sendLines(socketPath, text));
     // then
@@ -175,12 +176,31 @@ describe('startHookServer', () => {
     expect(logger.warn).toHaveBeenCalledWith('hook', 'dropped', { bytes: expect.any(Number) as unknown });
   });
 
+  test('passes usage lines to onUsage and not onEvent', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const onEvent = vi.fn<(e: HookEvent) => void>();
+    const onUsage = vi.fn<(u: Usage) => void>();
+    close = await startHookServer(socketPath, onEvent, onUsage, logger);
+    const bad = JSON.stringify({ usage: { fiveHour: { usedPercentage: 'high', resetsAt: 1 }, sevenDay: null } });
+    // when
+    await sendLines(socketPath, `${JSON.stringify({ usage })}\n${bad}\n`);
+    // then
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith('hook', 'malformed', { line: bad });
+    });
+    expect(onUsage.mock.calls).toEqual([[usage]]);
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(logger.info).not.toHaveBeenCalled();
+  });
+
   test('skips blank lines without logging', async () => {
     // given
     const socketPath = join(dir, 'maple.sock');
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     const onEvent = vi.fn<(e: HookEvent) => void>();
-    close = await startHookServer(socketPath, onEvent, logger);
+    close = await startHookServer(socketPath, onEvent, vi.fn(), logger);
     // when
     await sendLines(socketPath, `\n${JSON.stringify(stop)}\n`);
     // then
