@@ -10,7 +10,15 @@ Personal agentic IDE for running Jira cards with Claude. Built with Electron, Re
 ## Usage
 
 ```bash
-make pre-pr  # install dependencies and run format, lint, typecheck, and unit tests
+make pre-pr  # install dependencies, then run format, lint, typecheck, and test-unit
+make format  # check formatting (npm run format fixes it)
+make lint
+make typecheck
+make test-unit  # run the unit tests, except the socket tests
+make test-socket  # run the tests that open Unix sockets, which sandboxed runs cannot do
+make test-e2e  # build the app and run the Playwright smoke test
+make test-all  # run test-unit, test-socket, test-live, and test-e2e
+make clean  # delete node_modules and build and test output
 make run     # start the app in development mode
 make test-live  # check Maple's assumptions against the real claude, Jira, and GitHub
 ```
@@ -31,4 +39,4 @@ Maple runs Claude sessions with permissions skipped and holds a Jira token, so i
 
 ## Live Tests
 
-`make test-live` runs a real `claude` session with Maple's hooks, fetches the MPL board from Jira, looks up a merged PR with `gh`, and runs preflight, which checks that Claude trusts `~/Documents/code/maple`. It needs `claude` logged in, `gh` logged in, Jira credentials at `MAPLE_JIRA_ENV` (default `~/.config/jira/env`), and this repo cloned at `~/Documents/code/maple`. A run costs a few cents. Run it after upgrading `claude` or `gh`, or when Jira or GitHub responses change. It never runs in CI or `make pre-pr`. Permission-prompt notifications are not covered, because print mode with permissions skipped never asks for permission.
+`make test-live` runs a real `claude` session with Maple's hooks, fetches the MPL board from Jira, looks up a merged PR with `gh`, and runs preflight, which checks that Claude trusts `~/Documents/code/maple`. It needs `claude` logged in, `gh` logged in, Jira credentials at `MAPLE_JIRA_ENV` (default `~/.config/jira/env`), and this repo cloned at `~/Documents/code/maple`. A run costs a few cents. Run it after upgrading `claude` or `gh`, or when Jira or GitHub responses change. It never runs in CI or `make pre-pr`, only in `make test-live` and `make test-all`. Permission-prompt notifications are not covered, because print mode with permissions skipped never asks for permission.

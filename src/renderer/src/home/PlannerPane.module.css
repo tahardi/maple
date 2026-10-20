@@ -16,3 +16,7 @@
 .nothing {
   color: var(--text-muted);
 }
+
+.failure {
+  color: var(--danger);
+}

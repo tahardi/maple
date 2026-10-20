@@ -7,22 +7,48 @@ SHELL := bash
 .SUFFIXES:
 
 .PHONY: pre-pr
-pre-pr:
-	@npm ci
-	@npm run check
+pre-pr: install format lint typecheck test-unit
 
-node_modules/.package-lock.json: package-lock.json
+.PHONY: install
+install: package-lock.json
 	@npm ci
+
+.PHONY: clean
+clean:
+	@rm -rf node_modules out dist coverage test-results playwright-report
+
+.PHONY: format
+format: install
+	@npm run format:check
+
+.PHONY: lint
+lint: install
+	@npm run lint
+
+.PHONY: typecheck
+typecheck: install
+	@npm run typecheck
 
 .PHONY: run
-run: node_modules/.package-lock.json
+run: install
 	@npm run dev
 
+.PHONY: test-all
+test-all: test-unit test-socket test-live test-e2e
+
+.PHONY: test-unit
+test-unit: install
+	@npm run test
+
+.PHONY: test-socket
+test-socket: install
+	@npm run test:socket
+
 .PHONY: test-live
-test-live: node_modules/.package-lock.json
+test-live: install
 	@npm run test:live
 
-.PHONY: e2e
-e2e: node_modules/.package-lock.json
+.PHONY: test-e2e
+test-e2e: install
 	@npm run build
 	@npx playwright test

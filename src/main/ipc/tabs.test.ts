@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { TabState, TabStatus } from '@shared/types';
+import type { SessionCost, TabState, TabStatus } from '@shared/types';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
 import { registerTabs } from './tabs';
@@ -33,10 +33,20 @@ function fakeSessions() {
     close: vi.fn(),
     resume: vi.fn(),
     startFresh: vi.fn(),
+    get: vi.fn((tabId: string) => (tabId === 't1' ? tab : null)),
   });
 }
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+
+const cost: SessionCost = {
+  inputTokens: 1,
+  outputTokens: 2,
+  cacheWriteTokens: 3,
+  cacheReadTokens: 4,
+  dollars: 0.5,
+};
+const sessionCost = vi.fn<(sessionId: string) => Promise<SessionCost | null>>(() => Promise.resolve(cost));
 
 const status: TabStatus = { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false };
 
@@ -58,6 +68,7 @@ function setup() {
       warnings: () => [],
     },
     logger,
+    sessionCost,
   );
   return { sessions, engine, setActiveTab, sendToWindow };
 }
@@ -130,6 +141,26 @@ describe('registerTabs', () => {
     sessions.emit('changed', [tab]);
     // then
     expect(sendToWindow).toHaveBeenCalledWith('tabs:changed', [tab]);
+  });
+
+  test('tabs:cost returns the cost of the tab session', async () => {
+    // given
+    setup();
+    // when
+    const result = await invoke('tabs:cost', 't1');
+    // then
+    expect(sessionCost).toHaveBeenCalledWith('s1');
+    expect(result).toEqual(cost);
+  });
+
+  test('tabs:cost for an unknown tab returns null', async () => {
+    // given
+    setup();
+    // when
+    const result = await invoke('tabs:cost', 'nope');
+    // then
+    expect(sessionCost).not.toHaveBeenCalled();
+    expect(result).toBeNull();
   });
 
   test('tabs:statuses returns the engine statuses', () => {
