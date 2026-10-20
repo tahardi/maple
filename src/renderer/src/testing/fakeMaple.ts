@@ -34,6 +34,7 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
     },
     jira: {
       sprint: vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null })),
+      backlog: vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null })),
       ...overrides.jira,
     },
     tabs: {

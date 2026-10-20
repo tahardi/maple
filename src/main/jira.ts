@@ -2,12 +2,12 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { Blocker, Card, Sprint } from '@shared/types';
+import type { BacklogGroup, Blocker, Card, Sprint } from '@shared/types';
 import { adfToMarkdown } from './adf';
 
 export type JiraCreds = { site: string; email: string; token: string };
 
-const FIELDS = 'summary,status,labels,issuelinks,customfield_10016,description';
+const FIELDS = 'summary,status,labels,issuelinks,customfield_10016,description,parent';
 
 const statusSchema = z.object({ name: z.enum(['To Do', 'In Progress', 'In Review', 'Done']) });
 
@@ -19,6 +19,7 @@ const issueSchema = z.object({
     labels: z.array(z.string()),
     customfield_10016: z.number().nullish(),
     description: z.unknown(),
+    parent: z.object({ key: z.string(), fields: z.object({ summary: z.string() }) }).optional(),
     issuelinks: z.array(
       z.object({
         type: z.object({ name: z.string() }),
@@ -82,24 +83,34 @@ export class JiraClient {
       if (!sprint) {
         return null;
       }
-      const cards: Card[] = [];
-      let pageToken: string | undefined;
-      do {
-        const query = new URLSearchParams({
-          jql: `sprint=${String(sprint.id)} ORDER BY Rank`,
-          maxResults: '200',
-          fields: FIELDS,
-        });
-        if (pageToken) {
-          query.set('nextPageToken', pageToken);
-        }
-        const page = searchSchema.parse(await this.get(`/rest/api/3/search/jql?${query.toString()}`));
-        cards.push(...page.issues.map((issue) => this.toCard(issue)));
-        pageToken = page.nextPageToken;
-      } while (pageToken);
+      const issues = await this.search(`sprint=${String(sprint.id)} ORDER BY Rank`);
+      const cards = issues.map((issue) => this.toCard(issue));
       return { name: sprint.name, startDate: sprint.startDate, endDate: sprint.endDate, cards };
     } catch (err) {
       throw new Error(`fetching sprint: ${errorMessage(err)}`, { cause: err });
+    }
+  }
+
+  async backlog(projectKey: string): Promise<BacklogGroup[]> {
+    try {
+      const issues = await this.search(
+        `project = ${projectKey} AND (sprint is EMPTY OR sprint not in openSprints()) AND statusCategory != Done ` +
+          'AND issuetype != Epic ORDER BY Rank',
+      );
+      const epics = new Map<string, BacklogGroup>();
+      const noEpic: BacklogGroup = { epic: null, cards: [] };
+      for (const issue of issues) {
+        const { parent } = issue.fields;
+        let group = noEpic;
+        if (parent) {
+          group = epics.get(parent.key) ?? { epic: { key: parent.key, summary: parent.fields.summary }, cards: [] };
+          epics.set(parent.key, group);
+        }
+        group.cards.push(this.toCard(issue));
+      }
+      return [...epics.values(), ...(noEpic.cards.length > 0 ? [noEpic] : [])];
+    } catch (err) {
+      throw new Error(`fetching backlog: ${errorMessage(err)}`, { cause: err });
     }
   }
 
@@ -109,6 +120,21 @@ export class JiraClient {
     } catch (err) {
       throw new Error(`fetching card: ${errorMessage(err)}`, { cause: err });
     }
+  }
+
+  private async search(jql: string): Promise<z.infer<typeof issueSchema>[]> {
+    const issues: z.infer<typeof issueSchema>[] = [];
+    let pageToken: string | undefined;
+    do {
+      const query = new URLSearchParams({ jql, maxResults: '200', fields: FIELDS });
+      if (pageToken) {
+        query.set('nextPageToken', pageToken);
+      }
+      const page = searchSchema.parse(await this.get(`/rest/api/3/search/jql?${query.toString()}`));
+      issues.push(...page.issues);
+      pageToken = page.nextPageToken;
+    } while (pageToken);
+    return issues;
   }
 
   private async get(path: string): Promise<unknown> {
