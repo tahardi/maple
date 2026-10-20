@@ -675,6 +675,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={null}
+        line={null}
       />,
     );
     await screen.findByTestId('editor');
