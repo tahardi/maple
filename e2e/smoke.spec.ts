@@ -55,6 +55,9 @@ async function sandbox() {
     events('launch');
     const app = await _electron.launch({ args: ['out/main/index.js'], env });
     await app.context().tracing.start({ screenshots: true, snapshots: true });
+    app.process().stderr?.on('data', (chunk: Buffer) => {
+      events(`stderr ${chunk.toString().trim()}`);
+    });
     app.on('window', (page) => {
       events(`window ${page.url()}`);
       page.on('load', () => {
@@ -72,6 +75,27 @@ async function sandbox() {
       page.on('pageerror', (err) => {
         events(`pageerror ${err.message}`);
       });
+      void (async () => {
+        for (let i = 0; i < 50 && !page.isClosed(); i++) {
+          const state = await page
+            .evaluate(
+              'JSON.stringify({ visibility: document.visibilityState, focus: document.hasFocus(), ' +
+                "heading: document.querySelector('h3') !== null, size: [innerWidth, innerHeight] })",
+            )
+            .catch((err: unknown) => String(err));
+          const win = await app
+            .evaluate(({ BrowserWindow }) =>
+              BrowserWindow.getAllWindows().map((w) => ({
+                visible: w.isVisible(),
+                minimized: w.isMinimized(),
+                focused: w.isFocused(),
+              })),
+            )
+            .catch((err: unknown) => String(err));
+          events(`probe ${String(state)} ${JSON.stringify(win)}`);
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      })();
     });
     return app;
   };
