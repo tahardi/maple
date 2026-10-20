@@ -21,7 +21,10 @@ make test-all  # run test-unit, test-socket, test-live, and test-e2e
 make clean  # delete node_modules and build and test output
 make run     # start the app in development mode
 make test-live  # check Maple's assumptions against the real claude, Jira, and GitHub
+make install  # build the AppImage and add Maple to the desktop launcher
 ```
+
+Rerun `make install` after changing your PATH, because the launcher entry keeps the PATH from install time.
 
 ## Status
 
