@@ -3,6 +3,7 @@ import type { ProjectConfig } from '@shared/types';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
 import type { Terminals } from '../terminals';
+import type { ZoomChange } from '../zoom';
 import { registerApp } from './app';
 import { registerConfig } from './config';
 import { registerJira } from './jira';
@@ -23,6 +24,7 @@ export type IpcDeps = {
   status: StatusEngine;
   setActiveTab: (tabId: string | null) => void;
   setNotifications: (on: boolean) => Promise<void>;
+  setZoom: (change: ZoomChange) => Promise<void>;
   warnings: () => string[];
 };
 

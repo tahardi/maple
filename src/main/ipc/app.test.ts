@@ -44,6 +44,7 @@ function setup(dots: Record<string, TabStatus['dot']> = {}, warnings: string[] =
     status: { statuses: () => statuses } as unknown as StatusEngine,
     setActiveTab: () => undefined,
     setNotifications,
+    setZoom: () => Promise.resolve(),
     warnings: () => warnings,
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];

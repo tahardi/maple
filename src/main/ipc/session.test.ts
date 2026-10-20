@@ -35,6 +35,7 @@ function setup() {
     setActiveTab: () => undefined,
     warnings: () => [],
     setNotifications: () => Promise.resolve(),
+    setZoom: () => Promise.resolve(),
   });
   return { sessions, sendToWindow };
 }

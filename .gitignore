@@ -11,6 +11,7 @@ npm-debug.log*
 
 out/
 dist/
+.maple-try/
 coverage/
 test-results/
 playwright-report/

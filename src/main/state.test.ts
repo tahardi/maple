@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { loadState, saveState, type SavedState } from './state';
 
-const emptyState: SavedState = { version: 1, tabs: [], closedSessions: {}, notifications: null };
+const emptyState: SavedState = { version: 1, tabs: [], closedSessions: {}, notifications: null, zoom: 0 };
 
 const savedState: SavedState = {
   version: 1,
@@ -20,6 +20,7 @@ const savedState: SavedState = {
   ],
   closedSessions: { 'DIG-40': 'session-0' },
   notifications: false,
+  zoom: 1.5,
 };
 
 describe('state', () => {
@@ -50,6 +51,16 @@ describe('state', () => {
     const result = await loadState(dir);
     // then
     expect(result.state.closedSessions).toEqual({});
+  });
+
+  test('defaults zoom to 0 when missing', async () => {
+    // given
+    const withoutZoom = { ...savedState, zoom: undefined };
+    await writeFile(join(dir, 'state.json'), JSON.stringify(withoutZoom));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result.state.zoom).toBe(0);
   });
 
   test('leaves no temp file after saving', async () => {

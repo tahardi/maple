@@ -48,6 +48,7 @@ function setup(tabs: TabState[] = [tab]) {
     setActiveTab: () => undefined,
     warnings: () => [],
     setNotifications: () => Promise.resolve(),
+    setZoom: () => Promise.resolve(),
   });
   return { terminals, sendToWindow };
 }

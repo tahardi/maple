@@ -1,6 +1,6 @@
 import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { connect } from 'node:net';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { HookEvent } from '@shared/types';
@@ -197,12 +197,28 @@ describe('hookSocketPath', () => {
   });
 
   test.each([
-    { name: 'XDG_RUNTIME_DIR when set', runtime: '/run/user/1000', want: '/run/user/1000/maple.sock' },
-    { name: 'the config dir otherwise', runtime: undefined, want: '/tmp/maple-config/maple.sock' },
-  ])('uses $name', ({ runtime, want }) => {
+    {
+      name: 'the config dir when MAPLE_CONFIG_DIR is set',
+      config: '/tmp/maple-config',
+      runtime: '/run/user/1000',
+      want: '/tmp/maple-config/maple.sock',
+    },
+    {
+      name: 'XDG_RUNTIME_DIR otherwise',
+      config: undefined,
+      runtime: '/run/user/1000',
+      want: '/run/user/1000/maple.sock',
+    },
+    {
+      name: 'the default config dir with neither',
+      config: undefined,
+      runtime: undefined,
+      want: join(homedir(), '.config', 'maple', 'maple.sock'),
+    },
+  ])('uses $name', ({ config, runtime, want }) => {
     // given
     vi.stubEnv('XDG_RUNTIME_DIR', runtime);
-    vi.stubEnv('MAPLE_CONFIG_DIR', '/tmp/maple-config');
+    vi.stubEnv('MAPLE_CONFIG_DIR', config);
     // when
     const path = hookSocketPath();
     // then

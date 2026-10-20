@@ -36,5 +36,5 @@ export function registerConfig(deps: IpcDeps): void {
   };
   ipcMain.handle('config:get', () => cached);
   ipcMain.handle('config:reload', reload);
-  setAppMenu(reload, deps.setNotifications);
+  setAppMenu(reload, deps.setNotifications, deps.setZoom);
 }

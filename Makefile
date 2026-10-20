@@ -32,6 +32,16 @@ typecheck: node_modules/.package-lock.json
 run: node_modules/.package-lock.json
 	@npm run dev
 
+try_config_dir := $(CURDIR)/.maple-try
+
+.PHONY: try
+try: node_modules/.package-lock.json
+	@mkdir -p $(try_config_dir)
+	@cp $(HOME)/.config/maple/config.json $(try_config_dir)/config.json
+	@MAPLE_CONFIG_DIR=$(try_config_dir) \
+	    TMUX_TMPDIR=$(try_config_dir) \
+	    npm run dev
+
 .PHONY: test-all
 test-all: test-unit test-socket test-live test-e2e
 

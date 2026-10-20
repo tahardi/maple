@@ -4,7 +4,6 @@
   "private": true,
   "description": "Personal agentic IDE for running Jira cards with Claude",
   "main": "./out/main/index.js",
-  "desktopName": "maple.desktop",
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
@@ -62,7 +61,6 @@
   },
   "build": {
     "appId": "dev.tahardi.maple",
-    "productName": "Maple",
     "files": [
       "out/**",
       "package.json"

@@ -56,6 +56,7 @@ describe('registerIpc', () => {
     setActiveTab: vi.fn(),
     warnings: () => [],
     setNotifications: vi.fn(),
+    setZoom: vi.fn(),
   };
 
   sessions.setMaxListeners(0);

@@ -1,11 +1,13 @@
 import { Menu, shell } from 'electron';
 import { logsDir } from './log';
+import type { ZoomChange } from './zoom';
 
 const NOTIFICATIONS_ID = 'notifications';
 
 export function setAppMenu(
   reloadConfig: () => Promise<unknown>,
   setNotifications: (on: boolean) => Promise<void>,
+  setZoom: (change: ZoomChange) => Promise<void>,
 ): void {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
@@ -24,9 +26,9 @@ export function setAppMenu(
           { role: 'reload' },
           { role: 'toggleDevTools' },
           { type: 'separator' },
-          { role: 'resetZoom' },
-          { role: 'zoomIn' },
-          { role: 'zoomOut' },
+          { label: 'Actual Size', accelerator: 'CommandOrControl+0', click: () => void setZoom('reset') },
+          { label: 'Zoom In', accelerator: 'CommandOrControl+Plus', click: () => void setZoom('in') },
+          { label: 'Zoom Out', accelerator: 'CommandOrControl+-', click: () => void setZoom('out') },
           { type: 'separator' },
           { role: 'togglefullscreen' },
         ],
