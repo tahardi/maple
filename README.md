@@ -10,7 +10,8 @@ Personal agentic IDE for running Jira cards with Claude. Built with Electron, Re
 ## Usage
 
 ```bash
-make pre-pr  # install dependencies and run format, lint, typecheck, and unit tests
+make pre-pr  # install dependencies and run format, lint, typecheck, and unit tests, except the socket tests
+make test-all  # run every unit test, including the socket tests that CI runs
 make run     # start the app in development mode
 make test-live  # check Maple's assumptions against the real claude, Jira, and GitHub
 ```

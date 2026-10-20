@@ -82,7 +82,7 @@ jobs:
         run: npm ci
 
       - name: Run Check
-        run: npm run test
+        run: npm run test:all
 
   e2e:
     runs-on: ubuntu-latest

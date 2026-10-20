@@ -18,6 +18,10 @@ node_modules/.package-lock.json: package-lock.json
 run: node_modules/.package-lock.json
 	@npm run dev
 
+.PHONY: test-all
+test-all: node_modules/.package-lock.json
+	@npm run test:all
+
 .PHONY: test-live
 test-live: node_modules/.package-lock.json
 	@npm run test:live
