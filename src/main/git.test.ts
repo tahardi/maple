@@ -1,9 +1,18 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { changes, currentBranch, findWorktree, listFiles, mergeBase, readFilePair } from './git';
+import {
+  changes,
+  currentBranch,
+  findWorktree,
+  listFiles,
+  mergeBase,
+  readFilePair,
+  searchFiles,
+  writeWorktreeFile,
+} from './git';
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync(
@@ -121,6 +130,44 @@ describe('git', () => {
     await expect(pair).rejects.toThrow('reading file: path is outside the worktree');
   });
 
+  test('writeWorktreeFile replaces a file inside the worktree', async () => {
+    // given
+    const path = join(worktree, 'keep.txt');
+    // when
+    await writeWorktreeFile(worktree, 'keep.txt', 'new\n');
+    // then
+    expect(readFileSync(path, 'utf8')).toBe('new\n');
+  });
+
+  test('writeWorktreeFile creates a new file inside the worktree', async () => {
+    // given
+    const path = join(worktree, 'fresh.txt');
+    // when
+    await writeWorktreeFile(worktree, 'fresh.txt', 'made\n');
+    // then
+    expect(readFileSync(path, 'utf8')).toBe('made\n');
+  });
+
+  test.each([
+    { name: 'a parent path', path: '../repo/keep.txt' },
+    { name: 'a deep parent path', path: '../../.ssh/id_rsa' },
+    { name: 'an absolute path', path: '/etc/passwd' },
+    { name: 'a symlink pointing out', path: 'passwd', link: '/etc/passwd' },
+    { name: 'a path through a symlinked dir', path: 'etc/passwd', link: '/etc', linkName: 'etc' },
+    { name: 'a new file through a symlinked dir', path: 'etc/maple-new', link: '/etc', linkName: 'etc' },
+  ])('writeWorktreeFile rejects $name outside the worktree', async ({ path, link, linkName }) => {
+    // given
+    if (link) {
+      symlinkSync(link, join(worktree, linkName ?? path));
+    }
+    const passwd = readFileSync('/etc/passwd', 'utf8');
+    // when
+    const write = writeWorktreeFile(worktree, path, 'x');
+    // then
+    await expect(write).rejects.toThrow('writing file: path is outside the worktree');
+    expect(readFileSync('/etc/passwd', 'utf8')).toBe(passwd);
+  });
+
   test('readFilePair follows a symlink that stays inside the worktree', async () => {
     // given
     symlinkSync('keep.txt', join(worktree, 'alias.txt'));
@@ -185,6 +232,49 @@ describe('git', () => {
     const files = await listFiles(worktree);
     // then
     expect(files.sort()).toEqual(['.gitignore', 'del.txt', 'keep.txt', 'logo.bin', 'old.txt', 'untracked.txt']);
+  });
+
+  test('searchFiles finds text in tracked and untracked files but not ignored ones', async () => {
+    // given
+    writeFileSync(join(worktree, 'keep.txt'), 'a\nthe needle here\n');
+    git(worktree, 'commit', '-am', 'needle');
+    writeFileSync(join(worktree, 'untracked.txt'), 'Needle first\n');
+    writeFileSync(join(worktree, 'ignored.log'), 'needle\n');
+    // when
+    const hits = await searchFiles(worktree, 'NEEDLE');
+    // then
+    expect([...hits].sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { path: 'keep.txt', line: 2, text: 'the needle here' },
+      { path: 'untracked.txt', line: 1, text: 'Needle first' },
+    ]);
+  });
+
+  test('searchFiles returns no hits when nothing matches', async () => {
+    // given
+    const query = 'nothing-like-this';
+    // when
+    const hits = await searchFiles(worktree, query);
+    // then
+    expect(hits).toEqual([]);
+  });
+
+  test('searchFiles treats a query starting with a dash as text', async () => {
+    // given
+    writeFileSync(join(worktree, 'untracked.txt'), 'run --force now\n');
+    // when
+    const hits = await searchFiles(worktree, '--force');
+    // then
+    expect(hits).toEqual([{ path: 'untracked.txt', line: 1, text: 'run --force now' }]);
+  });
+
+  test('searchFiles caps the hits at 500 and each line at 200 characters', async () => {
+    // given
+    writeFileSync(join(worktree, 'untracked.txt'), `needle${'x'.repeat(300)}\n`.repeat(600));
+    // when
+    const hits = await searchFiles(worktree, 'needle');
+    // then
+    expect(hits).toHaveLength(500);
+    expect(hits[0]).toEqual({ path: 'untracked.txt', line: 1, text: `needle${'x'.repeat(194)}` });
   });
 
   test('currentBranch returns the checked out branch', async () => {

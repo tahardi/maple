@@ -3,6 +3,7 @@ export type ProjectConfig = { name: string; jiraKey: string; jiraBoardId: number
 export type ActionConfig = { label: string; prompt: string };
 export type MapleConfig = {
   worktreesDir: string;
+  vaultDir: string | null;
   notifications: boolean;
   projects: ProjectConfig[];
   actions: ActionConfig[];
@@ -18,6 +19,7 @@ export type Card = {
   descriptionMd: string;
   url: string;
 };
+export type BacklogGroup = { epic: { key: string; summary: string } | null; cards: Card[] };
 export type Sprint = { name: string; startDate: string; endDate: string; cards: Card[] };
 export type Fetched<T> = { data: T | null; error: string | null; fetchedAt: string | null };
 export type TabKind = 'planner' | 'card';
@@ -62,12 +64,15 @@ export type PrInfo = {
   checks: ChecksSummary;
 };
 export type FileStatus = 'A' | 'M' | 'D' | 'R';
+export type VaultNote = { path: string; modifiedAt: string };
 export type FileChange = { path: string; status: FileStatus; oldPath: string | null };
+export type SearchHit = { path: string; line: number; text: string };
 export type ChangeSet = { base: string; files: FileChange[]; added: number; removed: number };
 export type FilePair =
   | { kind: 'text'; path: string; current: string | null; base: string | null }
   | { kind: 'binary'; path: string }
   | { kind: 'tooLarge'; path: string; bytes: number };
+export type Draft = { text: string; disk: string | null };
 export type LineMark =
   | { kind: 'add'; line: number }
   | { kind: 'chg'; line: number; oldText: string | null }

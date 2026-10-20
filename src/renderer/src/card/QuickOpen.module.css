@@ -1,0 +1,56 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 10vh;
+  background: var(--overlay);
+  z-index: 10;
+}
+
+.box {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 90vw);
+  max-height: 70vh;
+  background: var(--bg-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.input {
+  margin: 8px;
+  padding: 6px 8px;
+  background: var(--bg-sunken);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: inherit;
+}
+
+.message {
+  padding: 4px 12px 8px;
+  color: var(--text-muted);
+}
+
+.list {
+  margin: 0;
+  padding: 0 0 8px;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.row {
+  padding: 3px 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.active {
+  background: var(--surface-hover);
+}

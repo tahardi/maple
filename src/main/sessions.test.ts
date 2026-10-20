@@ -21,6 +21,7 @@ type FakePty = {
 
 const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
+  vaultDir: null,
   notifications: true,
   projects: [
     { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig-days' },
