@@ -1,0 +1,23 @@
+.switch {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.switch button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.switch button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--text-strong);
+}
+
+.switch .refresh {
+  margin-left: auto;
+}

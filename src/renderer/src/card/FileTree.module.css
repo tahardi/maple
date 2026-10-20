@@ -51,6 +51,14 @@
   font-weight: 600;
 }
 
+.dir::before {
+  content: '▾ ';
+}
+
+.row[aria-expanded='false'] .dir::before {
+  content: '▸ ';
+}
+
 .badge {
   font-weight: 700;
   padding: 0 4px;

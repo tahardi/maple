@@ -7,6 +7,7 @@ type FakeOverrides = { [A in keyof MapleApi]?: Partial<MapleApi[A]> };
 export const FAKE_CONFIG: Fetched<MapleConfig> = {
   data: {
     worktreesDir: '/tmp/wts',
+    vaultDir: null,
     notifications: false,
     projects: [
       { name: 'Bearclave', jiraKey: 'BEAR', jiraBoardId: 1, plannerDir: '/tmp/planner/bear' },
@@ -77,6 +78,12 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       readFile: vi.fn((_tabId: string, path: string) => Promise.resolve({ kind: 'binary' as const, path })),
       onChanged: vi.fn(unsubscribe),
       ...overrides.repo,
+    },
+    vault: {
+      list: vi.fn(() => Promise.resolve([])),
+      read: vi.fn(() => Promise.resolve('')),
+      written: vi.fn(() => Promise.resolve([])),
+      ...overrides.vault,
     },
     pr: {
       get: vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null })),

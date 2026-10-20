@@ -10,6 +10,7 @@ import { registerPreflight } from './preflight';
 import { registerRepo } from './repo';
 import { registerSession } from './session';
 import { registerTabs } from './tabs';
+import { registerVault } from './vault';
 
 export type IpcDeps = {
   window: () => BrowserWindow | null;
@@ -29,6 +30,7 @@ const registrars: readonly ((deps: IpcDeps) => void)[] = [
   registerTabs,
   registerSession,
   registerRepo,
+  registerVault,
   registerPr,
   registerApp,
 ];

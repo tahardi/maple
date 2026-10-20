@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { TreeNode } from './buildTree';
 import styles from './FileTree.module.css';
 
@@ -11,24 +12,37 @@ type Props = {
 };
 
 export function FileTree({ nodes, selected, onSelect, changedOnly, onToggle, changedCount }: Props) {
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+
+  const flip = (path: string) => {
+    setCollapsed((dirs) => {
+      const next = new Set(dirs);
+      if (!next.delete(path)) {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
   const rows = (list: readonly TreeNode[], depth: number): React.ReactNode[] =>
     list.flatMap((node) => [
       <li
         key={node.path}
         className={node.path === selected ? `${styles.row} ${styles.selected}` : styles.row}
         style={{ paddingLeft: 8 + depth * 12 }}
-        onClick={
-          node.dir
-            ? undefined
-            : () => {
-                onSelect(node.path);
-              }
-        }
+        aria-expanded={node.dir ? !collapsed.has(node.path) : undefined}
+        onClick={() => {
+          if (node.dir) {
+            flip(node.path);
+          } else {
+            onSelect(node.path);
+          }
+        }}
       >
         <span className={node.dir ? styles.dir : undefined}>{node.name}</span>
         {node.status && <span className={`${styles.badge} ${styles[node.status]}`}>{node.status}</span>}
       </li>,
-      ...rows(node.children, depth + 1),
+      ...(collapsed.has(node.path) ? [] : rows(node.children, depth + 1)),
     ]);
 
   return (

@@ -13,6 +13,7 @@ const defaultActions = [
 const configSchema = z
   .object({
     worktreesDir: z.string(),
+    vaultDir: z.string().optional(),
     notifications: z.boolean().default(true),
     projects: z.array(
       z.object({ name: z.string(), jiraKey: z.string(), jiraBoardId: z.number(), plannerDir: z.string() }),
@@ -88,6 +89,7 @@ async function readConfig(dir: string): Promise<Fetched<MapleConfig>> {
     data: {
       ...config,
       worktreesDir: expandHome(config.worktreesDir),
+      vaultDir: config.vaultDir === undefined ? null : expandHome(config.vaultDir),
       projects: config.projects.map((project) => ({ ...project, plannerDir: expandHome(project.plannerDir) })),
     },
     error: null,

@@ -7,6 +7,7 @@ import { MarkdownText } from '../shell/MarkdownText';
 import { toDecorations } from './inFileDecorations';
 import './monacoSetup';
 import { PR_DESCRIPTION } from './prDescription';
+import { VAULT_PREFIX } from './VaultSwitch';
 import styles from './viewer.module.css';
 
 type Props = {
@@ -44,21 +45,40 @@ function baseName(path: string): string {
   if (path === PR_DESCRIPTION) {
     return 'PR description';
   }
-  return path.split('/').at(-1) ?? path;
+  const bare = path.startsWith(VAULT_PREFIX) ? path.slice(VAULT_PREFIX.length) : path;
+  return bare.split('/').at(-1) ?? bare;
 }
 
 export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody }: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
+  const [note, setNote] = useState<{ path: string; text: string } | null>(null);
   const [plain, setPlain] = useState<editor.ICodeEditor | null>(null);
   const scrollTarget = useRef<editor.ICodeEditor | null>(null);
   const keepScroll = useRef<number | null>(null);
 
   const showsDescription = activeFile === PR_DESCRIPTION;
+  const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
+  const markdown = showsDescription ? (prBody ?? '') : note !== null && note.path === activeFile ? note.text : null;
 
   useEffect(() => {
-    if (activeFile === null || activeFile === PR_DESCRIPTION) {
+    if (activeFile === null || !activeFile.startsWith(VAULT_PREFIX)) {
+      return;
+    }
+    let live = true;
+    void window.maple.vault.read(activeFile.slice(VAULT_PREFIX.length)).then((text) => {
+      if (live) {
+        setNote({ path: activeFile, text });
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [activeFile]);
+
+  useEffect(() => {
+    if (activeFile === null || activeFile === PR_DESCRIPTION || activeFile.startsWith(VAULT_PREFIX)) {
       return;
     }
     let live = true;
@@ -136,11 +156,13 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   };
 
   const body = () => {
-    if (showsDescription) {
+    if (showsDescription || showsNote) {
       return (
-        <div className={styles.description}>
-          <MarkdownText text={prBody ?? ''} />
-        </div>
+        markdown !== null && (
+          <div className={styles.description}>
+            <MarkdownText text={markdown} />
+          </div>
+        )
       );
     }
     if (shown === null) {
@@ -220,7 +242,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             </div>
           ))}
         </div>
-        {!showsDescription && (
+        {!showsDescription && !showsNote && (
           <div className={styles.toggle}>
             <button
               aria-pressed={mode === 'in-file'}

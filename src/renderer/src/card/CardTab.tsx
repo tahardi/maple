@@ -1,4 +1,4 @@
-import type { TabState } from '@shared/types';
+import type { FileChange, TabState, VaultNote } from '@shared/types';
 import { useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { useMaple } from '../store';
@@ -13,9 +13,16 @@ import { PrSummary } from './PrSummary';
 import { PR_DESCRIPTION } from './prDescription';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
+import { useVault } from './useVault';
+import { VAULT_PREFIX, VaultSwitch, type TreeView } from './VaultSwitch';
 
 const WAITING = 'Waiting for worktree…';
 const MERGED = 'Merged, worktree removed';
+
+function writtenNotes(notes: readonly VaultNote[], written: readonly string[]): FileChange[] {
+  const paths = new Set(written);
+  return notes.filter((note) => paths.has(note.path)).map((note) => ({ path: note.path, status: 'M', oldPath: null }));
+}
 
 function branchName(worktreePath: string | null, cardKey: string): string | null {
   const name = worktreePath?.split('/').filter(Boolean).at(-1);
@@ -34,12 +41,19 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
+  const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
+  const [vaultChangedOnly, setVaultChangedOnly] = useState(true);
   const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const changed = changes?.files ?? [];
   const worktreeExists = tab.worktreePath !== null;
   const placeholder = card?.status === 'Done' ? MERGED : WAITING;
+  const hasVault = (config?.vaultDir ?? null) !== null;
+  const view = viewOverride ?? (worktreeExists ? 'worktree' : 'vault');
+  const showsVault = hasVault && view === 'vault';
+  const vault = useVault(tab.id, showsVault);
+  const recent = writtenNotes(vault.notes, vault.written);
   const actions =
     config === null
       ? []
@@ -114,10 +128,28 @@ export function CardTab({ tab }: { tab: TabState }) {
       />
       <div ref={body} className={styles.body}>
         <div className={styles.left} style={{ width: columns.left }}>
-          {tab.worktreePath === null ? (
+          {hasVault && <VaultSwitch view={view} onChange={setViewOverride} onRefresh={vault.refresh} />}
+          {showsVault ? (
+            <FileTree
+              key="vault"
+              nodes={buildTree(
+                vault.notes.map((note) => note.path),
+                recent,
+                vaultChangedOnly,
+              )}
+              selected={activeFile?.startsWith(VAULT_PREFIX) ? activeFile.slice(VAULT_PREFIX.length) : null}
+              onSelect={(path) => {
+                openFile(`${VAULT_PREFIX}${path}`);
+              }}
+              changedOnly={vaultChangedOnly}
+              onToggle={setVaultChangedOnly}
+              changedCount={recent.length}
+            />
+          ) : tab.worktreePath === null ? (
             <div className={styles.waiting}>{placeholder}</div>
           ) : (
             <FileTree
+              key="worktree"
               nodes={buildTree(files, changed, changedOnly)}
               selected={activeFile}
               onSelect={openFile}
@@ -137,7 +169,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         </div>
         <div className={styles.divider} onPointerDown={drag('left')} />
         <div className={styles.middle} data-testid="viewer-slot">
-          {tab.worktreePath === null ? (
+          {tab.worktreePath === null && !showsVault ? (
             <div className={styles.waiting}>{placeholder}</div>
           ) : (
             <FileViewer
