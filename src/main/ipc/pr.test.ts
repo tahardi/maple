@@ -51,6 +51,7 @@ function register(
       setActiveTab: () => undefined,
       warnings: () => [],
       setNotifications: () => Promise.resolve(),
+      setZoom: () => Promise.resolve(),
     },
     logger,
   );

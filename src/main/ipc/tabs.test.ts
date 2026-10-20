@@ -68,6 +68,7 @@ function setup() {
       status: engine as unknown as StatusEngine,
       setActiveTab,
       setNotifications: () => Promise.resolve(),
+      setZoom: () => Promise.resolve(),
       warnings: () => [],
     },
     logger,

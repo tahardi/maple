@@ -35,6 +35,7 @@ function invoke(channel: string, ...args: unknown[]): unknown {
       setActiveTab: () => undefined,
       warnings: () => [],
       setNotifications: () => Promise.resolve(),
+      setZoom: () => Promise.resolve(),
     },
     logger,
   );

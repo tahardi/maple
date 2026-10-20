@@ -5,7 +5,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  { ignores: ['node_modules/', 'out/', 'dist/', 'coverage/', 'eslint.config.mjs'] },
+  { ignores: ['node_modules/', 'out/', 'dist/', '.maple-try/', 'coverage/', 'eslint.config.mjs'] },
   { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   {
     files: ['**/*.{ts,tsx}'],

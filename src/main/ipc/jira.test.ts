@@ -31,6 +31,7 @@ const deps = {
   setActiveTab: () => undefined,
   warnings: () => [],
   setNotifications: () => Promise.resolve(),
+  setZoom: () => Promise.resolve(),
 };
 
 function fixture(name: string): string {

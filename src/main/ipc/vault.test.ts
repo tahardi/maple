@@ -32,6 +32,7 @@ function invoke(vaultDir: string | null, channel: string, ...args: unknown[]): u
       setActiveTab: () => undefined,
       warnings: () => [],
       setNotifications: () => Promise.resolve(),
+      setZoom: () => Promise.resolve(),
     },
     logger,
     () => Promise.resolve(vaultDir),

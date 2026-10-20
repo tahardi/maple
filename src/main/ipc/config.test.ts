@@ -5,13 +5,21 @@ import type { StatusEngine } from '../status';
 import type { Terminals } from '../terminals';
 import type { Fetched, MapleConfig, ProjectConfig } from '@shared/types';
 import { notificationsDefault, projectByKey, registerConfig } from './config';
+import type { ZoomChange } from '../zoom';
 
 type Handler = (event: IpcMainInvokeEvent) => Promise<unknown>;
 
 const { handle, loadConfig, setAppMenu } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
   loadConfig: vi.fn(),
-  setAppMenu: vi.fn<(reload: () => Promise<unknown>, setNotifications: (on: boolean) => Promise<void>) => void>(),
+  setAppMenu:
+    vi.fn<
+      (
+        reload: () => Promise<unknown>,
+        setNotifications: (on: boolean) => Promise<void>,
+        setZoom: (change: ZoomChange) => Promise<void>,
+      ) => void
+    >(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
@@ -49,6 +57,7 @@ function deps(window: () => BrowserWindow | null = () => null) {
     setActiveTab: vi.fn(),
     warnings: () => [],
     setNotifications: vi.fn(() => Promise.resolve()),
+    setZoom: vi.fn(() => Promise.resolve()),
   };
 }
 
@@ -202,5 +211,18 @@ describe('registerConfig menu', () => {
     await setNotifications(false);
     // then
     expect(d.setNotifications).toHaveBeenCalledWith(false);
+  });
+
+  test('passes the zoom setter to the menu', async () => {
+    // given
+    vi.clearAllMocks();
+    loadConfig.mockResolvedValue(first);
+    const d = deps();
+    registerConfig(d);
+    const [[, , setZoom]] = setAppMenu.mock.calls;
+    // when
+    await setZoom('in');
+    // then
+    expect(d.setZoom).toHaveBeenCalledWith('in');
   });
 });

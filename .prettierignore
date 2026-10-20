@@ -1,6 +1,7 @@
 node_modules
 out
 dist
+.maple-try
 coverage
 package-lock.json
 test-results
