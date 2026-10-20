@@ -92,6 +92,10 @@
   color: var(--danger);
 }
 
+.notice button {
+  margin-left: 8px;
+}
+
 :global(.line-add) {
   background: var(--diff-add-bg);
 }

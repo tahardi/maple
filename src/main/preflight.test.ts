@@ -26,6 +26,12 @@ describe('runPreflight', () => {
       expected: [{ tool: 'claude', message: 'claude is not on PATH' }],
     },
     {
+      name: 'tmux missing',
+      codes: { 'tmux --version': 127 },
+      envPath: presentEnv,
+      expected: [{ tool: 'tmux', message: 'tmux is not on PATH' }],
+    },
+    {
       name: 'gh logged out',
       codes: { 'gh auth status': 1 },
       envPath: presentEnv,

@@ -72,12 +72,13 @@ export type FilePair =
   | { kind: 'text'; path: string; current: string | null; base: string | null }
   | { kind: 'binary'; path: string }
   | { kind: 'tooLarge'; path: string; bytes: number };
+export type Draft = { text: string; disk: string | null };
 export type LineMark =
   | { kind: 'add'; line: number }
   | { kind: 'chg'; line: number; oldText: string | null }
   | { kind: 'del'; afterLine: number; oldText: string };
 export type PreflightProblem = {
-  tool: 'claude' | 'gh' | 'git' | 'gh-auth' | 'jira-env' | 'claude-trust';
+  tool: 'claude' | 'gh' | 'git' | 'tmux' | 'gh-auth' | 'jira-env' | 'claude-trust';
   message: string;
 };
 export type CloseResult = { closed: boolean; needsConfirm: boolean };

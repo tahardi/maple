@@ -19,11 +19,11 @@ export async function restoreTabs(
     }
     restored += 1;
     if (tab.cardKey === null) {
-      sessions.openPlanner(tab.projectKey, tab.sessionId);
+      sessions.openPlanner(tab.projectKey, tab.sessionId, tab.id);
       logger.info('restore', 'restored', { projectKey: tab.projectKey, kind: 'planner' });
       continue;
     }
-    const opened = sessions.openCard(tab.projectKey, tab.cardKey, tab.sessionId);
+    const opened = sessions.openCard(tab.projectKey, tab.cardKey, tab.sessionId, tab.id);
     logger.info('restore', 'restored', { projectKey: tab.projectKey, cardKey: tab.cardKey });
     const { cardKey } = tab;
     const path = await findWt(cardKey).catch((err: unknown) => {

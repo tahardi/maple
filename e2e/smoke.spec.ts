@@ -1,46 +1,66 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
-import { _electron, expect, test } from '@playwright/test';
+import { _electron, expect, test, type ElectronApplication } from '@playwright/test';
 import { startJiraServer } from './fixtures/jiraServer';
 
 const fixtures = join(import.meta.dirname, 'fixtures');
 const cardKey = 'HALO-13';
 
+async function sandbox() {
+  const jira = await startJiraServer();
+  const root = mkdtempSync(join(tmpdir(), 'maple-e2e-'));
+  const configDir = join(root, 'config');
+  const plannerDir = join(root, 'planner');
+  const worktreesDir = join(root, 'worktrees');
+  for (const dir of [configDir, plannerDir, worktreesDir]) {
+    mkdirSync(dir);
+  }
+  const config = readFileSync(join(fixtures, 'config/config.json'), 'utf8')
+    .replace('__PLANNER_DIR__', plannerDir)
+    .replace('__WORKTREES_DIR__', worktreesDir);
+  writeFileSync(join(configDir, 'config.json'), config);
+  const jiraEnv = join(root, 'jira.env');
+  writeFileSync(jiraEnv, `JIRA_SITE=${jira.url}\n${readFileSync(join(fixtures, 'jira.env'), 'utf8')}`);
+  const claudeJson = join(root, 'claude.json');
+  writeFileSync(claudeJson, JSON.stringify({ projects: { [plannerDir]: { hasTrustDialogAccepted: true } } }));
+  const parent = Object.fromEntries(
+    Object.entries(process.env).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined && entry[0] !== 'XDG_RUNTIME_DIR',
+    ),
+  );
+  const env = {
+    ...parent,
+    PATH: [join(fixtures, 'bin'), parent.PATH].join(delimiter),
+    MAPLE_CONFIG_DIR: configDir,
+    MAPLE_JIRA_ENV: jiraEnv,
+    MAPLE_CLAUDE_JSON: claudeJson,
+    TMUX_TMPDIR: root,
+  };
+  const tmux = (...args: string[]) => execFileSync('tmux', ['-L', 'maple', ...args], { env }).toString();
+  const launch = () => _electron.launch({ args: ['out/main/index.js'], env });
+  const crash = async (app: ElectronApplication) => {
+    const exited = new Promise((resolve) => app.process().once('exit', resolve));
+    app.process().kill('SIGKILL');
+    await exited;
+  };
+  const cleanup = async (app: ElectronApplication) => {
+    const closed = app.waitForEvent('close');
+    app.process().kill('SIGKILL');
+    tmux('kill-server');
+    await closed;
+    await jira.close();
+    rmSync(root, { recursive: true, force: true });
+  };
+  return { tmux, launch, crash, cleanup };
+}
+
 test.describe('smoke', () => {
   test('starts a card from Home', async () => {
     // given
-    const jira = await startJiraServer();
-    const root = mkdtempSync(join(tmpdir(), 'maple-e2e-'));
-    const configDir = join(root, 'config');
-    const plannerDir = join(root, 'planner');
-    const worktreesDir = join(root, 'worktrees');
-    for (const dir of [configDir, plannerDir, worktreesDir]) {
-      mkdirSync(dir);
-    }
-    const config = readFileSync(join(fixtures, 'config/config.json'), 'utf8')
-      .replace('__PLANNER_DIR__', plannerDir)
-      .replace('__WORKTREES_DIR__', worktreesDir);
-    writeFileSync(join(configDir, 'config.json'), config);
-    const jiraEnv = join(root, 'jira.env');
-    writeFileSync(jiraEnv, `JIRA_SITE=${jira.url}\n${readFileSync(join(fixtures, 'jira.env'), 'utf8')}`);
-    const claudeJson = join(root, 'claude.json');
-    writeFileSync(claudeJson, JSON.stringify({ projects: { [plannerDir]: { hasTrustDialogAccepted: true } } }));
-    const env = Object.fromEntries(
-      Object.entries(process.env).filter(
-        (entry): entry is [string, string] => entry[1] !== undefined && entry[0] !== 'XDG_RUNTIME_DIR',
-      ),
-    );
-    const app = await _electron.launch({
-      args: ['out/main/index.js'],
-      env: {
-        ...env,
-        PATH: [join(fixtures, 'bin'), env.PATH].join(delimiter),
-        MAPLE_CONFIG_DIR: configDir,
-        MAPLE_JIRA_ENV: jiraEnv,
-        MAPLE_CLAUDE_JSON: claudeJson,
-      },
-    });
+    const { launch, cleanup } = await sandbox();
+    const app = await launch();
     const page = await app.firstWindow();
     const cardTabs = page.getByRole('tab', { name: cardKey });
 
@@ -68,11 +88,41 @@ test.describe('smoke', () => {
       await expect(cardTabs).toHaveCount(1);
       await expect(cardTabs).toHaveAttribute('aria-selected', 'true');
     } finally {
-      const closed = app.waitForEvent('close');
-      app.process().kill('SIGKILL');
-      await closed;
-      await jira.close();
-      rmSync(root, { recursive: true, force: true });
+      await cleanup(app);
+    }
+  });
+
+  test('a card session survives a crash and the relaunched tab reattaches to it', async () => {
+    // given
+    const { tmux, launch, crash, cleanup } = await sandbox();
+    const first = await launch();
+    let app = first;
+
+    try {
+      const page = await first.firstWindow();
+      await page.locator(`[data-key="${cardKey}"]`).click();
+      await page.getByRole('button', { name: 'Start', exact: true }).click();
+      const terminal = page.locator('.xterm').filter({ hasText: `/card ${cardKey}` });
+      await expect(terminal).toContainText('FAKE CLAUDE --dangerously-skip-permissions');
+      await terminal.click();
+      await page.keyboard.type('typed before the crash');
+      await page.keyboard.press('Enter');
+      await expect(terminal).toContainText('typed before the crash');
+      const sessions = tmux('ls', '-F', '#{session_name}');
+
+      // when
+      await crash(first);
+      app = await launch();
+
+      // then
+      const relaunched = await app.firstWindow();
+      await relaunched.getByRole('tab', { name: cardKey }).click();
+      const reattached = relaunched.locator('.xterm').filter({ hasText: `/card ${cardKey}` });
+      await expect(reattached).toContainText('typed before the crash');
+      await expect(reattached).not.toContainText('--resume');
+      expect(tmux('ls', '-F', '#{session_name}')).toBe(sessions);
+    } finally {
+      await cleanup(app);
     }
   });
 });

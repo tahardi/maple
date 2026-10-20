@@ -6,6 +6,7 @@ import { cardPrompt } from '@shared/prompts';
 import type { MapleConfig, TabState } from '@shared/types';
 import { findWorktree } from './git';
 import { appLogger, type Logger } from './log';
+import { tmuxArgs } from './tmux';
 import { watchWorktrees } from './worktreeWatcher';
 
 const BACKLOG_CHARS = 200_000;
@@ -20,6 +21,8 @@ export type SessionDeps = {
   closedSessions: Record<string, string>;
   uuid: () => string;
   hasTranscript: (sessionId: string) => boolean;
+  tmuxConf: string;
+  endTmux: (name: string | null) => void;
   logger?: Logger;
 };
 
@@ -43,10 +46,14 @@ type Session = {
 
 type Launch = { resume: boolean; prompt: string | null };
 
-function parentEnv(): NodeJS.ProcessEnv {
+export function parentEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.CLAUDE_CODE_CHILD_SESSION;
   return env;
+}
+
+function tmuxName(tabId: string): string {
+  return `maple-${tabId}`;
 }
 
 function message(err: unknown): string {
@@ -65,17 +72,21 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   startCard(projectKey: string, cardKey: string): TabState {
-    return this.findCard(projectKey, cardKey) ?? this.open(projectKey, 'card', cardKey, null, cardPrompt(cardKey));
+    return (
+      this.findCard(projectKey, cardKey) ?? this.open(projectKey, 'card', cardKey, null, cardPrompt(cardKey), null)
+    );
   }
 
-  openCard(projectKey: string, cardKey: string, resumeId: string | null): TabState {
+  openCard(projectKey: string, cardKey: string, resumeId: string | null, tabId: string | null = null): TabState {
     const closedId = Object.hasOwn(this.closed, cardKey) ? this.closed[cardKey] : null;
-    return this.findCard(projectKey, cardKey) ?? this.open(projectKey, 'card', cardKey, resumeId ?? closedId, null);
+    return (
+      this.findCard(projectKey, cardKey) ?? this.open(projectKey, 'card', cardKey, resumeId ?? closedId, null, tabId)
+    );
   }
 
-  openPlanner(projectKey: string, resumeId: string | null): TabState {
+  openPlanner(projectKey: string, resumeId: string | null, tabId: string | null = null): TabState {
     const existing = this.list().find((tab) => tab.kind === 'planner' && tab.projectKey === projectKey);
-    return existing ?? this.open(projectKey, 'planner', null, resumeId, null);
+    return existing ?? this.open(projectKey, 'planner', null, resumeId, null, tabId);
   }
 
   resume(tabId: string): void {
@@ -98,6 +109,7 @@ export class SessionManager extends EventEmitter<Events> {
     }
     session.stopWatch();
     session.pty?.kill();
+    this.deps.endTmux(tmuxName(tabId));
     this.sessions.delete(tabId);
     if (session.tab.cardKey !== null) {
       this.closed[session.tab.cardKey] = session.tab.sessionId;
@@ -110,6 +122,7 @@ export class SessionManager extends EventEmitter<Events> {
       session.stopWatch();
       session.pty?.kill();
     }
+    this.deps.endTmux(null);
   }
 
   hasProject(projectKey: string): boolean {
@@ -191,9 +204,10 @@ export class SessionManager extends EventEmitter<Events> {
     cardKey: string | null,
     resumeId: string | null,
     prompt: string | null,
+    tabId: string | null,
   ): TabState {
     const tab: TabState = {
-      id: this.deps.uuid(),
+      id: tabId ?? this.deps.uuid(),
       projectKey,
       kind,
       cardKey,
@@ -211,8 +225,11 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   private launch(session: Session, { resume, prompt }: Launch): void {
-    session.pty?.kill();
     const { tab } = session;
+    if (session.pty !== null) {
+      session.pty.kill();
+      this.deps.endTmux(tmuxName(tab.id));
+    }
     const resumable = resume && this.deps.hasTranscript(tab.sessionId);
     if (resume && !resumable) {
       this.log.warn('session', 'no transcript, starting fresh', { tabId: tab.id, sessionId: tab.sessionId });
@@ -226,17 +243,14 @@ export class SessionManager extends EventEmitter<Events> {
     if (prompt !== null) {
       args.push(prompt);
     }
-    const pty = this.deps.spawn('claude', args, {
+    const env = { MAPLE_TAB_ID: tab.id, MAPLE_SOCKET: this.deps.socketPath };
+    const command = tmuxArgs(tmuxName(tab.id), this.deps.tmuxConf, project.plannerDir, env, ['claude', ...args]);
+    const pty = this.deps.spawn('tmux', command, {
       name: 'xterm-256color',
       cols: 120,
       rows: 40,
       cwd: project.plannerDir,
-      env: {
-        ...parentEnv(),
-        MAPLE_TAB_ID: tab.id,
-        MAPLE_SOCKET: this.deps.socketPath,
-        TERM: 'xterm-256color',
-      },
+      env: { ...parentEnv(), TERM: 'xterm-256color' },
     });
     session.pty = pty;
     session.alive = true;

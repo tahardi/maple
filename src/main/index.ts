@@ -18,8 +18,10 @@ import { defaultRunner } from './preflight';
 import { restoreTabs } from './restore';
 import { lockDown, webPreferences } from './security';
 import { SessionManager } from './sessions';
+import { Terminals } from './terminals';
 import { saveState, loadState, type SavedState } from './state';
 import { StatusEngine } from './status';
+import { endTmux, writeTmuxConf } from './tmux';
 import { hasTranscript } from './transcripts';
 
 let mainWindow: BrowserWindow | null = null;
@@ -62,6 +64,7 @@ async function start(): Promise<void> {
   });
   const [{ data: config }, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
+  const tmuxConf = await writeTmuxConf(configDir());
   const socketPath = hookSocketPath();
   let saved = state;
   let saving = Promise.resolve();
@@ -85,7 +88,10 @@ async function start(): Promise<void> {
     closedSessions: state.closedSessions,
     uuid: randomUUID,
     hasTranscript,
+    tmuxConf,
+    endTmux,
   });
+  const terminals = new Terminals({ spawn });
   const jira = readCreds(jiraEnvPath()).then((creds) => new JiraClient(creds));
   jira.catch(() => undefined);
   const status = new StatusEngine({
@@ -98,6 +104,7 @@ async function start(): Promise<void> {
   });
   app.on('will-quit', () => {
     sessions.killAll();
+    terminals.closeAll();
     void stopHooks();
   });
   const restored = config
@@ -126,6 +133,7 @@ async function start(): Promise<void> {
     worktreeFor: (tabId) => sessions.get(tabId)?.worktreePath ?? null,
     project: projectByKey,
     sessions,
+    terminals,
     status,
     setActiveTab: (tabId) => {
       activeTabId = tabId;

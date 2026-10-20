@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { PrInfo } from '@shared/types';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
+import type { Terminals } from '../terminals';
 import { registerPr } from './pr';
 
 type Handler = (event: IpcMainInvokeEvent, tabId: string) => Promise<unknown>;
@@ -45,6 +46,7 @@ function register(
       worktreeFor: () => worktree,
       project: () => Promise.resolve(null),
       sessions,
+      terminals: {} as Terminals,
       status: {} as StatusEngine,
       setActiveTab: () => undefined,
       warnings: () => [],

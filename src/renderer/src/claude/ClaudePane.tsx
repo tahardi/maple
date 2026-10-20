@@ -1,52 +1,16 @@
-import type { TabStatus, Unsubscribe } from '@shared/types';
-import { FitAddon } from '@xterm/addon-fit';
-import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { Terminal } from '@xterm/xterm';
-import '@xterm/xterm/css/xterm.css';
-import { useEffect, useRef } from 'react';
+import type { TabStatus } from '@shared/types';
+import { useEffect, useMemo, useRef } from 'react';
 import { useMaple } from '../store';
 import { ActionBar } from './ActionBar';
 import styles from './ClaudePane.module.css';
 import { ScrollSpeed } from './ScrollSpeed';
 import { SessionEnded } from './SessionEnded';
+import { useXterm, type XtermIo } from './useXterm';
 import { useWheelLines } from './useWheelLines';
 
 export type PaneAction = { label: string; onClick: () => void; disabled?: boolean; title?: string };
 
 type ClaudePaneProps = { tabId: string; actions: readonly PaneAction[] };
-
-function clipboardKeys(term: Terminal) {
-  return (e: KeyboardEvent): boolean => {
-    if (e.type !== 'keydown' || !e.ctrlKey || !e.shiftKey) {
-      return true;
-    }
-    if (e.key === 'C') {
-      void navigator.clipboard.writeText(term.getSelection());
-      return false;
-    }
-    if (e.key === 'V') {
-      void navigator.clipboard.readText().then((text) => {
-        term.paste(text);
-      });
-      return false;
-    }
-    return true;
-  };
-}
-
-function wheelReports(term: Terminal, host: HTMLElement, lines: () => number, write: (data: string) => void) {
-  return (e: WheelEvent): boolean => {
-    if (term.buffer.active.type !== 'alternate' || term.modes.mouseTrackingMode === 'none' || e.deltaY === 0) {
-      return true;
-    }
-    const rect = host.getBoundingClientRect();
-    const col = Math.min(term.cols, Math.max(1, Math.floor(((e.clientX - rect.left) / rect.width) * term.cols) + 1));
-    const row = Math.min(term.rows, Math.max(1, Math.floor(((e.clientY - rect.top) / rect.height) * term.rows) + 1));
-    const button = e.deltaY < 0 ? '64' : '65';
-    write(`\x1b[<${button};${String(col)};${String(row)}M`.repeat(lines()));
-    return false;
-  };
-}
 
 export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
   const host = useRef<HTMLDivElement>(null);
@@ -58,65 +22,21 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
     wheelLinesRef.current = wheelLines;
   }, [wheelLines]);
 
-  useEffect(() => {
-    const el = host.current;
-    if (el === null) {
-      return;
-    }
+  const io = useMemo((): XtermIo => {
     const { session } = window.maple;
-    const term = new Terminal({
-      fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
-      fontSize: 13,
-      scrollback: 10_000,
-      theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
-      allowProposedApi: true,
-    });
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.loadAddon(new Unicode11Addon());
-    term.unicode.activeVersion = '11';
-    term.open(el);
-    term.attachCustomKeyEventHandler(clipboardKeys(term));
-    term.attachCustomWheelEventHandler(
-      wheelReports(
-        term,
-        el,
-        () => wheelLinesRef.current,
-        (data) => {
-          session.write(tabId, data);
-        },
-      ),
-    );
-    const typing = term.onData((data) => {
-      session.write(tabId, data);
-    });
-    const observer = new ResizeObserver(() => {
-      if (el.clientWidth === 0 || el.clientHeight === 0) {
-        return;
-      }
-      fit.fit();
-      session.resize(tabId, term.cols, term.rows);
-    });
-    observer.observe(el);
-    let disposed = false;
-    let unsubscribe: Unsubscribe | null = null;
-    void session.backlog(tabId).then((backlog) => {
-      if (disposed) {
-        return;
-      }
-      term.write(backlog);
-      unsubscribe = session.onData(tabId, (data) => {
-        term.write(data);
-      });
-    });
-    return () => {
-      disposed = true;
-      unsubscribe?.();
-      observer.disconnect();
-      typing.dispose();
-      term.dispose();
+    return {
+      write: (data) => {
+        session.write(tabId, data);
+      },
+      resize: (cols, rows) => {
+        session.resize(tabId, cols, rows);
+      },
+      backlog: () => session.backlog(tabId),
+      onData: (cb) => session.onData(tabId, cb),
+      wheelLines: () => wheelLinesRef.current,
     };
   }, [tabId]);
+  useXterm(host, io);
 
   return (
     <div className={styles.pane}>

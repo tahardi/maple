@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { changes, listFiles, mergeBase, readFilePair, searchFiles } from '../git';
+import { changes, listFiles, mergeBase, readFilePair, searchFiles, writeWorktreeFile } from '../git';
 import { appLogger, logFailure, type Logger } from '../log';
 import { watchWorktree } from '../worktreeWatcher';
 import { send, type IpcDeps } from './index';
@@ -43,6 +43,15 @@ export function registerRepo(deps: IpcDeps, logger: Logger = appLogger): void {
         throw new Error(`reading file: tab ${tabId} has no worktree`);
       }
       return readFilePair(path, await mergeBase(path), file);
+    }),
+  );
+  handle('repo:writeFile', z.tuple([tabIdArg, z.string().max(4096), z.string().max(2_097_152)]), (tabId, file, text) =>
+    logFailure(logger, 'repo', { operation: 'repo:writeFile', args: [tabId, file] }, () => {
+      const path = worktreeFor(tabId);
+      if (path === null) {
+        throw new Error(`writing file: tab ${tabId} has no worktree`);
+      }
+      return writeWorktreeFile(path, file, text);
     }),
   );
   handle('repo:search', z.tuple([tabIdArg, z.string().min(1).max(200)]), (tabId, query) =>
