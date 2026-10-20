@@ -14,9 +14,15 @@ function saved(tabs: TabState[]): SavedState {
 
 function fakeSessions(projects: string[]) {
   const opened: TabState[] = [];
-  const open = (projectKey: string, kind: TabState['kind'], cardKey: string | null, sessionId: string | null) => {
+  const open = (
+    projectKey: string,
+    kind: TabState['kind'],
+    cardKey: string | null,
+    sessionId: string | null,
+    tabId: string | null,
+  ) => {
     const tab: TabState = {
-      id: `new-${String(opened.length)}`,
+      id: tabId ?? `new-${String(opened.length)}`,
       projectKey,
       kind,
       cardKey,
@@ -28,8 +34,12 @@ function fakeSessions(projects: string[]) {
   };
   const sessions = {
     hasProject: vi.fn((key: string) => projects.includes(key)),
-    openCard: vi.fn((projectKey: string, cardKey: string, id: string | null) => open(projectKey, 'card', cardKey, id)),
-    openPlanner: vi.fn((projectKey: string, id: string | null) => open(projectKey, 'planner', null, id)),
+    openCard: vi.fn((projectKey: string, cardKey: string, id: string | null, tabId: string | null = null) =>
+      open(projectKey, 'card', cardKey, id, tabId),
+    ),
+    openPlanner: vi.fn((projectKey: string, id: string | null, tabId: string | null = null) =>
+      open(projectKey, 'planner', null, id, tabId),
+    ),
     setWorktree: vi.fn((tabId: string, path: string) => {
       const tab = opened.find((t) => t.id === tabId);
       if (tab) {
@@ -55,14 +65,14 @@ describe('restoreTabs', () => {
     // then
     expect(result).toEqual({ restored: 3, warnings: [] });
     expect(sessions.openCard.mock.calls).toEqual([
-      ['DIG', 'DIG-44', 's1'],
-      ['BEAR', 'BEAR-12', 's3'],
+      ['DIG', 'DIG-44', 's1', 'old-s1'],
+      ['BEAR', 'BEAR-12', 's3', 'old-s3'],
     ]);
-    expect(sessions.openPlanner.mock.calls).toEqual([['DIG', 's2']]);
-    expect(opened.map((t) => [t.sessionId, t.worktreePath])).toEqual([
-      ['s1', '/wts/dig-44'],
-      ['s2', null],
-      ['s3', '/wts/bear-12'],
+    expect(sessions.openPlanner.mock.calls).toEqual([['DIG', 's2', 'old-s2']]);
+    expect(opened.map((t) => [t.id, t.sessionId, t.worktreePath])).toEqual([
+      ['old-s1', 's1', '/wts/dig-44'],
+      ['old-s2', 's2', null],
+      ['old-s3', 's3', '/wts/bear-12'],
     ]);
   });
 
@@ -77,7 +87,7 @@ describe('restoreTabs', () => {
     const result = await restoreTabs(state, manager, () => Promise.resolve(null));
     // then
     expect(result).toEqual({ restored: 1, warnings: [warning] });
-    expect(sessions.openCard.mock.calls).toEqual([['BEAR', 'BEAR-12', 's3']]);
+    expect(sessions.openCard.mock.calls).toEqual([['BEAR', 'BEAR-12', 's3', 'old-s3']]);
     expect(sessions.openPlanner).not.toHaveBeenCalled();
   });
 

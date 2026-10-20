@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MapleConfig, TabState } from '@shared/types';
 import { findWorktree } from './git';
 import { SessionManager } from './sessions';
+import { tmuxArgs } from './tmux';
 import { watchWorktrees } from './worktreeWatcher';
 
 vi.mock('./git', () => ({ findWorktree: vi.fn() }));
@@ -75,6 +76,7 @@ function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: 
   const save = vi.fn<(tabs: TabState[], closed: Record<string, string>) => Promise<void>>(() => Promise.resolve());
   const spawnFn = fakeSpawn(ptys);
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  const endTmux = vi.fn<(name: string | null) => void>();
   const manager = new SessionManager({
     spawn: spawnFn,
     config: () => config,
@@ -84,9 +86,11 @@ function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: 
     closedSessions,
     uuid: () => `uuid-${String(++n)}`,
     hasTranscript,
+    tmuxConf: '/tmp/maple/tmux.conf',
+    endTmux,
     logger,
   });
-  return { manager, ptys, save, spawnFn, logger };
+  return { manager, ptys, save, spawnFn, logger, endTmux };
 }
 
 function fresh(manager: SessionManager, tab: TabState): TabState {
@@ -100,6 +104,11 @@ function resumed(manager: SessionManager, tab: TabState): TabState {
 }
 
 const base = ['--dangerously-skip-permissions', '--settings', '/tmp/maple/hooksFile.json'];
+
+function wrapped(tabId: string, claude: string[], cwd = '/tmp/dig-days'): string[] {
+  const env = { MAPLE_TAB_ID: tabId, MAPLE_SOCKET: '/tmp/maple.sock' };
+  return tmuxArgs(`maple-${tabId}`, '/tmp/maple/tmux.conf', cwd, env, ['claude', ...claude]);
+}
 
 describe('SessionManager', () => {
   beforeEach(() => {
@@ -120,14 +129,10 @@ describe('SessionManager', () => {
     const tab = manager.startCard('DIG', 'DIG-44');
     // then
     expect(spawnFn).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(spawnFn).mock.calls[0][0]).toBe('claude');
-    expect(ptys[0].args).toEqual([...base, '--session-id', tab.sessionId, '/card DIG-44']);
+    expect(vi.mocked(spawnFn).mock.calls[0][0]).toBe('tmux');
+    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--session-id', tab.sessionId, '/card DIG-44']));
     expect(ptys[0].options).toMatchObject({ cwd: '/tmp/dig-days', cols: 120, rows: 40 });
-    expect(ptys[0].options.env).toMatchObject({
-      MAPLE_TAB_ID: tab.id,
-      MAPLE_SOCKET: '/tmp/maple.sock',
-      TERM: 'xterm-256color',
-    });
+    expect(ptys[0].options.env).toMatchObject({ TERM: 'xterm-256color' });
   });
 
   test('drops CLAUDE_CODE_CHILD_SESSION so claude writes a transcript', () => {
@@ -222,9 +227,9 @@ describe('SessionManager', () => {
     // given
     const { manager, ptys } = setup();
     // when
-    manager.openCard('DIG', 'DIG-44', resumeId);
+    const tab = manager.openCard('DIG', 'DIG-44', resumeId);
     // then
-    expect(ptys[0].args).toEqual([...base, ...want]);
+    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, ...want]));
   });
 
   test('close then openCard resumes the closed session', () => {
@@ -233,10 +238,10 @@ describe('SessionManager', () => {
     const tab = manager.startCard('DIG', 'DIG-44');
     manager.close(tab.id);
     // when
-    manager.openCard('DIG', 'DIG-44', null);
+    const reopened = manager.openCard('DIG', 'DIG-44', null);
     // then
     expect(ptys[0].killed).toBe(true);
-    expect(ptys[1].args).toEqual([...base, '--resume', tab.sessionId]);
+    expect(ptys[1].args).toEqual(wrapped(reopened.id, [...base, '--resume', tab.sessionId]));
   });
 
   test('startFresh on a card tab spawns a new session with the card prompt', () => {
@@ -248,7 +253,7 @@ describe('SessionManager', () => {
     // then
     const fresh = manager.get(tab.id);
     expect(fresh?.sessionId).not.toBe(tab.sessionId);
-    expect(ptys[1].args).toEqual([...base, '--session-id', fresh?.sessionId, '/card DIG-44']);
+    expect(ptys[1].args).toEqual(wrapped(tab.id, [...base, '--session-id', fresh?.sessionId ?? '', '/card DIG-44']));
     expect(save).toHaveBeenLastCalledWith([fresh], {});
   });
 
@@ -259,7 +264,7 @@ describe('SessionManager', () => {
     // when
     manager.startFresh(tab.id);
     // then
-    expect(ptys[1].args).toEqual([...base, '--session-id', manager.get(tab.id)?.sessionId]);
+    expect(ptys[1].args).toEqual(wrapped(tab.id, [...base, '--session-id', manager.get(tab.id)?.sessionId ?? '']));
   });
 
   test('openCard with a resume id that has no transcript starts that session fresh', () => {
@@ -270,7 +275,7 @@ describe('SessionManager', () => {
     // when
     const tab = manager.openCard('DIG', 'DIG-44', 'old-session');
     // then
-    expect(ptys[0].args).toEqual([...base, '--session-id', 'old-session']);
+    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--session-id', 'old-session']));
     expect(spawned).toHaveBeenCalledWith(tab.id, false, false);
   });
 
@@ -309,7 +314,7 @@ describe('SessionManager', () => {
     // when
     manager.resume(tab.id);
     // then
-    expect(ptys[1].args).toEqual([...base, '--resume', tab.sessionId]);
+    expect(ptys[1].args).toEqual(wrapped(tab.id, [...base, '--resume', tab.sessionId]));
     expect(manager.isAlive(tab.id)).toBe(true);
   });
 
@@ -469,7 +474,7 @@ describe('SessionManager', () => {
     // when
     const tab = manager.openCard('DIG', 'DIG-44', resumeId);
     // then
-    expect(ptys[0].args).toEqual([...base, '--resume', want]);
+    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--resume', want]));
     expect(tab.sessionId).toBe(want);
   });
 
@@ -479,7 +484,7 @@ describe('SessionManager', () => {
     // when
     const tab = manager.openPlanner('HALO', 'planner-session');
     // then
-    expect(ptys[0].args).toEqual([...base, '--resume', 'planner-session']);
+    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--resume', 'planner-session'], '/tmp/halo'));
     expect(ptys[0].options.cwd).toBe('/tmp/halo');
     expect(tab).toMatchObject({ kind: 'planner', cardKey: null, sessionId: 'planner-session' });
   });
@@ -805,5 +810,57 @@ describe('SessionManager', () => {
         error: 'writing state: disk full',
       });
     });
+  });
+
+  test('names the tmux session after the tab id', () => {
+    // given
+    const { manager, ptys } = setup();
+    // when
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // then
+    const { args } = ptys[0];
+    expect(args[args.indexOf('-s') + 1]).toBe(`maple-${tab.id}`);
+  });
+
+  test('startFresh ends the old tmux session before spawning', () => {
+    // given
+    const { manager, spawnFn, endTmux } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // when
+    manager.startFresh(tab.id);
+    // then
+    expect(endTmux).toHaveBeenCalledWith(`maple-${tab.id}`);
+    expect(endTmux.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(spawnFn).mock.invocationCallOrder[1]);
+  });
+
+  test('close ends the tab tmux session', () => {
+    // given
+    const { manager, endTmux } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // when
+    manager.close(tab.id);
+    // then
+    expect(endTmux).toHaveBeenCalledWith(`maple-${tab.id}`);
+  });
+
+  test('killAll ends the tmux server', () => {
+    // given
+    const { manager, endTmux } = setup();
+    manager.startCard('DIG', 'DIG-44');
+    // when
+    manager.killAll();
+    // then
+    expect(endTmux).toHaveBeenCalledWith(null);
+  });
+
+  test('openCard with a tab id keeps that id', () => {
+    // given
+    const { manager, ptys, endTmux } = setup();
+    // when
+    const tab = manager.openCard('DIG', 'DIG-44', 's-1', 'tab-9');
+    // then
+    expect(tab.id).toBe('tab-9');
+    expect(ptys[0].args).toContain('MAPLE_TAB_ID=tab-9');
+    expect(endTmux).not.toHaveBeenCalled();
   });
 });

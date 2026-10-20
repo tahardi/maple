@@ -20,6 +20,7 @@ import { lockDown, webPreferences } from './security';
 import { SessionManager } from './sessions';
 import { saveState, loadState, type SavedState } from './state';
 import { StatusEngine } from './status';
+import { endTmux, writeTmuxConf } from './tmux';
 import { hasTranscript } from './transcripts';
 
 let mainWindow: BrowserWindow | null = null;
@@ -62,6 +63,7 @@ async function start(): Promise<void> {
   });
   const [{ data: config }, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
+  const tmuxConf = await writeTmuxConf(configDir());
   const socketPath = hookSocketPath();
   let saved = state;
   let saving = Promise.resolve();
@@ -85,6 +87,8 @@ async function start(): Promise<void> {
     closedSessions: state.closedSessions,
     uuid: randomUUID,
     hasTranscript,
+    tmuxConf,
+    endTmux,
   });
   const jira = readCreds(jiraEnvPath()).then((creds) => new JiraClient(creds));
   jira.catch(() => undefined);
