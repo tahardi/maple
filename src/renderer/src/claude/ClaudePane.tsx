@@ -6,7 +6,9 @@ import { useEffect, useRef } from 'react';
 import { useMaple } from '../store';
 import { ActionBar } from './ActionBar';
 import styles from './ClaudePane.module.css';
+import { ScrollSpeed } from './ScrollSpeed';
 import { SessionEnded } from './SessionEnded';
+import { useWheelLines } from './useWheelLines';
 
 export type PaneAction = { label: string; onClick: () => void; disabled?: boolean; title?: string };
 
@@ -31,9 +33,29 @@ function clipboardKeys(term: Terminal) {
   };
 }
 
+function wheelReports(term: Terminal, host: HTMLElement, lines: () => number, write: (data: string) => void) {
+  return (e: WheelEvent): boolean => {
+    if (term.buffer.active.type !== 'alternate' || term.modes.mouseTrackingMode === 'none' || e.deltaY === 0) {
+      return true;
+    }
+    const rect = host.getBoundingClientRect();
+    const col = Math.min(term.cols, Math.max(1, Math.floor(((e.clientX - rect.left) / rect.width) * term.cols) + 1));
+    const row = Math.min(term.rows, Math.max(1, Math.floor(((e.clientY - rect.top) / rect.height) * term.rows) + 1));
+    const button = e.deltaY < 0 ? '64' : '65';
+    write(`\x1b[<${button};${String(col)};${String(row)}M`.repeat(lines()));
+    return false;
+  };
+}
+
 export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
   const host = useRef<HTMLDivElement>(null);
   const status = useMaple((s): TabStatus | undefined => s.statuses[tabId]);
+  const [wheelLines, setWheelLines] = useWheelLines();
+  const wheelLinesRef = useRef(wheelLines);
+
+  useEffect(() => {
+    wheelLinesRef.current = wheelLines;
+  }, [wheelLines]);
 
   useEffect(() => {
     const el = host.current;
@@ -51,10 +73,23 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
     term.loadAddon(fit);
     term.open(el);
     term.attachCustomKeyEventHandler(clipboardKeys(term));
+    term.attachCustomWheelEventHandler(
+      wheelReports(
+        term,
+        el,
+        () => wheelLinesRef.current,
+        (data) => {
+          session.write(tabId, data);
+        },
+      ),
+    );
     const typing = term.onData((data) => {
       session.write(tabId, data);
     });
     const observer = new ResizeObserver(() => {
+      if (el.clientWidth === 0 || el.clientHeight === 0) {
+        return;
+      }
       fit.fit();
       session.resize(tabId, term.cols, term.rows);
     });
@@ -81,7 +116,9 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
 
   return (
     <div className={styles.pane}>
-      <ActionBar actions={actions} />
+      <ActionBar actions={actions}>
+        <ScrollSpeed value={wheelLines} onChange={setWheelLines} />
+      </ActionBar>
       <div className={styles.body}>
         <div ref={host} className={styles.terminal} />
         {status?.sessionAlive === false && (

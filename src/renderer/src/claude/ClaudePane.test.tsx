@@ -1,7 +1,7 @@
 import type { TabStatus } from '@shared/types';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';
 import { ClaudePane } from './ClaudePane';
@@ -10,6 +10,7 @@ const xterm = vi.hoisted(() => {
   const written: string[] = [];
   let typed: (data: string) => void = () => undefined;
   let keyHandler: (e: KeyboardEvent) => boolean = () => true;
+  let wheelHandler: (e: WheelEvent) => boolean = () => true;
   const dispose = vi.fn();
   const paste = vi.fn();
   const stopTyping = vi.fn();
@@ -28,6 +29,11 @@ const xterm = vi.hoisted(() => {
     attachCustomKeyEventHandler: vi.fn((cb: (e: KeyboardEvent) => boolean) => {
       keyHandler = cb;
     }),
+    attachCustomWheelEventHandler: vi.fn((cb: (e: WheelEvent) => boolean) => {
+      wheelHandler = cb;
+    }),
+    buffer: { active: { type: 'normal' } },
+    modes: { mouseTrackingMode: 'none' },
     getSelection: vi.fn(() => 'selected'),
     paste,
     dispose,
@@ -43,6 +49,7 @@ const xterm = vi.hoisted(() => {
       typed(data);
     },
     key: (e: KeyboardEvent) => keyHandler(e),
+    wheel: (e: WheelEvent) => wheelHandler(e),
   };
 });
 
@@ -61,6 +68,14 @@ vi.mock('@xterm/addon-fit', () => ({
 let resize: () => void = () => undefined;
 const disconnect = vi.fn();
 
+function terminalHost(): HTMLElement {
+  const host: unknown = vi.mocked(xterm.terminal.open).mock.calls[0]?.[0];
+  if (!(host instanceof HTMLElement)) {
+    throw new Error('finding the terminal host');
+  }
+  return host;
+}
+
 function flush() {
   return act(() => Promise.resolve());
 }
@@ -68,6 +83,9 @@ function flush() {
 describe('ClaudePane', () => {
   beforeEach(() => {
     xterm.written.length = 0;
+    localStorage.clear();
+    xterm.terminal.buffer.active.type = 'normal';
+    xterm.terminal.modes.mouseTrackingMode = 'none';
     vi.clearAllMocks();
     useMaple.setState(useMaple.getInitialState(), true);
     vi.stubGlobal(
@@ -121,11 +139,30 @@ describe('ClaudePane', () => {
     fakeMaple({ session: { resize: sessionResize } });
     render(<ClaudePane tabId="t1" actions={[]} />);
     await flush();
+    const host = terminalHost();
+    vi.spyOn(host, 'clientWidth', 'get').mockReturnValue(800);
+    vi.spyOn(host, 'clientHeight', 'get').mockReturnValue(480);
     // when
     resize();
     // then
     expect(xterm.fit).toHaveBeenCalled();
     expect(sessionResize).toHaveBeenCalledWith('t1', 80, 24);
+  });
+
+  test('does not resize the session while hidden', async () => {
+    // given
+    const sessionResize = vi.fn();
+    fakeMaple({ session: { resize: sessionResize } });
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+    const host = terminalHost();
+    vi.spyOn(host, 'clientWidth', 'get').mockReturnValue(0);
+    vi.spyOn(host, 'clientHeight', 'get').mockReturnValue(0);
+    // when
+    resize();
+    // then
+    expect(xterm.fit).not.toHaveBeenCalled();
+    expect(sessionResize).not.toHaveBeenCalled();
   });
 
   test('unmount unsubscribes and disposes, but never closes the tab', async () => {
@@ -239,6 +276,60 @@ describe('ClaudePane', () => {
     const handled = !passed;
     expect(writeText.mock.calls).toEqual(handled && key === 'C' ? [['selected']] : []);
     expect(xterm.paste.mock.calls).toEqual(handled && key === 'V' ? [['clip']] : []);
+  });
+
+  async function wheelAt(clientX: number, clientY: number, deltaY: number) {
+    const write = vi.fn();
+    fakeMaple({ session: { write } });
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+    const host = terminalHost();
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 50, 800, 480));
+    return { write, send: () => xterm.wheel(new WheelEvent('wheel', { deltaY, clientX, clientY })) };
+  }
+
+  test.each([
+    { name: 'up in the alternate buffer', buffer: 'alternate', mode: 'vt200', deltaY: -100, report: '\x1b[<64;11;3M' },
+    { name: 'down in the alternate buffer', buffer: 'alternate', mode: 'any', deltaY: 100, report: '\x1b[<65;11;3M' },
+    { name: 'no mouse tracking', buffer: 'alternate', mode: 'none', deltaY: 100, report: null },
+    { name: 'the normal buffer', buffer: 'normal', mode: 'vt200', deltaY: 100, report: null },
+    { name: 'a sideways scroll', buffer: 'alternate', mode: 'vt200', deltaY: 0, report: null },
+  ])('repeats wheel events while the app tracks the mouse: $name', async ({ buffer, mode, deltaY, report }) => {
+    // given
+    const { write, send } = await wheelAt(205, 95, deltaY);
+    xterm.terminal.buffer.active.type = buffer;
+    xterm.terminal.modes.mouseTrackingMode = mode;
+    // when
+    const passed = send();
+    // then
+    expect(passed).toBe(report === null);
+    expect(write.mock.calls).toEqual(report === null ? [] : [['t1', report.repeat(3)]]);
+  });
+
+  test.each([
+    { name: 'past the bottom right corner', clientX: 950, clientY: 600, report: '\x1b[<65;80;24M' },
+    { name: 'past the top left corner', clientX: 50, clientY: 10, report: '\x1b[<65;1;1M' },
+  ])('a wheel event $name reports a cell inside the terminal', async ({ clientX, clientY, report }) => {
+    // given
+    const { write, send } = await wheelAt(clientX, clientY, 100);
+    xterm.terminal.buffer.active.type = 'alternate';
+    xterm.terminal.modes.mouseTrackingMode = 'vt200';
+    // when
+    send();
+    // then
+    expect(write).toHaveBeenCalledWith('t1', report.repeat(3));
+  });
+
+  test('a wheel notch sends as many reports as the scroll speed control says', async () => {
+    // given
+    const { write, send } = await wheelAt(205, 95, 100);
+    xterm.terminal.buffer.active.type = 'alternate';
+    xterm.terminal.modes.mouseTrackingMode = 'vt200';
+    fireEvent.change(screen.getByLabelText('Scroll speed'), { target: { value: '5' } });
+    // when
+    send();
+    // then
+    expect(write).toHaveBeenCalledWith('t1', '\x1b[<65;11;3M'.repeat(5));
   });
 
   test('shows the action bar', () => {

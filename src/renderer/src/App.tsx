@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './App.module.css';
 import { CardTab } from './card/CardTab';
 import { HomeTab } from './home/HomeTab';
@@ -15,11 +15,20 @@ export function App() {
   const problems = useMaple((s) => s.problems);
   const warnings = useMaple((s) => s.warnings);
   const projectKey = useMaple((s) => s.projectKey);
-  const activeTab = useMaple((s) => s.tabs.find((t) => t.id === s.activeTabId));
+  const tabs = useMaple((s) => s.tabs);
+  const activeTabId = useMaple((s) => s.activeTabId);
+  const [visited, setVisited] = useState<readonly string[]>([]);
+
+  if (projectKey !== null && !visited.includes(projectKey)) {
+    setVisited([...visited, projectKey]);
+  }
 
   useEffect(() => {
     void init();
   }, [init]);
+
+  const cardTabs = tabs.filter((t) => t.kind === 'card');
+  const cardActive = cardTabs.some((t) => t.id === activeTabId);
 
   const messages = [
     ...problems.map((p) => p.message),
@@ -31,11 +40,16 @@ export function App() {
     <div className={styles.app}>
       {messages.length > 0 && <Banner messages={messages} />}
       <TabBar />
-      {activeTab ? (
-        <CardTab key={activeTab.id} tab={activeTab} />
-      ) : (
-        projectKey !== null && <HomeTab key={projectKey} projectKey={projectKey} />
-      )}
+      {cardTabs.map((tab) => (
+        <div key={tab.id} className={styles.slot} hidden={tab.id !== activeTabId}>
+          <CardTab tab={tab} />
+        </div>
+      ))}
+      {visited.map((key) => (
+        <div key={key} className={styles.slot} hidden={key !== projectKey || cardActive}>
+          <HomeTab projectKey={key} />
+        </div>
+      ))}
       <QuitGuard />
     </div>
   );

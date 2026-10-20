@@ -53,4 +53,15 @@ describe('ActionBar', () => {
     expect(button).toBeEnabled();
     expect(button).not.toHaveAttribute('title');
   });
+
+  test('renders its children after the actions', () => {
+    // when
+    render(
+      <ActionBar actions={[{ label: 'Approve', onClick: vi.fn() }]}>
+        <span>extra</span>
+      </ActionBar>,
+    );
+    // then
+    expect(screen.getByRole('button', { name: 'Approve' }).nextSibling).toHaveTextContent('extra');
+  });
 });
