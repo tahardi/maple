@@ -55,6 +55,22 @@ describe('sessionCost', () => {
     expect(cost).toMatchObject({ inputTokens: 20, outputTokens: 40, cacheWriteTokens: 200, cacheReadTokens: 2000 });
   });
 
+  test('usage without cache fields counts no cache tokens', async () => {
+    // given
+    const bare = { input_tokens: 10, output_tokens: 20 } as Usage;
+    await writeFile(join(dir, 's1.jsonl'), assistant('msg_1', 'claude-sonnet-4-5', bare) + '\n');
+    // when
+    const cost = await sessionCost('s1', root);
+    // then
+    expect(cost).toEqual({
+      inputTokens: 10,
+      outputTokens: 20,
+      cacheWriteTokens: 0,
+      cacheReadTokens: 0,
+      dollars: (10 * 3 + 20 * 15) / 1e6,
+    });
+  });
+
   test('includes subagent transcripts', async () => {
     // given
     await writeFile(join(dir, 's1.jsonl'), assistant('msg_1') + '\n');
