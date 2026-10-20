@@ -206,14 +206,21 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   );
 
   useEffect(() => {
-    if (plain === null || commentMarks.length === 0) {
+    const model = plain?.getModel() ?? null;
+    if (plain === null || model === null || commentMarks.length === 0) {
       return;
     }
     const decorations = plain.createDecorationsCollection(
       commentMarks.map((mark) => ({
-        range: { startLineNumber: mark.line, startColumn: 1, endLineNumber: mark.line, endColumn: 1 },
+        range: {
+          startLineNumber: mark.line,
+          startColumn: 1,
+          endLineNumber: mark.line,
+          endColumn: model.getLineMaxColumn(mark.line),
+        },
         options: {
           isWholeLine: true,
+          showIfCollapsed: true,
           linesDecorationsClassName: 'margin-comment',
           after: { content: mark.preview, inlineClassName: 'comment-preview' },
           hoverMessage: { value: mark.hover },

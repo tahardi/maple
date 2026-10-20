@@ -874,9 +874,10 @@ describe('FileViewer', () => {
     await vi.waitFor(() => {
       expect(monaco.editor.createDecorationsCollection).toHaveBeenLastCalledWith([
         {
-          range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+          range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 9 },
           options: {
             isWholeLine: true,
+            showIfCollapsed: true,
             linesDecorationsClassName: 'margin-comment',
             after: { content: '  💬 tahardi: why?', inlineClassName: 'comment-preview' },
             hoverMessage: { value: '**tahardi**: why?' },
