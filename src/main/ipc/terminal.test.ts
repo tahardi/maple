@@ -107,6 +107,30 @@ describe('registerTerminal', () => {
     expect(terminals[method]).toHaveBeenCalledWith(...args);
   });
 
+  test('terminal:open rejects a tab whose project is not configured', async () => {
+    // given
+    const { terminals } = setup([{ ...tab, projectKey: 'HALO' }]);
+    // when
+    const got = invoke('terminal:open', 't1');
+    // then
+    await expect(got).rejects.toThrow('opening terminal: unknown project HALO');
+    expect(terminals.open).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { channel: 'terminal:write', args: ['', 'x'], method: 'write' },
+    { channel: 'terminal:write', args: ['t1', 42], method: 'write' },
+    { channel: 'terminal:resize', args: ['t1', 0, 24], method: 'resize' },
+    { channel: 'terminal:resize', args: ['t1', 80, 1.5], method: 'resize' },
+  ] as const)('$channel drops invalid args $args', ({ channel, args, method }) => {
+    // given
+    const { terminals } = setup();
+    // when
+    listener(channel)({} as IpcMainEvent, ...args);
+    // then
+    expect(terminals[method]).not.toHaveBeenCalled();
+  });
+
   test('terminal:backlog returns the tab backlog', () => {
     // given
     const { terminals } = setup();

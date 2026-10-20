@@ -119,6 +119,98 @@ describe('Terminals', () => {
     expect(ptys[0].resized).toEqual([[100, 30]]);
   });
 
+  test('an exit from a replaced pty is ignored', () => {
+    // given
+    const { terminals, ptys } = setup();
+    const exits: number[] = [];
+    terminals.on('exit', (_tabId, code) => exits.push(code));
+    terminals.open('t1', '/tmp/a');
+    ptys[0].emitExit(1);
+    terminals.open('t1', '/tmp/a');
+    // when
+    ptys[0].emitExit(2);
+    terminals.write('t1', 'ls\r');
+    // then
+    expect(exits).toEqual([1]);
+    expect(ptys[1].written).toEqual(['ls\r']);
+  });
+
+  test('the backlog carries over a restart', () => {
+    // given
+    const { terminals, ptys } = setup();
+    terminals.open('t1', '/tmp/a');
+    ptys[0].emitData('before ');
+    ptys[0].emitExit(0);
+    // when
+    terminals.open('t1', '/tmp/a');
+    ptys[1].emitData('after');
+    // then
+    expect(terminals.backlog('t1')).toBe('before after');
+  });
+
+  test.each([
+    {
+      name: 'a write to an exited shell',
+      act: (t: Terminals) => {
+        t.write('t1', 'x');
+      },
+    },
+    {
+      name: 'a resize of an exited shell',
+      act: (t: Terminals) => {
+        t.resize('t1', 80, 24);
+      },
+    },
+  ])('$name is dropped', ({ act }) => {
+    // given
+    const { terminals, ptys } = setup();
+    terminals.open('t1', '/tmp/a');
+    ptys[0].emitExit(0);
+    // when
+    act(terminals);
+    // then
+    expect(ptys[0].written).toEqual([]);
+    expect(ptys[0].resized).toEqual([]);
+  });
+
+  test.each([
+    { cols: 0, rows: 24 },
+    { cols: 80, rows: 0 },
+  ])('resize to $cols x $rows is ignored', ({ cols, rows }) => {
+    // given
+    const { terminals, ptys } = setup();
+    terminals.open('t1', '/tmp/a');
+    // when
+    terminals.resize('t1', cols, rows);
+    // then
+    expect(ptys[0].resized).toEqual([]);
+  });
+
+  test('calls for a tab without a shell do nothing', () => {
+    // given
+    const { terminals, spawnFn } = setup();
+    // when
+    terminals.write('t9', 'x');
+    terminals.resize('t9', 80, 24);
+    terminals.close('t9');
+    // then
+    expect(spawnFn).not.toHaveBeenCalled();
+    expect(terminals.backlog('t9')).toBe('');
+  });
+
+  test('open after close spawns a fresh shell with an empty backlog', () => {
+    // given
+    const { terminals, ptys } = setup();
+    terminals.open('t1', '/tmp/a');
+    ptys[0].emitData('old');
+    terminals.close('t1');
+    // when
+    terminals.open('t1', '/tmp/a');
+    // then
+    expect(ptys).toHaveLength(2);
+    expect(terminals.backlog('t1')).toBe('');
+  });
+
   test('close kills the pty', () => {
     // given
     const { terminals, ptys } = setup();

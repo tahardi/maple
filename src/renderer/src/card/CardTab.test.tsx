@@ -1,10 +1,12 @@
 import type { Card, PrInfo, TabState, VaultNote } from '@shared/types';
 import type { PaneAction } from '../claude/ClaudePane';
 import { act, render, screen, within } from '@testing-library/react';
+import { useEffect } from 'react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
 import { CardTab } from './CardTab';
+import { TerminalPane } from './TerminalPane';
 
 vi.mock('./monacoSetup', () => ({}));
 
@@ -16,7 +18,7 @@ vi.mock('../claude/ClaudePane', async () => {
 });
 
 vi.mock('./TerminalPane', () => ({
-  TerminalPane: ({ tabId }: { tabId: string }) => <div data-testid="terminal-pane">{tabId}</div>,
+  TerminalPane: vi.fn(({ tabId }: { tabId: string }) => <div data-testid="terminal-pane">{tabId}</div>),
 }));
 
 vi.mock('@monaco-editor/react', () => ({
@@ -484,6 +486,41 @@ describe('CardTab', () => {
     // then
     expect(screen.getByTestId('terminal-pane')).not.toBeVisible();
     expect(close).not.toHaveBeenCalled();
+  });
+
+  test('showing the panel again keeps the same shell', async () => {
+    // given
+    const mounts = vi.fn();
+    vi.mocked(TerminalPane).mockImplementation(({ tabId }: { tabId: string }) => {
+      useEffect(mounts, []);
+      return <div data-testid="terminal-pane">{tabId}</div>;
+    });
+    fakeMaple();
+    render(<CardTab tab={tab} />);
+    const button = screen.getByRole('button', { name: 'Terminal' });
+    await userEvent.click(button);
+    await userEvent.click(button);
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+    // when
+    await userEvent.click(button);
+    // then
+    expect(screen.getByTestId('terminal-pane')).toBeVisible();
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    expect(mounts).toHaveBeenCalledOnce();
+  });
+
+  test('a tab that stops being active stops toggling on Ctrl+backtick', async () => {
+    // given
+    fakeMaple();
+    useMaple.setState({ activeTabId: 't1' });
+    render(<CardTab tab={tab} />);
+    act(() => {
+      useMaple.setState({ activeTabId: 't2' });
+    });
+    // when
+    await userEvent.keyboard('{Control>}`{/Control}');
+    // then
+    expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument();
   });
 
   test.each([
