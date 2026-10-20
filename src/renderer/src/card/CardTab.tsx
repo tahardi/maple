@@ -10,9 +10,11 @@ import { FileTree } from './FileTree';
 import { FileViewer } from './FileViewer';
 import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
+import { QuickOpen } from './QuickOpen';
 import { PR_DESCRIPTION } from './prDescription';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
+import { useQuickOpenKeys, type QuickOpenMode } from './useQuickOpenKeys';
 import { useVault } from './useVault';
 import { VAULT_PREFIX, VaultSwitch, type TreeView } from './VaultSwitch';
 
@@ -35,10 +37,13 @@ export function CardTab({ tab }: { tab: TabState }) {
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
+  const active = useMaple((s) => s.activeTabId === tab.id);
   const [columns, setColumns] = useColumns();
   const [changedOverride, setChangedOverride] = useState<boolean | null>(null);
   const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [line, setLine] = useState<number | null>(null);
+  const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
   const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
@@ -48,6 +53,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const changed = changes?.files ?? [];
   const worktreeExists = tab.worktreePath !== null;
+  useQuickOpenKeys(active && worktreeExists ? setQuickOpen : null);
   const placeholder = card?.status === 'Done' ? MERGED : WAITING;
   const hasVault = (config?.vaultDir ?? null) !== null;
   const view = viewOverride ?? (worktreeExists ? 'worktree' : 'vault');
@@ -75,9 +81,15 @@ export function CardTab({ tab }: { tab: TabState }) {
           },
         });
 
-  const openFile = (path: string) => {
+  const openFile = (path: string, at: number | null = null) => {
     setOpenFiles((files) => (files.includes(path) ? files : [...files, path]));
     setActiveFile(path);
+    setLine(at);
+  };
+
+  const activateFile = (path: string | null) => {
+    setActiveFile(path);
+    setLine(null);
   };
 
   if (!descriptionOpened && pr?.data) {
@@ -90,7 +102,7 @@ export function CardTab({ tab }: { tab: TabState }) {
     const rest = openFiles.filter((file) => file !== path);
     setOpenFiles(rest);
     if (path === activeFile) {
-      setActiveFile(rest.at(-1) ?? null);
+      activateFile(rest.at(-1) ?? null);
     }
   };
 
@@ -176,9 +188,10 @@ export function CardTab({ tab }: { tab: TabState }) {
               tabId={tab.id}
               openFiles={openFiles}
               activeFile={activeFile}
-              onActivate={setActiveFile}
+              onActivate={activateFile}
               onCloseFile={closeFile}
               prBody={pr?.data?.body ?? null}
+              line={line}
             />
           )}
         </div>
@@ -193,6 +206,20 @@ export function CardTab({ tab }: { tab: TabState }) {
           <ClaudePane tabId={tab.id} actions={actions} />
         </div>
       </div>
+      {quickOpen !== null && (
+        <QuickOpen
+          tabId={tab.id}
+          files={files}
+          mode={quickOpen}
+          onOpen={(path, at) => {
+            setQuickOpen(null);
+            openFile(path, at);
+          }}
+          onClose={() => {
+            setQuickOpen(null);
+          }}
+        />
+      )}
     </div>
   );
 }

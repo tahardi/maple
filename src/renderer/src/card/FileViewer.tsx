@@ -17,6 +17,7 @@ type Props = {
   onActivate: (path: string) => void;
   onCloseFile: (path: string) => void;
   prBody: string | null;
+  line: number | null;
 };
 
 type Mode = 'in-file' | 'side-by-side';
@@ -49,14 +50,16 @@ function baseName(path: string): string {
   return bare.split('/').at(-1) ?? bare;
 }
 
-export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody }: Props) {
+export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody, line }: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
   const [note, setNote] = useState<{ path: string; text: string } | null>(null);
   const [plain, setPlain] = useState<editor.ICodeEditor | null>(null);
   const scrollTarget = useRef<editor.ICodeEditor | null>(null);
+  const [target, setTarget] = useState<editor.ICodeEditor | null>(null);
   const keepScroll = useRef<number | null>(null);
+  const pendingLine = useRef<number | null>(null);
 
   const showsDescription = activeFile === PR_DESCRIPTION;
   const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
@@ -109,6 +112,27 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   }, [pair]);
 
   const shown = pair !== null && pair.path === activeFile ? pair : null;
+
+  useEffect(() => {
+    pendingLine.current = line;
+  }, [line, activeFile]);
+
+  useEffect(() => {
+    const at = pendingLine.current;
+    const model = target?.getModel() ?? null;
+    if (at === null || shown?.kind !== 'text' || target === null || model === null) {
+      return;
+    }
+    target.revealLineInCenter(at);
+    target.setSelection({
+      startLineNumber: at,
+      startColumn: 1,
+      endLineNumber: at,
+      endColumn: model.getLineMaxColumn(at),
+    });
+    target.focus();
+    pendingLine.current = null;
+  }, [line, shown, target]);
   const text = shown?.kind === 'text' ? shown : null;
   const changed = text !== null && text.current !== null && text.base !== text.current;
   const sideBySide = changed && mode === 'side-by-side';
@@ -188,6 +212,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
           onMount={(diff) => {
             setPlain(null);
             scrollTarget.current = diff.getModifiedEditor();
+            setTarget(diff.getModifiedEditor());
           }}
         />
       );
@@ -205,6 +230,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             onMount={(mounted) => {
               setPlain(mounted);
               scrollTarget.current = mounted;
+              setTarget(mounted);
             }}
           />
         </div>
