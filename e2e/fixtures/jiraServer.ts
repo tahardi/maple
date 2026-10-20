@@ -10,10 +10,12 @@ const routes: readonly { pattern: RegExp; file: string }[] = [
   { pattern: /^\/rest\/api\/3\/issue\/[A-Z]+-\d+\?/, file: 'issue.json' },
 ];
 
-export type JiraServer = { url: string; close: () => Promise<void> };
+export type JiraServer = { url: string; requests: readonly string[]; close: () => Promise<void> };
 
 export async function startJiraServer(): Promise<JiraServer> {
+  const requests: string[] = [];
   const server = createServer((req, res) => {
+    requests.push(`${new Date().toISOString()} ${req.method ?? ''} ${req.url ?? ''}`);
     const route = routes.find((r) => r.pattern.test(req.url ?? ''));
     if (!route) {
       res.writeHead(404).end();
@@ -32,6 +34,7 @@ export async function startJiraServer(): Promise<JiraServer> {
   }
   return {
     url: `http://127.0.0.1:${String(address.port)}`,
+    requests,
     close: () =>
       new Promise((resolve) => {
         server.close(() => {

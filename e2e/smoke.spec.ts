@@ -1,5 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { _electron, expect, test, type ElectronApplication } from '@playwright/test';
@@ -39,7 +48,10 @@ async function sandbox() {
     TMUX_TMPDIR: root,
   };
   const tmux = (...args: string[]) => execFileSync('tmux', ['-L', 'maple', ...args], { env }).toString();
-  const launch = () => _electron.launch({ args: ['out/main/index.js'], env });
+  const launch = () => {
+    appendFileSync(test.info().outputPath('launches.log'), `${new Date().toISOString()}\n`);
+    return _electron.launch({ args: ['out/main/index.js'], env });
+  };
   const crash = async (app: ElectronApplication) => {
     const exited = new Promise((resolve) => app.process().once('exit', resolve));
     app.process().kill('SIGKILL');
@@ -51,6 +63,11 @@ async function sandbox() {
     tmux('kill-server');
     await closed;
     await jira.close();
+    const log = join(configDir, 'logs', 'main.log');
+    if (existsSync(log)) {
+      copyFileSync(log, test.info().outputPath('main.log'));
+    }
+    writeFileSync(test.info().outputPath('jira-requests.log'), jira.requests.join('\n'));
     rmSync(root, { recursive: true, force: true });
   };
   return { tmux, launch, crash, cleanup };
