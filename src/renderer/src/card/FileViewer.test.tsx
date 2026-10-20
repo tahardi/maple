@@ -136,6 +136,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={null}
+        line={null}
       />,
     );
     // then
@@ -156,6 +157,7 @@ describe('FileViewer', () => {
       onActivate: vi.fn(),
       onCloseFile: vi.fn(),
       prBody: null,
+      line: null,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="vault:Spike.md" />);
     await screen.findByRole('heading', { name: 'First' });
