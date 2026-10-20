@@ -1,0 +1,20 @@
+.pane {
+  position: relative;
+  height: 100%;
+}
+
+.terminal {
+  position: absolute;
+  inset: 0;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay);
+  color: var(--text);
+}

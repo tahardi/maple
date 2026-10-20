@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { IPC_CHANNELS, type ChannelKind } from '@shared/ipc';
 import { SessionManager } from '../sessions';
 import { StatusEngine } from '../status';
+import { Terminals } from '../terminals';
 import { registerIpc } from './index';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
@@ -50,6 +51,7 @@ describe('registerIpc', () => {
     worktreeFor: () => null,
     project: () => Promise.resolve(null),
     sessions,
+    terminals: new Terminals({ spawn: vi.fn() }),
     status,
     setActiveTab: vi.fn(),
     warnings: () => [],

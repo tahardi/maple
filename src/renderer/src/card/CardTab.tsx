@@ -1,5 +1,5 @@
 import type { FileChange, TabState, VaultNote } from '@shared/types';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { useMaple } from '../store';
 import { buildTree } from './buildTree';
@@ -12,6 +12,7 @@ import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
 import { QuickOpen } from './QuickOpen';
 import { PR_DESCRIPTION } from './prDescription';
+import { TerminalPane } from './TerminalPane';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
 import { useQuickOpenKeys, type QuickOpenMode } from './useQuickOpenKeys';
@@ -46,6 +47,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
+  const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
   const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
   const [vaultChangedOnly, setVaultChangedOnly] = useState(true);
   const body = useRef<HTMLDivElement>(null);
@@ -80,6 +82,26 @@ export function CardTab({ tab }: { tab: TabState }) {
             });
           },
         });
+
+  const toggleTerminal = () => {
+    setTerminal((t) => (t === 'shown' ? 'hidden' : 'shown'));
+  };
+
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === '`') {
+        e.preventDefault();
+        toggleTerminal();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [active]);
 
   const openFile = (path: string, at: number | null = null) => {
     setOpenFiles((files) => (files.includes(path) ? files : [...files, path]));
@@ -181,18 +203,30 @@ export function CardTab({ tab }: { tab: TabState }) {
         </div>
         <div className={styles.divider} onPointerDown={drag('left')} />
         <div className={styles.middle} data-testid="viewer-slot">
-          {tab.worktreePath === null && !showsVault ? (
-            <div className={styles.waiting}>{placeholder}</div>
-          ) : (
-            <FileViewer
-              tabId={tab.id}
-              openFiles={openFiles}
-              activeFile={activeFile}
-              onActivate={activateFile}
-              onCloseFile={closeFile}
-              prBody={pr?.data?.body ?? null}
-              line={line}
-            />
+          <div className={styles.viewer}>
+            {tab.worktreePath === null && !showsVault ? (
+              <div className={styles.waiting}>{placeholder}</div>
+            ) : (
+              <FileViewer
+                tabId={tab.id}
+                openFiles={openFiles}
+                activeFile={activeFile}
+                onActivate={activateFile}
+                onCloseFile={closeFile}
+                prBody={pr?.data?.body ?? null}
+                line={line}
+              />
+            )}
+          </div>
+          <div className={styles.terminalBar}>
+            <button aria-pressed={terminal === 'shown'} onClick={toggleTerminal}>
+              Terminal
+            </button>
+          </div>
+          {terminal !== 'closed' && (
+            <div className={styles.terminal} hidden={terminal === 'hidden'}>
+              <TerminalPane tabId={tab.id} />
+            </div>
           )}
         </div>
         <div className={styles.divider} onPointerDown={drag('right')} />

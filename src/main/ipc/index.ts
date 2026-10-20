@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron';
 import type { ProjectConfig } from '@shared/types';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
+import type { Terminals } from '../terminals';
 import { registerApp } from './app';
 import { registerConfig } from './config';
 import { registerJira } from './jira';
@@ -10,6 +11,7 @@ import { registerPreflight } from './preflight';
 import { registerRepo } from './repo';
 import { registerSession } from './session';
 import { registerTabs } from './tabs';
+import { registerTerminal } from './terminal';
 import { registerVault } from './vault';
 
 export type IpcDeps = {
@@ -17,6 +19,7 @@ export type IpcDeps = {
   worktreeFor: (tabId: string) => string | null;
   project: (projectKey: string) => Promise<ProjectConfig | null>;
   sessions: SessionManager;
+  terminals: Terminals;
   status: StatusEngine;
   setActiveTab: (tabId: string | null) => void;
   setNotifications: (on: boolean) => Promise<void>;
@@ -29,6 +32,7 @@ const registrars: readonly ((deps: IpcDeps) => void)[] = [
   registerJira,
   registerTabs,
   registerSession,
+  registerTerminal,
   registerRepo,
   registerVault,
   registerPr,

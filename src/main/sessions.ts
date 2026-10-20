@@ -46,7 +46,7 @@ type Session = {
 
 type Launch = { resume: boolean; prompt: string | null };
 
-function parentEnv(): NodeJS.ProcessEnv {
+export function parentEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.CLAUDE_CODE_CHILD_SESSION;
   return env;
