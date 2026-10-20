@@ -32,6 +32,7 @@ describe('inboxItems', () => {
     tabs: TabState[];
     statuses: TabStatus[];
     since: Record<string, number>;
+    seen?: Record<string, number>;
     points: Record<string, number | null>;
     want: InboxItem[];
   }>([
@@ -82,9 +83,29 @@ describe('inboxItems', () => {
       points: { 'DIG-1': 1 },
       want: [],
     },
-  ])('$name', ({ tabs, statuses, since, points, want }) => {
+    {
+      name: 'leaves out a tab seen since its dot changed',
+      tabs: [card('t1', 'DIG', 'DIG-1')],
+      statuses: [status('t1', 'ready')],
+      since: { t1: 100 },
+      seen: { t1: 100 },
+      points: {},
+      want: [],
+    },
+    {
+      name: 'includes a tab whose dot changed after it was seen',
+      tabs: [card('t1', 'DIG', 'DIG-1')],
+      statuses: [status('t1', 'waiting')],
+      since: { t1: 200 },
+      seen: { t1: 100 },
+      points: {},
+      want: [
+        { tabId: 't1', projectKey: 'DIG', kind: 'card', cardKey: 'DIG-1', dot: 'waiting', since: 200, points: null },
+      ],
+    },
+  ])('$name', ({ tabs, statuses, since, seen = {}, points, want }) => {
     // given
-    const args = [tabs, statuses, since, points] as const;
+    const args = [tabs, statuses, since, seen, points] as const;
     // when
     const got = inboxItems(...args);
     // then

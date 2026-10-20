@@ -9,6 +9,7 @@ type MapleState = {
   tabs: TabState[];
   statuses: Record<string, TabStatus>;
   since: Record<string, number>;
+  seen: Record<string, number>;
   activeTabId: string | null;
   confirmClose: string | null;
   lastActive: Record<string, string | null>;
@@ -23,6 +24,10 @@ type MapleState = {
 
 let unsubscribes: Unsubscribe[] = [];
 
+function inView(tab: TabState, projectKey: string | null, activeTabId: string | null): boolean {
+  return activeTabId === null ? tab.kind === 'planner' && tab.projectKey === projectKey : tab.id === activeTabId;
+}
+
 function firstProject(config: Fetched<MapleConfig>): string | null {
   return config.data?.projects[0]?.jiraKey ?? null;
 }
@@ -35,6 +40,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
   tabs: [],
   statuses: {},
   since: {},
+  seen: {},
   activeTabId: null,
   confirmClose: null,
   lastActive: {},
@@ -91,10 +97,13 @@ export const useMaple = create<MapleState>()((set, get) => ({
   },
 
   activate(tabId) {
-    const { projectKey, lastActive } = get();
+    const { projectKey, lastActive, tabs, seen } = get();
+    const now = Date.now();
+    const viewed = tabs.filter((t) => inView(t, projectKey, tabId)).map((t): [string, number] => [t.id, now]);
     set({
       activeTabId: tabId,
       lastActive: projectKey === null ? lastActive : { ...lastActive, [projectKey]: tabId },
+      seen: { ...seen, ...Object.fromEntries(viewed) },
     });
     window.maple.tabs.setActive(tabId);
   },
@@ -105,9 +114,15 @@ export const useMaple = create<MapleState>()((set, get) => ({
   },
 
   setStatus(s) {
-    const { statuses, since } = get();
+    const { statuses, since, seen, tabs, projectKey, activeTabId } = get();
     const changed = !Object.hasOwn(statuses, s.tabId) || statuses[s.tabId].dot !== s.dot;
-    set({ statuses: { ...statuses, [s.tabId]: s }, since: changed ? { ...since, [s.tabId]: Date.now() } : since });
+    const now = Date.now();
+    const viewed = tabs.some((t) => t.id === s.tabId && inView(t, projectKey, activeTabId));
+    set({
+      statuses: { ...statuses, [s.tabId]: s },
+      since: changed ? { ...since, [s.tabId]: now } : since,
+      seen: changed && viewed ? { ...seen, [s.tabId]: now } : seen,
+    });
   },
 
   async closeTab(tabId, force) {

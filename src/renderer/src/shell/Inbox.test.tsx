@@ -1,5 +1,5 @@
 import type { Card, Dot, Sprint, TabState, TabStatus } from '@shared/types';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
@@ -74,7 +74,7 @@ describe('Inbox', () => {
     expect(button).toHaveTextContent('Inbox 2');
   });
 
-  test('opening lists items oldest first with project, dot, points, and age, and the ready points total', async () => {
+  test('opening lists items oldest first with project and dot, and the ready points total', async () => {
     // given
     useMaple.setState({
       tabs: [...useMaple.getState().tabs, tab('t4', 'DIG', 'card', 'DIG-9')],
@@ -87,11 +87,7 @@ describe('Inbox', () => {
     // then
     expect(await screen.findByText('Ready: 3 pts')).toBeInTheDocument();
     const rows = screen.getAllByRole('listitem').map((r) => r.textContent);
-    expect(rows).toEqual([
-      'DIG-1 · Dig Days · ready · 3 pts · 25m',
-      'BEAR-2 · Bearclave · waiting · 5 pts · 10m',
-      'DIG-9 · Dig Days · waiting · – · 5m',
-    ]);
+    expect(rows).toEqual(['DIG-1 · Dig Days · ready', 'BEAR-2 · Bearclave · waiting', 'DIG-9 · Dig Days · waiting']);
   });
 
   test('clicking a card row selects its project and activates the tab', async () => {
@@ -126,6 +122,27 @@ describe('Inbox', () => {
     // then
     expect(selectProject).toHaveBeenCalledWith('DIG');
     expect(activate).toHaveBeenLastCalledWith(null);
+  });
+
+  test('a visited tab leaves the inbox until its dot changes again', async () => {
+    // given
+    render(<Inbox />);
+    const button = screen.getByRole('button', { name: /^Inbox/ });
+    await userEvent.click(button);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-1/ }));
+    const afterVisit = button.textContent;
+    act(() => {
+      useMaple.getState().activate('t1');
+    });
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 60_000);
+    // when
+    act(() => {
+      useMaple.getState().setStatus(status('t3', 'waiting'));
+    });
+    // then
+    vi.restoreAllMocks();
+    expect(afterVisit).toBe('Inbox 1');
+    expect(button).toHaveTextContent('Inbox 2');
   });
 
   test('clicking the button again closes the list', async () => {

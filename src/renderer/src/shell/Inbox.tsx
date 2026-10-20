@@ -3,11 +3,6 @@ import { useState } from 'react';
 import { useMaple } from '../store';
 import styles from './Inbox.module.css';
 
-function age(since: number): string {
-  const minutes = Math.floor((Date.now() - since) / 60_000);
-  return minutes < 60 ? `${String(minutes)}m` : `${String(Math.floor(minutes / 60))}h`;
-}
-
 function pointsLabel(points: number | null): string {
   return points === null ? '–' : `${String(points)} pts`;
 }
@@ -16,12 +11,13 @@ export function Inbox() {
   const tabs = useMaple((s) => s.tabs);
   const statuses = useMaple((s) => s.statuses);
   const since = useMaple((s) => s.since);
+  const seen = useMaple((s) => s.seen);
   const config = useMaple((s) => s.config);
   const selectProject = useMaple((s) => s.selectProject);
   const activate = useMaple((s) => s.activate);
   const [open, setOpen] = useState(false);
   const [points, setPoints] = useState<Record<string, number | null>>({});
-  const items = inboxItems(tabs, Object.values(statuses), since, points);
+  const items = inboxItems(tabs, Object.values(statuses), since, seen, points);
   const readyPoints = items.filter((i) => i.dot === 'ready').reduce((sum, i) => sum + (i.points ?? 0), 0);
   const projectName = (key: string) => config?.data?.projects.find((p) => p.jiraKey === key)?.name ?? key;
 
@@ -65,13 +61,7 @@ export function Inbox() {
                         go(item);
                       }}
                     >
-                      {[
-                        item.cardKey ?? 'Planner',
-                        projectName(item.projectKey),
-                        item.dot,
-                        pointsLabel(item.points),
-                        age(item.since),
-                      ].join(' · ')}
+                      {[item.cardKey ?? 'Planner', projectName(item.projectKey), item.dot].join(' · ')}
                     </button>
                   </li>
                 ))}
