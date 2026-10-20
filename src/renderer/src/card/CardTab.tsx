@@ -1,5 +1,5 @@
 import type { TabState } from '@shared/types';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { useMaple } from '../store';
 import { buildTree } from './buildTree';
@@ -11,6 +11,7 @@ import { FileViewer } from './FileViewer';
 import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
 import { PR_DESCRIPTION } from './prDescription';
+import { TerminalPane } from './TerminalPane';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
 
@@ -28,12 +29,14 @@ export function CardTab({ tab }: { tab: TabState }) {
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
+  const active = useMaple((s) => s.activeTabId === tab.id);
   const [columns, setColumns] = useColumns();
   const [changedOverride, setChangedOverride] = useState<boolean | null>(null);
   const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
+  const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
   const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
@@ -60,6 +63,26 @@ export function CardTab({ tab }: { tab: TabState }) {
             });
           },
         });
+
+  const toggleTerminal = () => {
+    setTerminal((t) => (t === 'shown' ? 'hidden' : 'shown'));
+  };
+
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === '`') {
+        e.preventDefault();
+        toggleTerminal();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [active]);
 
   const openFile = (path: string) => {
     setOpenFiles((files) => (files.includes(path) ? files : [...files, path]));
@@ -137,17 +160,29 @@ export function CardTab({ tab }: { tab: TabState }) {
         </div>
         <div className={styles.divider} onPointerDown={drag('left')} />
         <div className={styles.middle} data-testid="viewer-slot">
-          {tab.worktreePath === null ? (
-            <div className={styles.waiting}>{placeholder}</div>
-          ) : (
-            <FileViewer
-              tabId={tab.id}
-              openFiles={openFiles}
-              activeFile={activeFile}
-              onActivate={setActiveFile}
-              onCloseFile={closeFile}
-              prBody={pr?.data?.body ?? null}
-            />
+          <div className={styles.viewer}>
+            {tab.worktreePath === null ? (
+              <div className={styles.waiting}>{placeholder}</div>
+            ) : (
+              <FileViewer
+                tabId={tab.id}
+                openFiles={openFiles}
+                activeFile={activeFile}
+                onActivate={setActiveFile}
+                onCloseFile={closeFile}
+                prBody={pr?.data?.body ?? null}
+              />
+            )}
+          </div>
+          <div className={styles.terminalBar}>
+            <button aria-pressed={terminal === 'shown'} onClick={toggleTerminal}>
+              Terminal
+            </button>
+          </div>
+          {terminal !== 'closed' && (
+            <div className={styles.terminal} hidden={terminal === 'hidden'}>
+              <TerminalPane tabId={tab.id} />
+            </div>
           )}
         </div>
         <div className={styles.divider} onPointerDown={drag('right')} />

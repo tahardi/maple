@@ -6,8 +6,9 @@ import { PREFLIGHT_CHANNELS, type PreflightApi } from './api/preflight';
 import { REPO_CHANNELS, type RepoApi } from './api/repo';
 import { SESSION_CHANNELS, type SessionApi } from './api/session';
 import { TABS_CHANNELS, type TabsApi } from './api/tabs';
+import { TERMINAL_CHANNELS, type TerminalApi } from './api/terminal';
 
-export const IPC_AREAS = ['config', 'preflight', 'jira', 'tabs', 'session', 'repo', 'pr', 'app'] as const;
+export const IPC_AREAS = ['config', 'preflight', 'jira', 'tabs', 'session', 'terminal', 'repo', 'pr', 'app'] as const;
 export type IpcArea = (typeof IPC_AREAS)[number];
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- CLAUDE.md allows MapleApi as the one interface
@@ -17,6 +18,7 @@ export interface MapleApi {
   jira: JiraApi;
   tabs: TabsApi;
   session: SessionApi;
+  terminal: TerminalApi;
   repo: RepoApi;
   pr: PrApi;
   app: AppApi;
@@ -30,6 +32,7 @@ export const IPC_CHANNELS = {
   jira: JIRA_CHANNELS,
   tabs: TABS_CHANNELS,
   session: SESSION_CHANNELS,
+  terminal: TERMINAL_CHANNELS,
   repo: REPO_CHANNELS,
   pr: PR_CHANNELS,
   app: APP_CHANNELS,

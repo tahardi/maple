@@ -7,7 +7,7 @@ import { send, type IpcDeps } from './index';
 import { cardKeyArg, handle, on, projectKeyArg, tabIdArg } from './validated';
 
 export function registerTabs(
-  { sessions, status, window, setActiveTab }: IpcDeps,
+  { sessions, terminals, status, window, setActiveTab }: IpcDeps,
   logger: Logger = appLogger,
   costOf: typeof sessionCost = sessionCost,
 ): void {
@@ -29,6 +29,7 @@ export function registerTabs(
       return { closed: false, needsConfirm: true };
     }
     sessions.close(tabId);
+    terminals.close(tabId);
     return { closed: true, needsConfirm: false };
   });
   handle('tabs:resume', z.tuple([tabIdArg]), (tabId) => {

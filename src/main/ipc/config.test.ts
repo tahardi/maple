@@ -2,6 +2,7 @@ import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
+import type { Terminals } from '../terminals';
 import type { Fetched, MapleConfig, ProjectConfig } from '@shared/types';
 import { notificationsDefault, projectByKey, registerConfig } from './config';
 
@@ -43,6 +44,7 @@ function deps(window: () => BrowserWindow | null = () => null) {
     worktreeFor: () => null,
     project: () => Promise.resolve(null),
     sessions,
+    terminals: {} as Terminals,
     status: {} as StatusEngine,
     setActiveTab: vi.fn(),
     warnings: () => [],

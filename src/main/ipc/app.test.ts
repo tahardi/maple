@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { TabState, TabStatus } from '@shared/types';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
+import type { Terminals } from '../terminals';
 import { registerApp } from './app';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
@@ -39,6 +40,7 @@ function setup(dots: Record<string, TabStatus['dot']> = {}, warnings: string[] =
     worktreeFor: () => null,
     project: () => Promise.resolve(null),
     sessions: { get: (id: string) => tabs[id] ?? null } as unknown as SessionManager,
+    terminals: {} as Terminals,
     status: { statuses: () => statuses } as unknown as StatusEngine,
     setActiveTab: () => undefined,
     setNotifications,

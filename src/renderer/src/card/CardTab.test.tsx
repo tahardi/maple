@@ -15,6 +15,10 @@ vi.mock('../claude/ClaudePane', async () => {
   };
 });
 
+vi.mock('./TerminalPane', () => ({
+  TerminalPane: ({ tabId }: { tabId: string }) => <div data-testid="terminal-pane">{tabId}</div>,
+}));
+
 vi.mock('@monaco-editor/react', () => ({
   useMonaco: () => null,
   Editor: () => <div data-testid="editor" />,
@@ -440,5 +444,45 @@ describe('CardTab', () => {
       expect(approve).toHaveAttribute('title', 'Agent is working');
     });
     expect(approve).toBeDisabled();
+  });
+
+  test('the terminal panel is hidden at first and the Terminal button shows it', async () => {
+    // given
+    fakeMaple();
+    render(<CardTab tab={tab} />);
+    expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    // then
+    expect(screen.getByTestId('terminal-pane')).toBeVisible();
+    expect(screen.getByTestId('terminal-pane')).toHaveTextContent('t1');
+  });
+
+  test('Ctrl+backtick hides the panel without closing anything', async () => {
+    // given
+    const close = vi.fn(() => Promise.resolve({ closed: true, needsConfirm: false }));
+    fakeMaple({ tabs: { close } });
+    useMaple.setState({ activeTabId: 't1' });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    // when
+    await userEvent.keyboard('{Control>}`{/Control}');
+    // then
+    expect(screen.getByTestId('terminal-pane')).not.toBeVisible();
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'the active tab', activeTabId: 't1', shown: true },
+    { name: 'another tab', activeTabId: 't2', shown: false },
+  ])('Ctrl+backtick toggles the panel only in $name', async ({ activeTabId, shown }) => {
+    // given
+    fakeMaple();
+    useMaple.setState({ activeTabId });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.keyboard('{Control>}`{/Control}');
+    // then
+    expect(screen.queryByTestId('terminal-pane') !== null).toBe(shown);
   });
 });

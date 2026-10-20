@@ -18,6 +18,7 @@ import { defaultRunner } from './preflight';
 import { restoreTabs } from './restore';
 import { lockDown, webPreferences } from './security';
 import { SessionManager } from './sessions';
+import { Terminals } from './terminals';
 import { saveState, loadState, type SavedState } from './state';
 import { StatusEngine } from './status';
 import { hasTranscript } from './transcripts';
@@ -86,6 +87,7 @@ async function start(): Promise<void> {
     uuid: randomUUID,
     hasTranscript,
   });
+  const terminals = new Terminals({ spawn });
   const jira = readCreds(jiraEnvPath()).then((creds) => new JiraClient(creds));
   jira.catch(() => undefined);
   const status = new StatusEngine({
@@ -98,6 +100,7 @@ async function start(): Promise<void> {
   });
   app.on('will-quit', () => {
     sessions.killAll();
+    terminals.closeAll();
     void stopHooks();
   });
   const restored = config
@@ -126,6 +129,7 @@ async function start(): Promise<void> {
     worktreeFor: (tabId) => sessions.get(tabId)?.worktreePath ?? null,
     project: projectByKey,
     sessions,
+    terminals,
     status,
     setActiveTab: (tabId) => {
       activeTabId = tabId;
