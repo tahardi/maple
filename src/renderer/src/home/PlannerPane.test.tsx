@@ -119,12 +119,12 @@ describe('PlannerPane', () => {
     expect(screen.getByRole('button', { name: 'Select ready (0)' })).toBeDisabled();
   });
 
-  test('a selection shows Start N and Clear', async () => {
+  test('a selection shows Start (N) and Clear', async () => {
     // given
     const { onStart, onClear } = setup({ selected: ['DIG-41', 'DIG-42'] });
     await screen.findByTestId('claude-pane');
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Start 2' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start (2)' }));
     await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
     // then
     expect(onStart).toHaveBeenCalledTimes(1);
@@ -150,7 +150,7 @@ describe('PlannerPane', () => {
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
       'Suggest next batch',
       'Select ready (1)',
-      'Start 1',
+      'Start (1)',
       'Clear',
     ]);
   });

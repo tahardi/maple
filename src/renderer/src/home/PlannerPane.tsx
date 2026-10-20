@@ -66,7 +66,7 @@ export function PlannerPane({
         <button onClick={onSelectReady} disabled={readyCount === 0}>{`Select ready (${String(readyCount)})`}</button>
         {selected.length > 0 && (
           <>
-            <button onClick={onStart}>{`Start ${String(selected.length)}`}</button>
+            <button onClick={onStart}>{`Start (${String(selected.length)})`}</button>
             <button onClick={onClear}>Clear</button>
           </>
         )}

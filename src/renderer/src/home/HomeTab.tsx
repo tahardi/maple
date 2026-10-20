@@ -119,7 +119,7 @@ export function HomeTab({ projectKey }: Props) {
         selected={selected}
         readyCount={ready.length}
         onSelectReady={() => {
-          setPicked([...new Set([...selected, ...ready])]);
+          setPicked(ready.every((key) => selected.includes(key)) ? [] : [...new Set([...selected, ...ready])]);
         }}
         onStart={() => void start(selected)}
         onClear={() => {
