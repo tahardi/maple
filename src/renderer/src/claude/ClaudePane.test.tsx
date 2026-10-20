@@ -1,6 +1,7 @@
 import type { TabStatus } from '@shared/types';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useMaple } from '../store';
@@ -67,6 +68,25 @@ vi.mock('@xterm/addon-fit', () => ({
   }),
 }));
 
+const webgl = vi.hoisted(() => {
+  let lost: () => void = () => undefined;
+  return {
+    dispose: vi.fn(),
+    onContextLoss: vi.fn((cb: () => void) => {
+      lost = cb;
+    }),
+    lose: () => {
+      lost();
+    },
+  };
+});
+
+vi.mock('@xterm/addon-webgl', () => ({
+  WebglAddon: vi.fn(function WebglAddon() {
+    return { dispose: webgl.dispose, onContextLoss: webgl.onContextLoss };
+  }),
+}));
+
 vi.mock('@xterm/addon-unicode11', () => ({
   Unicode11Addon: vi.fn(function Unicode11Addon() {
     return {};
@@ -96,6 +116,7 @@ describe('ClaudePane', () => {
     xterm.terminal.modes.mouseTrackingMode = 'none';
     xterm.terminal.unicode.activeVersion = '6';
     vi.clearAllMocks();
+    vi.mocked(xterm.terminal.loadAddon).mockReset();
     useMaple.setState(useMaple.getInitialState(), true);
     vi.stubGlobal(
       'ResizeObserver',
@@ -218,6 +239,43 @@ describe('ClaudePane', () => {
     expect(xterm.terminal.unicode.activeVersion).toBe('11');
   });
 
+  test('mounting renders with WebGL so powerline glyphs draw without a patched font', async () => {
+    // given
+    fakeMaple();
+    // when
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+    // then
+    expect(xterm.terminal.loadAddon).toHaveBeenCalledWith(vi.mocked(WebglAddon).mock.results[0]?.value);
+  });
+
+  test('a lost WebGL context falls back to the DOM renderer', async () => {
+    // given
+    fakeMaple();
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+    // when
+    webgl.lose();
+    // then
+    expect(webgl.dispose).toHaveBeenCalledOnce();
+  });
+
+  test('mounting still works when WebGL is unavailable', async () => {
+    // given
+    fakeMaple();
+    vi.mocked(xterm.terminal.loadAddon).mockImplementation((addon: unknown) => {
+      if (addon === vi.mocked(WebglAddon).mock.results[0]?.value) {
+        throw new Error('WebGL2 not supported');
+      }
+    });
+    // when
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+    // then
+    expect(xterm.terminal.open).toHaveBeenCalled();
+    expect(xterm.terminal.onData).toHaveBeenCalled();
+  });
+
   test('mounting reads the backlog and live data for its own tab', async () => {
     // given
     const backlog = vi.fn(() => Promise.resolve(''));
@@ -280,6 +338,14 @@ describe('ClaudePane', () => {
     { name: 'Ctrl+Shift+X goes to the session', type: 'keydown', key: 'X', ctrl: true, shift: true, passed: true },
     { name: 'Shift+C goes to the session', type: 'keydown', key: 'C', ctrl: false, shift: true, passed: true },
     { name: 'Ctrl+Shift+C keyup does not copy', type: 'keyup', key: 'C', ctrl: true, shift: true, passed: true },
+    {
+      name: 'Ctrl+backtick is left to the panel toggle',
+      type: 'keydown',
+      key: '`',
+      ctrl: true,
+      shift: false,
+      passed: false,
+    },
   ])('$name', async ({ type, key, ctrl, shift, passed }) => {
     // given
     fakeMaple();

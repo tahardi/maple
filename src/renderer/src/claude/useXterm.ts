@@ -1,6 +1,7 @@
 import type { Unsubscribe } from '@shared/types';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useEffect, type RefObject } from 'react';
@@ -15,6 +16,9 @@ export type XtermIo = {
 
 function clipboardKeys(term: Terminal) {
   return (e: KeyboardEvent): boolean => {
+    if (e.ctrlKey && e.key === '`') {
+      return false;
+    }
     if (e.type !== 'keydown' || !e.ctrlKey || !e.shiftKey) {
       return true;
     }
@@ -30,6 +34,18 @@ function clipboardKeys(term: Terminal) {
     }
     return true;
   };
+}
+
+function loadWebgl(term: Terminal): void {
+  const webgl = new WebglAddon();
+  webgl.onContextLoss(() => {
+    webgl.dispose();
+  });
+  try {
+    term.loadAddon(webgl);
+  } catch {
+    webgl.dispose();
+  }
 }
 
 function wheelReports(term: Terminal, host: HTMLElement, lines: () => number, write: (data: string) => void) {
@@ -64,6 +80,7 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): v
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = '11';
     term.open(el);
+    loadWebgl(term);
     term.attachCustomKeyEventHandler(clipboardKeys(term));
     term.attachCustomWheelEventHandler(
       wheelReports(
