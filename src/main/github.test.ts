@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { commentOnPr, prForBranch } from './github';
+import { commentOnLine, commentOnPr, prForBranch, reviewComments } from './github';
 import type { Runner } from './preflight';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../test/fixtures/gh', name), 'utf8');
@@ -126,5 +126,77 @@ describe('commentOnPr', () => {
     const result = commentOnPr(run, '/wt', 33, 'LGTM');
     // then
     await expect(result).rejects.toThrow('commenting on PR: closed');
+  });
+});
+
+describe('commentOnLine', () => {
+  test('posts a review comment on the PR head commit', async () => {
+    // given
+    const run = vi.fn<Runner>((_cmd, args) => Promise.resolve(ok(args[0] === 'pr' ? 'abc123\n' : '')));
+    // when
+    await commentOnLine(run, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
+    // then
+    expect(run).toHaveBeenCalledWith('gh', ['pr', 'view', '33', '--json', 'headRefOid', '--jq', '.headRefOid'], '/wt');
+    expect(run).toHaveBeenCalledWith(
+      'gh',
+      [
+        'api',
+        '--method',
+        'POST',
+        'repos/{owner}/{repo}/pulls/33/comments',
+        '-f',
+        'body=why?',
+        '-f',
+        'commit_id=abc123',
+        '-f',
+        'path=src/a.ts',
+        '-F',
+        'line=3',
+        '-f',
+        'side=RIGHT',
+      ],
+      '/wt',
+    );
+  });
+
+  test('rejects with the gh error', async () => {
+    // given
+    const run = vi.fn<Runner>((_cmd, args) =>
+      Promise.resolve(
+        args[0] === 'pr' ? ok('abc123\n') : { code: 1, stdout: '', stderr: 'line must be part of the diff' },
+      ),
+    );
+    // when
+    const result = commentOnLine(run, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
+    // then
+    await expect(result).rejects.toThrow('commenting on line: line must be part of the diff');
+  });
+});
+
+describe('reviewComments', () => {
+  test('returns the current comments on the new side of the diff', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve(ok(fixture('pr-review-comments.json'))));
+    // when
+    const result = await reviewComments(run, '/wt', 33);
+    // then
+    expect(run).toHaveBeenCalledWith(
+      'gh',
+      ['api', '--paginate', '--slurp', 'repos/{owner}/{repo}/pulls/33/comments'],
+      '/wt',
+    );
+    expect(result).toEqual([
+      { path: 'src/a.ts', line: 3, author: 'tahardi', body: 'why?' },
+      { path: 'src/a.ts', line: 3, author: 'tahardi', body: '**Claude:** explained in the PR body' },
+    ]);
+  });
+
+  test('rejects with the gh error', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'offline' }));
+    // when
+    const result = reviewComments(run, '/wt', 33);
+    // then
+    await expect(result).rejects.toThrow('listing review comments: offline');
   });
 });

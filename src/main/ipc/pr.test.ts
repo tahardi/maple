@@ -6,19 +6,23 @@ import type { StatusEngine } from '../status';
 import type { Terminals } from '../terminals';
 import { registerPr } from './pr';
 
-type Handler = (event: IpcMainInvokeEvent, tabId: string) => Promise<unknown>;
+type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
 
-const { handle, prForBranch, commentOnPr, defaultRunner, currentBranch } = vi.hoisted(() => ({
-  handle: vi.fn<(channel: string, handler: Handler) => void>(),
-  prForBranch: vi.fn(),
-  commentOnPr: vi.fn(),
-  defaultRunner: vi.fn(),
-  currentBranch: vi.fn(),
-}));
+const { handle, prForBranch, commentOnPr, commentOnLine, reviewComments, defaultRunner, currentBranch } = vi.hoisted(
+  () => ({
+    handle: vi.fn<(channel: string, handler: Handler) => void>(),
+    prForBranch: vi.fn(),
+    commentOnPr: vi.fn(),
+    commentOnLine: vi.fn(),
+    reviewComments: vi.fn(),
+    defaultRunner: vi.fn(),
+    currentBranch: vi.fn(),
+  }),
+);
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 vi.mock('../git', () => ({ currentBranch }));
-vi.mock('../github', () => ({ prForBranch, commentOnPr }));
+vi.mock('../github', () => ({ prForBranch, commentOnPr, commentOnLine, reviewComments }));
 vi.mock('../preflight', () => ({ defaultRunner }));
 
 const event = {} as IpcMainInvokeEvent;
@@ -39,7 +43,7 @@ function register(
   channel: string,
   worktree: string | null,
   sessions: SessionManager = {} as SessionManager,
-): (tabId: string) => Promise<unknown> {
+): (...args: unknown[]) => Promise<unknown> {
   registerPr(
     {
       window: () => null,
@@ -58,10 +62,10 @@ function register(
   if (!call) {
     throw new Error(`finding handler for ${channel}`);
   }
-  return (tabId) => call[1](event, tabId);
+  return (...args) => call[1](event, ...args);
 }
 
-function get(worktree: string | null): (tabId: string) => Promise<unknown> {
+function get(worktree: string | null): (...args: unknown[]) => Promise<unknown> {
   return register('pr:get', worktree);
 }
 
@@ -221,6 +225,70 @@ describe('registerPr', () => {
     expect(sendPrompt).not.toHaveBeenCalled();
   });
 
+  test('comment posts the line comment on the open PR', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const comment = register('pr:comment', '/wt');
+    // when
+    await comment('t1', 'src/a.ts', 3, 'why?');
+    // then
+    expect(commentOnLine).toHaveBeenCalledWith(defaultRunner, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
+  });
+
+  test('comment rejects when the branch has no open PR', async () => {
+    // given
+    prForBranch.mockResolvedValue({ ...pr, state: 'MERGED' });
+    const comment = register('pr:comment', '/wt');
+    // when
+    const result = comment('t1', 'src/a.ts', 3, 'why?');
+    // then
+    await expect(result).rejects.toThrow('commenting on line: branch has no open PR');
+    expect(commentOnLine).not.toHaveBeenCalled();
+  });
+
+  test('comments lists the review comments on the PR', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const found = [{ path: 'src/a.ts', line: 3, author: 'tahardi', body: 'why?' }];
+    reviewComments.mockResolvedValue(found);
+    const comments = register('pr:comments', '/wt');
+    // when
+    const result = await comments('t1');
+    // then
+    expect(result).toEqual(found);
+    expect(reviewComments).toHaveBeenCalledWith(defaultRunner, '/wt', 33);
+  });
+
+  test.each([
+    { name: 'the tab has no worktree', worktree: null, found: pr },
+    { name: 'the branch has no PR', worktree: '/wt', found: null },
+  ])('comments returns none when $name', async ({ worktree, found }) => {
+    // given
+    prForBranch.mockResolvedValue(found);
+    const comments = register('pr:comments', worktree);
+    // when
+    const result = await comments('t1');
+    // then
+    expect(result).toEqual([]);
+    expect(reviewComments).not.toHaveBeenCalled();
+  });
+
+  test('logs a failed comments lookup at warn and rejects', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    reviewComments.mockRejectedValue(new Error('listing review comments: offline'));
+    const comments = register('pr:comments', '/wt');
+    // when
+    const result = comments('t1');
+    // then
+    await expect(result).rejects.toThrow('listing review comments: offline');
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:comments',
+      tabId: 't1',
+      error: 'listing review comments: offline',
+    });
+  });
+
   test('logs a failed PR lookup at warn', async () => {
     // given
     prForBranch.mockRejectedValue(new Error('listing PRs: offline'));
@@ -247,6 +315,21 @@ describe('registerPr', () => {
       operation: 'pr:approve',
       tabId: 't1',
       error: 'commenting on PR: offline',
+    });
+  });
+
+  test('logs a failed comment at warn', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    commentOnLine.mockRejectedValue(new Error('commenting on line: line must be part of the diff'));
+    const comment = register('pr:comment', '/wt');
+    // when
+    await comment('t1', 'src/a.ts', 3, 'why?').catch(() => undefined);
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:comment',
+      tabId: 't1',
+      error: 'commenting on line: line must be part of the diff',
     });
   });
 });

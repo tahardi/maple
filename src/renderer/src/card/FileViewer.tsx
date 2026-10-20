@@ -1,11 +1,13 @@
 import { DiffEditor, Editor, useMonaco } from '@monaco-editor/react';
 import { lineMarks } from '@shared/diffMarks';
-import type { Draft, FilePair } from '@shared/types';
+import type { Draft, FilePair, ReviewComment } from '@shared/types';
 import type { editor } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { MarkdownText } from '../shell/MarkdownText';
 import { useMaple } from '../store';
+import { toCommentMarks } from './commentMarks';
 import { toDecorations } from './inFileDecorations';
+import { LineComment } from './LineComment';
 import './monacoSetup';
 import { PR_DESCRIPTION } from './prDescription';
 import { VAULT_PREFIX } from './VaultSwitch';
@@ -19,6 +21,7 @@ type Props = {
   onCloseFile: (path: string) => void;
   prBody: string | null;
   line: number | null;
+  canComment: boolean;
 };
 
 type Mode = 'in-file' | 'side-by-side';
@@ -26,6 +29,8 @@ type Mode = 'in-file' | 'side-by-side';
 const MODE_KEY = 'maple.viewMode';
 
 const NO_DRAFTS: Record<string, Draft> = {};
+
+const NO_COMMENTS: ReviewComment[] = [];
 
 const OPTIONS = { readOnly: true, domReadOnly: true, minimap: { enabled: false } };
 
@@ -53,7 +58,7 @@ function baseName(path: string): string {
   return bare.split('/').at(-1) ?? bare;
 }
 
-export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody, line }: Props) {
+export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody, line, canComment }: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
@@ -66,6 +71,9 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   const setDraft = useMaple((s) => s.setDraft);
   const [saveError, setSaveError] = useState<{ path: string; message: string } | null>(null);
   const pendingLine = useRef<number | null>(null);
+  const [commenting, setCommenting] = useState<{ path: string; line: number } | null>(null);
+  const [comments, setComments] = useState<ReviewComment[]>(NO_COMMENTS);
+  const [commentsRead, setCommentsRead] = useState(0);
 
   const showsDescription = activeFile === PR_DESCRIPTION;
   const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
@@ -146,6 +154,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   const draft = text === null ? null : Object.hasOwn(drafts, text.path) ? drafts[text.path] : null;
   const edited = draft?.text ?? text?.current ?? null;
   const stale = text !== null && draft !== null && draft.disk !== text.current;
+  const commentable = canComment && text !== null && text.current !== null && !sideBySide && plain !== null;
 
   const specs = useMemo(
     () => (text !== null && edited !== null && text.base !== edited ? toDecorations(lineMarks(text.base, edited)) : []),
@@ -172,6 +181,49 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
       decorations.clear();
     };
   }, [plain, monaco, specs]);
+
+  useEffect(() => {
+    if (!canComment) {
+      return;
+    }
+    let live = true;
+    window.maple.pr.comments(tabId).then(
+      (next) => {
+        if (live) {
+          setComments(next);
+        }
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [tabId, canComment, commentsRead]);
+
+  const commentMarks = useMemo(
+    () => (text === null || !canComment ? [] : toCommentMarks(comments, text.path)),
+    [comments, text, canComment],
+  );
+
+  useEffect(() => {
+    if (plain === null || commentMarks.length === 0) {
+      return;
+    }
+    const decorations = plain.createDecorationsCollection(
+      commentMarks.map((mark) => ({
+        range: { startLineNumber: mark.line, startColumn: 1, endLineNumber: mark.line, endColumn: 1 },
+        options: {
+          isWholeLine: true,
+          linesDecorationsClassName: 'margin-comment',
+          after: { content: mark.preview, inlineClassName: 'comment-preview' },
+          hoverMessage: { value: mark.hover },
+        },
+      })),
+    );
+    return () => {
+      decorations.clear();
+    };
+  }, [plain, commentMarks]);
 
   const language = useMemo(() => {
     if (activeFile === null || monaco === null) {
@@ -288,6 +340,17 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             </button>
           </div>
         )}
+        {commentable && commenting?.path === shown.path && (
+          <LineComment
+            tabId={tabId}
+            path={commenting.path}
+            line={commenting.line}
+            onDone={() => {
+              setCommenting(null);
+              setCommentsRead((n) => n + 1);
+            }}
+          />
+        )}
         <div className={styles.editor} onKeyDown={save}>
           <Editor
             value={edited ?? shown.base ?? ''}
@@ -355,6 +418,18 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             >
               Side by side
             </button>
+            {commentable && (
+              <button
+                onClick={() => {
+                  const at = plain.getPosition()?.lineNumber;
+                  if (at !== undefined) {
+                    setCommenting({ path: text.path, line: at });
+                  }
+                }}
+              >
+                Comment
+              </button>
+            )}
           </div>
         )}
       </div>

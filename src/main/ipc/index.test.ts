@@ -98,6 +98,8 @@ describe('registerIpc', () => {
     { channel: 'repo:readFile', args: ['t1', 5] },
     { channel: 'pr:get', args: [1] },
     { channel: 'pr:approve', args: ['t1', 'extra'] },
+    { channel: 'pr:comment', args: ['t1', 'a.ts', 0, 'x'] },
+    { channel: 'pr:comments', args: [1] },
     { channel: 'app:setNotifications', args: ['yes'] },
   ])('$channel rejects invalid arguments $args', async ({ channel, args }) => {
     // given
