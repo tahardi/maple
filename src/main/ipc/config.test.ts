@@ -24,7 +24,7 @@ const second = { data: null, error: null, fetchedAt: '2026-10-17T00:00:00.000Z' 
 const halo: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
 const dig: ProjectConfig = { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 8, plannerDir: '/tmp/dig' };
 const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleConfig> => ({
-  data: { worktreesDir: '/tmp/wts', notifications, projects, actions: [] },
+  data: { worktreesDir: '/tmp/wts', vaultDir: null, notifications, projects, actions: [] },
   error: null,
   fetchedAt: '2026-10-18T00:00:00.000Z',
 });

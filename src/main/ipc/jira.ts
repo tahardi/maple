@@ -1,36 +1,53 @@
 import { z } from 'zod';
-import type { Fetched, Sprint } from '@shared/types';
+import type { BacklogGroup, Fetched, ProjectConfig, Sprint } from '@shared/types';
 import { JiraClient, jiraEnvPath, readCreds } from '../jira';
 import { appLogger, type Logger } from '../log';
 import { SprintCache } from '../sprintCache';
 import type { IpcDeps } from './index';
 import { handle, projectKeyArg } from './validated';
 
+type Caches = { sprint: SprintCache<Sprint>; backlog: SprintCache<BacklogGroup[]> };
+
 export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
   const ready = readCreds(jiraEnvPath()).then(
     (creds) => {
       const client = new JiraClient(creds);
-      return { cache: new SprintCache((p) => client.activeSprint(p.jiraBoardId)), error: null };
+      const caches: Caches = {
+        sprint: new SprintCache((p: ProjectConfig) => client.activeSprint(p.jiraBoardId)),
+        backlog: new SprintCache((p: ProjectConfig) => client.backlog(p.jiraKey)),
+      };
+      return { caches, error: null };
     },
     (err: unknown) => {
       const error = err instanceof Error ? err.message : String(err);
       logger.warn('jira', 'failed', { operation: 'readCreds', error });
-      return { cache: null, error };
+      return { caches: null, error };
     },
   );
-  handle('jira:sprint', z.tuple([projectKeyArg]), async (projectKey): Promise<Fetched<Sprint>> => {
+  const serve = async <T>(
+    projectKey: string,
+    noun: string,
+    operation: string,
+    pick: (caches: Caches) => SprintCache<T>,
+  ): Promise<Fetched<T>> => {
     const project = await deps.project(projectKey);
     if (!project) {
-      return { data: null, fetchedAt: null, error: `fetching sprint: unknown project ${projectKey}` };
+      return { data: null, fetchedAt: null, error: `fetching ${noun}: unknown project ${projectKey}` };
     }
-    const { cache, error } = await ready;
-    if (!cache) {
+    const { caches, error } = await ready;
+    if (!caches) {
       return { data: null, fetchedAt: null, error };
     }
-    const sprint = await cache.get(project);
-    if (sprint.error !== null) {
-      logger.warn('jira', 'failed', { operation: 'activeSprint', projectKey, error: sprint.error });
+    const got = await pick(caches).get(project);
+    if (got.error !== null) {
+      logger.warn('jira', 'failed', { operation, projectKey, error: got.error });
     }
-    return sprint;
-  });
+    return got;
+  };
+  handle('jira:sprint', z.tuple([projectKeyArg]), (projectKey) =>
+    serve(projectKey, 'sprint', 'activeSprint', (c) => c.sprint),
+  );
+  handle('jira:backlog', z.tuple([projectKeyArg]), (projectKey) =>
+    serve(projectKey, 'backlog', 'backlog', (c) => c.backlog),
+  );
 }

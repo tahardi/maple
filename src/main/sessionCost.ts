@@ -1,9 +1,7 @@
-import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { SessionCost } from '@shared/types';
-import { projectsDir } from './transcripts';
+import { projectsDir, transcriptFiles } from './transcripts';
 
 type Price = { input: number; output: number; cacheRead: number };
 
@@ -37,23 +35,6 @@ const assistantLine = z.object({
     }),
   }),
 });
-
-async function transcriptFiles(sessionId: string, root: string): Promise<string[] | null> {
-  if (!existsSync(root)) {
-    return null;
-  }
-  const dirs = await readdir(root, { withFileTypes: true });
-  const project = dirs.find((d) => d.isDirectory() && existsSync(join(root, d.name, `${sessionId}.jsonl`)));
-  if (!project) {
-    return null;
-  }
-  const main = join(root, project.name, `${sessionId}.jsonl`);
-  const subagentsDir = join(root, project.name, sessionId, 'subagents');
-  const subagents = existsSync(subagentsDir)
-    ? (await readdir(subagentsDir)).filter((f) => f.endsWith('.jsonl')).map((f) => join(subagentsDir, f))
-    : [];
-  return [main, ...subagents];
-}
 
 export async function sessionCost(sessionId: string, root: string = projectsDir()): Promise<SessionCost | null> {
   const files = await transcriptFiles(sessionId, root);

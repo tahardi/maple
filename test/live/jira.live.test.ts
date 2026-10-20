@@ -30,6 +30,18 @@ describe('jira', () => {
     expect(card.summary).toBe('Repo Bootstrap');
   });
 
+  test('fetches the MPL backlog grouped by epic', async () => {
+    // given
+    const client = new JiraClient(await creds());
+    // when
+    const groups = await client.backlog('MPL');
+    // then
+    expect(groups.length).toBeGreaterThan(0);
+    for (const c of groups.flatMap((g) => g.cards)) {
+      expect(c.status).not.toBe('Done');
+    }
+  });
+
   test('reads points, labels, blockers, and description from a card', async () => {
     // given
     const client = new JiraClient(await creds());

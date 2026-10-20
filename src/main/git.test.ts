@@ -3,7 +3,16 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { changes, currentBranch, findWorktree, listFiles, mergeBase, readFilePair, writeWorktreeFile } from './git';
+import {
+  changes,
+  currentBranch,
+  findWorktree,
+  listFiles,
+  mergeBase,
+  readFilePair,
+  searchFiles,
+  writeWorktreeFile,
+} from './git';
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync(
@@ -214,6 +223,49 @@ describe('git', () => {
     const files = await listFiles(worktree);
     // then
     expect(files.sort()).toEqual(['.gitignore', 'del.txt', 'keep.txt', 'logo.bin', 'old.txt', 'untracked.txt']);
+  });
+
+  test('searchFiles finds text in tracked and untracked files but not ignored ones', async () => {
+    // given
+    writeFileSync(join(worktree, 'keep.txt'), 'a\nthe needle here\n');
+    git(worktree, 'commit', '-am', 'needle');
+    writeFileSync(join(worktree, 'untracked.txt'), 'Needle first\n');
+    writeFileSync(join(worktree, 'ignored.log'), 'needle\n');
+    // when
+    const hits = await searchFiles(worktree, 'NEEDLE');
+    // then
+    expect([...hits].sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { path: 'keep.txt', line: 2, text: 'the needle here' },
+      { path: 'untracked.txt', line: 1, text: 'Needle first' },
+    ]);
+  });
+
+  test('searchFiles returns no hits when nothing matches', async () => {
+    // given
+    const query = 'nothing-like-this';
+    // when
+    const hits = await searchFiles(worktree, query);
+    // then
+    expect(hits).toEqual([]);
+  });
+
+  test('searchFiles treats a query starting with a dash as text', async () => {
+    // given
+    writeFileSync(join(worktree, 'untracked.txt'), 'run --force now\n');
+    // when
+    const hits = await searchFiles(worktree, '--force');
+    // then
+    expect(hits).toEqual([{ path: 'untracked.txt', line: 1, text: 'run --force now' }]);
+  });
+
+  test('searchFiles caps the hits at 500 and each line at 200 characters', async () => {
+    // given
+    writeFileSync(join(worktree, 'untracked.txt'), `needle${'x'.repeat(300)}\n`.repeat(600));
+    // when
+    const hits = await searchFiles(worktree, 'needle');
+    // then
+    expect(hits).toHaveLength(500);
+    expect(hits[0]).toEqual({ path: 'untracked.txt', line: 1, text: `needle${'x'.repeat(194)}` });
   });
 
   test('currentBranch returns the checked out branch', async () => {
