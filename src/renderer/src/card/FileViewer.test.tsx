@@ -14,8 +14,11 @@ const monaco = vi.hoisted(() => {
     getScrollTop: vi.fn(() => 120),
     setScrollTop: vi.fn(),
     revealLineInCenter: vi.fn(),
-    setPosition: vi.fn(),
+    setSelection: vi.fn(),
+    focus: vi.fn(),
+    getModel: vi.fn(() => model),
   };
+  const model = { getLineMaxColumn: () => 9 };
   const api = {
     editor: { OverviewRulerLane: { Full: 7 } },
     languages: {
@@ -25,11 +28,11 @@ const monaco = vi.hoisted(() => {
       ],
     },
   };
-  return { editor, collection, api, enabled: { value: false } };
+  return { editor, collection, api, enabled: { value: false }, slowMount: { value: false } };
 });
 
 vi.mock('@monaco-editor/react', async () => {
-  const { useEffect } = await import('react');
+  const { useEffect, useRef } = await import('react');
   return {
     useMonaco: () => (monaco.enabled.value ? monaco.api : null),
     Editor: (props: {
@@ -39,9 +42,32 @@ vi.mock('@monaco-editor/react', async () => {
       onMount: (editor: unknown) => void;
     }) => {
       const { onMount } = props;
+      const instance = useRef({
+        ...monaco.editor,
+        disposed: false,
+        getModel() {
+          return this.disposed ? null : monaco.editor.getModel();
+        },
+      });
       useEffect(() => {
-        onMount(monaco.editor);
+        const mounted = instance.current;
+        if (!monaco.slowMount.value) {
+          onMount(mounted);
+          return;
+        }
+        const timer = setTimeout(() => {
+          onMount(mounted);
+        }, 10);
+        return () => {
+          clearTimeout(timer);
+        };
       }, [onMount]);
+      useEffect(() => {
+        const mounted = instance.current;
+        return () => {
+          mounted.disposed = true;
+        };
+      }, []);
       return (
         <div
           data-testid="editor"
@@ -93,6 +119,7 @@ describe('FileViewer', () => {
   beforeEach(() => {
     localStorage.clear();
     monaco.enabled.value = false;
+    monaco.slowMount.value = false;
     vi.clearAllMocks();
     vi.restoreAllMocks();
   });
@@ -468,7 +495,37 @@ describe('FileViewer', () => {
     await vi.waitFor(() => {
       expect(monaco.editor.revealLineInCenter).toHaveBeenCalledWith(3);
     });
-    expect(monaco.editor.setPosition).toHaveBeenCalledWith({ lineNumber: 3, column: 1 });
+    expect(monaco.editor.setSelection).toHaveBeenCalledWith({
+      startLineNumber: 3,
+      startColumn: 1,
+      endLineNumber: 3,
+      endColumn: 9,
+    });
+    expect(monaco.editor.focus).toHaveBeenCalledOnce();
+  });
+
+  test('reveals the line in the new editor after switching from another file', async () => {
+    // given
+    fakeMaple({
+      repo: { readFile: (_tabId, path) => Promise.resolve({ kind: 'text', path, current: 'x\n', base: 'x\n' }) },
+    });
+    const props = {
+      tabId: 't1',
+      openFiles: ['a.ts', 'b.ts'],
+      onActivate: vi.fn(),
+      onCloseFile: vi.fn(),
+      prBody: null,
+    };
+    const { rerender } = render(<FileViewer {...props} activeFile="a.ts" line={null} />);
+    await screen.findByTestId('editor');
+    monaco.slowMount.value = true;
+    // when
+    rerender(<FileViewer {...props} activeFile="b.ts" line={5} />);
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.editor.revealLineInCenter).toHaveBeenCalledWith(5);
+    });
+    expect(monaco.editor.revealLineInCenter.mock.contexts).toEqual([expect.objectContaining({ disposed: false })]);
   });
 
   test.each(['in-file', 'side-by-side'])('keeps the scroll position on reload in %s mode', async (mode) => {

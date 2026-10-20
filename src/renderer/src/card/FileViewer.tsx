@@ -57,6 +57,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   const [note, setNote] = useState<{ path: string; text: string } | null>(null);
   const [plain, setPlain] = useState<editor.ICodeEditor | null>(null);
   const scrollTarget = useRef<editor.ICodeEditor | null>(null);
+  const [target, setTarget] = useState<editor.ICodeEditor | null>(null);
   const keepScroll = useRef<number | null>(null);
   const pendingLine = useRef<number | null>(null);
 
@@ -117,14 +118,21 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   }, [line, activeFile]);
 
   useEffect(() => {
-    const target = scrollTarget.current;
-    if (pendingLine.current === null || shown?.kind !== 'text' || target === null) {
+    const at = pendingLine.current;
+    const model = target?.getModel() ?? null;
+    if (at === null || shown?.kind !== 'text' || target === null || model === null) {
       return;
     }
-    target.revealLineInCenter(pendingLine.current);
-    target.setPosition({ lineNumber: pendingLine.current, column: 1 });
+    target.revealLineInCenter(at);
+    target.setSelection({
+      startLineNumber: at,
+      startColumn: 1,
+      endLineNumber: at,
+      endColumn: model.getLineMaxColumn(at),
+    });
+    target.focus();
     pendingLine.current = null;
-  }, [line, shown, plain]);
+  }, [line, shown, target]);
   const text = shown?.kind === 'text' ? shown : null;
   const changed = text !== null && text.current !== null && text.base !== text.current;
   const sideBySide = changed && mode === 'side-by-side';
@@ -204,6 +212,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
           onMount={(diff) => {
             setPlain(null);
             scrollTarget.current = diff.getModifiedEditor();
+            setTarget(diff.getModifiedEditor());
           }}
         />
       );
@@ -221,6 +230,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             onMount={(mounted) => {
               setPlain(mounted);
               scrollTarget.current = mounted;
+              setTarget(mounted);
             }}
           />
         </div>
