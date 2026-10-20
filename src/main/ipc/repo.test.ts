@@ -6,16 +6,17 @@ import { registerRepo } from './repo';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, changes, listFiles, mergeBase, readFilePair } = vi.hoisted(() => ({
+const { handle, changes, listFiles, mergeBase, readFilePair, searchFiles } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
   changes: vi.fn(),
   listFiles: vi.fn(),
   mergeBase: vi.fn(),
   readFilePair: vi.fn(),
+  searchFiles: vi.fn(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('../git', () => ({ changes, listFiles, mergeBase, readFilePair }));
+vi.mock('../git', () => ({ changes, listFiles, mergeBase, readFilePair, searchFiles }));
 vi.mock('../worktreeWatcher', () => ({ watchWorktree: () => () => undefined }));
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -51,6 +52,7 @@ describe('registerRepo', () => {
     { channel: 'repo:changes', args: ['t1'], fail: changes },
     { channel: 'repo:listFiles', args: ['t1'], fail: listFiles },
     { channel: 'repo:readFile', args: ['t1', 'a.ts'], fail: readFilePair },
+    { channel: 'repo:search', args: ['t1', 'needle'], fail: searchFiles },
   ])('$channel logs a failure at warn and rethrows', async ({ channel, args, fail }) => {
     // given
     fail.mockRejectedValue(new Error('running git: not a repo'));
@@ -73,5 +75,15 @@ describe('registerRepo', () => {
     // then
     expect(got).toEqual({ files: [] });
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  test('repo:search searches the tab worktree', async () => {
+    // given
+    searchFiles.mockResolvedValue([{ path: 'a.ts', line: 3, text: 'needle' }]);
+    // when
+    const got = await invoke('repo:search', 't1', 'needle');
+    // then
+    expect(searchFiles).toHaveBeenCalledWith('/wt', 'needle');
+    expect(got).toEqual([{ path: 'a.ts', line: 3, text: 'needle' }]);
   });
 });

@@ -441,4 +441,47 @@ describe('CardTab', () => {
     });
     expect(approve).toBeDisabled();
   });
+
+  test('Ctrl+P opens quick open and the chosen file opens in the viewer', async () => {
+    // given
+    fakeRepo(false);
+    useMaple.setState({ activeTabId: 't1' });
+    render(<CardTab tab={tab} />);
+    await screen.findByText('README.md');
+    // when
+    await userEvent.keyboard('{Control>}p{/Control}');
+    await userEvent.type(screen.getByRole('textbox'), 'a.ts{Enter}');
+    // then
+    expect(screen.queryByRole('dialog', { name: 'Quick open' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  test('Ctrl+Shift+F opens text search', async () => {
+    // given
+    const search = vi.fn(() => Promise.resolve([{ path: 'src/a.ts', line: 7, text: 'needle' }]));
+    fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'src/a.ts']), search } });
+    useMaple.setState({ activeTabId: 't1' });
+    render(<CardTab tab={tab} />);
+    await screen.findByText('README.md');
+    // when
+    await userEvent.keyboard('{Control>}{Shift>}F{/Shift}{/Control}');
+    await userEvent.type(screen.getByRole('textbox'), 'needle{Enter}');
+    await userEvent.click(await screen.findByRole('option', { name: 'src/a.ts:7 needle' }));
+    // then
+    expect(search).toHaveBeenCalledWith('t1', 'needle');
+    expect(screen.queryByRole('dialog', { name: 'Search text' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  test('Ctrl+P does nothing in a card tab that is not active', async () => {
+    // given
+    fakeRepo(false);
+    useMaple.setState({ activeTabId: 'other' });
+    render(<CardTab tab={tab} />);
+    await screen.findByText('README.md');
+    // when
+    await userEvent.keyboard('{Control>}p{/Control}');
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
 });

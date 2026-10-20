@@ -13,6 +13,8 @@ const monaco = vi.hoisted(() => {
     createDecorationsCollection: vi.fn(() => collection),
     getScrollTop: vi.fn(() => 120),
     setScrollTop: vi.fn(),
+    revealLineInCenter: vi.fn(),
+    setPosition: vi.fn(),
   };
   const api = {
     editor: { OverviewRulerLane: { Full: 7 } },
@@ -82,6 +84,7 @@ function renderViewer(pair: FilePair) {
     onActivate: vi.fn(),
     onCloseFile: vi.fn(),
     prBody: null,
+    line: null,
   };
   return { maple, props, ...render(<FileViewer {...props} />) };
 }
@@ -108,6 +111,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={'## Summary\n\nHello'}
+        line={null}
       />,
     );
     // then
@@ -230,6 +234,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={null}
+        line={null}
       />,
     );
     await screen.findByTestId('editor');
@@ -331,6 +336,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={null}
+        line={null}
       />,
     );
     // then
@@ -353,7 +359,14 @@ describe('FileViewer', () => {
             : Promise.resolve({ kind: 'text', path, current: 'b\n', base: 'b\n' }),
       },
     });
-    const props = { tabId: 't1', openFiles: ['a.ts', 'b.ts'], onActivate: vi.fn(), onCloseFile: vi.fn(), prBody: null };
+    const props = {
+      tabId: 't1',
+      openFiles: ['a.ts', 'b.ts'],
+      onActivate: vi.fn(),
+      onCloseFile: vi.fn(),
+      prBody: null,
+      line: null,
+    };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
     rerender(<FileViewer {...props} activeFile="b.ts" />);
     await screen.findByTestId('editor');
@@ -378,6 +391,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={null}
+        line={null}
       />,
     );
     await screen.findByText('Binary file, not shown');
@@ -385,6 +399,28 @@ describe('FileViewer', () => {
     unmount();
     // then
     expect(stop).toHaveBeenCalledOnce();
+  });
+
+  test('reveals the requested line after the file loads', async () => {
+    // given
+    fakeMaple({ repo: { readFile: () => Promise.resolve(changed) } });
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+        line={3}
+      />,
+    );
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.editor.revealLineInCenter).toHaveBeenCalledWith(3);
+    });
+    expect(monaco.editor.setPosition).toHaveBeenCalledWith({ lineNumber: 3, column: 1 });
   });
 
   test.each(['in-file', 'side-by-side'])('keeps the scroll position on reload in %s mode', async (mode) => {
@@ -409,6 +445,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={null}
+        line={null}
       />,
     );
     await screen.findByTestId(mode === 'in-file' ? 'editor' : 'diff-editor');

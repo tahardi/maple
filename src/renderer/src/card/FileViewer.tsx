@@ -16,6 +16,7 @@ type Props = {
   onActivate: (path: string) => void;
   onCloseFile: (path: string) => void;
   prBody: string | null;
+  line: number | null;
 };
 
 type Mode = 'in-file' | 'side-by-side';
@@ -47,13 +48,14 @@ function baseName(path: string): string {
   return path.split('/').at(-1) ?? path;
 }
 
-export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody }: Props) {
+export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody, line }: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
   const [plain, setPlain] = useState<editor.ICodeEditor | null>(null);
   const scrollTarget = useRef<editor.ICodeEditor | null>(null);
   const keepScroll = useRef<number | null>(null);
+  const pendingLine = useRef<number | null>(null);
 
   const showsDescription = activeFile === PR_DESCRIPTION;
 
@@ -89,6 +91,20 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   }, [pair]);
 
   const shown = pair !== null && pair.path === activeFile ? pair : null;
+
+  useEffect(() => {
+    pendingLine.current = line;
+  }, [line, activeFile]);
+
+  useEffect(() => {
+    const target = scrollTarget.current;
+    if (pendingLine.current === null || shown?.kind !== 'text' || target === null) {
+      return;
+    }
+    target.revealLineInCenter(pendingLine.current);
+    target.setPosition({ lineNumber: pendingLine.current, column: 1 });
+    pendingLine.current = null;
+  }, [line, shown, plain]);
   const text = shown?.kind === 'text' ? shown : null;
   const changed = text !== null && text.current !== null && text.base !== text.current;
   const sideBySide = changed && mode === 'side-by-side';
