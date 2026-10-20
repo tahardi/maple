@@ -154,6 +154,65 @@ describe('useMaple', () => {
     });
   });
 
+  test('tabs:status records when a tab dot changed', async () => {
+    // given
+    vi.useFakeTimers();
+    const loaded = new Date('2026-10-19T10:00:00Z').getTime();
+    vi.setSystemTime(loaded);
+    const { events } = setup();
+    await useMaple.getState().init();
+    const sinceAtInit = useMaple.getState().since;
+    // when
+    events.status(status('bear-1', 'waiting'));
+    const sinceWaiting = useMaple.getState().since['bear-1'];
+    vi.setSystemTime(loaded + 60_000);
+    events.status(status('bear-1', 'waiting'));
+    const sinceRepeated = useMaple.getState().since['bear-1'];
+    vi.setSystemTime(loaded + 120_000);
+    events.status(status('bear-1', 'ready'));
+    // then
+    vi.useRealTimers();
+    expect(sinceAtInit).toEqual({ 'bear-1': loaded });
+    expect(sinceWaiting).toBe(loaded);
+    expect(sinceRepeated).toBe(loaded);
+    expect(useMaple.getState().since['bear-1']).toBe(loaded + 120_000);
+  });
+
+  test.each([
+    { name: 'activating a card tab marks it seen', projectKey: 'BEAR', tabId: 'bear-1', want: ['bear-1'] },
+    { name: 'showing Home marks the project planner seen', projectKey: 'DIG', tabId: null, want: ['dig-p'] },
+  ])('$name', async ({ projectKey, tabId, want }) => {
+    // given
+    vi.useFakeTimers();
+    const now = new Date('2026-10-20T10:00:00Z').getTime();
+    vi.setSystemTime(now);
+    setup([tab('bear-1', 'BEAR'), tab('dig-1', 'DIG'), { ...tab('dig-p', 'DIG'), kind: 'planner', cardKey: null }]);
+    await useMaple.getState().init();
+    useMaple.setState({ projectKey });
+    // when
+    useMaple.getState().activate(tabId);
+    // then
+    vi.useRealTimers();
+    expect(useMaple.getState().seen).toEqual(Object.fromEntries(want.map((id) => [id, now])));
+  });
+
+  test('tabs:status marks a dot change on the tab in view as seen', async () => {
+    // given
+    vi.useFakeTimers();
+    const now = new Date('2026-10-20T10:00:00Z').getTime();
+    vi.setSystemTime(now);
+    const { events } = setup();
+    await useMaple.getState().init();
+    useMaple.getState().activate('bear-1');
+    vi.setSystemTime(now + 60_000);
+    // when
+    events.status(status('bear-1', 'ready'));
+    events.status(status('dig-1', 'ready'));
+    // then
+    vi.useRealTimers();
+    expect(useMaple.getState().seen).toEqual({ 'bear-1': now + 60_000 });
+  });
+
   test('tabs:activate switches to the tab project and activates the tab', async () => {
     // given
     const { events, setActive } = setup();

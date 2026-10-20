@@ -1,5 +1,6 @@
 import { useMaple } from '../store';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Inbox } from './Inbox';
 import { ProjectMenu } from './ProjectMenu';
 import styles from './TabBar.module.css';
 
@@ -25,6 +26,7 @@ export function TabBar() {
 
   return (
     <div className={styles.bar}>
+      <Inbox />
       <ProjectMenu />
       <div role="tablist" className={styles.tabs}>
         {items.map((item) => (
