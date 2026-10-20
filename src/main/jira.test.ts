@@ -103,6 +103,34 @@ describe('JiraClient', () => {
     expect(got).toBeNull();
   });
 
+  test('backlog groups unfinished cards outside open sprints by epic', async () => {
+    // given
+    const client = new JiraClient(creds, fakeFetch({ '/rest/api/3/search/jql': fixture('backlog-issues.json') }));
+    // when
+    const got = await client.backlog('HALO');
+    // then
+    expect(got.map((g) => ({ epic: g.epic, cards: g.cards.map((c) => c.key) }))).toEqual([
+      { epic: { key: 'HALO-2', summary: 'Search' }, cards: ['HALO-11', 'HALO-13'] },
+      { epic: null, cards: ['HALO-19'] },
+    ]);
+  });
+
+  test('backlog asks for cards outside open sprints that are not done or epics', async () => {
+    // given
+    const fetchFn = fakeFetch({ '/rest/api/3/search/jql': fixture('backlog-issues.json') });
+    const client = new JiraClient(creds, fetchFn);
+    // when
+    await client.backlog('HALO');
+    // then
+    const input = vi.mocked(fetchFn).mock.calls[0]?.[0] ?? '';
+    const url = new URL(input instanceof Request ? input.url : input.toString());
+    expect(url.searchParams.get('jql')).toBe(
+      'project = HALO AND (sprint is EMPTY OR sprint not in openSprints()) AND statusCategory != Done ' +
+        'AND issuetype != Epic ORDER BY Rank',
+    );
+    expect(url.searchParams.get('fields')?.split(',')).toContain('parent');
+  });
+
   test('getCard returns the card with its blockers', async () => {
     // given
     const client = new JiraClient(creds, fakeFetch({ '/rest/api/3/issue/HALO-19': fixture('issue.json') }));

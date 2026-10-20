@@ -7,6 +7,7 @@ import { MarkdownText } from '../shell/MarkdownText';
 import { toDecorations } from './inFileDecorations';
 import './monacoSetup';
 import { PR_DESCRIPTION } from './prDescription';
+import { VAULT_PREFIX } from './VaultSwitch';
 import styles from './viewer.module.css';
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
   onActivate: (path: string) => void;
   onCloseFile: (path: string) => void;
   prBody: string | null;
+  line: number | null;
 };
 
 type Mode = 'in-file' | 'side-by-side';
@@ -44,21 +46,42 @@ function baseName(path: string): string {
   if (path === PR_DESCRIPTION) {
     return 'PR description';
   }
-  return path.split('/').at(-1) ?? path;
+  const bare = path.startsWith(VAULT_PREFIX) ? path.slice(VAULT_PREFIX.length) : path;
+  return bare.split('/').at(-1) ?? bare;
 }
 
-export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody }: Props) {
+export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody, line }: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
+  const [note, setNote] = useState<{ path: string; text: string } | null>(null);
   const [plain, setPlain] = useState<editor.ICodeEditor | null>(null);
   const scrollTarget = useRef<editor.ICodeEditor | null>(null);
+  const [target, setTarget] = useState<editor.ICodeEditor | null>(null);
   const keepScroll = useRef<number | null>(null);
+  const pendingLine = useRef<number | null>(null);
 
   const showsDescription = activeFile === PR_DESCRIPTION;
+  const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
+  const markdown = showsDescription ? (prBody ?? '') : note !== null && note.path === activeFile ? note.text : null;
 
   useEffect(() => {
-    if (activeFile === null || activeFile === PR_DESCRIPTION) {
+    if (activeFile === null || !activeFile.startsWith(VAULT_PREFIX)) {
+      return;
+    }
+    let live = true;
+    void window.maple.vault.read(activeFile.slice(VAULT_PREFIX.length)).then((text) => {
+      if (live) {
+        setNote({ path: activeFile, text });
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [activeFile]);
+
+  useEffect(() => {
+    if (activeFile === null || activeFile === PR_DESCRIPTION || activeFile.startsWith(VAULT_PREFIX)) {
       return;
     }
     let live = true;
@@ -89,6 +112,27 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   }, [pair]);
 
   const shown = pair !== null && pair.path === activeFile ? pair : null;
+
+  useEffect(() => {
+    pendingLine.current = line;
+  }, [line, activeFile]);
+
+  useEffect(() => {
+    const at = pendingLine.current;
+    const model = target?.getModel() ?? null;
+    if (at === null || shown?.kind !== 'text' || target === null || model === null) {
+      return;
+    }
+    target.revealLineInCenter(at);
+    target.setSelection({
+      startLineNumber: at,
+      startColumn: 1,
+      endLineNumber: at,
+      endColumn: model.getLineMaxColumn(at),
+    });
+    target.focus();
+    pendingLine.current = null;
+  }, [line, shown, target]);
   const text = shown?.kind === 'text' ? shown : null;
   const changed = text !== null && text.current !== null && text.base !== text.current;
   const sideBySide = changed && mode === 'side-by-side';
@@ -136,11 +180,13 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   };
 
   const body = () => {
-    if (showsDescription) {
+    if (showsDescription || showsNote) {
       return (
-        <div className={styles.description}>
-          <MarkdownText text={prBody ?? ''} />
-        </div>
+        markdown !== null && (
+          <div className={styles.description}>
+            <MarkdownText text={markdown} />
+          </div>
+        )
       );
     }
     if (shown === null) {
@@ -166,6 +212,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
           onMount={(diff) => {
             setPlain(null);
             scrollTarget.current = diff.getModifiedEditor();
+            setTarget(diff.getModifiedEditor());
           }}
         />
       );
@@ -183,6 +230,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             onMount={(mounted) => {
               setPlain(mounted);
               scrollTarget.current = mounted;
+              setTarget(mounted);
             }}
           />
         </div>
@@ -220,7 +268,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             </div>
           ))}
         </div>
-        {!showsDescription && (
+        {!showsDescription && !showsNote && (
           <div className={styles.toggle}>
             <button
               aria-pressed={mode === 'in-file'}

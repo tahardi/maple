@@ -13,7 +13,12 @@ const monaco = vi.hoisted(() => {
     createDecorationsCollection: vi.fn(() => collection),
     getScrollTop: vi.fn(() => 120),
     setScrollTop: vi.fn(),
+    revealLineInCenter: vi.fn(),
+    setSelection: vi.fn(),
+    focus: vi.fn(),
+    getModel: vi.fn(() => model),
   };
+  const model = { getLineMaxColumn: () => 9 };
   const api = {
     editor: { OverviewRulerLane: { Full: 7 } },
     languages: {
@@ -23,11 +28,11 @@ const monaco = vi.hoisted(() => {
       ],
     },
   };
-  return { editor, collection, api, enabled: { value: false } };
+  return { editor, collection, api, enabled: { value: false }, slowMount: { value: false } };
 });
 
 vi.mock('@monaco-editor/react', async () => {
-  const { useEffect } = await import('react');
+  const { useEffect, useRef } = await import('react');
   return {
     useMonaco: () => (monaco.enabled.value ? monaco.api : null),
     Editor: (props: {
@@ -37,9 +42,32 @@ vi.mock('@monaco-editor/react', async () => {
       onMount: (editor: unknown) => void;
     }) => {
       const { onMount } = props;
+      const instance = useRef({
+        ...monaco.editor,
+        disposed: false,
+        getModel() {
+          return this.disposed ? null : monaco.editor.getModel();
+        },
+      });
       useEffect(() => {
-        onMount(monaco.editor);
+        const mounted = instance.current;
+        if (!monaco.slowMount.value) {
+          onMount(mounted);
+          return;
+        }
+        const timer = setTimeout(() => {
+          onMount(mounted);
+        }, 10);
+        return () => {
+          clearTimeout(timer);
+        };
       }, [onMount]);
+      useEffect(() => {
+        const mounted = instance.current;
+        return () => {
+          mounted.disposed = true;
+        };
+      }, []);
       return (
         <div
           data-testid="editor"
@@ -82,6 +110,7 @@ function renderViewer(pair: FilePair) {
     onActivate: vi.fn(),
     onCloseFile: vi.fn(),
     prBody: null,
+    line: null,
   };
   return { maple, props, ...render(<FileViewer {...props} />) };
 }
@@ -90,6 +119,7 @@ describe('FileViewer', () => {
   beforeEach(() => {
     localStorage.clear();
     monaco.enabled.value = false;
+    monaco.slowMount.value = false;
     vi.clearAllMocks();
     vi.restoreAllMocks();
   });
@@ -108,6 +138,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={'## Summary\n\nHello'}
+        line={null}
       />,
     );
     // then
@@ -116,6 +147,54 @@ describe('FileViewer', () => {
     expect(screen.queryByRole('button', { name: 'In file' })).not.toBeInTheDocument();
     expect(readFile).not.toHaveBeenCalled();
     expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  test('renders a vault note as Markdown', async () => {
+    // given
+    const readFile = vi.fn();
+    const read = vi.fn(() => Promise.resolve('## Findings'));
+    fakeMaple({ repo: { readFile }, vault: { read } });
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['vault:Projects/Maple/Spike.md']}
+        activeFile="vault:Projects/Maple/Spike.md"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+        line={null}
+      />,
+    );
+    // then
+    expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Spike.md' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'In file' })).not.toBeInTheDocument();
+    expect(read).toHaveBeenCalledWith('Projects/Maple/Spike.md');
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  test('re-reads a vault note each time its tab becomes active', async () => {
+    // given
+    const read = vi.fn(() => Promise.resolve('## First'));
+    fakeMaple({ vault: { read } });
+    const props = {
+      tabId: 't1',
+      openFiles: ['vault:Spike.md', 'README.md'],
+      onActivate: vi.fn(),
+      onCloseFile: vi.fn(),
+      prBody: null,
+      line: null,
+    };
+    const { rerender } = render(<FileViewer {...props} activeFile="vault:Spike.md" />);
+    await screen.findByRole('heading', { name: 'First' });
+    rerender(<FileViewer {...props} activeFile="README.md" />);
+    read.mockResolvedValue('## Second');
+    // when
+    rerender(<FileViewer {...props} activeFile="vault:Spike.md" />);
+    // then
+    expect(await screen.findByRole('heading', { name: 'Second' })).toBeInTheDocument();
+    expect(read).toHaveBeenCalledTimes(2);
   });
 
   test('renders a read-only editor in file mode by default', async () => {
@@ -230,6 +309,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={null}
+        line={null}
       />,
     );
     await screen.findByTestId('editor');
@@ -331,6 +411,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={null}
+        line={null}
       />,
     );
     // then
@@ -353,7 +434,14 @@ describe('FileViewer', () => {
             : Promise.resolve({ kind: 'text', path, current: 'b\n', base: 'b\n' }),
       },
     });
-    const props = { tabId: 't1', openFiles: ['a.ts', 'b.ts'], onActivate: vi.fn(), onCloseFile: vi.fn(), prBody: null };
+    const props = {
+      tabId: 't1',
+      openFiles: ['a.ts', 'b.ts'],
+      onActivate: vi.fn(),
+      onCloseFile: vi.fn(),
+      prBody: null,
+      line: null,
+    };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
     rerender(<FileViewer {...props} activeFile="b.ts" />);
     await screen.findByTestId('editor');
@@ -378,6 +466,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={null}
+        line={null}
       />,
     );
     await screen.findByText('Binary file, not shown');
@@ -385,6 +474,58 @@ describe('FileViewer', () => {
     unmount();
     // then
     expect(stop).toHaveBeenCalledOnce();
+  });
+
+  test('reveals the requested line after the file loads', async () => {
+    // given
+    fakeMaple({ repo: { readFile: () => Promise.resolve(changed) } });
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+        line={3}
+      />,
+    );
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.editor.revealLineInCenter).toHaveBeenCalledWith(3);
+    });
+    expect(monaco.editor.setSelection).toHaveBeenCalledWith({
+      startLineNumber: 3,
+      startColumn: 1,
+      endLineNumber: 3,
+      endColumn: 9,
+    });
+    expect(monaco.editor.focus).toHaveBeenCalledOnce();
+  });
+
+  test('reveals the line in the new editor after switching from another file', async () => {
+    // given
+    fakeMaple({
+      repo: { readFile: (_tabId, path) => Promise.resolve({ kind: 'text', path, current: 'x\n', base: 'x\n' }) },
+    });
+    const props = {
+      tabId: 't1',
+      openFiles: ['a.ts', 'b.ts'],
+      onActivate: vi.fn(),
+      onCloseFile: vi.fn(),
+      prBody: null,
+    };
+    const { rerender } = render(<FileViewer {...props} activeFile="a.ts" line={null} />);
+    await screen.findByTestId('editor');
+    monaco.slowMount.value = true;
+    // when
+    rerender(<FileViewer {...props} activeFile="b.ts" line={5} />);
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.editor.revealLineInCenter).toHaveBeenCalledWith(5);
+    });
+    expect(monaco.editor.revealLineInCenter.mock.contexts).toEqual([expect.objectContaining({ disposed: false })]);
   });
 
   test.each(['in-file', 'side-by-side'])('keeps the scroll position on reload in %s mode', async (mode) => {
@@ -409,6 +550,7 @@ describe('FileViewer', () => {
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
         prBody={null}
+        line={null}
       />,
     );
     await screen.findByTestId(mode === 'in-file' ? 'editor' : 'diff-editor');

@@ -52,6 +52,7 @@ describe('SessionManager with a real claude', () => {
     // given
     const config: MapleConfig = {
       worktreesDir: dir,
+      vaultDir: null,
       notifications: false,
       actions: [],
       projects: [{ name: 'Maple', jiraKey: 'MPL', jiraBoardId: 9, plannerDir: expandHome('~/Documents/code/maple') }],

@@ -26,6 +26,21 @@ make install  # build the AppImage and add Maple to the desktop launcher
 
 Rerun `make install` after changing your PATH, because the launcher entry keeps the PATH from install time.
 
+## Config
+
+Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `~` expands to your home directory.
+
+```json
+{
+  "worktreesDir": "~/Documents/code/wts",
+  "vaultDir": "~/Documents/obsidian-vault",
+  "notifications": true,
+  "projects": [{ "name": "Maple", "jiraKey": "MPL", "jiraBoardId": 1, "plannerDir": "~/Documents/code/maple" }]
+}
+```
+
+`vaultDir` is optional. When set, every card tab can switch its file tree to the Markdown notes in that Obsidian vault and open them read-only next to the card's Claude session. Notes the card's Claude session wrote show as changed.
+
 ## Status
 
 Maple is a personal proof of concept and is under active development. Expect breaking changes between versions.
