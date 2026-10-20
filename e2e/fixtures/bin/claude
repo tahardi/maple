@@ -2,10 +2,14 @@
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
-process.stdout.write(`FAKE CLAUDE ${args.join(' ')}\r\n`);
+const banner = `FAKE CLAUDE ${args.join(' ')}\r\n`;
+process.stdout.write(banner);
 if (args[0] === '--version') {
   process.exit(0);
 }
+process.stdout.on('resize', () => {
+  process.stdout.write(`\x1b[2J\x1b[H${banner}`);
+});
 createInterface({ input: process.stdin })
   .on('line', (line) => {
     process.stdout.write(`${line}\r\n`);

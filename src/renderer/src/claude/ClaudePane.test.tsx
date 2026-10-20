@@ -20,8 +20,9 @@ const xterm = vi.hoisted(() => {
     rows: 24,
     loadAddon: vi.fn(),
     open: vi.fn(),
-    write: vi.fn((data: string) => {
+    write: vi.fn((data: string, done?: () => void) => {
       written.push(data);
+      done?.();
     }),
     onData: vi.fn((cb: (data: string) => void) => {
       typed = cb;
@@ -128,6 +129,23 @@ describe('ClaudePane', () => {
     push('live');
     // then
     expect(xterm.written).toEqual(['backlog', 'live']);
+  });
+
+  test('answers the terminal sends while replaying the backlog never reach the session', async () => {
+    // given
+    const write = vi.fn();
+    fakeMaple({ session: { write } });
+    xterm.terminal.write.mockImplementationOnce((data: string, done?: () => void) => {
+      xterm.written.push(data);
+      xterm.type('\x1b[?1;2c');
+      done?.();
+    });
+    // when
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+    xterm.type('x');
+    // then
+    expect(write.mock.calls).toEqual([['t1', 'x']]);
   });
 
   test('typed data reaches session.write with the tab id', async () => {

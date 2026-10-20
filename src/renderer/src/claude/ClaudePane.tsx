@@ -87,8 +87,11 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
         },
       ),
     );
+    let replaying = true;
     const typing = term.onData((data) => {
-      session.write(tabId, data);
+      if (!replaying) {
+        session.write(tabId, data);
+      }
     });
     const observer = new ResizeObserver(() => {
       if (el.clientWidth === 0 || el.clientHeight === 0) {
@@ -104,7 +107,9 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       if (disposed) {
         return;
       }
-      term.write(backlog);
+      term.write(backlog, () => {
+        replaying = false;
+      });
       unsubscribe = session.onData(tabId, (data) => {
         term.write(data);
       });
