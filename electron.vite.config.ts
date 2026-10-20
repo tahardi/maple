@@ -12,7 +12,10 @@ const alias = {
 const copyResources: Plugin = {
   name: 'copy-resources',
   generateBundle() {
-    for (const fileName of readdirSync('resources').filter((name) => !name.endsWith('.test.ts'))) {
+    const files = readdirSync('resources', { withFileTypes: true }).filter(
+      (entry) => entry.isFile() && !entry.name.endsWith('.test.ts'),
+    );
+    for (const { name: fileName } of files) {
       this.emitFile({ type: 'asset', fileName, source: readFileSync(resolve('resources', fileName)) });
     }
   },

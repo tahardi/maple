@@ -23,8 +23,11 @@ make clean  # delete node_modules and build and test output
 make run     # start the app in development mode
 make try  # start a separate Maple with its own tabs and sessions, safe to close next to your main one
 make test-live  # check Maple's assumptions against the real claude, Jira, and GitHub
-make install  # build the AppImage and add Maple to the desktop launcher
+make install-apparmor  # install the AppArmor profile Maple needs, with sudo
+make install  # build Maple, copy it to ~/.local/share/maple/app, and add it to the desktop launcher
 ```
+
+Run `make install-apparmor` once before the first `make install`, and again whenever `resources/apparmor/maple` changes. It needs sudo. The Claude sandbox and Electron's own sandbox need user namespaces, which Ubuntu allows only for programs with an AppArmor profile, so without it the installed Maple may not start and its Claude sessions cannot run commands.
 
 Rerun `make install` after changing your PATH, because the launcher entry keeps the PATH from install time.
 

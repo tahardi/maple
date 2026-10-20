@@ -72,9 +72,8 @@
       "output": "dist"
     },
     "linux": {
-      "target": "AppImage",
+      "target": "dir",
       "category": "Development",
-      "artifactName": "maple.AppImage",
       "icon": "resources/maple.png"
     }
   },
