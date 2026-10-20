@@ -18,12 +18,10 @@ import { VAULT_PREFIX, VaultSwitch, type TreeView } from './VaultSwitch';
 
 const WAITING = 'Waiting for worktree…';
 const MERGED = 'Merged, worktree removed';
-const DAY_MS = 24 * 60 * 60 * 1000;
 
-function recentNotes(notes: readonly VaultNote[], now: number): FileChange[] {
-  return notes
-    .filter((note) => now - Date.parse(note.modifiedAt) < DAY_MS)
-    .map((note) => ({ path: note.path, status: 'M', oldPath: null }));
+function writtenNotes(notes: readonly VaultNote[], written: readonly string[]): FileChange[] {
+  const paths = new Set(written);
+  return notes.filter((note) => paths.has(note.path)).map((note) => ({ path: note.path, status: 'M', oldPath: null }));
 }
 
 function branchName(worktreePath: string | null, cardKey: string): string | null {
@@ -54,8 +52,8 @@ export function CardTab({ tab }: { tab: TabState }) {
   const hasVault = (config?.vaultDir ?? null) !== null;
   const view = viewOverride ?? (worktreeExists ? 'worktree' : 'vault');
   const showsVault = hasVault && view === 'vault';
-  const vault = useVault(showsVault);
-  const recent = recentNotes(vault.notes, vault.listedAt);
+  const vault = useVault(tab.id, showsVault);
+  const recent = writtenNotes(vault.notes, vault.written);
   const actions =
     config === null
       ? []
@@ -133,6 +131,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           {hasVault && <VaultSwitch view={view} onChange={setViewOverride} onRefresh={vault.refresh} />}
           {showsVault ? (
             <FileTree
+              key="vault"
               nodes={buildTree(
                 vault.notes.map((note) => note.path),
                 recent,
@@ -150,6 +149,7 @@ export function CardTab({ tab }: { tab: TabState }) {
             <div className={styles.waiting}>{placeholder}</div>
           ) : (
             <FileTree
+              key="worktree"
               nodes={buildTree(files, changed, changedOnly)}
               selected={activeFile}
               onSelect={openFile}

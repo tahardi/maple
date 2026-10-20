@@ -123,6 +123,11 @@ describe('loadConfig', () => {
       error: /^reading config: duplicate jiraKey DIG$/,
     },
     {
+      name: 'a non-string vaultDir',
+      content: JSON.stringify({ ...validConfig, vaultDir: 7 }),
+      error: /^reading config: vaultDir:/,
+    },
+    {
       name: 'string jiraBoardId',
       content: JSON.stringify(stringBoardId),
       error: /^reading config: projects\.0\.jiraBoardId/,

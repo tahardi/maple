@@ -1,10 +1,10 @@
 import type { VaultNote } from '@shared/types';
 import { useCallback, useEffect, useState } from 'react';
 
-type Vault = { notes: VaultNote[]; listedAt: number; refresh: () => void };
+type Listing = { notes: VaultNote[]; written: string[] };
 
-export function useVault(enabled: boolean): Vault {
-  const [listing, setListing] = useState<{ notes: VaultNote[]; listedAt: number }>({ notes: [], listedAt: 0 });
+export function useVault(tabId: string, enabled: boolean): Listing & { refresh: () => void } {
+  const [listing, setListing] = useState<Listing>({ notes: [], written: [] });
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
@@ -12,15 +12,15 @@ export function useVault(enabled: boolean): Vault {
       return;
     }
     let live = true;
-    void window.maple.vault.list().then((next) => {
+    void Promise.all([window.maple.vault.list(), window.maple.vault.written(tabId)]).then(([notes, written]) => {
       if (live) {
-        setListing({ notes: next, listedAt: Date.now() });
+        setListing({ notes, written });
       }
     });
     return () => {
       live = false;
     };
-  }, [enabled, version]);
+  }, [tabId, enabled, version]);
 
   const refresh = useCallback(() => {
     setVersion((v) => v + 1);

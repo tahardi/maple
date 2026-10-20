@@ -142,6 +142,28 @@ describe('FileViewer', () => {
     expect(readFile).not.toHaveBeenCalled();
   });
 
+  test('re-reads a vault note each time its tab becomes active', async () => {
+    // given
+    const read = vi.fn(() => Promise.resolve('## First'));
+    fakeMaple({ vault: { read } });
+    const props = {
+      tabId: 't1',
+      openFiles: ['vault:Spike.md', 'README.md'],
+      onActivate: vi.fn(),
+      onCloseFile: vi.fn(),
+      prBody: null,
+    };
+    const { rerender } = render(<FileViewer {...props} activeFile="vault:Spike.md" />);
+    await screen.findByRole('heading', { name: 'First' });
+    rerender(<FileViewer {...props} activeFile="README.md" />);
+    read.mockResolvedValue('## Second');
+    // when
+    rerender(<FileViewer {...props} activeFile="vault:Spike.md" />);
+    // then
+    expect(await screen.findByRole('heading', { name: 'Second' })).toBeInTheDocument();
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
   test('renders a read-only editor in file mode by default', async () => {
     // given
     // when

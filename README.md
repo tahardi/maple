@@ -36,7 +36,7 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
 }
 ```
 
-`vaultDir` is optional. When set, every card tab can switch its file tree to the Markdown notes in that Obsidian vault and open them read-only next to the card's Claude session. Notes changed in the last 24 hours show as changed.
+`vaultDir` is optional. When set, every card tab can switch its file tree to the Markdown notes in that Obsidian vault and open them read-only next to the card's Claude session. Notes the card's Claude session wrote show as changed.
 
 ## Status
 

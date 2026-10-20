@@ -48,6 +48,15 @@ describe('vault', () => {
     expect(text).toBe('## Findings\n');
   });
 
+  test('readNote follows a symlink that stays inside the vault', async () => {
+    // given
+    symlinkSync(join(vault, 'Inbox.md'), join(vault, 'Alias.md'));
+    // when
+    const text = await readNote(vault, 'Alias.md');
+    // then
+    expect(text).toBe('# Inbox\n');
+  });
+
   test.each([
     { name: 'a parent path', path: '../outside.md', error: 'reading note: path is outside the vault' },
     { name: 'an absolute path', path: '/etc/passwd.md', error: 'reading note: path is outside the vault' },
@@ -59,6 +68,7 @@ describe('vault', () => {
     },
     { name: 'a non-Markdown file', path: 'image.png', error: 'reading note: path is not a Markdown file' },
     { name: 'a file over the size limit', path: 'big.md', error: 'reading note: file is too large' },
+    { name: 'a missing note', path: 'Missing.md', error: 'ENOENT' },
   ])('readNote rejects $name', async ({ path, link, error }) => {
     // given
     if (link) {

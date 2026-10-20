@@ -6,14 +6,16 @@ import { registerVault } from './vault';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, listNotes, readNote } = vi.hoisted(() => ({
+const { handle, listNotes, readNote, vaultWrites } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
   listNotes: vi.fn(),
   readNote: vi.fn(),
+  vaultWrites: vi.fn(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 vi.mock('../vault', () => ({ listNotes, readNote }));
+vi.mock('../vaultWrites', () => ({ vaultWrites }));
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
@@ -23,7 +25,7 @@ function invoke(vaultDir: string | null, channel: string, ...args: unknown[]): u
       window: () => null,
       worktreeFor: () => null,
       project: () => Promise.resolve(null),
-      sessions: {} as SessionManager,
+      sessions: { get: (tabId: string) => (tabId === 't1' ? { sessionId: 's1' } : null) } as SessionManager,
       status: {} as StatusEngine,
       setActiveTab: () => undefined,
       warnings: () => [],
@@ -64,9 +66,30 @@ describe('registerVault', () => {
     expect(readNote).toHaveBeenCalledWith('/vault', 'a.md');
   });
 
+  test('vault:written lists the notes the tab session wrote', async () => {
+    // given
+    vaultWrites.mockResolvedValue(['Spike.md']);
+    // when
+    const got = await invoke('/vault', 'vault:written', 't1');
+    // then
+    expect(got).toEqual(['Spike.md']);
+    expect(vaultWrites).toHaveBeenCalledWith('s1', '/vault');
+  });
+
+  test('vault:written returns nothing for an unknown tab', async () => {
+    // given
+    const tabId = 'gone';
+    // when
+    const got = await invoke('/vault', 'vault:written', tabId);
+    // then
+    expect(got).toEqual([]);
+    expect(vaultWrites).not.toHaveBeenCalled();
+  });
+
   test.each([
     { channel: 'vault:list', args: [] },
     { channel: 'vault:read', args: ['a.md'] },
+    { channel: 'vault:written', args: ['t1'] },
   ])('$channel rejects and logs without a vaultDir', async ({ channel, args }) => {
     // given
     const vaultDir = null;

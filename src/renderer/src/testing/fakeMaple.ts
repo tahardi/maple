@@ -82,6 +82,7 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
     vault: {
       list: vi.fn(() => Promise.resolve([])),
       read: vi.fn(() => Promise.resolve('')),
+      written: vi.fn(() => Promise.resolve([])),
       ...overrides.vault,
     },
     pr: {
