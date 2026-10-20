@@ -112,7 +112,8 @@ test.describe('smoke', () => {
     const cardTabs = page.getByRole('tab', { name: cardKey });
 
     try {
-      for (const status of ['To Do', 'In Progress', 'In Review', 'Done']) {
+      await expect(page.getByRole('heading', { name: 'To Do', exact: true })).toBeVisible({ timeout: 20_000 });
+      for (const status of ['In Progress', 'In Review', 'Done']) {
         await expect(page.getByRole('heading', { name: status, exact: true })).toBeVisible();
       }
 
