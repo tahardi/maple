@@ -160,6 +160,26 @@ describe('CardTab', () => {
     expect(await screen.findByRole('button', { name: pressed, pressed: true })).toBeInTheDocument();
   });
 
+  test('shows the session cost in the header', async () => {
+    // given
+    fakeMaple({
+      tabs: {
+        cost: () =>
+          Promise.resolve({
+            inputTokens: 1200,
+            outputTokens: 34000,
+            cacheWriteTokens: 200000,
+            cacheReadTokens: 1000000,
+            dollars: 3.4,
+          }),
+      },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByText('1.2M tokens · $3.40')).toBeInTheDocument();
+  });
+
   test('shows the branch from the worktree folder name', async () => {
     // given
     fakeRepo(true);

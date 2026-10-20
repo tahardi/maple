@@ -1,5 +1,5 @@
 import type { MapleApi } from '@shared/ipc';
-import type { Fetched, MapleConfig } from '@shared/types';
+import type { Fetched, MapleConfig, SessionCost } from '@shared/types';
 import { vi } from 'vitest';
 
 type FakeOverrides = { [A in keyof MapleApi]?: Partial<MapleApi[A]> };
@@ -55,6 +55,7 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       startFresh: vi.fn(() => Promise.resolve()),
       setActive: vi.fn(),
       statuses: vi.fn(() => Promise.resolve([])),
+      cost: vi.fn<(tabId: string) => Promise<SessionCost | null>>(() => Promise.resolve(null)),
       onStatus: vi.fn(unsubscribe),
       onChanged: vi.fn(unsubscribe),
       onActivate: vi.fn(unsubscribe),

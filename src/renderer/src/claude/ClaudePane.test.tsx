@@ -1,5 +1,6 @@
 import type { TabStatus } from '@shared/types';
 import { FitAddon } from '@xterm/addon-fit';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { Terminal } from '@xterm/xterm';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useMaple } from '../store';
@@ -34,6 +35,7 @@ const xterm = vi.hoisted(() => {
     }),
     buffer: { active: { type: 'normal' } },
     modes: { mouseTrackingMode: 'none' },
+    unicode: { activeVersion: '6' },
     getSelection: vi.fn(() => 'selected'),
     paste,
     dispose,
@@ -65,6 +67,12 @@ vi.mock('@xterm/addon-fit', () => ({
   }),
 }));
 
+vi.mock('@xterm/addon-unicode11', () => ({
+  Unicode11Addon: vi.fn(function Unicode11Addon() {
+    return {};
+  }),
+}));
+
 let resize: () => void = () => undefined;
 const disconnect = vi.fn();
 
@@ -86,6 +94,7 @@ describe('ClaudePane', () => {
     localStorage.clear();
     xterm.terminal.buffer.active.type = 'normal';
     xterm.terminal.modes.mouseTrackingMode = 'none';
+    xterm.terminal.unicode.activeVersion = '6';
     vi.clearAllMocks();
     useMaple.setState(useMaple.getInitialState(), true);
     vi.stubGlobal(
@@ -192,9 +201,21 @@ describe('ClaudePane', () => {
       fontSize: 13,
       scrollback: 10_000,
       theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
+      allowProposedApi: true,
     });
     expect(xterm.terminal.loadAddon).toHaveBeenCalledWith(vi.mocked(FitAddon).mock.results[0]?.value);
     expect(xterm.terminal.open).toHaveBeenCalledWith(expect.any(HTMLDivElement));
+  });
+
+  test('mounting measures emoji with Unicode 11 widths', async () => {
+    // given
+    fakeMaple();
+    // when
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+    // then
+    expect(xterm.terminal.loadAddon).toHaveBeenCalledWith(vi.mocked(Unicode11Addon).mock.results[0]?.value);
+    expect(xterm.terminal.unicode.activeVersion).toBe('11');
   });
 
   test('mounting reads the backlog and live data for its own tab', async () => {

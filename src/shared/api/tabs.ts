@@ -1,5 +1,5 @@
 import type { ChannelKind } from '../ipc';
-import type { CloseResult, TabState, TabStatus, Unsubscribe } from '../types';
+import type { CloseResult, SessionCost, TabState, TabStatus, Unsubscribe } from '../types';
 
 export type TabsApi = {
   list(): Promise<TabState[]>;
@@ -11,6 +11,7 @@ export type TabsApi = {
   startFresh(tabId: string): Promise<void>;
   setActive(tabId: string | null): void;
   statuses(): Promise<TabStatus[]>;
+  cost(tabId: string): Promise<SessionCost | null>;
   onStatus(cb: (s: TabStatus) => void): Unsubscribe;
   onChanged(cb: (tabs: TabState[]) => void): Unsubscribe;
   onActivate(cb: (tabId: string) => void): Unsubscribe;
@@ -26,6 +27,7 @@ export const TABS_CHANNELS = {
   startFresh: 'invoke',
   setActive: 'send',
   statuses: 'invoke',
+  cost: 'invoke',
   onStatus: 'event',
   onChanged: 'event',
   onActivate: 'event',
