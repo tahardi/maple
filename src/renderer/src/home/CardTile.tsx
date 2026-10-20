@@ -1,17 +1,22 @@
 import type { Card } from '@shared/types';
 import styles from './CardTile.module.css';
 
-type Props = { card: Card; highlighted: boolean; onSelect: (key: string) => void };
+type Props = {
+  card: Card;
+  selected: boolean;
+  onSelect: (key: string) => void;
+  onToggle: ((key: string) => void) | null;
+};
 
-export function CardTile({ card, highlighted, onSelect }: Props) {
+export function CardTile({ card, selected, onSelect, onToggle }: Props) {
   const blockers = card.blockedBy.filter((b) => b.status !== 'Done').map((b) => b.key);
 
-  return (
+  const tile = (
     <button
       className={styles.tile}
       data-key={card.key}
       data-blocked={blockers.length > 0 ? 'true' : undefined}
-      data-highlighted={highlighted ? 'true' : undefined}
+      data-highlighted={selected ? 'true' : undefined}
       onClick={() => {
         onSelect(card.key);
       }}
@@ -28,5 +33,23 @@ export function CardTile({ card, highlighted, onSelect }: Props) {
       </span>
       {blockers.length > 0 && <span className={styles.blocked}>{`blocked by ${blockers.join(', ')}`}</span>}
     </button>
+  );
+
+  if (onToggle === null) {
+    return tile;
+  }
+  return (
+    <div className={styles.selectable}>
+      <input
+        type="checkbox"
+        className={styles.check}
+        aria-label={`Select ${card.key}`}
+        checked={selected}
+        onChange={() => {
+          onToggle(card.key);
+        }}
+      />
+      {tile}
+    </div>
   );
 }

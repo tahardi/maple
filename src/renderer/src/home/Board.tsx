@@ -2,7 +2,12 @@ import type { JiraStatus, Sprint } from '@shared/types';
 import styles from './Board.module.css';
 import { CardTile } from './CardTile';
 
-type Props = { sprint: Sprint; highlighted: ReadonlySet<string>; onSelect: (key: string) => void };
+type Props = {
+  sprint: Sprint;
+  selected: ReadonlySet<string>;
+  onSelect: (key: string) => void;
+  onToggle: (key: string) => void;
+};
 
 const COLUMNS: readonly JiraStatus[] = ['To Do', 'In Progress', 'In Review', 'Done'];
 
@@ -10,7 +15,7 @@ function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function Board({ sprint, highlighted, onSelect }: Props) {
+export function Board({ sprint, selected, onSelect, onToggle }: Props) {
   const done = sprint.cards.filter((c) => c.status === 'Done').length;
 
   return (
@@ -27,7 +32,13 @@ export function Board({ sprint, highlighted, onSelect }: Props) {
             {sprint.cards
               .filter((c) => c.status === status)
               .map((c) => (
-                <CardTile key={c.key} card={c} highlighted={highlighted.has(c.key)} onSelect={onSelect} />
+                <CardTile
+                  key={c.key}
+                  card={c}
+                  selected={selected.has(c.key)}
+                  onSelect={onSelect}
+                  onToggle={status === 'To Do' ? onToggle : null}
+                />
               ))}
           </section>
         ))}
