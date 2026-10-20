@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -39,6 +40,7 @@ test.describe('smoke', () => {
         MAPLE_CONFIG_DIR: configDir,
         MAPLE_JIRA_ENV: jiraEnv,
         MAPLE_CLAUDE_JSON: claudeJson,
+        TMUX_TMPDIR: root,
       },
     });
     const page = await app.firstWindow();
@@ -70,6 +72,7 @@ test.describe('smoke', () => {
     } finally {
       const closed = app.waitForEvent('close');
       app.process().kill('SIGKILL');
+      execFileSync('tmux', ['-L', 'maple', 'kill-server'], { env: { ...env, TMUX_TMPDIR: root } });
       await closed;
       await jira.close();
       rmSync(root, { recursive: true, force: true });
