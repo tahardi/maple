@@ -29,7 +29,7 @@ export type TabState = {
   sessionId: string;
   worktreePath: string | null;
 };
-export type Dot = 'working' | 'waiting' | 'ready' | 'idle';
+export type Dot = 'working' | 'waiting' | 'ready' | 'idle' | 'merged';
 export type TabStatus = {
   tabId: string;
   dot: Dot;
