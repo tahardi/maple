@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useMaple } from '../store';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Inbox } from './Inbox';
 import { ProjectMenu } from './ProjectMenu';
+import { ReportDialog } from './ReportDialog';
 import styles from './TabBar.module.css';
 
 export function TabBar() {
@@ -13,6 +15,7 @@ export function TabBar() {
   const confirmClose = useMaple((s) => s.confirmClose);
   const closeTab = useMaple((s) => s.closeTab);
   const cancelClose = useMaple((s) => s.cancelClose);
+  const [reporting, setReporting] = useState(false);
   const cardTabs = tabs.filter((t) => t.projectKey === projectKey && t.kind === 'card');
   const items = [
     { id: null, label: 'Home', dot: undefined },
@@ -57,6 +60,21 @@ export function TabBar() {
           </div>
         ))}
       </div>
+      <button
+        className={styles.report}
+        onClick={() => {
+          setReporting(true);
+        }}
+      >
+        Report
+      </button>
+      {reporting && (
+        <ReportDialog
+          onClose={() => {
+            setReporting(false);
+          }}
+        />
+      )}
       {closing && (
         <ConfirmDialog
           title="Close tab"

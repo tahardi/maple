@@ -1,12 +1,14 @@
 import type { ChannelKind } from '../ipc';
-import type { BacklogGroup, Fetched, Sprint } from '../types';
+import type { BacklogGroup, Fetched, Filed, Report, Sprint } from '../types';
 
 export type JiraApi = {
   sprint(projectKey: string): Promise<Fetched<Sprint>>;
   backlog(projectKey: string): Promise<Fetched<BacklogGroup[]>>;
+  report(report: Report): Promise<Filed>;
 };
 
 export const JIRA_CHANNELS = {
   sprint: 'invoke',
   backlog: 'invoke',
+  report: 'invoke',
 } as const satisfies { [M in keyof JiraApi]: ChannelKind };
