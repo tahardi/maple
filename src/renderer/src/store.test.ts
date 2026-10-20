@@ -255,4 +255,20 @@ describe('useMaple', () => {
     // then
     expect(unsubscribe).toHaveBeenCalledTimes(4);
   });
+
+  test('setDraft stores and clears a draft per tab and path', () => {
+    // given
+    const other = { text: 'b\n', disk: 'a\n' };
+    const draft = { text: 'two\n', disk: 'one\n' };
+    useMaple.getState().setDraft('t2', 'a.ts', other);
+    // when
+    useMaple.getState().setDraft('t1', 'a.ts', draft);
+    // then
+    expect(useMaple.getState().drafts.t1['a.ts']).toEqual(draft);
+    // when
+    useMaple.getState().setDraft('t1', 'a.ts', null);
+    // then
+    expect(useMaple.getState().drafts.t1).not.toHaveProperty('a.ts');
+    expect(useMaple.getState().drafts.t2).toEqual({ 'a.ts': other });
+  });
 });

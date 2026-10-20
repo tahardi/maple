@@ -1,4 +1,4 @@
-import type { Fetched, MapleConfig, PreflightProblem, TabState, TabStatus, Unsubscribe } from '@shared/types';
+import type { Draft, Fetched, MapleConfig, PreflightProblem, TabState, TabStatus, Unsubscribe } from '@shared/types';
 import { create } from 'zustand';
 
 type MapleState = {
@@ -13,6 +13,7 @@ type MapleState = {
   activeTabId: string | null;
   confirmClose: string | null;
   lastActive: Record<string, string | null>;
+  drafts: Record<string, Record<string, Draft>>;
   init: () => Promise<void>;
   selectProject: (key: string) => void;
   activate: (tabId: string | null) => void;
@@ -20,6 +21,7 @@ type MapleState = {
   setStatus: (s: TabStatus) => void;
   closeTab: (tabId: string, force: boolean) => Promise<void>;
   cancelClose: () => void;
+  setDraft: (tabId: string, path: string, draft: Draft | null) => void;
 };
 
 let unsubscribes: Unsubscribe[] = [];
@@ -44,6 +46,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
   activeTabId: null,
   confirmClose: null,
   lastActive: {},
+  drafts: {},
 
   async init() {
     const { maple } = window;
@@ -132,5 +135,11 @@ export const useMaple = create<MapleState>()((set, get) => ({
 
   cancelClose() {
     set({ confirmClose: null });
+  },
+
+  setDraft(tabId, path, draft) {
+    const { drafts } = get();
+    const rest = Object.fromEntries(Object.entries(drafts[tabId] ?? {}).filter(([p]) => p !== path));
+    set({ drafts: { ...drafts, [tabId]: draft === null ? rest : { ...rest, [path]: draft } } });
   },
 }));
