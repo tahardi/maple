@@ -58,6 +58,7 @@ export type PrInfo = {
   deviations: string | null;
   needsTaylor: string | null;
   cardImpacts: string | null;
+  body: string;
   checks: ChecksSummary;
 };
 export type FileStatus = 'A' | 'M' | 'D' | 'R';

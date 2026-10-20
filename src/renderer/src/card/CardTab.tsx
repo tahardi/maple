@@ -10,6 +10,7 @@ import { FileTree } from './FileTree';
 import { FileViewer } from './FileViewer';
 import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
+import { PR_DESCRIPTION } from './prDescription';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
 
@@ -32,6 +33,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [descriptionOpened, setDescriptionOpened] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
@@ -63,6 +65,12 @@ export function CardTab({ tab }: { tab: TabState }) {
     setOpenFiles((files) => (files.includes(path) ? files : [...files, path]));
     setActiveFile(path);
   };
+
+  if (!descriptionOpened && pr?.data) {
+    setDescriptionOpened(true);
+    setOpenFiles((files) => [PR_DESCRIPTION, ...files]);
+    setActiveFile((active) => active ?? PR_DESCRIPTION);
+  }
 
   const closeFile = (path: string) => {
     const rest = openFiles.filter((file) => file !== path);
@@ -118,7 +126,14 @@ export function CardTab({ tab }: { tab: TabState }) {
               changedCount={changed.length}
             />
           )}
-          {pr && <PrSummary pr={pr} />}
+          {pr && (
+            <PrSummary
+              pr={pr}
+              onOpenDescription={() => {
+                openFile(PR_DESCRIPTION);
+              }}
+            />
+          )}
         </div>
         <div className={styles.divider} onPointerDown={drag('left')} />
         <div className={styles.middle} data-testid="viewer-slot">
@@ -131,6 +146,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               activeFile={activeFile}
               onActivate={setActiveFile}
               onCloseFile={closeFile}
+              prBody={pr?.data?.body ?? null}
             />
           )}
         </div>
