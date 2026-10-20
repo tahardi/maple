@@ -17,7 +17,7 @@ export const defaultRunner: Runner = (cmd, args, cwd) =>
     });
   });
 
-const tools = ['claude', 'gh', 'git'] as const;
+const tools = ['claude', 'gh', 'git', 'tmux'] as const;
 
 export async function runPreflight(
   run: Runner,

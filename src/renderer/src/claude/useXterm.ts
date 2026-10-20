@@ -92,8 +92,11 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): v
         },
       ),
     );
+    let replaying = true;
     const typing = term.onData((data) => {
-      io.write(data);
+      if (!replaying) {
+        io.write(data);
+      }
     });
     const observer = new ResizeObserver(() => {
       if (el.clientWidth === 0 || el.clientHeight === 0) {
@@ -109,7 +112,9 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): v
       if (disposed) {
         return;
       }
-      term.write(backlog);
+      term.write(backlog, () => {
+        replaying = false;
+      });
       unsubscribe = io.onData((data) => {
         term.write(data);
       });

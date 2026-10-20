@@ -10,6 +10,7 @@ import { startHookServer } from '../../src/main/hookServer';
 import { writeHooksFile } from '../../src/main/hooksFile';
 import { createLogger } from '../../src/main/log';
 import { SessionManager } from '../../src/main/sessions';
+import { endTmux, writeTmuxConf } from '../../src/main/tmux';
 import { hasTranscript } from '../../src/main/transcripts';
 
 const silent = createLogger(() => undefined);
@@ -66,6 +67,8 @@ describe('SessionManager with a real claude', () => {
       closedSessions: {},
       uuid: randomUUID,
       hasTranscript,
+      tmuxConf: await writeTmuxConf(dir),
+      endTmux,
       logger: silent,
     });
     sessions = manager;

@@ -6,6 +6,7 @@ Personal agentic IDE for running Jira cards with Claude. Built with Electron, Re
 
 - Node 24 (see `.nvmrc`)
 - A C++ toolchain and Python, for building `node-pty`
+- tmux, so Claude sessions keep running if Maple crashes
 
 ## Usage
 
