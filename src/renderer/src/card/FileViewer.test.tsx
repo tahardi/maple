@@ -21,7 +21,7 @@ const monaco = vi.hoisted(() => {
   };
   const model = { getLineMaxColumn: () => 9 };
   const api = {
-    editor: { OverviewRulerLane: { Full: 7 } },
+    editor: { OverviewRulerLane: { Full: 7 }, MinimapPosition: { Gutter: 2 } },
     languages: {
       getLanguages: () => [
         { id: 'typescript', extensions: ['.ts'] },
@@ -40,7 +40,7 @@ vi.mock('@monaco-editor/react', async () => {
     Editor: (props: {
       value: string;
       language: string | undefined;
-      options: { readOnly: boolean };
+      options: { readOnly: boolean; minimap?: { enabled: boolean; size: string } };
       onMount: (editor: unknown) => void;
       onChange: (value: string | undefined) => void;
     }) => {
@@ -78,6 +78,7 @@ vi.mock('@monaco-editor/react', async () => {
           data-value={props.value}
           data-language={props.language}
           data-readonly={String(props.options.readOnly)}
+          data-minimap={JSON.stringify(props.options.minimap)}
         />
       );
     },
@@ -343,11 +344,23 @@ describe('FileViewer', () => {
             className: 'line-chg',
             marginClassName: 'margin-chg',
             overviewRuler: { color: '#d4b106', position: 7 },
+            minimap: { color: '#d4b106', position: 2 },
             hoverMessage: { value: 'Was:\n```\nold\n```' },
           },
         },
       ]);
     });
+  });
+
+  test('turns on the minimap', async () => {
+    // given
+    const pair = changed;
+    // when
+    renderViewer(pair);
+    // then
+    const editor = await screen.findByTestId('editor');
+    const minimap: unknown = JSON.parse(editor.getAttribute('data-minimap') ?? 'null');
+    expect(minimap).toMatchObject({ enabled: true, size: 'fit' });
   });
 
   test.each([
