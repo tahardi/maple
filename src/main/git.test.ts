@@ -220,6 +220,16 @@ describe('git', () => {
     expect(hits).toEqual([{ path: 'untracked.txt', line: 1, text: 'run --force now' }]);
   });
 
+  test('searchFiles caps the hits at 500 and each line at 200 characters', async () => {
+    // given
+    writeFileSync(join(worktree, 'untracked.txt'), `needle${'x'.repeat(300)}\n`.repeat(600));
+    // when
+    const hits = await searchFiles(worktree, 'needle');
+    // then
+    expect(hits).toHaveLength(500);
+    expect(hits[0]).toEqual({ path: 'untracked.txt', line: 1, text: `needle${'x'.repeat(194)}` });
+  });
+
   test('currentBranch returns the checked out branch', async () => {
     // given
     const feature = worktree;

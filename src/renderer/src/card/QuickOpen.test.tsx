@@ -44,6 +44,46 @@ describe('QuickOpen', () => {
     expect(onOpen).toHaveBeenCalledWith('src/a.ts', 3);
   });
 
+  test.each([
+    { name: 'No matches for an empty result', search: () => Promise.resolve([]), want: 'No matches' },
+    {
+      name: 'the error when the search fails',
+      search: () => Promise.reject(new Error('running git grep: bad')),
+      want: 'running git grep: bad',
+    },
+  ])('text mode shows $name', async ({ search, want }) => {
+    // given
+    fakeMaple({ repo: { search } });
+    render(<QuickOpen tabId="t1" files={files} mode="text" onOpen={vi.fn()} onClose={vi.fn()} />);
+    // when
+    await userEvent.type(screen.getByRole('textbox'), 'needle{Enter}');
+    // then
+    expect(await screen.findByText(want)).toBeInTheDocument();
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
+  });
+
+  test('text mode does not search a blank query', async () => {
+    // given
+    const search = vi.fn(() => Promise.resolve([]));
+    fakeMaple({ repo: { search } });
+    render(<QuickOpen tabId="t1" files={files} mode="text" onOpen={vi.fn()} onClose={vi.fn()} />);
+    // when
+    await userEvent.type(screen.getByRole('textbox'), '  {Enter}');
+    // then
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  test('clicking outside the box closes it', async () => {
+    // given
+    fakeMaple();
+    const onClose = vi.fn();
+    render(<QuickOpen tabId="t1" files={files} mode="files" onOpen={vi.fn()} onClose={onClose} />);
+    // when
+    await userEvent.click(screen.getByRole('dialog').parentElement ?? document.body);
+    // then
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   test('Escape closes it', async () => {
     // given
     fakeMaple();
