@@ -36,6 +36,12 @@ describe('nextDot', () => {
       want: 'merged',
     },
     {
+      name: 'done card with a merged PR is merged',
+
+      input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: pr('MERGED', 0) },
+      want: 'merged',
+    },
+    {
       name: 'done card with failing checks is merged',
 
       input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: pr('OPEN', 2) },
