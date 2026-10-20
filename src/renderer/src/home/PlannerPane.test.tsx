@@ -18,10 +18,15 @@ const PLANNER: TabState = {
   worktreePath: null,
 };
 
-type Options = { selected?: readonly string[]; readyCount?: number; failure?: string | null };
+type Options = {
+  selected?: readonly string[];
+  toAccept?: readonly string[];
+  readyCount?: number;
+  failure?: string | null;
+};
 
 function setup(
-  { selected = [], readyCount = 0, failure = null }: Options = {},
+  { selected = [], toAccept = [], readyCount = 0, failure = null }: Options = {},
   planner: Promise<TabState> = Promise.resolve(PLANNER),
 ) {
   let emit: (keys: string[]) => void = () => undefined;
@@ -37,6 +42,8 @@ function setup(
   const onSelectReady = vi.fn();
   const onStart = vi.fn();
   const onClear = vi.fn();
+  const onAccept = vi.fn();
+  const onAcceptAndStart = vi.fn();
   const { unmount } = render(
     <PlannerPane
       projectKey="DIG"
@@ -46,6 +53,9 @@ function setup(
       onSelectReady={onSelectReady}
       onStart={onStart}
       onClear={onClear}
+      toAccept={toAccept}
+      onAccept={onAccept}
+      onAcceptAndStart={onAcceptAndStart}
       failure={failure}
     />,
   );
@@ -58,6 +68,8 @@ function setup(
     onSelectReady,
     onStart,
     onClear,
+    onAccept,
+    onAcceptAndStart,
     onBatchEvent,
     emit: (keys: string[]) => {
       act(() => {
@@ -153,6 +165,37 @@ describe('PlannerPane', () => {
       'Start (1)',
       'Clear',
     ]);
+  });
+
+  test('Accept N and Accept N and start all show the count and call their handlers', async () => {
+    // given
+    const { onAccept, onAcceptAndStart } = setup({ toAccept: ['DIG-50', 'DIG-51'] });
+    await screen.findByTestId('claude-pane');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Accept 2' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Accept 2 and start all' }));
+    // then
+    expect(onAccept).toHaveBeenCalledTimes(1);
+    expect(onAcceptAndStart).toHaveBeenCalledTimes(1);
+  });
+
+  test('no backlog cards to accept shows no Accept buttons', async () => {
+    // given
+    setup({ selected: ['DIG-41'] });
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.queryByRole('button', { name: /^Accept/ })).not.toBeInTheDocument();
+  });
+
+  test('backlog cards to accept hide Nothing to start', async () => {
+    // given
+    const { emit } = setup({ toAccept: ['DIG-50'] });
+    await screen.findByTestId('claude-pane');
+    // when
+    emit(['DIG-50']);
+    // then
+    expect(screen.queryByText('Nothing to start right now')).not.toBeInTheDocument();
   });
 
   test('a failure shows in an alert', async () => {

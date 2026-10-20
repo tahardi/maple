@@ -31,6 +31,21 @@ const READY = {
   ],
 };
 
+const BACKLOG = [{ epic: null, cards: [card('DIG-50', 'To Do'), card('DIG-51', 'In Progress')] }];
+
+function acceptSetup(
+  jira: Partial<Window['maple']['jira']> = {},
+  startCard = vi.fn<Window['maple']['tabs']['startCard']>(() => new Promise<TabState>(() => undefined)),
+) {
+  const { onBatch, emit } = batchEvents();
+  const sprint = vi.fn(() => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }));
+  const backlog = vi.fn(() => Promise.resolve({ data: BACKLOG, error: null, fetchedAt: null }));
+  const moveToSprint = vi.fn(() => Promise.resolve());
+  fakeMaple({ tabs: { startCard }, jira: { sprint, backlog, moveToSprint, ...jira }, session: { onBatch } });
+  render(<HomeTab projectKey="DIG" />);
+  return { sprint, backlog, moveToSprint, startCard, emit };
+}
+
 function batchEvents() {
   let emit: (keys: string[]) => void = () => undefined;
   return {
@@ -446,7 +461,9 @@ describe('HomeTab', () => {
 
   test('Start starts the selected cards in board order and activates the first', async () => {
     // given
-    const startCard = vi.fn((_projectKey: string, cardKey: string) => Promise.resolve(tab(`t-${cardKey}`, cardKey)));
+    const startCard = vi.fn<Window['maple']['tabs']['startCard']>((_projectKey, cardKey) =>
+      Promise.resolve(tab(`t-${cardKey}`, cardKey)),
+    );
     const activate = vi.fn();
     fakeMaple({
       tabs: { startCard },
@@ -573,5 +590,105 @@ describe('HomeTab', () => {
     // then
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Start \(/ })).not.toBeInTheDocument();
+  });
+
+  test('a batch highlights backlog keys and offers Accept 1', async () => {
+    // given
+    const { emit } = acceptSetup();
+    await screen.findByTestId('claude-pane');
+    await screen.findByText('Backlog (2)');
+    // when
+    emit(['DIG-41', 'DIG-50', 'DIG-51', 'DIG-99']);
+    // then
+    expect(await screen.findByRole('button', { name: 'Start (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept 1' })).toBeInTheDocument();
+    expect(screen.getByText('DIG-50').closest('li')).toHaveAttribute('data-highlighted', 'true');
+    expect(screen.getByText('DIG-51').closest('li')).not.toHaveAttribute('data-highlighted');
+  });
+
+  test('Accept shows the cards and moves them only after confirming', async () => {
+    // given
+    const { emit, moveToSprint, sprint, backlog } = acceptSetup();
+    await screen.findByTestId('claude-pane');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-41', 'DIG-50', 'DIG-99']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('DIG-50 Summary of DIG-50');
+    expect(moveToSprint).not.toHaveBeenCalled();
+    const sprintLoads = sprint.mock.calls.length;
+    const backlogLoads = backlog.mock.calls.length;
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Move to sprint' }));
+    // then
+    expect(moveToSprint).toHaveBeenCalledWith(SPRINT.id, ['DIG-50']);
+    await waitFor(() => {
+      expect(sprint.mock.calls.length).toBeGreaterThan(sprintLoads);
+    });
+    expect(backlog.mock.calls.length).toBeGreaterThan(backlogLoads);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  test('Cancel closes the dialog without touching Jira', async () => {
+    // given
+    const { emit, moveToSprint } = acceptSetup();
+    await screen.findByTestId('claude-pane');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(moveToSprint).not.toHaveBeenCalled();
+  });
+
+  test('Accept and start all moves then starts the selected sprint cards and the accepted cards in order', async () => {
+    // given
+    let moved: () => void = () => undefined;
+    const moveToSprint = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          moved = resolve;
+        }),
+    );
+    const startCard = vi.fn<Window['maple']['tabs']['startCard']>((_projectKey, cardKey) =>
+      Promise.resolve(tab(`t-${cardKey}`, cardKey)),
+    );
+    const { emit } = acceptSetup({ moveToSprint }, startCard);
+    await screen.findByTestId('claude-pane');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-41', 'DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1 and start all' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Move and start' }));
+    // then
+    expect(moveToSprint).toHaveBeenCalledWith(SPRINT.id, ['DIG-50']);
+    expect(startCard).not.toHaveBeenCalled();
+    act(() => {
+      moved();
+    });
+    await waitFor(() => {
+      expect(startCard).toHaveBeenCalledTimes(2);
+    });
+    expect(startCard.mock.calls.map(([, key]) => key)).toEqual(['DIG-41', 'DIG-50']);
+  });
+
+  test('a failed move shows the error and starts nothing', async () => {
+    // given
+    const moveToSprint = vi.fn(() =>
+      Promise.reject(
+        new Error("Error invoking remote method 'jira:moveToSprint': Error: moving cards to sprint: Jira returned 400"),
+      ),
+    );
+    const { emit, startCard } = acceptSetup({ moveToSprint });
+    await screen.findByTestId('claude-pane');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-41', 'DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1 and start all' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Move and start' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^moving cards to sprint: Jira returned 400$/);
+    expect(startCard).not.toHaveBeenCalled();
   });
 });

@@ -173,6 +173,63 @@ describe('registerJira', () => {
     expect(serialized).not.toContain(Buffer.from(`me@example.com:${TOKEN}`).toString('base64'));
   });
 
+  test('moveToSprint moves the cards with the startup creds', async () => {
+    // given
+    const path = await writeCreds();
+    vi.stubEnv('MAPLE_JIRA_ENV', path);
+    const fetchFn = vi.fn<typeof fetch>(() => Promise.resolve(new Response(null, { status: 204 })));
+    vi.stubGlobal('fetch', fetchFn);
+    registerJira(deps, logger);
+    await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    await rm(path);
+    // when
+    await handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']);
+    // then
+    const [input, init] = fetchFn.mock.calls.at(-1) ?? [];
+    expect(input).toBe('https://example.atlassian.net/rest/agile/1.0/sprint/6/issue');
+    expect(init?.body).toBe('{"issues":["HALO-20"]}');
+  });
+
+  test.each([
+    { name: 'a lower case key', args: [6, ['halo-20']] },
+    { name: 'an empty list', args: [6, []] },
+    { name: 'a fractional sprint id', args: [6.5, ['HALO-20']] },
+  ])('moveToSprint rejects $name', async ({ args }) => {
+    // given
+    registerJira(deps, logger);
+    // when
+    const got = Promise.resolve().then(() => handler('jira:moveToSprint')({} as IpcMainInvokeEvent, ...args));
+    // then
+    await expect(got).rejects.toThrow('handling jira:moveToSprint: arguments are invalid');
+  });
+
+  test('moveToSprint rejects with the creds error when creds are unreadable', async () => {
+    // given
+    registerJira(deps, logger);
+    // when
+    const got = handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']);
+    // then
+    await expect(got).rejects.toThrow('reading jira creds:');
+  });
+
+  test('logs a failed move at warn', async () => {
+    // given
+    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(() => Promise.resolve(new Response('', { status: 400 }))),
+    );
+    registerJira(deps, logger);
+    // when
+    const got = handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']);
+    // then
+    await expect(got).rejects.toThrow('moving cards to sprint: Jira returned 400');
+    expect(logger.warn).toHaveBeenCalledWith('jira', 'failed', {
+      operation: 'moveToSprint',
+      error: 'moving cards to sprint: Jira returned 400',
+    });
+  });
+
   test('logs unreadable creds at warn', async () => {
     // given
     registerJira(deps, logger);

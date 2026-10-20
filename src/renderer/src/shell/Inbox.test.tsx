@@ -31,7 +31,7 @@ const card = (key: string, points: number | null): Card => ({
   url: `https://jira/${key}`,
 });
 const sprint = (cards: Card[]) => ({
-  data: { name: 'Sprint', startDate: '2026-10-13', endDate: '2026-10-27', cards } satisfies Sprint,
+  data: { id: 1, name: 'Sprint', startDate: '2026-10-13', endDate: '2026-10-27', cards } satisfies Sprint,
   error: null,
   fetchedAt: '2026-10-19T10:00:00.000Z',
 });

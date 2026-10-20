@@ -107,7 +107,7 @@ describe('CardTab', () => {
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/MPL-20',
     };
-    const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+    const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card] };
     fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
     // when
     render(<CardTab tab={{ ...tab, worktreePath: null }} />);
@@ -131,7 +131,7 @@ describe('CardTab', () => {
         descriptionMd: '',
         url: 'https://example.atlassian.net/browse/MPL-20',
       };
-      const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+      const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card] };
       fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
       // when
       render(<CardTab tab={{ ...tab, worktreePath: null }} />);
@@ -154,7 +154,7 @@ describe('CardTab', () => {
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/MPL-20',
     };
-    const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+    const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card] };
     fakeMaple({
       repo: { listFiles: () => Promise.resolve(['README.md']) },
       jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) },
@@ -368,7 +368,7 @@ describe('CardTab', () => {
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/MPL-20',
     };
-    const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+    const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card] };
     fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
     // when
     render(<CardTab tab={{ ...tab, worktreePath }} />);
@@ -391,7 +391,7 @@ describe('CardTab', () => {
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/MPL-20',
     };
-    const sprint = { name: 'S1', startDate: '', endDate: '', cards: [card] };
+    const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card] };
     const close = vi.fn(() => Promise.resolve({ closed: true, needsConfirm: false }));
     fakeMaple({
       jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) },
