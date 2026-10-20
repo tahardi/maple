@@ -81,6 +81,23 @@ describe('loadConfig', () => {
   });
 
   test.each([
+    {
+      name: 'expanded when set',
+      vaultDir: '~/Documents/obsidian-vault',
+      expected: join(homedir(), 'Documents/obsidian-vault'),
+    },
+    { name: 'null when missing', vaultDir: undefined, expected: null },
+  ])('vaultDir is $name', async ({ vaultDir, expected }) => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify({ ...validConfig, vaultDir }));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBeNull();
+    expect(result.data?.vaultDir).toBe(expected);
+  });
+
+  test.each([
     { name: 'actions missing', config: withoutActions, check: { actions: validConfig.actions } },
     { name: 'notifications missing', config: withoutNotifications, check: { notifications: true } },
   ])('defaults when $name', async ({ config, check }) => {

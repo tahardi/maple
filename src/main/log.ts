@@ -3,7 +3,18 @@ import log from 'electron-log/node';
 import { configDir } from './config';
 
 export type LogScope =
-  'session' | 'hook' | 'dot' | 'jira' | 'gh' | 'worktree' | 'restore' | 'config' | 'preflight' | 'repo' | 'app';
+  | 'session'
+  | 'hook'
+  | 'dot'
+  | 'jira'
+  | 'gh'
+  | 'worktree'
+  | 'restore'
+  | 'config'
+  | 'preflight'
+  | 'repo'
+  | 'vault'
+  | 'app';
 
 type Level = 'info' | 'warn' | 'error';
 

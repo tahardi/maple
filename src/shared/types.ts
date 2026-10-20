@@ -3,6 +3,7 @@ export type ProjectConfig = { name: string; jiraKey: string; jiraBoardId: number
 export type ActionConfig = { label: string; prompt: string };
 export type MapleConfig = {
   worktreesDir: string;
+  vaultDir: string | null;
   notifications: boolean;
   projects: ProjectConfig[];
   actions: ActionConfig[];
@@ -62,6 +63,7 @@ export type PrInfo = {
   checks: ChecksSummary;
 };
 export type FileStatus = 'A' | 'M' | 'D' | 'R';
+export type VaultNote = { path: string; modifiedAt: string };
 export type FileChange = { path: string; status: FileStatus; oldPath: string | null };
 export type ChangeSet = { base: string; files: FileChange[]; added: number; removed: number };
 export type FilePair =

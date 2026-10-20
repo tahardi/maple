@@ -1,4 +1,4 @@
-import type { Card, PrInfo, TabState } from '@shared/types';
+import type { Card, PrInfo, TabState, VaultNote } from '@shared/types';
 import type { PaneAction } from '../claude/ClaudePane';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -56,6 +56,15 @@ function fakeRepo(withPr: boolean) {
     },
     pr: { get: () => Promise.resolve({ data: withPr ? pr : null, error: null, fetchedAt: null }) },
   });
+}
+
+function fakeVault(notes: readonly VaultNote[]) {
+  useMaple.setState({
+    config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
+  });
+  const read = vi.fn(() => Promise.resolve('## Findings'));
+  fakeMaple({ vault: { list: () => Promise.resolve([...notes]), read } });
+  return read;
 }
 
 describe('CardTab', () => {
@@ -317,6 +326,7 @@ describe('CardTab', () => {
     });
     const config = {
       worktreesDir: '',
+      vaultDir: null,
       notifications: false,
       projects: [],
       actions: [{ label: 'Sync', prompt: 'Sync {key}' }],
@@ -440,5 +450,89 @@ describe('CardTab', () => {
       expect(approve).toHaveAttribute('title', 'Agent is working');
     });
     expect(approve).toBeDisabled();
+  });
+
+  test('shows no vault switch without vaultDir', async () => {
+    // given
+    fakeMaple();
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    expect(await screen.findAllByText('Waiting for worktree…')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Vault' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Worktree' })).not.toBeInTheDocument();
+  });
+
+  test('a tab without a worktree defaults to the vault', async () => {
+    // given
+    const now = new Date().toISOString();
+    fakeVault([
+      { path: 'Inbox.md', modifiedAt: now },
+      { path: 'Projects/Maple/Spike.md', modifiedAt: now },
+    ]);
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    expect(await screen.findByText('Spike.md')).toBeInTheDocument();
+    expect(screen.getByText('Inbox.md')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vault', pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Worktree', pressed: false })).toBeInTheDocument();
+    expect(screen.queryByText('Waiting for worktree…')).not.toBeInTheDocument();
+  });
+
+  test('a tab with a worktree defaults to the worktree', async () => {
+    // given
+    fakeVault([]);
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByRole('button', { name: 'Worktree', pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vault', pressed: false })).toBeInTheDocument();
+  });
+
+  test('notes changed in the last 24 hours are marked changed', async () => {
+    // given
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-20T12:00:00Z'));
+    fakeVault([
+      { path: 'Fresh.md', modifiedAt: '2026-10-19T13:00:00.000Z' },
+      { path: 'Stale.md', modifiedAt: '2026-10-19T11:00:00.000Z' },
+    ]);
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    expect(await screen.findByText('Fresh.md')).toBeInTheDocument();
+    // when
+    const changedOnly = screen.queryByText('Stale.md');
+    await userEvent.click(screen.getByRole('button', { name: 'All files' }));
+    // then
+    vi.useRealTimers();
+    expect(changedOnly).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Changed (1)' })).toBeInTheDocument();
+    expect(screen.getByText('Fresh.md').parentElement).toHaveTextContent('M');
+    expect(screen.getByText('Stale.md').parentElement).not.toHaveTextContent('M');
+  });
+
+  test('clicking a note opens it in the viewer', async () => {
+    // given
+    const read = fakeVault([{ path: 'Projects/Maple/Spike.md', modifiedAt: new Date().toISOString() }]);
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // when
+    await userEvent.click(await screen.findByText('Spike.md'));
+    // then
+    expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Spike.md' })).toBeInTheDocument();
+    expect(read).toHaveBeenCalledWith('Projects/Maple/Spike.md');
+  });
+
+  test('Refresh re-lists the vault', async () => {
+    // given
+    const list = vi.fn(() => Promise.resolve([{ path: 'Inbox.md', modifiedAt: new Date().toISOString() }]));
+    fakeVault([]);
+    window.maple.vault.list = list;
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    await screen.findByText('Inbox.md');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    // then
+    expect(list).toHaveBeenCalledTimes(2);
   });
 });

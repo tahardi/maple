@@ -23,6 +23,21 @@ make run     # start the app in development mode
 make test-live  # check Maple's assumptions against the real claude, Jira, and GitHub
 ```
 
+## Config
+
+Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `~` expands to your home directory.
+
+```json
+{
+  "worktreesDir": "~/Documents/code/wts",
+  "vaultDir": "~/Documents/obsidian-vault",
+  "notifications": true,
+  "projects": [{ "name": "Maple", "jiraKey": "MPL", "jiraBoardId": 1, "plannerDir": "~/Documents/code/maple" }]
+}
+```
+
+`vaultDir` is optional. When set, every card tab can switch its file tree to the Markdown notes in that Obsidian vault and open them read-only next to the card's Claude session. Notes changed in the last 24 hours show as changed.
+
 ## Status
 
 Maple is a personal proof of concept and is under active development. Expect breaking changes between versions.

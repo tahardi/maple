@@ -118,6 +118,30 @@ describe('FileViewer', () => {
     expect(onChanged).not.toHaveBeenCalled();
   });
 
+  test('renders a vault note as Markdown', async () => {
+    // given
+    const readFile = vi.fn();
+    const read = vi.fn(() => Promise.resolve('## Findings'));
+    fakeMaple({ repo: { readFile }, vault: { read } });
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['vault:Projects/Maple/Spike.md']}
+        activeFile="vault:Projects/Maple/Spike.md"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+      />,
+    );
+    // then
+    expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Spike.md' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'In file' })).not.toBeInTheDocument();
+    expect(read).toHaveBeenCalledWith('Projects/Maple/Spike.md');
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
   test('renders a read-only editor in file mode by default', async () => {
     // given
     // when
