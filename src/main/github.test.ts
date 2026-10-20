@@ -171,6 +171,16 @@ describe('commentOnLine', () => {
     // then
     await expect(result).rejects.toThrow('commenting on line: line must be part of the diff');
   });
+
+  test('rejects and posts nothing when the head commit lookup fails', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'no pull requests found' }));
+    // when
+    const result = commentOnLine(run, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
+    // then
+    await expect(result).rejects.toThrow('commenting on line: no pull requests found');
+    expect(run).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('reviewComments', () => {

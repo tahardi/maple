@@ -37,6 +37,7 @@ describe('LineComment', () => {
     // then
     expect(await screen.findByRole('alert')).toHaveTextContent('commenting on line: line must be part of the diff');
     expect(screen.getByRole('textbox')).toHaveValue('why?');
+    expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled();
     expect(onDone).not.toHaveBeenCalled();
   });
 

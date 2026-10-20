@@ -236,14 +236,23 @@ describe('registerPr', () => {
     expect(commentOnLine).toHaveBeenCalledWith(defaultRunner, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
   });
 
-  test('comment rejects when the branch has no open PR', async () => {
+  test.each([
+    {
+      name: 'the PR is merged',
+      worktree: '/wt',
+      found: { ...pr, state: 'MERGED' as const },
+      want: 'branch has no open PR',
+    },
+    { name: 'there is no PR', worktree: '/wt', found: null, want: 'branch has no open PR' },
+    { name: 'the tab has no worktree', worktree: null, found: pr, want: 'tab has no card worktree' },
+  ])('comment rejects and posts nothing when $name', async ({ worktree, found, want }) => {
     // given
-    prForBranch.mockResolvedValue({ ...pr, state: 'MERGED' });
-    const comment = register('pr:comment', '/wt');
+    prForBranch.mockResolvedValue(found);
+    const comment = register('pr:comment', worktree);
     // when
     const result = comment('t1', 'src/a.ts', 3, 'why?');
     // then
-    await expect(result).rejects.toThrow('commenting on line: branch has no open PR');
+    await expect(result).rejects.toThrow(`commenting on line: ${want}`);
     expect(commentOnLine).not.toHaveBeenCalled();
   });
 

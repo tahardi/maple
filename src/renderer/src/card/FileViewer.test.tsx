@@ -898,6 +898,20 @@ describe('FileViewer', () => {
     expect(comments).not.toHaveBeenCalled();
   });
 
+  test('shows the file without comment marks when the review comments fail to load', async () => {
+    // given
+    monaco.enabled.value = true;
+    const comments = vi.fn(() => Promise.reject(new Error('listing review comments: offline')));
+    // when
+    renderViewer({ kind: 'text', path: 'src/a.ts', current: 'same\n', base: 'same\n' }, undefined, true, comments);
+    // then
+    await screen.findByTestId('editor');
+    await vi.waitFor(() => {
+      expect(comments).toHaveBeenCalled();
+    });
+    expect(JSON.stringify(monaco.editor.createDecorationsCollection.mock.calls)).not.toContain('margin-comment');
+  });
+
   test('re-reads the review comments after posting one', async () => {
     // given
     const comments = vi.fn(() => Promise.resolve([]));
