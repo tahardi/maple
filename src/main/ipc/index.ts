@@ -12,6 +12,7 @@ import { registerRepo } from './repo';
 import { registerSession } from './session';
 import { registerTabs } from './tabs';
 import { registerTerminal } from './terminal';
+import { registerVault } from './vault';
 
 export type IpcDeps = {
   window: () => BrowserWindow | null;
@@ -33,6 +34,7 @@ const registrars: readonly ((deps: IpcDeps) => void)[] = [
   registerSession,
   registerTerminal,
   registerRepo,
+  registerVault,
   registerPr,
   registerApp,
 ];

@@ -3,6 +3,7 @@ import { cardActions } from './CardActions';
 
 const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
+  vaultDir: null,
   notifications: false,
   projects: [],
   actions: [

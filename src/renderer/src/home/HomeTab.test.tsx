@@ -67,6 +67,40 @@ describe('HomeTab', () => {
     expect(screen.getByRole('button', { name: /^DIG-44/ })).toBeInTheDocument();
   });
 
+  test('shows the backlog under the board', async () => {
+    // given
+    const groups = [{ epic: { key: 'DIG-2', summary: 'Search' }, cards: [card('DIG-50', 'To Do')] }];
+    fakeMaple({
+      jira: {
+        sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }),
+        backlog: () => Promise.resolve({ data: groups, error: null, fetchedAt: null }),
+      },
+    });
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    expect(await screen.findByText('Backlog (1)')).toBeInTheDocument();
+  });
+
+  test('a backlog error shows nothing extra', async () => {
+    // given
+    const backlog = vi.fn(() => Promise.resolve({ data: null, error: 'fetching backlog: timed out', fetchedAt: null }));
+    fakeMaple({
+      jira: {
+        sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }),
+        backlog,
+      },
+    });
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    await waitFor(() => {
+      expect(backlog).toHaveBeenCalled();
+    });
+    expect(screen.queryByText(/^Backlog/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
   test('shows No active sprint', async () => {
     // given
     fakeMaple({

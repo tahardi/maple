@@ -60,14 +60,40 @@ describe('FileTree', () => {
     expect(screen.getByRole('button', { name: 'Changed (3)' })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  test('clicking a folder selects nothing', async () => {
+  test('clicking a folder collapses it without selecting anything', async () => {
     // given
     const onSelect = vi.fn();
     render(<Harness onSelect={onSelect} />);
+    expect(screen.getByText('src').parentElement).toHaveAttribute('aria-expanded', 'true');
     // when
     await userEvent.click(screen.getByText('src'));
     // then
     expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.queryByText('a.ts')).not.toBeInTheDocument();
+    expect(screen.getByText('README.md')).toBeInTheDocument();
+    expect(screen.getByText('src').parentElement).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('clicking a collapsed folder expands it again', async () => {
+    // given
+    render(<Harness onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByText('src'));
+    // when
+    await userEvent.click(screen.getByText('src'));
+    // then
+    expect(screen.getByText('a.ts')).toBeInTheDocument();
+    expect(screen.getByText('src').parentElement).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('a collapsed folder stays collapsed across the changed toggle', async () => {
+    // given
+    render(<Harness onSelect={vi.fn()} />);
+    await userEvent.click(screen.getByText('src'));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Changed (3)' }));
+    // then
+    expect(screen.getByText('src')).toBeInTheDocument();
+    expect(screen.queryByText('gone.ts')).not.toBeInTheDocument();
   });
 
   test('shows a badge for each changed file only', () => {

@@ -16,6 +16,11 @@ export async function projects(): Promise<ProjectConfig[]> {
   return config?.data?.projects ?? [];
 }
 
+export async function vaultDir(): Promise<string | null> {
+  const config = await cached;
+  return config?.data?.vaultDir ?? null;
+}
+
 export async function notificationsDefault(): Promise<boolean> {
   const config = await cached;
   return config?.data?.notifications ?? true;

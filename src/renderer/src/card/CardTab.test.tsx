@@ -1,4 +1,4 @@
-import type { Card, PrInfo, TabState } from '@shared/types';
+import type { Card, PrInfo, TabState, VaultNote } from '@shared/types';
 import type { PaneAction } from '../claude/ClaudePane';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -60,6 +60,19 @@ function fakeRepo(withPr: boolean) {
     },
     pr: { get: () => Promise.resolve({ data: withPr ? pr : null, error: null, fetchedAt: null }) },
   });
+}
+
+function fakeVault(notes: readonly VaultNote[], written: readonly string[] = notes.map((note) => note.path)) {
+  useMaple.setState({
+    config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
+  });
+  const vault = {
+    list: vi.fn(() => Promise.resolve([...notes])),
+    read: vi.fn(() => Promise.resolve('## Findings')),
+    written: vi.fn(() => Promise.resolve([...written])),
+  };
+  fakeMaple({ vault });
+  return vault;
 }
 
 describe('CardTab', () => {
@@ -321,6 +334,7 @@ describe('CardTab', () => {
     });
     const config = {
       worktreesDir: '',
+      vaultDir: null,
       notifications: false,
       projects: [],
       actions: [{ label: 'Sync', prompt: 'Sync {key}' }],
@@ -484,5 +498,161 @@ describe('CardTab', () => {
     await userEvent.keyboard('{Control>}`{/Control}');
     // then
     expect(screen.queryByTestId('terminal-pane') !== null).toBe(shown);
+  });
+
+  test('Ctrl+P opens quick open and the chosen file opens in the viewer', async () => {
+    // given
+    fakeRepo(false);
+    useMaple.setState({ activeTabId: 't1' });
+    render(<CardTab tab={tab} />);
+    await screen.findByText('README.md');
+    // when
+    await userEvent.keyboard('{Control>}p{/Control}');
+    await userEvent.type(screen.getByRole('textbox'), 'a.ts{Enter}');
+    // then
+    expect(screen.queryByRole('dialog', { name: 'Quick open' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  test('Ctrl+Shift+F opens text search', async () => {
+    // given
+    const search = vi.fn(() => Promise.resolve([{ path: 'src/a.ts', line: 7, text: 'needle' }]));
+    fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'src/a.ts']), search } });
+    useMaple.setState({ activeTabId: 't1' });
+    render(<CardTab tab={tab} />);
+    await screen.findByText('README.md');
+    // when
+    await userEvent.keyboard('{Control>}{Shift>}F{/Shift}{/Control}');
+    await userEvent.type(screen.getByRole('textbox'), 'needle{Enter}');
+    await userEvent.click(await screen.findByRole('option', { name: 'src/a.ts:7 needle' }));
+    // then
+    expect(search).toHaveBeenCalledWith('t1', 'needle');
+    expect(screen.queryByRole('dialog', { name: 'Search text' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  test('Ctrl+P does nothing in a card tab that is not active', async () => {
+    // given
+    fakeRepo(false);
+    useMaple.setState({ activeTabId: 'other' });
+    render(<CardTab tab={tab} />);
+    await screen.findByText('README.md');
+    // when
+    await userEvent.keyboard('{Control>}p{/Control}');
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  test('shows no vault switch without vaultDir', async () => {
+    // given
+    const list = vi.fn(() => Promise.resolve([]));
+    fakeMaple({ vault: { list } });
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    expect(await screen.findAllByText('Waiting for worktree…')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Vault' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Worktree' })).not.toBeInTheDocument();
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  test('a tab without a worktree defaults to the vault', async () => {
+    // given
+    const now = new Date().toISOString();
+    fakeVault([
+      { path: 'Inbox.md', modifiedAt: now },
+      { path: 'Projects/Maple/Spike.md', modifiedAt: now },
+    ]);
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    expect(await screen.findByText('Spike.md')).toBeInTheDocument();
+    expect(screen.getByText('Inbox.md')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vault', pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Worktree', pressed: false })).toBeInTheDocument();
+    expect(screen.queryByText('Waiting for worktree…')).not.toBeInTheDocument();
+  });
+
+  test('a tab with a worktree defaults to the worktree', async () => {
+    // given
+    fakeVault([]);
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByRole('button', { name: 'Worktree', pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vault', pressed: false })).toBeInTheDocument();
+  });
+
+  test('notes the card session wrote are marked changed', async () => {
+    // given
+    const now = new Date().toISOString();
+    const { written } = fakeVault(
+      [
+        { path: 'Claude.md', modifiedAt: now },
+        { path: 'Taylor.md', modifiedAt: now },
+      ],
+      ['Claude.md', 'Deleted.md'],
+    );
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    expect(await screen.findByText('Claude.md')).toBeInTheDocument();
+    // when
+    const changedOnly = screen.queryByText('Taylor.md');
+    await userEvent.click(screen.getByRole('button', { name: 'All files' }));
+    // then
+    expect(changedOnly).not.toBeInTheDocument();
+    expect(written).toHaveBeenCalledWith('t1');
+    expect(screen.getByRole('button', { name: 'Changed (1)' })).toBeInTheDocument();
+    expect(screen.getByText('Claude.md').parentElement).toHaveTextContent('M');
+    expect(screen.getByText('Taylor.md').parentElement).not.toHaveTextContent('M');
+    expect(screen.queryByText('Deleted.md')).not.toBeInTheDocument();
+  });
+
+  test('choosing Worktree on a tab without a worktree shows the waiting text', async () => {
+    // given
+    fakeVault([{ path: 'Inbox.md', modifiedAt: new Date().toISOString() }]);
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    await screen.findByText('Inbox.md');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Worktree' }));
+    // then
+    expect(screen.getAllByText('Waiting for worktree…')).toHaveLength(2);
+    expect(screen.queryByText('Inbox.md')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
+  });
+
+  test('choosing Vault on a tab with a worktree shows the notes', async () => {
+    // given
+    fakeVault([{ path: 'Inbox.md', modifiedAt: new Date().toISOString() }]);
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('button', { name: 'Worktree', pressed: true });
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    // then
+    expect(await screen.findByText('Inbox.md')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vault', pressed: true })).toBeInTheDocument();
+  });
+
+  test('clicking a note opens it in the viewer', async () => {
+    // given
+    const { read } = fakeVault([{ path: 'Projects/Maple/Spike.md', modifiedAt: new Date().toISOString() }]);
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // when
+    await userEvent.click(await screen.findByText('Spike.md'));
+    // then
+    expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Spike.md' })).toBeInTheDocument();
+    expect(read).toHaveBeenCalledWith('Projects/Maple/Spike.md');
+  });
+
+  test('Refresh re-lists the vault', async () => {
+    // given
+    const { list, written } = fakeVault([{ path: 'Inbox.md', modifiedAt: new Date().toISOString() }]);
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    await screen.findByText('Inbox.md');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    // then
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(written).toHaveBeenCalledTimes(2);
   });
 });

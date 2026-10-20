@@ -56,12 +56,16 @@ function jiraFetch(issuesStatus: () => number): typeof fetch {
   });
 }
 
-function sprintHandler(): Handler {
-  const call = handle.mock.calls.find(([channel]) => channel === 'jira:sprint');
+function handler(name: string): Handler {
+  const call = handle.mock.calls.find(([channel]) => channel === name);
   if (!call) {
-    throw new Error('finding handler: jira:sprint is not registered');
+    throw new Error(`finding handler: ${name} is not registered`);
   }
   return call[1];
+}
+
+function sprintHandler(): Handler {
+  return handler('jira:sprint');
 }
 
 describe('registerJira', () => {
@@ -76,13 +80,14 @@ describe('registerJira', () => {
   });
 
   test.each([
-    { name: 'unreadable creds', key: 'HALO', want: 'reading jira creds:' },
-    { name: 'unknown project', key: 'NOPE', want: 'fetching sprint: unknown project NOPE' },
-  ])('returns the error for $name', async ({ key, want }) => {
+    { name: 'unreadable creds', channel: 'jira:sprint', key: 'HALO', want: 'reading jira creds:' },
+    { name: 'unknown project', channel: 'jira:sprint', key: 'NOPE', want: 'fetching sprint: unknown project NOPE' },
+    { name: 'unknown project', channel: 'jira:backlog', key: 'NOPE', want: 'fetching backlog: unknown project NOPE' },
+  ])('returns the error for $name on $channel', async ({ channel, key, want }) => {
     // given
     registerJira(deps, logger);
     // when
-    const got = await sprintHandler()({} as IpcMainInvokeEvent, key);
+    const got = await handler(channel)({} as IpcMainInvokeEvent, key);
     // then
     expect(got).toMatchObject({ data: null, fetchedAt: null, error: expect.stringContaining(want) as unknown });
   });
@@ -99,6 +104,20 @@ describe('registerJira', () => {
     const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
     expect(got).toMatchObject({ data: { name: 'HALO Sprint 1' }, error: null });
+  });
+
+  test('returns the backlog for a known project', async () => {
+    // given
+    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(() => Promise.resolve(new Response(fixture('backlog-issues.json')))),
+    );
+    registerJira(deps, logger);
+    // when
+    const got = await handler('jira:backlog')({} as IpcMainInvokeEvent, 'HALO');
+    // then
+    expect(got).toMatchObject({ data: [{ epic: { key: 'HALO-2' } }, { epic: null }], error: null });
   });
 
   test('reads creds once at startup', async () => {
