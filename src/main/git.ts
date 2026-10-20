@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { lstat, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { ChangeSet, FileChange, FilePair, SearchHit } from '@shared/types';
@@ -164,10 +164,23 @@ export async function searchFiles(worktree: string, query: string): Promise<Sear
   return hits;
 }
 
-export async function readFilePair(worktree: string, base: string, path: string): Promise<FilePair> {
+async function insidePath(worktree: string, path: string): Promise<string | null> {
   const root = await realpath(worktree);
   const full = await realOrSelf(resolve(root, path));
-  if (!isInside(root, full)) {
+  return isInside(root, full) ? full : null;
+}
+
+export async function writeWorktreeFile(worktree: string, path: string, text: string): Promise<void> {
+  const full = await insidePath(worktree, path);
+  if (full === null) {
+    throw new Error('writing file: path is outside the worktree');
+  }
+  await writeFile(full, text);
+}
+
+export async function readFilePair(worktree: string, base: string, path: string): Promise<FilePair> {
+  const full = await insidePath(worktree, path);
+  if (full === null) {
     throw new Error('reading file: path is outside the worktree');
   }
   const info = await stat(full).catch(() => null);

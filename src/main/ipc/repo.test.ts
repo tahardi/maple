@@ -7,17 +7,18 @@ import { registerRepo } from './repo';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, changes, listFiles, mergeBase, readFilePair, searchFiles } = vi.hoisted(() => ({
+const { handle, changes, listFiles, mergeBase, readFilePair, searchFiles, writeWorktreeFile } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
   changes: vi.fn(),
   listFiles: vi.fn(),
   mergeBase: vi.fn(),
   readFilePair: vi.fn(),
   searchFiles: vi.fn(),
+  writeWorktreeFile: vi.fn(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('../git', () => ({ changes, listFiles, mergeBase, readFilePair, searchFiles }));
+vi.mock('../git', () => ({ changes, listFiles, mergeBase, readFilePair, searchFiles, writeWorktreeFile }));
 vi.mock('../worktreeWatcher', () => ({ watchWorktree: () => () => undefined }));
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -55,7 +56,8 @@ describe('registerRepo', () => {
     { channel: 'repo:listFiles', args: ['t1'], fail: listFiles },
     { channel: 'repo:readFile', args: ['t1', 'a.ts'], fail: readFilePair },
     { channel: 'repo:search', args: ['t1', 'needle'], fail: searchFiles },
-  ])('$channel logs a failure at warn and rethrows', async ({ channel, args, fail }) => {
+    { channel: 'repo:writeFile', args: ['t1', 'a.ts', 'x'], logged: ['t1', 'a.ts'], fail: writeWorktreeFile },
+  ])('$channel logs a failure at warn and rethrows', async ({ channel, args, logged, fail }) => {
     // given
     fail.mockRejectedValue(new Error('running git: not a repo'));
     // when
@@ -64,7 +66,7 @@ describe('registerRepo', () => {
     await expect(got).rejects.toThrow('running git: not a repo');
     expect(logger.warn).toHaveBeenCalledWith('repo', 'failed', {
       operation: channel,
-      args,
+      args: logged ?? args,
       error: 'running git: not a repo',
     });
   });
@@ -77,6 +79,15 @@ describe('registerRepo', () => {
     // then
     expect(got).toEqual({ files: [] });
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  test('repo:writeFile writes the file in the tab worktree', async () => {
+    // given
+    writeWorktreeFile.mockResolvedValue(undefined);
+    // when
+    await invoke('repo:writeFile', 't1', 'a.ts', 'x');
+    // then
+    expect(writeWorktreeFile).toHaveBeenCalledWith('/wt', 'a.ts', 'x');
   });
 
   test('repo:search searches the tab worktree', async () => {
