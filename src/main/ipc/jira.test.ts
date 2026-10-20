@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ProjectConfig } from '@shared/types';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
+import type { Terminals } from '../terminals';
 import { registerJira } from './jira';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
@@ -25,6 +26,7 @@ const deps = {
   worktreeFor: () => null,
   project: (k: string) => Promise.resolve(k === 'HALO' ? project : null),
   sessions,
+  terminals: {} as Terminals,
   status: {} as StatusEngine,
   setActiveTab: () => undefined,
   warnings: () => [],

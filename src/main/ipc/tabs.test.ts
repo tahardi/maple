@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionCost, TabState, TabStatus } from '@shared/types';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
+import type { Terminals } from '../terminals';
 import { registerTabs } from './tabs';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
@@ -53,6 +54,7 @@ const status: TabStatus = { tabId: 't1', dot: 'waiting', sessionAlive: true, exi
 function setup() {
   const sessions = fakeSessions();
   const engine = Object.assign(new EventEmitter(), { statuses: vi.fn(() => [status]) });
+  const terminals = { close: vi.fn() };
   const setActiveTab = vi.fn();
   const sendToWindow = vi.fn();
   const win = { isDestroyed: () => false, webContents: { send: sendToWindow } } as unknown as BrowserWindow;
@@ -62,6 +64,7 @@ function setup() {
       worktreeFor: () => null,
       project: () => Promise.resolve(null),
       sessions: sessions as unknown as SessionManager,
+      terminals: terminals as unknown as Terminals,
       status: engine as unknown as StatusEngine,
       setActiveTab,
       setNotifications: () => Promise.resolve(),
@@ -70,7 +73,7 @@ function setup() {
     logger,
     sessionCost,
   );
-  return { sessions, engine, setActiveTab, sendToWindow };
+  return { sessions, terminals, engine, setActiveTab, sendToWindow };
 }
 
 function invoke(channel: string, ...args: unknown[]): unknown {
@@ -132,6 +135,25 @@ describe('registerTabs', () => {
     // then
     expect(sessions.close).toHaveBeenCalledWith('t1');
     expect(got).toEqual({ closed: true, needsConfirm: false });
+  });
+
+  test('tabs:close closes the tab shell', () => {
+    // given
+    const { terminals } = setup();
+    // when
+    invoke('tabs:close', 't1', false);
+    // then
+    expect(terminals.close).toHaveBeenCalledWith('t1');
+  });
+
+  test('tabs:close keeps the shell when asking to confirm', () => {
+    // given
+    const { terminals, engine } = setup();
+    engine.statuses.mockReturnValue([{ ...status, dot: 'working' }]);
+    // when
+    invoke('tabs:close', 't1', false);
+    // then
+    expect(terminals.close).not.toHaveBeenCalled();
   });
 
   test('a changed tab list is sent to the window', () => {

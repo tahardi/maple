@@ -3,6 +3,7 @@ import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
+import type { Terminals } from '../terminals';
 import { registerSession } from './session';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
@@ -29,6 +30,7 @@ function setup() {
     worktreeFor: () => null,
     project: () => Promise.resolve(null),
     sessions: sessions as unknown as SessionManager,
+    terminals: {} as Terminals,
     status: {} as StatusEngine,
     setActiveTab: () => undefined,
     warnings: () => [],

@@ -72,6 +72,15 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       onBatch: vi.fn(unsubscribe),
       ...overrides.session,
     },
+    terminal: {
+      open: vi.fn(() => Promise.resolve()),
+      write: vi.fn(),
+      resize: vi.fn(),
+      backlog: vi.fn(() => Promise.resolve('')),
+      onData: vi.fn(unsubscribe),
+      onExit: vi.fn(unsubscribe),
+      ...overrides.terminal,
+    },
     repo: {
       changes: vi.fn(() => Promise.resolve(null)),
       listFiles: vi.fn(() => Promise.resolve([])),
