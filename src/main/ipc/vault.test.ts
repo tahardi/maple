@@ -2,6 +2,7 @@ import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionManager } from '../sessions';
 import type { StatusEngine } from '../status';
+import type { Terminals } from '../terminals';
 import { registerVault } from './vault';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
@@ -26,6 +27,7 @@ function invoke(vaultDir: string | null, channel: string, ...args: unknown[]): u
       worktreeFor: () => null,
       project: () => Promise.resolve(null),
       sessions: { get: (tabId: string) => (tabId === 't1' ? { sessionId: 's1' } : null) } as SessionManager,
+      terminals: {} as Terminals,
       status: {} as StatusEngine,
       setActiveTab: () => undefined,
       warnings: () => [],
