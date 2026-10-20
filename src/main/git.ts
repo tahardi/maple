@@ -1,12 +1,12 @@
 import { execFile } from 'node:child_process';
 import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { ChangeSet, FileChange, FilePair, SearchHit } from '@shared/types';
 import { matchWorktree } from '@shared/worktree';
+import { isInside, MAX_BYTES, realOrSelf } from './paths';
 
 const execFileAsync = promisify(execFile);
-const MAX_BYTES = 2_097_152;
 const SNIFF_BYTES = 8000;
 const MAX_HITS = 500;
 const MAX_HIT_TEXT = 200;
@@ -162,22 +162,6 @@ export async function searchFiles(worktree: string, query: string): Promise<Sear
     }
   }
   return hits;
-}
-
-function isInside(root: string, full: string): boolean {
-  const inside = relative(root, full);
-  return inside !== '..' && !inside.startsWith(`..${sep}`) && !isAbsolute(inside);
-}
-
-async function realOrSelf(path: string): Promise<string> {
-  try {
-    return await realpath(path);
-  } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-      return path;
-    }
-    throw err;
-  }
 }
 
 export async function readFilePair(worktree: string, base: string, path: string): Promise<FilePair> {

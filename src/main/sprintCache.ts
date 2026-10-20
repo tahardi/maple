@@ -1,11 +1,11 @@
-import type { Fetched, ProjectConfig, Sprint } from '@shared/types';
+import type { Fetched, ProjectConfig } from '@shared/types';
 
-export class SprintCache {
-  private readonly last = new Map<string, { data: Sprint | null; fetchedAt: string }>();
+export class SprintCache<T> {
+  private readonly last = new Map<string, { data: T | null; fetchedAt: string }>();
 
-  constructor(private readonly load: (p: ProjectConfig) => Promise<Sprint | null>) {}
+  constructor(private readonly load: (p: ProjectConfig) => Promise<T | null>) {}
 
-  async get(p: ProjectConfig): Promise<Fetched<Sprint>> {
+  async get(p: ProjectConfig): Promise<Fetched<T>> {
     try {
       const entry = { data: await this.load(p), fetchedAt: new Date().toISOString() };
       this.last.set(p.jiraKey, entry);
