@@ -59,3 +59,7 @@
 .dot[data-dot='idle'] {
   background: var(--idle);
 }
+
+.dot[data-dot='merged'] {
+  background: var(--merged);
+}

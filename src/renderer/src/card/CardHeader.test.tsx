@@ -1,4 +1,4 @@
-import type { Card, ChangeSet, PrInfo } from '@shared/types';
+import type { Card, ChangeSet, PrInfo, SessionCost } from '@shared/types';
 import { render, screen } from '@testing-library/react';
 import { CardHeader } from './CardHeader';
 
@@ -32,13 +32,14 @@ const pr: PrInfo = {
   deviations: null,
   needsTaylor: null,
   cardImpacts: null,
+  body: '',
   checks: { passed: 0, failed: 0, pending: 0, total: 0 },
 };
 
 describe('CardHeader', () => {
   test('shows the card, status, PR link, branch, and change counts', () => {
     // given
-    const props = { cardKey: 'MPL-20', card, pr, branch: 'mpl-20-file-tree', changes };
+    const props = { cardKey: 'MPL-20', card, pr, branch: 'mpl-20-file-tree', changes, cost: null };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -51,11 +52,32 @@ describe('CardHeader', () => {
 
   test('shows only the card key before anything loads', () => {
     // given
-    const props = { cardKey: 'MPL-20', card: null, pr: null, branch: null, changes: null };
+    const props = { cardKey: 'MPL-20', card: null, pr: null, branch: null, changes: null, cost: null };
     // when
     const { container } = render(<CardHeader {...props} />);
     // then
     expect(container).toHaveTextContent(/^MPL-20$/);
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  const cost: SessionCost = {
+    inputTokens: 1200,
+    outputTokens: 34000,
+    cacheWriteTokens: 200000,
+    cacheReadTokens: 1000000,
+    dollars: 3.4,
+  };
+
+  test.each([
+    { name: 'tokens and dollars', cost, want: '1.2M tokens · $3.40' },
+    { name: 'tokens only when dollars are unknown', cost: { ...cost, dollars: null }, want: '1.2M tokens' },
+    { name: 'nothing without a cost', cost: null, want: '' },
+  ])('shows $name', ({ cost, want }) => {
+    // given
+    const props = { cardKey: 'MPL-20', card: null, pr: null, branch: null, changes: null, cost };
+    // when
+    const { container } = render(<CardHeader {...props} />);
+    // then
+    expect(container.textContent).toBe(`MPL-20${want}`);
   });
 });

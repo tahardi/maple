@@ -13,14 +13,15 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json --composite false && tsc --noEmit -p tsconfig.web.json --composite false",
     "test": "vitest run --project node --project web",
+    "test:socket": "vitest run --project socket",
     "test:live": "vitest run --project live",
     "e2e": "playwright test",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test",
     "postinstall": "install-electron && electron-rebuild -f -w node-pty"
   },
   "dependencies": {
     "@monaco-editor/react": "4.7.0",
     "@xterm/addon-fit": "0.11.0",
+    "@xterm/addon-unicode11": "0.9.0",
     "@xterm/xterm": "6.0.0",
     "diff": "9.0.0",
     "electron-log": "5.4.4",

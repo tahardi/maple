@@ -10,10 +10,12 @@ import { FileTree } from './FileTree';
 import { FileViewer } from './FileViewer';
 import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
+import { PR_DESCRIPTION } from './prDescription';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
 
 const WAITING = 'Waiting for worktree…';
+const MERGED = 'Merged, worktree removed';
 
 function branchName(worktreePath: string | null, cardKey: string): string | null {
   const name = worktreePath?.split('/').filter(Boolean).at(-1);
@@ -22,7 +24,7 @@ function branchName(worktreePath: string | null, cardKey: string): string | null
 }
 
 export function CardTab({ tab }: { tab: TabState }) {
-  const { changes, files, pr, card } = useCardData(tab);
+  const { changes, files, pr, card, cost } = useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
@@ -31,11 +33,13 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [descriptionOpened, setDescriptionOpened] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const changed = changes?.files ?? [];
   const worktreeExists = tab.worktreePath !== null;
+  const placeholder = card?.status === 'Done' ? MERGED : WAITING;
   const actions =
     config === null
       ? []
@@ -61,6 +65,12 @@ export function CardTab({ tab }: { tab: TabState }) {
     setOpenFiles((files) => (files.includes(path) ? files : [...files, path]));
     setActiveFile(path);
   };
+
+  if (!descriptionOpened && pr?.data) {
+    setDescriptionOpened(true);
+    setOpenFiles((files) => [PR_DESCRIPTION, ...files]);
+    setActiveFile((active) => active ?? PR_DESCRIPTION);
+  }
 
   const closeFile = (path: string) => {
     const rest = openFiles.filter((file) => file !== path);
@@ -100,11 +110,12 @@ export function CardTab({ tab }: { tab: TabState }) {
         pr={pr?.data ?? null}
         branch={branchName(tab.worktreePath, cardKey)}
         changes={changes}
+        cost={cost}
       />
       <div ref={body} className={styles.body}>
         <div className={styles.left} style={{ width: columns.left }}>
           {tab.worktreePath === null ? (
-            <div className={styles.waiting}>{WAITING}</div>
+            <div className={styles.waiting}>{placeholder}</div>
           ) : (
             <FileTree
               nodes={buildTree(files, changed, changedOnly)}
@@ -115,12 +126,19 @@ export function CardTab({ tab }: { tab: TabState }) {
               changedCount={changed.length}
             />
           )}
-          {pr && <PrSummary pr={pr} />}
+          {pr && (
+            <PrSummary
+              pr={pr}
+              onOpenDescription={() => {
+                openFile(PR_DESCRIPTION);
+              }}
+            />
+          )}
         </div>
         <div className={styles.divider} onPointerDown={drag('left')} />
         <div className={styles.middle} data-testid="viewer-slot">
           {tab.worktreePath === null ? (
-            <div className={styles.waiting}>{WAITING}</div>
+            <div className={styles.waiting}>{placeholder}</div>
           ) : (
             <FileViewer
               tabId={tab.id}
@@ -128,6 +146,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               activeFile={activeFile}
               onActivate={setActiveFile}
               onCloseFile={closeFile}
+              prBody={pr?.data?.body ?? null}
             />
           )}
         </div>
