@@ -70,7 +70,7 @@ jobs:
           cache: 'npm'
 
       - name: Run Check
-        run: make test-all
+        run: make test-unit test-socket
 
   e2e:
     runs-on: ubuntu-latest
@@ -85,4 +85,4 @@ jobs:
           cache: 'npm'
 
       - name: Run Check
-        run: xvfb-run -a make e2e
+        run: xvfb-run -a make test-e2e

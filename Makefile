@@ -10,41 +10,45 @@ SHELL := bash
 pre-pr: install format lint typecheck test-unit
 
 .PHONY: install
-install:
+install: package-lock.json
 	@npm ci
 
-node_modules/.package-lock.json: package-lock.json
-	@npm ci
+.PHONY: clean
+clean:
+	@rm -rf node_modules out dist coverage test-results playwright-report
 
 .PHONY: format
-format: node_modules/.package-lock.json
+format: install
 	@npm run format:check
 
 .PHONY: lint
-lint: node_modules/.package-lock.json
+lint: install
 	@npm run lint
 
 .PHONY: typecheck
-typecheck: node_modules/.package-lock.json
+typecheck: install
 	@npm run typecheck
 
-.PHONY: test-unit
-test-unit: node_modules/.package-lock.json
-	@npm run test
-
 .PHONY: run
-run: node_modules/.package-lock.json
+run: install
 	@npm run dev
 
 .PHONY: test-all
-test-all: node_modules/.package-lock.json
-	@npm run test:all
+test-all: test-unit test-socket test-live test-e2e
+
+.PHONY: test-unit
+test-unit: install
+	@npm run test
+
+.PHONY: test-socket
+test-socket: install
+	@npm run test:socket
 
 .PHONY: test-live
-test-live: node_modules/.package-lock.json
+test-live: install
 	@npm run test:live
 
-.PHONY: e2e
-e2e: node_modules/.package-lock.json
+.PHONY: test-e2e
+test-e2e: install
 	@npm run build
 	@npx playwright test
