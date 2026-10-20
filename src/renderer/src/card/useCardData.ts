@@ -45,7 +45,7 @@ export function useCardData(tab: TabState): CardData {
   }, [id, load]);
 
   useEffect(() => {
-    if (dot === 'idle' || dot === 'ready' || dot === 'waiting') {
+    if (dot === 'idle' || dot === 'merged' || dot === 'ready' || dot === 'waiting') {
       void load();
     }
   }, [dot, load]);

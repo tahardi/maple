@@ -73,6 +73,7 @@ describe('useCardData', () => {
   test.each([
     { dot: 'idle' as const, calls: 2 },
     { dot: 'ready' as const, calls: 2 },
+    { dot: 'merged' as const, calls: 2 },
     { dot: 'waiting' as const, calls: 2 },
     { dot: 'working' as const, calls: 1 },
   ])('a $dot status refreshes $calls times in total', async ({ dot, calls }) => {

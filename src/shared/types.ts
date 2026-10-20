@@ -36,7 +36,7 @@ export type SessionCost = {
   cacheReadTokens: number;
   dollars: number | null;
 };
-export type Dot = 'working' | 'waiting' | 'ready' | 'idle';
+export type Dot = 'working' | 'waiting' | 'ready' | 'idle' | 'merged';
 export type TabStatus = {
   tabId: string;
   dot: Dot;

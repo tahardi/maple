@@ -14,6 +14,7 @@ import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
 
 const WAITING = 'Waiting for worktree…';
+const MERGED = 'Merged, worktree removed';
 
 function branchName(worktreePath: string | null, cardKey: string): string | null {
   const name = worktreePath?.split('/').filter(Boolean).at(-1);
@@ -36,6 +37,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const changed = changes?.files ?? [];
   const worktreeExists = tab.worktreePath !== null;
+  const placeholder = card?.status === 'Done' ? MERGED : WAITING;
   const actions =
     config === null
       ? []
@@ -105,7 +107,7 @@ export function CardTab({ tab }: { tab: TabState }) {
       <div ref={body} className={styles.body}>
         <div className={styles.left} style={{ width: columns.left }}>
           {tab.worktreePath === null ? (
-            <div className={styles.waiting}>{WAITING}</div>
+            <div className={styles.waiting}>{placeholder}</div>
           ) : (
             <FileTree
               nodes={buildTree(files, changed, changedOnly)}
@@ -121,7 +123,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         <div className={styles.divider} onPointerDown={drag('left')} />
         <div className={styles.middle} data-testid="viewer-slot">
           {tab.worktreePath === null ? (
-            <div className={styles.waiting}>{WAITING}</div>
+            <div className={styles.waiting}>{placeholder}</div>
           ) : (
             <FileViewer
               tabId={tab.id}
