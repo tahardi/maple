@@ -823,12 +823,25 @@ describe('SessionManager', () => {
     expect(args[args.indexOf('-s') + 1]).toBe(`maple-${tab.id}`);
   });
 
-  test('startFresh ends the old tmux session before spawning', () => {
+  test.each([
+    {
+      name: 'startFresh',
+      restart: (m: SessionManager, id: string) => {
+        m.startFresh(id);
+      },
+    },
+    {
+      name: 'resume',
+      restart: (m: SessionManager, id: string) => {
+        m.resume(id);
+      },
+    },
+  ])('$name ends the old tmux session before spawning', ({ restart }) => {
     // given
     const { manager, spawnFn, endTmux } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
     // when
-    manager.startFresh(tab.id);
+    restart(manager, tab.id);
     // then
     expect(endTmux).toHaveBeenCalledWith(`maple-${tab.id}`);
     expect(endTmux.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(spawnFn).mock.invocationCallOrder[1]);
@@ -854,11 +867,14 @@ describe('SessionManager', () => {
     expect(endTmux).toHaveBeenCalledWith(null);
   });
 
-  test('openCard with a tab id keeps that id', () => {
+  test.each([
+    { name: 'openCard', open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', 's-1', 'tab-9') },
+    { name: 'openPlanner', open: (m: SessionManager) => m.openPlanner('DIG', 's-1', 'tab-9') },
+  ])('$name with a tab id keeps that id and leaves its tmux session running', ({ open }) => {
     // given
     const { manager, ptys, endTmux } = setup();
     // when
-    const tab = manager.openCard('DIG', 'DIG-44', 's-1', 'tab-9');
+    const tab = open(manager);
     // then
     expect(tab.id).toBe('tab-9');
     expect(ptys[0].args).toContain('MAPLE_TAB_ID=tab-9');
