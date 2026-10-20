@@ -38,6 +38,8 @@ describe('registerIpc', () => {
     closedSessions: {},
     uuid: vi.fn(),
     hasTranscript: vi.fn(),
+    tmuxConf: '',
+    endTmux: vi.fn(),
   });
   const status = new StatusEngine({
     sessions,
@@ -54,6 +56,7 @@ describe('registerIpc', () => {
     setActiveTab: vi.fn(),
     warnings: () => [],
     setNotifications: vi.fn(),
+    setZoom: vi.fn(),
   };
 
   sessions.setMaxListeners(0);

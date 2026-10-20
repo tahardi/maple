@@ -27,7 +27,11 @@ describe('setAppMenu', () => {
   test('adds a Reload config item that calls reload', () => {
     // given
     const reload = vi.fn(() => Promise.resolve());
-    setAppMenu(reload, () => Promise.resolve());
+    setAppMenu(
+      reload,
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+    );
     const item = menuItems().find((entry) => entry.label === 'Reload config');
     // when
     item?.click?.({} as never, undefined, {});
@@ -42,6 +46,7 @@ describe('setAppMenu', () => {
     setAppMenu(
       () => Promise.resolve(),
       () => Promise.resolve(),
+      () => Promise.resolve(),
     );
     // when
     const items = menuItems();
@@ -53,7 +58,11 @@ describe('setAppMenu', () => {
   test.each([true, false])('the Desktop notifications checkbox sets notifications to %s', (checked) => {
     // given
     const setNotifications = vi.fn(() => Promise.resolve());
-    setAppMenu(() => Promise.resolve(), setNotifications);
+    setAppMenu(
+      () => Promise.resolve(),
+      setNotifications,
+      () => Promise.resolve(),
+    );
     const item = menuItems().find((entry) => entry.label === 'Desktop notifications');
     // when
     item?.click?.({ checked } as never, undefined, {});
@@ -62,10 +71,31 @@ describe('setAppMenu', () => {
     expect(setNotifications).toHaveBeenCalledWith(checked);
   });
 
+  test.each([
+    { label: 'Actual Size', accelerator: 'CommandOrControl+0', change: 'reset' },
+    { label: 'Zoom In', accelerator: 'CommandOrControl+Plus', change: 'in' },
+    { label: 'Zoom Out', accelerator: 'CommandOrControl+-', change: 'out' },
+  ])('View > $label zooms $change', ({ label, accelerator, change }) => {
+    // given
+    const setZoom = vi.fn(() => Promise.resolve());
+    setAppMenu(
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+      setZoom,
+    );
+    const item = menuItems().find((entry) => entry.label === label);
+    // when
+    item?.click?.({} as never, undefined, {});
+    // then
+    expect(item?.accelerator).toBe(accelerator);
+    expect(setZoom).toHaveBeenCalledWith(change);
+  });
+
   test('Help > Open logs opens the logs folder', () => {
     // given
     vi.stubEnv('MAPLE_CONFIG_DIR', '/tmp/maple');
     setAppMenu(
+      () => Promise.resolve(),
       () => Promise.resolve(),
       () => Promise.resolve(),
     );
@@ -81,6 +111,7 @@ describe('setAppMenu', () => {
   test('the Desktop notifications checkbox sits under Settings', () => {
     // given
     setAppMenu(
+      () => Promise.resolve(),
       () => Promise.resolve(),
       () => Promise.resolve(),
     );

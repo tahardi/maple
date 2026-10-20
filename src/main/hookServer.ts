@@ -15,7 +15,7 @@ const eventSchema = z.object({
 });
 
 export function hookSocketPath(): string {
-  return join(process.env.XDG_RUNTIME_DIR ?? configDir(), 'maple.sock');
+  return join(process.env.MAPLE_CONFIG_DIR ?? process.env.XDG_RUNTIME_DIR ?? configDir(), 'maple.sock');
 }
 
 function parseLine(line: string): HookEvent | null {
