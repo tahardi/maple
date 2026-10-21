@@ -870,6 +870,12 @@ describe('FileViewer', () => {
       cursor: 3,
       title: 'Push your edits first: line numbers would not match the PR',
     },
+    {
+      name: 'outside the PR diff in a file with edits that are not pushed',
+      lines: { ranges: { 'src/a.ts': [[1, 10]] }, unpushed: ['src/a.ts'] },
+      cursor: 20,
+      title: 'Push your edits first: line numbers would not match the PR',
+    },
   ])('disables Comment on a line $name', async ({ lines, cursor, title }) => {
     // given
     const diffLines = vi.fn(() => Promise.resolve(lines));
@@ -978,6 +984,21 @@ describe('FileViewer', () => {
       expect(comments).toHaveBeenCalled();
     });
     expect(JSON.stringify(monaco.editor.createDecorationsCollection.mock.calls)).not.toContain('margin-comment');
+  });
+
+  test('re-reads the PR diff when another file opens', async () => {
+    // given
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: {}, unpushed: [] }));
+    const { props, rerender } = renderViewer(changed, undefined, true, undefined, diffLines);
+    await vi.waitFor(() => {
+      expect(diffLines).toHaveBeenCalledTimes(1);
+    });
+    // when
+    rerender(<FileViewer {...props} activeFile="README.md" />);
+    // then
+    await vi.waitFor(() => {
+      expect(diffLines).toHaveBeenCalledTimes(2);
+    });
   });
 
   test('re-reads the review comments and the PR diff after posting one', async () => {

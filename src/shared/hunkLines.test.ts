@@ -27,6 +27,16 @@ describe('hunkLines', () => {
       expected: [],
     },
     {
+      name: 'a missing newline marker and context after the header',
+      patch: '@@ -5,2 +5,3 @@ export function f() {\n a\n+b\n c\n\\ No newline at end of file',
+      expected: [[5, 7]],
+    },
+    {
+      name: 'a header-like line inside the hunk',
+      patch: '@@ -1,2 +1,2 @@\n-x @@ -9 +9 @@\n+y',
+      expected: [[1, 2]],
+    },
+    {
       name: 'an empty patch',
       patch: '',
       expected: [],

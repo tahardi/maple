@@ -178,6 +178,21 @@ describe('commentOnLine', () => {
       want: 'commenting on line: path is missing',
     },
     {
+      name: 'every reason joined when GitHub lists several',
+      stdout: JSON.stringify({ message: 'Validation Failed', errors: ['line is wrong', { message: 'path is wrong' }] }),
+      want: 'commenting on line: line is wrong; path is wrong',
+    },
+    {
+      name: 'the GitHub message when the reasons are empty',
+      stdout: JSON.stringify({ message: 'Validation Failed', errors: [] }),
+      want: 'commenting on line: Validation Failed',
+    },
+    {
+      name: 'stderr when the JSON is not a GitHub error',
+      stdout: JSON.stringify({ errors: 5 }),
+      want: 'commenting on line: gh: Validation Failed (HTTP 422)',
+    },
+    {
       name: 'the GitHub message when there are no reasons',
       stdout: JSON.stringify({ message: 'Not Found', status: '404' }),
       want: 'commenting on line: Not Found',
@@ -270,6 +285,19 @@ describe('diffLines', () => {
       ],
       'tsconfig.node.json': [[18, 24]],
     });
+  });
+
+  test('joins the files from every page', async () => {
+    // given
+    const pages = JSON.stringify([
+      [{ filename: 'a.ts', patch: '@@ -1 +1 @@\n-a\n+b' }],
+      [{ filename: 'b.ts', patch: '@@ -3,2 +3,4 @@\n x\n+y\n+z\n w' }],
+    ]);
+    const run = vi.fn<Runner>(() => Promise.resolve(ok(pages)));
+    // when
+    const result = await diffLines(run, '/wt', 53);
+    // then
+    expect(result).toEqual({ 'a.ts': [[1, 1]], 'b.ts': [[3, 6]] });
   });
 
   test('rejects with the gh error', async () => {

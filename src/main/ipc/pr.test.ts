@@ -316,6 +316,43 @@ describe('registerPr', () => {
     expect(diffLines).not.toHaveBeenCalled();
   });
 
+  test('comment rejects with the one prefix when the PR lookup fails', async () => {
+    // given
+    prForBranch.mockRejectedValueOnce(new Error('listing PRs: offline'));
+    const comment = register('pr:comment', '/wt');
+    // when
+    const result = comment('t1', 'src/a.ts', 3, 'why?');
+    // then
+    await expect(result).rejects.toThrow(/^commenting on line: listing PRs: offline$/);
+    expect(commentOnLine).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    {
+      name: 'the PR head lookup',
+      fail: () => headCommit.mockRejectedValueOnce(new Error('reading PR head: offline')),
+      error: 'reading PR head: offline',
+    },
+    {
+      name: 'the unpushed files lookup',
+      fail: () => changedSince.mockRejectedValueOnce(new Error('running git diff --name-only -z abc123: bad object')),
+      error: 'running git diff --name-only -z abc123: bad object',
+    },
+  ])('logs a failed diffLines at warn and rejects when $name fails', async ({ fail, error }) => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    diffLines.mockResolvedValue({});
+    headCommit.mockResolvedValue('abc123');
+    changedSince.mockResolvedValue([]);
+    fail();
+    const lines = register('pr:diffLines', '/wt');
+    // when
+    const result = lines('t1');
+    // then
+    await expect(result).rejects.toThrow(error);
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', { operation: 'pr:diffLines', tabId: 't1', error });
+  });
+
   test('logs a failed diffLines lookup at warn and rejects', async () => {
     // given
     prForBranch.mockResolvedValue(pr);

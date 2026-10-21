@@ -61,7 +61,9 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
         if (worktree === null) {
           throw new Error('commenting on line: tab has no card worktree');
         }
-        const pr = await lookup(worktree);
+        const pr = await lookup(worktree).catch((err: unknown) => {
+          throw new Error(`commenting on line: ${err instanceof Error ? err.message : String(err)}`);
+        });
         if (pr?.state !== 'OPEN') {
           throw new Error('commenting on line: branch has no open PR');
         }
