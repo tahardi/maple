@@ -8,21 +8,33 @@ import { registerPr } from './pr';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
 
-const { handle, prForBranch, commentOnPr, commentOnLine, reviewComments, defaultRunner, currentBranch } = vi.hoisted(
-  () => ({
-    handle: vi.fn<(channel: string, handler: Handler) => void>(),
-    prForBranch: vi.fn(),
-    commentOnPr: vi.fn(),
-    commentOnLine: vi.fn(),
-    reviewComments: vi.fn(),
-    defaultRunner: vi.fn(),
-    currentBranch: vi.fn(),
-  }),
-);
+const {
+  handle,
+  prForBranch,
+  commentOnPr,
+  commentOnLine,
+  reviewComments,
+  diffLines,
+  headCommit,
+  defaultRunner,
+  currentBranch,
+  changedSince,
+} = vi.hoisted(() => ({
+  handle: vi.fn<(channel: string, handler: Handler) => void>(),
+  prForBranch: vi.fn(),
+  commentOnPr: vi.fn(),
+  commentOnLine: vi.fn(),
+  reviewComments: vi.fn(),
+  diffLines: vi.fn(),
+  headCommit: vi.fn(),
+  defaultRunner: vi.fn(),
+  currentBranch: vi.fn(),
+  changedSince: vi.fn(),
+}));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('../git', () => ({ currentBranch }));
-vi.mock('../github', () => ({ prForBranch, commentOnPr, commentOnLine, reviewComments }));
+vi.mock('../git', () => ({ currentBranch, changedSince }));
+vi.mock('../github', () => ({ prForBranch, commentOnPr, commentOnLine, reviewComments, diffLines, headCommit }));
 vi.mock('../preflight', () => ({ defaultRunner }));
 
 const event = {} as IpcMainInvokeEvent;
@@ -256,6 +268,71 @@ describe('registerPr', () => {
     expect(commentOnLine).not.toHaveBeenCalled();
   });
 
+  test('comment rejects with the one prefix and logs the path and line when the post fails', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    commentOnLine.mockRejectedValueOnce(new Error('commenting on line: line must be part of the diff'));
+    const comment = register('pr:comment', '/wt');
+    // when
+    const result = comment('t1', 'src/a.ts', 3, 'why?');
+    // then
+    await expect(result).rejects.toThrow(/^commenting on line: line must be part of the diff$/);
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:comment',
+      tabId: 't1',
+      path: 'src/a.ts',
+      line: 3,
+      error: 'commenting on line: line must be part of the diff',
+    });
+  });
+
+  test('diffLines returns the PR diff ranges and the files that differ from the PR head', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    diffLines.mockResolvedValue({ 'src/a.ts': [[1, 4]] });
+    headCommit.mockResolvedValue('abc123');
+    changedSince.mockResolvedValue(['src/b.ts']);
+    const lines = register('pr:diffLines', '/wt');
+    // when
+    const result = await lines('t1');
+    // then
+    expect(result).toEqual({ ranges: { 'src/a.ts': [[1, 4]] }, unpushed: ['src/b.ts'] });
+    expect(diffLines).toHaveBeenCalledWith(defaultRunner, '/wt', 33);
+    expect(headCommit).toHaveBeenCalledWith(defaultRunner, '/wt', 33);
+    expect(changedSince).toHaveBeenCalledWith('/wt', 'abc123');
+  });
+
+  test.each([
+    { name: 'the tab has no worktree', worktree: null, found: pr },
+    { name: 'the branch has no PR', worktree: '/wt', found: null },
+  ])('diffLines returns none when $name', async ({ worktree, found }) => {
+    // given
+    prForBranch.mockResolvedValue(found);
+    const lines = register('pr:diffLines', worktree);
+    // when
+    const result = await lines('t1');
+    // then
+    expect(result).toEqual({ ranges: {}, unpushed: [] });
+    expect(diffLines).not.toHaveBeenCalled();
+  });
+
+  test('logs a failed diffLines lookup at warn and rejects', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    diffLines.mockRejectedValueOnce(new Error('listing PR files: offline'));
+    headCommit.mockResolvedValue('abc123');
+    const lines = register('pr:diffLines', '/wt');
+    // when
+    const result = lines('t1');
+    // then
+    await expect(result).rejects.toThrow('listing PR files: offline');
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:diffLines',
+      tabId: 't1',
+      error: 'listing PR files: offline',
+    });
+  });
+
   test('comments lists the review comments on the PR', async () => {
     // given
     prForBranch.mockResolvedValue(pr);
@@ -325,21 +402,6 @@ describe('registerPr', () => {
       operation: 'pr:approve',
       tabId: 't1',
       error: 'commenting on PR: offline',
-    });
-  });
-
-  test('logs a failed comment at warn', async () => {
-    // given
-    prForBranch.mockResolvedValue(pr);
-    commentOnLine.mockRejectedValue(new Error('commenting on line: line must be part of the diff'));
-    const comment = register('pr:comment', '/wt');
-    // when
-    await comment('t1', 'src/a.ts', 3, 'why?').catch(() => undefined);
-    // then
-    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
-      operation: 'pr:comment',
-      tabId: 't1',
-      error: 'commenting on line: line must be part of the diff',
     });
   });
 });

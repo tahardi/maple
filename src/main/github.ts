@@ -1,3 +1,4 @@
+import { hunkLines } from '@shared/hunkLines';
 import { parsePrBody } from '@shared/prBody';
 import type { ChecksSummary, PrInfo, ReviewComment } from '@shared/types';
 import { z } from 'zod';
@@ -27,7 +28,29 @@ const reviewCommentsSchema = z.array(
   ),
 );
 
+const filesSchema = z.array(z.array(z.object({ filename: z.string(), patch: z.string().optional() })));
+
+const apiErrorSchema = z.object({
+  message: z.string().optional(),
+  errors: z.array(z.union([z.string(), z.object({ message: z.string() })])).optional(),
+});
+
 const pendingExitCode = 8;
+
+function apiReason(stdout: string, stderr: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    return stderr;
+  }
+  const body = apiErrorSchema.safeParse(parsed);
+  if (!body.success) {
+    return stderr;
+  }
+  const reasons = (body.data.errors ?? []).map((e) => (typeof e === 'string' ? e : e.message));
+  return reasons.length > 0 ? reasons.join('; ') : (body.data.message ?? stderr);
+}
 
 async function checksFor(run: Runner, worktree: string, num: number): Promise<ChecksSummary> {
   const { code, stdout, stderr } = await run('gh', ['pr', 'checks', String(num), '--json', 'bucket'], worktree);
@@ -70,17 +93,49 @@ export async function commentOnPr(run: Runner, worktree: string, num: number, bo
   }
 }
 
+export async function headCommit(run: Runner, worktree: string, num: number): Promise<string> {
+  const { code, stdout, stderr } = await run(
+    'gh',
+    ['pr', 'view', String(num), '--json', 'headRefOid', '--jq', '.headRefOid'],
+    worktree,
+  );
+  if (code !== 0) {
+    throw new Error(`reading PR head: ${stderr}`);
+  }
+  return stdout.trim();
+}
+
+export async function diffLines(
+  run: Runner,
+  worktree: string,
+  num: number,
+): Promise<Record<string, readonly [number, number][]>> {
+  const { code, stdout, stderr } = await run(
+    'gh',
+    ['api', '--paginate', '--slurp', `repos/{owner}/{repo}/pulls/${String(num)}/files`],
+    worktree,
+  );
+  if (code !== 0) {
+    throw new Error(`listing PR files: ${stderr}`);
+  }
+  return Object.fromEntries(
+    filesSchema
+      .parse(JSON.parse(stdout))
+      .flat()
+      .map((f) => [f.filename, hunkLines(f.patch ?? '')]),
+  );
+}
+
 export async function commentOnLine(
   run: Runner,
   worktree: string,
   num: number,
   comment: { path: string; line: number; body: string },
 ): Promise<void> {
-  const head = await run('gh', ['pr', 'view', String(num), '--json', 'headRefOid', '--jq', '.headRefOid'], worktree);
-  if (head.code !== 0) {
-    throw new Error(`commenting on line: ${head.stderr}`);
-  }
-  const { code, stderr } = await run(
+  const head = await headCommit(run, worktree, num).catch((err: unknown) => {
+    throw new Error(`commenting on line: ${err instanceof Error ? err.message : String(err)}`);
+  });
+  const { code, stdout, stderr } = await run(
     'gh',
     [
       'api',
@@ -90,7 +145,7 @@ export async function commentOnLine(
       '-f',
       `body=${comment.body}`,
       '-f',
-      `commit_id=${head.stdout.trim()}`,
+      `commit_id=${head}`,
       '-f',
       `path=${comment.path}`,
       '-F',
@@ -101,7 +156,7 @@ export async function commentOnLine(
     worktree,
   );
   if (code !== 0) {
-    throw new Error(`commenting on line: ${stderr}`);
+    throw new Error(`commenting on line: ${apiReason(stdout, stderr)}`);
   }
 }
 

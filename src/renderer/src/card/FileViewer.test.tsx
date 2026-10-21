@@ -1,4 +1,4 @@
-import type { FilePair, ReviewComment } from '@shared/types';
+import type { DiffLines, FilePair, ReviewComment } from '@shared/types';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
@@ -19,7 +19,12 @@ const monaco = vi.hoisted(() => {
     focus: vi.fn(),
     getModel: vi.fn(() => model),
     getPosition: vi.fn(() => ({ lineNumber: 3 })),
+    onDidChangeCursorPosition: vi.fn((cb: (e: { position: { lineNumber: number } }) => void) => {
+      cursor.value = cb;
+      return { dispose: vi.fn() };
+    }),
   };
+  const cursor: { value: (e: { position: { lineNumber: number } }) => void } = { value: () => undefined };
   const model = { getLineMaxColumn: () => 9 };
   const api = {
     editor: { OverviewRulerLane: { Full: 7 } },
@@ -31,7 +36,7 @@ const monaco = vi.hoisted(() => {
     },
   };
   const change: { value: (text: string) => void } = { value: () => undefined };
-  return { editor, collection, api, change, enabled: { value: false }, slowMount: { value: false } };
+  return { editor, collection, api, change, cursor, enabled: { value: false }, slowMount: { value: false } };
 });
 
 vi.mock('@monaco-editor/react', async () => {
@@ -112,8 +117,12 @@ function renderViewer(
   writeFile = vi.fn(() => Promise.resolve()),
   canComment = false,
   comments = vi.fn(() => Promise.resolve<ReviewComment[]>([])),
+  diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] })),
 ) {
-  const maple = fakeMaple({ repo: { readFile: () => Promise.resolve(pair), writeFile }, pr: { comments } });
+  const maple = fakeMaple({
+    repo: { readFile: () => Promise.resolve(pair), writeFile },
+    pr: { comments, diffLines },
+  });
   const props = {
     tabId: 't1',
     openFiles: [pair.path, 'README.md'],
@@ -833,10 +842,69 @@ describe('FileViewer', () => {
     // given
     renderViewer(changed, undefined, true);
     await screen.findByTestId('editor');
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Comment' })).toBeEnabled();
+    });
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     // then
     expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:3' })).toBeInTheDocument();
+  });
+
+  test.each<{ name: string; lines: DiffLines; cursor: number; title: string }>([
+    {
+      name: 'outside the PR diff',
+      lines: { ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] },
+      cursor: 20,
+      title: 'GitHub only accepts comments on lines in the PR diff',
+    },
+    {
+      name: 'in a file the PR does not change',
+      lines: { ranges: { 'README.md': [[1, 10]] }, unpushed: [] },
+      cursor: 3,
+      title: 'GitHub only accepts comments on lines in the PR diff',
+    },
+    {
+      name: 'in a file with edits that are not pushed',
+      lines: { ranges: { 'src/a.ts': [[1, 10]] }, unpushed: ['src/a.ts'] },
+      cursor: 3,
+      title: 'Push your edits first: line numbers would not match the PR',
+    },
+  ])('disables Comment on a line $name', async ({ lines, cursor, title }) => {
+    // given
+    const diffLines = vi.fn(() => Promise.resolve(lines));
+    renderViewer(changed, undefined, true, undefined, diffLines);
+    await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(diffLines).toHaveBeenCalled();
+    });
+    // when
+    act(() => {
+      monaco.cursor.value({ position: { lineNumber: cursor } });
+    });
+    // then
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Comment' })).toBeDisabled();
+    });
+    expect(screen.getByRole('button', { name: 'Comment' })).toHaveAttribute('title', title);
+  });
+
+  test('enables Comment again when the cursor moves into the PR diff', async () => {
+    // given
+    renderViewer(changed, undefined, true);
+    await screen.findByRole('button', { name: 'Comment' });
+    act(() => {
+      monaco.cursor.value({ position: { lineNumber: 20 } });
+    });
+    // when
+    act(() => {
+      monaco.cursor.value({ position: { lineNumber: 10 } });
+    });
+    // then
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Comment' })).toBeEnabled();
+    });
+    expect(screen.getByRole('button', { name: 'Comment' })).not.toHaveAttribute('title');
   });
 
   test.each<{ name: string; canComment: boolean; mode: string; pair: FilePair; testId: string }>([
@@ -912,10 +980,11 @@ describe('FileViewer', () => {
     expect(JSON.stringify(monaco.editor.createDecorationsCollection.mock.calls)).not.toContain('margin-comment');
   });
 
-  test('re-reads the review comments after posting one', async () => {
+  test('re-reads the review comments and the PR diff after posting one', async () => {
     // given
     const comments = vi.fn(() => Promise.resolve([]));
-    renderViewer(changed, undefined, true, comments);
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }));
+    renderViewer(changed, undefined, true, comments, diffLines);
     await screen.findByTestId('editor');
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     // when
@@ -924,7 +993,9 @@ describe('FileViewer', () => {
     // then
     await vi.waitFor(() => {
       expect(comments).toHaveBeenCalledTimes(2);
+      expect(diffLines).toHaveBeenCalledTimes(2);
     });
+    expect(diffLines).toHaveBeenCalledWith('t1');
     expect(screen.queryByRole('heading', { name: 'Comment on src/a.ts:3' })).not.toBeInTheDocument();
   });
 

@@ -73,6 +73,7 @@ export type FilePair =
   | { kind: 'text'; path: string; current: string | null; base: string | null }
   | { kind: 'binary'; path: string }
   | { kind: 'tooLarge'; path: string; bytes: number };
+export type DiffLines = { ranges: Record<string, readonly [number, number][]>; unpushed: string[] };
 export type Draft = { text: string; disk: string | null };
 export type LineMark =
   | { kind: 'add'; line: number }

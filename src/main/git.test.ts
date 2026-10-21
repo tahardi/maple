@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import {
   changes,
+  changedSince,
   currentBranch,
   findWorktree,
   listFiles,
@@ -77,6 +78,18 @@ describe('git', () => {
     ]);
     expect(set.added).toBe(7);
     expect(set.removed).toBe(2);
+  });
+
+  test('changedSince lists the files that differ from a commit', async () => {
+    // given
+    writeFileSync(join(worktree, 'keep.txt'), 'a\nB\nc\n');
+    git(worktree, 'commit', '-am', 'pushed');
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worktree, encoding: 'utf8' }).trim();
+    writeFileSync(join(worktree, 'old.txt'), 'r1\n');
+    // when
+    const paths = await changedSince(worktree, head);
+    // then
+    expect(paths).toEqual(['old.txt']);
   });
 
   test.each([

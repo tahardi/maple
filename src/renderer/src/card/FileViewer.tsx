@@ -1,6 +1,6 @@
 import { DiffEditor, Editor, useMonaco } from '@monaco-editor/react';
 import { lineMarks } from '@shared/diffMarks';
-import type { Draft, FilePair, ReviewComment } from '@shared/types';
+import type { DiffLines, Draft, FilePair, ReviewComment } from '@shared/types';
 import type { editor } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { MarkdownText } from '../shell/MarkdownText';
@@ -31,6 +31,12 @@ const MODE_KEY = 'maple.viewMode';
 const NO_DRAFTS: Record<string, Draft> = {};
 
 const NO_COMMENTS: ReviewComment[] = [];
+
+const NO_DIFF: DiffLines = { ranges: {}, unpushed: [] };
+
+const OUTSIDE_DIFF = 'GitHub only accepts comments on lines in the PR diff';
+
+const NOT_PUSHED = 'Push your edits first: line numbers would not match the PR';
 
 const OPTIONS = { readOnly: true, domReadOnly: true, minimap: { enabled: false } };
 
@@ -74,6 +80,8 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   const [commenting, setCommenting] = useState<{ path: string; line: number } | null>(null);
   const [comments, setComments] = useState<ReviewComment[]>(NO_COMMENTS);
   const [commentsRead, setCommentsRead] = useState(0);
+  const [diff, setDiff] = useState<DiffLines>(NO_DIFF);
+  const [cursor, setCursor] = useState<{ editor: editor.ICodeEditor; line: number } | null>(null);
 
   const showsDescription = activeFile === PR_DESCRIPTION;
   const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
@@ -155,6 +163,10 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   const edited = draft?.text ?? text?.current ?? null;
   const stale = text !== null && draft !== null && draft.disk !== text.current;
   const commentable = canComment && text !== null && text.current !== null && !sideBySide && plain !== null;
+  const ranges = text !== null && Object.hasOwn(diff.ranges, text.path) ? diff.ranges[text.path] : [];
+  const cursorLine = cursor !== null && cursor.editor === plain ? cursor.line : plain?.getPosition()?.lineNumber;
+  const inDiff = cursorLine !== undefined && ranges.some(([start, end]) => start <= cursorLine && cursorLine <= end);
+  const blocked = text !== null && diff.unpushed.includes(text.path) ? NOT_PUSHED : inDiff ? null : OUTSIDE_DIFF;
 
   const specs = useMemo(
     () => (text !== null && edited !== null && text.base !== edited ? toDecorations(lineMarks(text.base, edited)) : []),
@@ -199,6 +211,36 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
       live = false;
     };
   }, [tabId, canComment, commentsRead]);
+
+  useEffect(() => {
+    if (!canComment) {
+      return;
+    }
+    let live = true;
+    window.maple.pr.diffLines(tabId).then(
+      (next) => {
+        if (live) {
+          setDiff(next);
+        }
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [tabId, canComment, commentsRead, activeFile]);
+
+  useEffect(() => {
+    if (plain === null) {
+      return;
+    }
+    const subscription = plain.onDidChangeCursorPosition((e) => {
+      setCursor({ editor: plain, line: e.position.lineNumber });
+    });
+    return () => {
+      subscription.dispose();
+    };
+  }, [plain]);
 
   const commentMarks = useMemo(
     () => (text === null || !canComment ? [] : toCommentMarks(comments, text.path)),
@@ -427,6 +469,8 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             </button>
             {commentable && (
               <button
+                disabled={blocked !== null}
+                title={blocked ?? undefined}
                 onClick={() => {
                   const at = plain.getPosition()?.lineNumber;
                   if (at !== undefined) {

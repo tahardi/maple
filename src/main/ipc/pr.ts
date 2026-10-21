@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
-import type { Fetched, PrInfo, ReviewComment } from '@shared/types';
-import { currentBranch } from '../git';
-import { commentOnLine, commentOnPr, prForBranch, reviewComments } from '../github';
+import type { DiffLines, Fetched, PrInfo, ReviewComment } from '@shared/types';
+import { changedSince, currentBranch } from '../git';
+import { commentOnLine, commentOnPr, diffLines, headCommit, prForBranch, reviewComments } from '../github';
 import { appLogger, type Logger } from '../log';
 import { defaultRunner } from '../preflight';
 import type { IpcDeps } from './index';
@@ -59,20 +59,22 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       try {
         const worktree = deps.worktreeFor(tabId);
         if (worktree === null) {
-          throw new Error('tab has no card worktree');
+          throw new Error('commenting on line: tab has no card worktree');
         }
         const pr = await lookup(worktree);
         if (pr?.state !== 'OPEN') {
-          throw new Error('branch has no open PR');
+          throw new Error('commenting on line: branch has no open PR');
         }
         await commentOnLine(defaultRunner, worktree, pr.number, { path, line, body });
       } catch (err) {
         logger.warn('gh', 'failed', {
           operation: 'pr:comment',
           tabId,
+          path,
+          line,
           error: err instanceof Error ? err.message : String(err),
         });
-        throw new Error(`commenting on line: ${err instanceof Error ? err.message : String(err)}`);
+        throw err;
       }
     },
   );
@@ -87,6 +89,27 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       logger.warn('gh', 'failed', { operation: 'pr:comments', tabId, error });
+      throw err;
+    }
+  });
+  handle('pr:diffLines', z.tuple([tabIdArg]), async (tabId): Promise<DiffLines> => {
+    const worktree = deps.worktreeFor(tabId);
+    if (worktree === null) {
+      return { ranges: {}, unpushed: [] };
+    }
+    try {
+      const pr = await lookup(worktree);
+      if (pr === null) {
+        return { ranges: {}, unpushed: [] };
+      }
+      const [ranges, head] = await Promise.all([
+        diffLines(defaultRunner, worktree, pr.number),
+        headCommit(defaultRunner, worktree, pr.number),
+      ]);
+      return { ranges, unpushed: await changedSince(worktree, head) };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      logger.warn('gh', 'failed', { operation: 'pr:diffLines', tabId, error });
       throw err;
     }
   });
