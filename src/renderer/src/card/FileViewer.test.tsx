@@ -851,32 +851,32 @@ describe('FileViewer', () => {
     expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:3' })).toBeInTheDocument();
   });
 
-  test.each<{ name: string; lines: DiffLines; cursor: number; title: string }>([
+  test.each<{ name: string; lines: DiffLines; cursor: number; reason: string }>([
     {
       name: 'outside the PR diff',
       lines: { ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] },
       cursor: 20,
-      title: 'GitHub only accepts comments on lines in the PR diff',
+      reason: 'GitHub only accepts comments on lines in the PR diff',
     },
     {
       name: 'in a file the PR does not change',
       lines: { ranges: { 'README.md': [[1, 10]] }, unpushed: [] },
       cursor: 3,
-      title: 'GitHub only accepts comments on lines in the PR diff',
+      reason: 'GitHub only accepts comments on lines in the PR diff',
     },
     {
       name: 'in a file with edits that are not pushed',
       lines: { ranges: { 'src/a.ts': [[1, 10]] }, unpushed: ['src/a.ts'] },
       cursor: 3,
-      title: 'Push your edits first: line numbers would not match the PR',
+      reason: 'Push your edits first: line numbers would not match the PR',
     },
     {
       name: 'outside the PR diff in a file with edits that are not pushed',
       lines: { ranges: { 'src/a.ts': [[1, 10]] }, unpushed: ['src/a.ts'] },
       cursor: 20,
-      title: 'Push your edits first: line numbers would not match the PR',
+      reason: 'Push your edits first: line numbers would not match the PR',
     },
-  ])('disables Comment on a line $name', async ({ lines, cursor, title }) => {
+  ])('explains why Comment does nothing on a line $name', async ({ lines, cursor, reason }) => {
     // given
     const diffLines = vi.fn(() => Promise.resolve(lines));
     renderViewer(changed, undefined, true, undefined, diffLines);
@@ -884,33 +884,37 @@ describe('FileViewer', () => {
     await vi.waitFor(() => {
       expect(diffLines).toHaveBeenCalled();
     });
-    // when
     act(() => {
       monaco.cursor.value({ position: { lineNumber: cursor } });
     });
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     // then
-    await vi.waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Comment' })).toBeDisabled();
-    });
-    expect(screen.getByRole('button', { name: 'Comment' })).toHaveAttribute('title', title);
+    expect(await screen.findByRole('alert')).toHaveTextContent(`Can't comment on line ${String(cursor)}. ${reason}`);
+    expect(screen.queryByRole('heading', { name: /^Comment on / })).not.toBeInTheDocument();
   });
 
-  test('enables Comment again when the cursor moves into the PR diff', async () => {
+  test('drops the explanation and opens the form once the cursor moves into the PR diff', async () => {
     // given
-    renderViewer(changed, undefined, true);
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }));
+    renderViewer(changed, undefined, true, undefined, diffLines);
     await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(diffLines).toHaveBeenCalled();
+    });
     act(() => {
       monaco.cursor.value({ position: { lineNumber: 20 } });
     });
+    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    await screen.findByRole('alert');
     // when
     act(() => {
       monaco.cursor.value({ position: { lineNumber: 10 } });
     });
     // then
-    await vi.waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Comment' })).toBeEnabled();
-    });
-    expect(screen.getByRole('button', { name: 'Comment' })).not.toHaveAttribute('title');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:10' })).toBeInTheDocument();
   });
 
   test.each<{ name: string; canComment: boolean; mode: string; pair: FilePair; testId: string }>([

@@ -78,6 +78,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
   const [saveError, setSaveError] = useState<{ path: string; message: string } | null>(null);
   const pendingLine = useRef<number | null>(null);
   const [commenting, setCommenting] = useState<{ path: string; line: number } | null>(null);
+  const [refused, setRefused] = useState<{ path: string; line: number } | null>(null);
   const [comments, setComments] = useState<ReviewComment[]>(NO_COMMENTS);
   const [commentsRead, setCommentsRead] = useState(0);
   const [diff, setDiff] = useState<DiffLines>(NO_DIFF);
@@ -389,6 +390,11 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             </button>
           </div>
         )}
+        {commentable && blocked !== null && refused?.path === shown.path && refused.line === cursorLine && (
+          <div className={styles.notice} role="alert">
+            {`Can't comment on line ${String(refused.line)}. ${blocked}`}
+          </div>
+        )}
         {commentable && commenting?.path === shown.path && (
           <LineComment
             tabId={tabId}
@@ -469,12 +475,16 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
             </button>
             {commentable && (
               <button
-                disabled={blocked !== null}
                 title={blocked ?? undefined}
                 onClick={() => {
-                  const at = plain.getPosition()?.lineNumber;
-                  if (at !== undefined) {
-                    setCommenting({ path: text.path, line: at });
+                  if (cursorLine === undefined) {
+                    return;
+                  }
+                  if (blocked === null) {
+                    setRefused(null);
+                    setCommenting({ path: text.path, line: cursorLine });
+                  } else {
+                    setRefused({ path: text.path, line: cursorLine });
                   }
                 }}
               >
