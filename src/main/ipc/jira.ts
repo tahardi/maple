@@ -1,12 +1,21 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { z } from 'zod';
-import type { BacklogGroup, Fetched, ProjectConfig, Sprint } from '@shared/types';
-import { JiraClient, jiraEnvPath, readCreds } from '../jira';
-import { appLogger, type Logger } from '../log';
+import type { BacklogGroup, Fetched, Filed, ProjectConfig, Report, Sprint } from '@shared/types';
+import { JiraClient, jiraEnvPath, readCreds, type JiraCreds } from '../jira';
+import { appLogger, logsDir, type Logger } from '../log';
+import { logTail, reportDescription } from '../report';
 import { SprintCache } from '../sprintCache';
 import type { IpcDeps } from './index';
 import { handle, projectKeyArg } from './validated';
 
 type Caches = { sprint: SprintCache<Sprint>; backlog: SprintCache<BacklogGroup[]> };
+
+const reportArg = z.object({
+  kind: z.enum(['bug', 'feature']),
+  title: z.string().trim().min(1).max(255),
+  description: z.string().max(10_000),
+});
 
 export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
   const ready = readCreds(jiraEnvPath()).then(
@@ -16,12 +25,12 @@ export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
         sprint: new SprintCache((p: ProjectConfig) => client.activeSprint(p.jiraBoardId)),
         backlog: new SprintCache((p: ProjectConfig) => client.backlog(p.jiraKey)),
       };
-      return { caches, error: null };
+      return { caches, client, creds, error: null };
     },
     (err: unknown) => {
       const error = err instanceof Error ? err.message : String(err);
       logger.warn('jira', 'failed', { operation: 'readCreds', error });
-      return { caches: null, error };
+      return { caches: null, client: null, creds: null, error };
     },
   );
   const serve = async <T>(
@@ -50,4 +59,34 @@ export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
   handle('jira:backlog', z.tuple([projectKeyArg]), (projectKey) =>
     serve(projectKey, 'backlog', 'backlog', (c) => c.backlog),
   );
+  handle('jira:report', z.tuple([reportArg]), async (report): Promise<Filed> => {
+    const jira = await ready;
+    try {
+      if (jira.client === null) {
+        throw new Error(jira.error);
+      }
+      const filed = await jira.client.createIssue(await reportIssue(report, jira.creds));
+      logger.info('jira', 'filed', { key: filed.key, kind: report.kind });
+      return filed;
+    } catch (err) {
+      throw new Error(`filing report: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+    }
+  });
+}
+
+async function reportIssue(report: Report, creds: JiraCreds) {
+  const bug = report.kind === 'bug';
+  const log = bug ? await recentLog(creds) : null;
+  return {
+    projectKey: 'MPL',
+    summary: report.title,
+    description: reportDescription(report.description, log),
+    parentKey: bug ? 'MPL-70' : null,
+    labels: bug ? [] : ['needs-refinement'],
+  };
+}
+
+async function recentLog(creds: JiraCreds): Promise<string> {
+  const text = await readFile(join(logsDir(), 'main.log'), 'utf8').catch(() => '');
+  return logTail(text, 200, [creds.token, creds.email]) || '(no log found)';
 }

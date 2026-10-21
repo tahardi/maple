@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { IpcMainInvokeEvent } from 'electron';
@@ -200,6 +200,109 @@ describe('registerJira', () => {
       operation: 'activeSprint',
       projectKey: 'HALO',
       error: 'fetching sprint: Jira returned 500',
+    });
+  });
+
+  describe('jira:report', () => {
+    type Posted = {
+      fields: { project: { key: string }; labels: string[]; parent?: { key: string }; description: Doc };
+    };
+    type Doc = { content: { type: string; content?: { text?: string }[] }[] };
+
+    function createFetch(status = 200): typeof fetch {
+      return vi.fn<typeof fetch>(() =>
+        Promise.resolve(new Response(status === 200 ? fixture('create-issue.json') : '', { status })),
+      );
+    }
+
+    function posted(fetchFn: typeof fetch): Posted {
+      const init = vi.mocked(fetchFn).mock.calls[0]?.[1];
+      return JSON.parse(init?.body as string) as Posted;
+    }
+
+    function codeBlock(body: Posted): string | undefined {
+      return body.fields.description.content.find((node) => node.type === 'codeBlock')?.content?.[0]?.text;
+    }
+
+    async function useConfigDir(log: string | null): Promise<void> {
+      const dir = await mkdtemp(join(tmpdir(), 'maple-report-'));
+      vi.stubEnv('MAPLE_CONFIG_DIR', dir);
+      if (log !== null) {
+        await mkdir(join(dir, 'logs'));
+        await writeFile(join(dir, 'logs', 'main.log'), log);
+      }
+    }
+
+    const lines = Array.from({ length: 300 }, (_, i) =>
+      i === 249 ? `line 250 token=${TOKEN}` : `line ${String(i + 1)}`,
+    );
+
+    test.each([
+      { kind: 'bug', parent: { key: 'MPL-70' }, labels: [], first: 'line 101', last: 'line 300' },
+      { kind: 'feature', parent: undefined, labels: ['needs-refinement'], first: undefined, last: undefined },
+    ])('files a $kind in MPL', async ({ kind, parent, labels, first, last }) => {
+      // given
+      vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+      await useConfigDir(`${lines.join('\n')}\n`);
+      const fetchFn = createFetch();
+      vi.stubGlobal('fetch', fetchFn);
+      registerJira(deps, logger);
+      // when
+      const got = await handler('jira:report')({} as IpcMainInvokeEvent, { kind, title: 'Crash', description: 'x' });
+      // then
+      expect(got).toEqual({ key: 'MPL-80', url: 'https://example.atlassian.net/browse/MPL-80' });
+      const body = posted(fetchFn);
+      expect(body.fields.project.key).toBe('MPL');
+      expect(body.fields.parent).toEqual(parent);
+      expect(body.fields.labels).toEqual(labels);
+      const log = codeBlock(body)?.split('\n');
+      expect(log?.length).toBe(first === undefined ? undefined : 200);
+      expect(log?.at(0)).toBe(first);
+      expect(log?.at(-1)).toBe(last);
+      expect(JSON.stringify(body)).not.toContain(TOKEN);
+      expect(logger.info).toHaveBeenCalledWith('jira', 'filed', { key: 'MPL-80', kind });
+    });
+
+    test('files a bug without a log file', async () => {
+      // given
+      vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+      await useConfigDir(null);
+      const fetchFn = createFetch();
+      vi.stubGlobal('fetch', fetchFn);
+      registerJira(deps, logger);
+      // when
+      await handler('jira:report')({} as IpcMainInvokeEvent, { kind: 'bug', title: 'Crash', description: '' });
+      // then
+      expect(codeBlock(posted(fetchFn))).toBe('(no log found)');
+    });
+
+    test.each([
+      { name: 'an empty title', title: '', description: '' },
+      { name: 'a title over 255 characters', title: 'x'.repeat(256), description: '' },
+      { name: 'a description over 10,000 characters', title: 'Crash', description: 'x'.repeat(10_001) },
+    ])('refuses $name before any request', async ({ title, description }) => {
+      // given
+      vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+      const fetchFn = createFetch();
+      vi.stubGlobal('fetch', fetchFn);
+      registerJira(deps, logger);
+      // when
+      const got = (async () => handler('jira:report')({} as IpcMainInvokeEvent, { kind: 'bug', title, description }))();
+      // then
+      await expect(got).rejects.toThrow('arguments are invalid');
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    test('rejects with filing report when Jira fails', async () => {
+      // given
+      vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+      await useConfigDir(null);
+      vi.stubGlobal('fetch', createFetch(400));
+      registerJira(deps, logger);
+      // when
+      const got = handler('jira:report')({} as IpcMainInvokeEvent, { kind: 'bug', title: 'Crash', description: '' });
+      // then
+      await expect(got).rejects.toThrow(/^filing report: creating issue: Jira returned 400$/);
     });
   });
 
