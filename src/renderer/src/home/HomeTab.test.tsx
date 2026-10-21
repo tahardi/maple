@@ -691,4 +691,83 @@ describe('HomeTab', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/^moving cards to sprint: Jira returned 400$/);
     expect(startCard).not.toHaveBeenCalled();
   });
+
+  test('Suggest next batch clears the backlog highlight and the Accept buttons', async () => {
+    // given
+    const { emit } = acceptSetup();
+    await screen.findByTestId('claude-pane');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-50']);
+    expect(await screen.findByRole('button', { name: 'Accept 1' })).toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Suggest next batch' }));
+    // then
+    expect(screen.queryByRole('button', { name: /^Accept/ })).not.toBeInTheDocument();
+    expect(screen.getByText('DIG-50').closest('li')).not.toHaveAttribute('data-highlighted');
+  });
+
+  test('accepted cards leave the Accept buttons once the backlog reloads without them', async () => {
+    // given
+    const loads = [BACKLOG, [{ epic: null, cards: [card('DIG-51', 'In Progress')] }]];
+    const backlog = vi.fn(() => Promise.resolve({ data: loads.shift() ?? null, error: null, fetchedAt: null }));
+    const { emit } = acceptSetup({ backlog });
+    await screen.findByTestId('claude-pane');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Move to sprint' }));
+    // then
+    expect(await screen.findByText('Backlog (1)')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Accept/ })).not.toBeInTheDocument();
+  });
+
+  test('confirming with no active sprint shows the error and moves nothing', async () => {
+    // given
+    const { emit, moveToSprint } = acceptSetup({
+      sprint: () => Promise.resolve({ data: null, error: null, fetchedAt: null }),
+    });
+    await screen.findByText('No active sprint');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Move to sprint' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^moving cards to sprint: no active sprint$/);
+    expect(moveToSprint).not.toHaveBeenCalled();
+  });
+
+  test('Clear hides a failed move', async () => {
+    // given
+    const moveToSprint = vi.fn(() => Promise.reject(new Error('moving cards to sprint: Jira returned 400')));
+    const { emit } = acceptSetup({ moveToSprint });
+    await screen.findByTestId('claude-pane');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-41', 'DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Move to sprint' }));
+    await screen.findByRole('alert');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    // then
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('Accept moves every suggested backlog card in backlog order and names each in the dialog', async () => {
+    // given
+    const groups = [{ epic: null, cards: [card('DIG-50', 'To Do'), card('DIG-52', 'To Do')] }];
+    const { emit, moveToSprint } = acceptSetup({
+      backlog: () => Promise.resolve({ data: groups, error: null, fetchedAt: null }),
+    });
+    await screen.findByTestId('claude-pane');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-52', 'DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 2' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('DIG-50 Summary of DIG-50; DIG-52 Summary of DIG-52');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Move to sprint' }));
+    // then
+    expect(moveToSprint).toHaveBeenCalledWith(SPRINT.id, ['DIG-50', 'DIG-52']);
+  });
 });

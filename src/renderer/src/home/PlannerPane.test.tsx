@@ -155,7 +155,7 @@ describe('PlannerPane', () => {
 
   test('the bar shows its buttons in order', async () => {
     // given
-    setup({ selected: ['DIG-41'], readyCount: 1 });
+    setup({ selected: ['DIG-41'], toAccept: ['DIG-50'], readyCount: 1 });
     // when
     await screen.findByTestId('claude-pane');
     // then
@@ -164,6 +164,8 @@ describe('PlannerPane', () => {
       'Select ready (1)',
       'Start (1)',
       'Clear',
+      'Accept 1',
+      'Accept 1 and start all',
     ]);
   });
 

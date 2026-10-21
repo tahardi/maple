@@ -188,12 +188,21 @@ describe('registerJira', () => {
     const [input, init] = fetchFn.mock.calls.at(-1) ?? [];
     expect(input).toBe('https://example.atlassian.net/rest/agile/1.0/sprint/6/issue');
     expect(init?.body).toBe('{"issues":["HALO-20"]}');
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      'jira',
+      'failed',
+      expect.objectContaining({ operation: 'moveToSprint' }),
+    );
   });
 
   test.each([
     { name: 'a lower case key', args: [6, ['halo-20']] },
     { name: 'an empty list', args: [6, []] },
     { name: 'a fractional sprint id', args: [6.5, ['HALO-20']] },
+    { name: 'a zero sprint id', args: [0, ['HALO-20']] },
+    { name: 'a string sprint id', args: ['6', ['HALO-20']] },
+    { name: 'more than 50 keys', args: [6, Array.from({ length: 51 }, (_, i) => `HALO-${String(i + 1)}`)] },
+    { name: 'a missing key list', args: [6] },
   ])('moveToSprint rejects $name', async ({ args }) => {
     // given
     registerJira(deps, logger);
@@ -210,6 +219,25 @@ describe('registerJira', () => {
     const got = handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']);
     // then
     await expect(got).rejects.toThrow('reading jira creds:');
+  });
+
+  test.each([
+    { name: 'a 400', fetchFn: () => Promise.resolve(new Response(TOKEN, { status: 400 })) },
+    { name: 'a network error', fetchFn: () => Promise.reject(new Error('fetch failed')) },
+  ])('moveToSprint never rejects with the token after $name', async ({ fetchFn }) => {
+    // given
+    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(fetchFn));
+    registerJira(deps, logger);
+    // when
+    const got = await handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']).catch(
+      (err: unknown) => err,
+    );
+    // then
+    const message = got instanceof Error ? got.message : String(got);
+    expect(message).toContain('moving cards to sprint:');
+    expect(message).not.toContain(TOKEN);
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain(TOKEN);
   });
 
   test('logs a failed move at warn', async () => {
