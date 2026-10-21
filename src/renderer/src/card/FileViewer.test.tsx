@@ -31,7 +31,15 @@ const monaco = vi.hoisted(() => {
     },
   };
   const change: { value: (text: string) => void } = { value: () => undefined };
-  return { editor, collection, api, change, enabled: { value: false }, slowMount: { value: false } };
+  return {
+    editor,
+    collection,
+    api,
+    change,
+    mounted: vi.fn(),
+    enabled: { value: false },
+    slowMount: { value: false },
+  };
 });
 
 vi.mock('@monaco-editor/react', async () => {
@@ -58,10 +66,12 @@ vi.mock('@monaco-editor/react', async () => {
         const mounted = instance.current;
         if (!monaco.slowMount.value) {
           onMount(mounted);
+          monaco.mounted();
           return;
         }
         const timer = setTimeout(() => {
           onMount(mounted);
+          monaco.mounted();
         }, 10);
         return () => {
           clearTimeout(timer);
@@ -91,6 +101,7 @@ vi.mock('@monaco-editor/react', async () => {
       const { onMount } = props;
       useEffect(() => {
         onMount({ getModifiedEditor: () => monaco.editor });
+        monaco.mounted();
       }, [onMount]);
       return (
         <div
@@ -575,7 +586,9 @@ describe('FileViewer', () => {
         canComment={false}
       />,
     );
-    await screen.findByTestId(mode === 'in-file' ? 'editor' : 'diff-editor');
+    await vi.waitFor(() => {
+      expect(monaco.mounted).toHaveBeenCalled();
+    });
     expect(monaco.editor.setScrollTop).not.toHaveBeenCalled();
     // when
     current = 'two\n';
@@ -832,9 +845,8 @@ describe('FileViewer', () => {
   test('Comment opens the line comment form for the cursor line', async () => {
     // given
     renderViewer(changed, undefined, true);
-    await screen.findByTestId('editor');
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Comment' }));
     // then
     expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:3' })).toBeInTheDocument();
   });
@@ -916,8 +928,7 @@ describe('FileViewer', () => {
     // given
     const comments = vi.fn(() => Promise.resolve([]));
     renderViewer(changed, undefined, true, comments);
-    await screen.findByTestId('editor');
-    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Comment' }));
     // when
     await userEvent.type(screen.getByRole('textbox'), 'why?');
     await userEvent.click(screen.getByRole('button', { name: 'Post' }));
