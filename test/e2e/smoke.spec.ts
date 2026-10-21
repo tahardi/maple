@@ -1,5 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { _electron, expect, test, type ElectronApplication } from '@playwright/test';
@@ -8,8 +17,8 @@ import { startJiraServer } from './fixtures/jiraServer';
 const fixtures = join(import.meta.dirname, 'fixtures');
 const cardKey = 'HALO-13';
 
-async function sandbox() {
-  const jira = await startJiraServer();
+async function sandbox(jiraDown = false) {
+  const jira = await startJiraServer(jiraDown);
   const root = mkdtempSync(join(tmpdir(), 'maple-e2e-'));
   const configDir = join(root, 'config');
   const plannerDir = join(root, 'planner');
@@ -37,18 +46,60 @@ async function sandbox() {
     TMUX_TMPDIR: root,
   };
   const tmux = (...args: string[]) => execFileSync('tmux', ['-L', 'maple', ...args], { env }).toString();
-  const launch = () => _electron.launch({ args: ['out/main/index.js'], env });
+  const eventsLog = test.info().outputPath('events.log');
+  const events = (line: string) => {
+    appendFileSync(eventsLog, `${new Date().toISOString()} ${line}\n`);
+  };
+  const launch = async () => {
+    events('launch');
+    const app = await _electron.launch({ args: ['--disable-gpu', 'out/main/index.js'], env });
+    await app.context().tracing.start({ screenshots: true, snapshots: true });
+    app.process().stderr?.on('data', (chunk: Buffer) => {
+      events(`stderr ${chunk.toString().trim()}`);
+    });
+    app.on('window', (page) => {
+      events(`window ${page.url()}`);
+      page.on('load', () => {
+        events('page load');
+      });
+      page.on('crash', () => {
+        events('page crash');
+      });
+      page.on('close', () => {
+        events('page close');
+      });
+      page.on('console', (msg) => {
+        events(`console ${msg.type()} ${msg.text()}`);
+      });
+      page.on('pageerror', (err) => {
+        events(`pageerror ${err.message}`);
+      });
+    });
+    return app;
+  };
   const crash = async (app: ElectronApplication) => {
     const exited = new Promise((resolve) => app.process().once('exit', resolve));
     app.process().kill('SIGKILL');
     await exited;
   };
   const cleanup = async (app: ElectronApplication) => {
+    for (const [i, page] of app.windows().entries()) {
+      await page.screenshot({ path: test.info().outputPath(`window-${String(i)}.png`) }).catch(() => undefined);
+    }
+    await app
+      .context()
+      .tracing.stop({ path: test.info().outputPath('app-trace.zip') })
+      .catch(() => undefined);
     const closed = app.waitForEvent('close');
     app.process().kill('SIGKILL');
     tmux('kill-server');
     await closed;
     await jira.close();
+    const log = join(configDir, 'logs', 'main.log');
+    if (existsSync(log)) {
+      copyFileSync(log, test.info().outputPath('main.log'));
+    }
+    writeFileSync(test.info().outputPath('jira-requests.log'), jira.requests.join('\n'));
     rmSync(root, { recursive: true, force: true });
   };
   return { tmux, launch, crash, cleanup };
@@ -85,6 +136,23 @@ test.describe('smoke', () => {
       // then
       await expect(cardTabs).toHaveCount(1);
       await expect(cardTabs).toHaveAttribute('aria-selected', 'true');
+    } finally {
+      await cleanup(app);
+    }
+  });
+
+  test('shows Jira unreachable on Home when Jira is down', async () => {
+    // given
+    const { launch, cleanup } = await sandbox(true);
+    const app = await launch();
+
+    try {
+      // when
+      const page = await app.firstWindow();
+
+      // then
+      await expect(page.getByText('Jira unreachable', { exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'To Do', exact: true })).toHaveCount(0);
     } finally {
       await cleanup(app);
     }

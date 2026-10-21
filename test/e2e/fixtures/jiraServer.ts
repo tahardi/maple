@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 
-const fixtures = join(import.meta.dirname, '../../test/fixtures/jira');
+const fixtures = join(import.meta.dirname, '../../fixtures/jira');
 
 const routes: readonly { pattern: RegExp; file: string }[] = [
   { pattern: /^\/rest\/agile\/1\.0\/board\/\d+\/sprint\?state=active$/, file: 'board-sprint-active.json' },
@@ -10,11 +10,17 @@ const routes: readonly { pattern: RegExp; file: string }[] = [
   { pattern: /^\/rest\/api\/3\/issue\/[A-Z]+-\d+\?/, file: 'issue.json' },
 ];
 
-export type JiraServer = { url: string; close: () => Promise<void> };
+export type JiraServer = { url: string; requests: readonly string[]; close: () => Promise<void> };
 
-export async function startJiraServer(): Promise<JiraServer> {
+export async function startJiraServer(down = false): Promise<JiraServer> {
+  const requests: string[] = [];
   const server = createServer((req, res) => {
+    requests.push(`${new Date().toISOString()} ${req.method ?? ''} ${req.url ?? ''}`);
     const route = routes.find((r) => r.pattern.test(req.url ?? ''));
+    if (down) {
+      res.writeHead(503).end();
+      return;
+    }
     if (!route) {
       res.writeHead(404).end();
       return;
@@ -32,6 +38,7 @@ export async function startJiraServer(): Promise<JiraServer> {
   }
   return {
     url: `http://127.0.0.1:${String(address.port)}`,
+    requests,
     close: () =>
       new Promise((resolve) => {
         server.close(() => {
