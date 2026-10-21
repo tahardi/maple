@@ -36,6 +36,8 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
     jira: {
       sprint: vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null })),
       backlog: vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null })),
+      moveToSprint: vi.fn(() => Promise.resolve()),
+      report: vi.fn(() => Promise.reject(new Error('filing report: not faked'))),
       ...overrides.jira,
     },
     tabs: {
@@ -74,6 +76,7 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
     },
     terminal: {
       open: vi.fn(() => Promise.resolve()),
+      close: vi.fn(() => Promise.resolve()),
       write: vi.fn(),
       resize: vi.fn(),
       backlog: vi.fn(() => Promise.resolve('')),

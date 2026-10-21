@@ -158,6 +158,30 @@ test.describe('smoke', () => {
     }
   });
 
+  test('the report form sits above the Claude pane', async () => {
+    // given
+    const { launch, cleanup } = await sandbox();
+    const app = await launch();
+    const page = await app.firstWindow();
+
+    try {
+      await expect(page.getByRole('heading', { name: 'To Do', exact: true })).toBeVisible();
+      await expect(page.locator('.xterm-rows').first()).toBeVisible();
+
+      // when
+      await page.getByRole('button', { name: 'Report', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Report a bug or feature' });
+      await dialog.getByRole('textbox', { name: 'Title' }).fill('Crash');
+
+      // then
+      await dialog.getByRole('button', { name: 'Submit' }).click({ trial: true, timeout: 5000 });
+      await dialog.getByRole('button', { name: 'Cancel' }).click({ timeout: 5000 });
+      await expect(dialog).toHaveCount(0);
+    } finally {
+      await cleanup(app);
+    }
+  });
+
   test('a card session survives a crash and the relaunched tab reattaches to it', async () => {
     // given
     const { tmux, launch, crash, cleanup } = await sandbox();

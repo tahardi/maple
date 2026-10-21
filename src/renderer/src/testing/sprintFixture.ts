@@ -15,6 +15,7 @@ export function card(key: string, status: Card['status'], extra: Partial<Card> =
 }
 
 export const SPRINT: Sprint = {
+  id: 12,
   name: 'DIG Sprint 3',
   startDate: '2026-10-12T12:00:00.000Z',
   endDate: '2026-10-25T12:00:00.000Z',

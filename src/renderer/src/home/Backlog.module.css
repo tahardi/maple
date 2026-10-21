@@ -33,6 +33,11 @@
   padding: 2px 0;
 }
 
+.card[data-highlighted='true'] {
+  outline: 2px solid var(--warning);
+  outline-offset: -1px;
+}
+
 .key {
   font-weight: 600;
 }
