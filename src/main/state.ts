@@ -10,6 +10,7 @@ export type SavedState = {
   closedSessions: Record<string, string>;
   notifications: boolean | null;
   zoom: number;
+  lastProject: string | null;
 };
 
 const stateSchema = z.object({
@@ -27,10 +28,11 @@ const stateSchema = z.object({
   closedSessions: z.record(z.string(), z.string()).default({}),
   notifications: z.boolean().nullable(),
   zoom: z.number().default(0),
+  lastProject: z.string().nullable().default(null),
 });
 
 function emptyState(): SavedState {
-  return { version: 1, tabs: [], closedSessions: {}, notifications: null, zoom: 0 };
+  return { version: 1, tabs: [], closedSessions: {}, notifications: null, zoom: 0, lastProject: null };
 }
 
 export async function loadState(dir: string = configDir()): Promise<{ state: SavedState; warning: string | null }> {

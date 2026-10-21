@@ -73,13 +73,15 @@ export const useMaple = create<MapleState>()((set, get) => ({
         set({ config, projectKey: current !== null && keys.includes(current) ? current : firstProject(config) });
       }),
     ];
-    const [config, problems, warnings, tabs, statuses] = await Promise.all([
+    const [config, problems, warnings, tabs, statuses, lastProject] = await Promise.all([
       maple.config.get(),
       maple.preflight.run(),
       maple.app.warnings().catch((): string[] => []),
       maple.tabs.list().catch((): TabState[] => []),
       maple.tabs.statuses().catch((): TabStatus[] => []),
+      maple.app.lastProject().catch(() => null),
     ]);
+    const keys = config.data?.projects.map((p) => p.jiraKey) ?? [];
     set({
       config,
       problems,
@@ -87,7 +89,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
       tabs,
       statuses: Object.fromEntries(statuses.map((s) => [s.tabId, s])),
       since: Object.fromEntries(statuses.map((s) => [s.tabId, Date.now()])),
-      projectKey: firstProject(config),
+      projectKey: lastProject !== null && keys.includes(lastProject) ? lastProject : firstProject(config),
       activeTabId: null,
     });
   },
@@ -96,6 +98,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
     const { lastActive, tabs } = get();
     const last = lastActive[key] ?? null;
     set({ projectKey: key });
+    window.maple.app.setLastProject(key).catch(() => undefined);
     get().activate(tabs.some((t) => t.id === last) ? last : null);
   },
 

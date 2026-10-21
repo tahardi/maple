@@ -4,7 +4,14 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { loadState, saveState, type SavedState } from './state';
 
-const emptyState: SavedState = { version: 1, tabs: [], closedSessions: {}, notifications: null, zoom: 0 };
+const emptyState: SavedState = {
+  version: 1,
+  tabs: [],
+  closedSessions: {},
+  notifications: null,
+  zoom: 0,
+  lastProject: null,
+};
 
 const savedState: SavedState = {
   version: 1,
@@ -21,6 +28,7 @@ const savedState: SavedState = {
   closedSessions: { 'DIG-40': 'session-0' },
   notifications: false,
   zoom: 1.5,
+  lastProject: 'MPL',
 };
 
 describe('state', () => {
@@ -63,6 +71,16 @@ describe('state', () => {
     expect(result.state.zoom).toBe(0);
   });
 
+  test('defaults lastProject to null when missing', async () => {
+    // given
+    const withoutLastProject = { ...savedState, lastProject: undefined };
+    await writeFile(join(dir, 'state.json'), JSON.stringify(withoutLastProject));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result.state).toEqual({ ...savedState, lastProject: null });
+  });
+
   test('leaves no temp file after saving', async () => {
     // given
     const nested = join(dir, 'nested');
@@ -75,6 +93,11 @@ describe('state', () => {
   test.each([
     { name: 'missing', content: null, warning: null },
     { name: 'corrupt', content: '{', warning: 'reading state: state.json is unreadable, starting with no tabs' },
+    {
+      name: 'holding a non-string lastProject',
+      content: JSON.stringify({ ...savedState, lastProject: 42 }),
+      warning: 'reading state: state.json is unreadable, starting with no tabs',
+    },
   ])('starts empty when the file is $name', async ({ content, warning }) => {
     // given
     if (content !== null) {

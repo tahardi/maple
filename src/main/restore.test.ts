@@ -9,7 +9,7 @@ function savedTab(kind: TabState['kind'], projectKey: string, cardKey: string | 
 }
 
 function saved(tabs: TabState[]): SavedState {
-  return { version: 1, tabs, closedSessions: {}, notifications: null, zoom: 0 };
+  return { version: 1, tabs, closedSessions: {}, notifications: null, zoom: 0, lastProject: null };
 }
 
 function fakeSessions(projects: string[]) {
