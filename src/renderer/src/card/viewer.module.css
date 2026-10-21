@@ -123,3 +123,12 @@
 :global(.margin-del) {
   border-left: 3px solid var(--diff-del);
 }
+
+:global(.margin-comment) {
+  border-left: 3px solid var(--accent);
+}
+
+:global(.comment-preview) {
+  color: var(--text-muted);
+  font-style: italic;
+}
