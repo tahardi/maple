@@ -33,6 +33,8 @@ The launcher starts Maple through your login shell, so Maple and its Claude sess
 
 Only one Maple runs per config dir: opening a second one, from the launcher or `make run`, focuses the open window. To test a card's branch next to your main Maple, run `make try` in its worktree. It copies your `config.json` into `.maple-try/` in the worktree and keeps that copy's tabs, sessions, and settings there, so closing it never touches your main Maple's sessions.
 
+It uses your real Jira projects, so give every made-up test card the `test-card` label and a `[TEST]` summary prefix.
+
 ## Config
 
 Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `~` expands to your home directory.
