@@ -31,7 +31,7 @@ Run `make install-apparmor` once before the first `make install`, and again when
 
 The launcher starts Maple through your login shell, so Maple and its Claude sessions get the PATH from your shell config each launch.
 
-Only one Maple runs per config dir: opening a second one, from the launcher or `make run`, focuses the open window. To test a card's branch next to your main Maple, run `make try` in its worktree. It copies your `config.json` into `.maple-try/` in the worktree and keeps that copy's tabs, sessions, and settings there, so closing it never touches your main Maple's sessions.
+Only one Maple runs per config dir: opening a second one, from the launcher or `make run`, focuses the open window. To test a card's branch next to your main Maple, run `make try` in its worktree. It copies your `config.json` into `.maple-try/` in the worktree and keeps that copy's tabs, sessions, and settings there, so closing it never touches your main Maple's sessions. Like `make run`, it needs a display, so it does not run in the sandbox.
 
 It uses your real Jira projects, so give every made-up test card the `test-card` label and a `[TEST]` summary prefix.
 
