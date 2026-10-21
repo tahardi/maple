@@ -1,8 +1,9 @@
-import type { TabState } from '@shared/types';
+import type { Sprint, TabState } from '@shared/types';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { SUGGEST_PROMPT } from '@shared/prompts';
 import { useMaple } from '../store';
-import { fakeMaple } from '../testing/fakeMaple';
+import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
 import { card, SPRINT } from '../testing/sprintFixture';
 import { HomeTab } from './HomeTab';
 
@@ -44,6 +45,12 @@ function acceptSetup(
   fakeMaple({ tabs: { startCard }, jira: { sprint, backlog, moveToSprint, ...jira }, session: { onBatch } });
   render(<HomeTab projectKey="DIG" />);
   return { sprint, backlog, moveToSprint, startCard, emit };
+}
+
+function withReviewPoints(reviewPoints: number) {
+  useMaple.setState({
+    config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, reviewPoints } },
+  });
 }
 
 function batchEvents() {
@@ -769,5 +776,57 @@ describe('HomeTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Move to sprint' }));
     // then
     expect(moveToSprint).toHaveBeenCalledWith(SPRINT.id, ['DIG-50', 'DIG-52']);
+  });
+
+  test.each([
+    { reviewPoints: 30, roomPoints: 9 },
+    { reviewPoints: 15, roomPoints: 0 },
+  ])(
+    'shows the capacity line and sends the room left to the planner ($reviewPoints review points)',
+    async ({ reviewPoints, roomPoints }) => {
+      // given
+      withReviewPoints(reviewPoints);
+      const sprints: Record<string, Sprint> = {
+        BEAR: { ...SPRINT, cards: [card('BEAR-1', 'Done', { points: 8 }), card('BEAR-2', 'To Do', { points: 5 })] },
+        DIG: { ...SPRINT, cards: [card('DIG-41', 'To Do', { points: 8 })] },
+      };
+      const sendPrompt = vi.fn();
+      fakeMaple({
+        jira: {
+          sprint: (key: string) => Promise.resolve({ data: sprints[key] ?? null, error: null, fetchedAt: null }),
+        },
+        session: { sendPrompt },
+      });
+      render(<HomeTab projectKey="DIG" />);
+      await screen.findByText(`21 of ${String(reviewPoints)} review points planned`);
+      // when
+      await userEvent.click(screen.getByRole('button', { name: 'Suggest next batch' }));
+      // then
+      expect(screen.getByText(`21 of ${String(reviewPoints)} review points planned`)).toBeInTheDocument();
+      expect(sendPrompt).toHaveBeenCalledWith('planner-DIG', SUGGEST_PROMPT('DIG', roomPoints));
+    },
+  );
+
+  test('Accept reloads the capacity line', async () => {
+    // given
+    withReviewPoints(30);
+    let moved = false;
+    const sprint = (key: string) => {
+      const cards = key === 'DIG' && moved ? [...SPRINT.cards, card('DIG-50', 'To Do', { points: 5 })] : SPRINT.cards;
+      return Promise.resolve({ data: { ...SPRINT, cards }, error: null, fetchedAt: null });
+    };
+    const moveToSprint = vi.fn(() => {
+      moved = true;
+      return Promise.resolve();
+    });
+    const { emit } = acceptSetup({ sprint, moveToSprint });
+    await screen.findByText('24 of 30 review points planned');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Move to sprint' }));
+    // then
+    expect(await screen.findByText('29 of 30 review points planned')).toBeInTheDocument();
   });
 });

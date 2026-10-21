@@ -15,6 +15,7 @@ const configSchema = z
     worktreesDir: z.string(),
     vaultDir: z.string().optional(),
     notifications: z.boolean().default(true),
+    reviewPoints: z.number().int().nonnegative().default(20),
     projects: z.array(
       z.object({ name: z.string(), jiraKey: z.string(), jiraBoardId: z.number(), plannerDir: z.string() }),
     ),

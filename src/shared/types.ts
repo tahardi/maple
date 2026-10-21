@@ -5,6 +5,7 @@ export type MapleConfig = {
   worktreesDir: string;
   vaultDir: string | null;
   notifications: boolean;
+  reviewPoints: number;
   projects: ProjectConfig[];
   actions: ActionConfig[];
 };
@@ -86,3 +87,4 @@ export type CloseResult = { closed: boolean; needsConfirm: boolean };
 export type Unsubscribe = () => void;
 export type Report = { kind: 'bug' | 'feature'; title: string; description: string };
 export type Filed = { key: string; url: string };
+export type ProjectPoints = { projectKey: string; name: string; planned: number; merged: number };

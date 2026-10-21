@@ -193,14 +193,15 @@ describe('App', () => {
 
   test('does not mount Home for projects never visited', async () => {
     // given
-    const sprint = vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null }));
-    fakeMaple({ jira: { sprint } });
+    const backlog = vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null }));
+    fakeMaple({ jira: { backlog } });
     // when
     render(<App />);
     await screen.findByText('No active sprint');
     // then
     expect(screen.getAllByTestId('home')).toHaveLength(1);
-    expect(sprint).not.toHaveBeenCalledWith('DIG');
+    expect(backlog).toHaveBeenCalledWith('BEAR');
+    expect(backlog).not.toHaveBeenCalledWith('DIG');
   });
   test('switching away and back keeps the same card tab', async () => {
     // given

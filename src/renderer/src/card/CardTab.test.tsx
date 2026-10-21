@@ -338,6 +338,7 @@ describe('CardTab', () => {
       worktreesDir: '',
       vaultDir: null,
       notifications: false,
+      reviewPoints: 20,
       projects: [],
       actions: [{ label: 'Sync', prompt: 'Sync {key}' }],
     };

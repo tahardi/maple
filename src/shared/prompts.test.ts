@@ -31,7 +31,7 @@ describe('SUGGEST_PROMPT', () => {
     // given
     const jiraKey = 'DIG';
     // when
-    const prompt = SUGGEST_PROMPT(jiraKey);
+    const prompt = SUGGEST_PROMPT(jiraKey, 9);
     // then
     expect(prompt).toContain('active DIG sprint');
     expect(prompt.endsWith('(or MAPLE-BATCH: none).')).toBe(true);
@@ -41,10 +41,23 @@ describe('SUGGEST_PROMPT', () => {
     // given
     const jiraKey = 'DIG';
     // when
-    const prompt = SUGGEST_PROMPT(jiraKey);
+    const prompt = SUGGEST_PROMPT(jiraKey, 9);
     // then
     expect(prompt).toContain('If no To Do card in the active DIG sprint can start');
     expect(prompt).toContain('DIG backlog');
+    expect(prompt.endsWith('MAPLE-BATCH: KEY-1, KEY-2 (or MAPLE-BATCH: none).')).toBe(true);
+  });
+
+  test.each([
+    { roomPoints: 9, expected: 'The DIG backlog cards you suggest must total at most 9 points' },
+    { roomPoints: 0, expected: 'Do not suggest any DIG backlog cards' },
+  ])('limits backlog cards to $roomPoints points of room', ({ roomPoints, expected }) => {
+    // given
+    const jiraKey = 'DIG';
+    // when
+    const prompt = SUGGEST_PROMPT(jiraKey, roomPoints);
+    // then
+    expect(prompt).toContain(expected);
     expect(prompt.endsWith('MAPLE-BATCH: KEY-1, KEY-2 (or MAPLE-BATCH: none).')).toBe(true);
   });
 });

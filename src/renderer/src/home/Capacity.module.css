@@ -1,0 +1,31 @@
+.capacity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.total {
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
+.total[data-over='true'] {
+  color: var(--danger);
+  font-weight: 600;
+}

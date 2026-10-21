@@ -5,6 +5,7 @@ const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
   vaultDir: null,
   notifications: false,
+  reviewPoints: 20,
   projects: [],
   actions: [
     { label: 'Address review', prompt: '/card {key}' },

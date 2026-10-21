@@ -23,6 +23,7 @@ const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
   vaultDir: null,
   notifications: true,
+  reviewPoints: 20,
   projects: [
     { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig-days' },
     { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 2, plannerDir: '/tmp/halo' },

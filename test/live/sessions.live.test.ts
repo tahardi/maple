@@ -55,6 +55,7 @@ describe('SessionManager with a real claude', () => {
       worktreesDir: dir,
       vaultDir: null,
       notifications: false,
+      reviewPoints: 20,
       actions: [],
       projects: [{ name: 'Maple', jiraKey: 'MPL', jiraBoardId: 9, plannerDir: expandHome('~/Documents/code/maple') }],
     };

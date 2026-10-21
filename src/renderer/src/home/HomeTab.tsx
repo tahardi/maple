@@ -4,11 +4,13 @@ import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
 import { Backlog } from './Backlog';
 import { Board } from './Board';
+import { Capacity } from './Capacity';
 import { CardDetail } from './CardDetail';
 import styles from './HomeTab.module.css';
 import { PlannerPane } from './PlannerPane';
 import { readyToStart } from './readyToStart';
 import { useBacklog } from './useBacklog';
+import { usePlannedPoints } from './usePlannedPoints';
 import { useSprint } from './useSprint';
 
 type Props = { projectKey: string };
@@ -30,6 +32,8 @@ function failureMessage(err: unknown): string {
 export function HomeTab({ projectKey }: Props) {
   const { sprint, refresh: refreshSprint } = useSprint(projectKey);
   const { backlog, refresh: refreshBacklog } = useBacklog(projectKey);
+  const { rows: plannedRows, refresh: refreshPoints } = usePlannedPoints();
+  const reviewPoints = useMaple((s) => s.config?.data?.reviewPoints);
   const tabs = useMaple((s) => s.tabs);
   const activate = useMaple((s) => s.activate);
   const [detailKey, setDetailKey] = useState<string | null>(null);
@@ -42,6 +46,8 @@ export function HomeTab({ projectKey }: Props) {
   const backlogToDo = backlog?.data?.flatMap((g) => g.cards).filter((c) => c.status === 'To Do') ?? [];
   const accepting = backlogToDo.filter((c) => suggested.includes(c.key));
   const toAccept = accepting.map((c) => c.key);
+  const planned = plannedRows.reduce((sum, row) => sum + row.planned, 0);
+  const roomPoints = Math.max(0, (reviewPoints ?? 0) - planned);
   const toDo = sprint?.data?.cards.filter((c) => c.status === 'To Do') ?? [];
   const selected = toDo.map((c) => c.key).filter((key) => picked.includes(key));
   const openKeys = new Set(tabs.filter((t) => t.projectKey === projectKey).flatMap((t) => t.cardKey ?? []));
@@ -108,6 +114,7 @@ export function HomeTab({ projectKey }: Props) {
     }
     refreshSprint();
     refreshBacklog();
+    refreshPoints();
     if (andStart) {
       await start(startKeys);
     }
@@ -116,6 +123,9 @@ export function HomeTab({ projectKey }: Props) {
   return (
     <div className={styles.home} data-testid="home">
       <div className={styles.main}>
+        {reviewPoints !== undefined && plannedRows.length > 0 && (
+          <Capacity rows={plannedRows} reviewPoints={reviewPoints} />
+        )}
         {sprint && sprint.error !== null && (
           <div role="status" className={styles.stale}>
             {staleMessage(sprint.fetchedAt)}
@@ -172,6 +182,7 @@ export function HomeTab({ projectKey }: Props) {
           setConfirming('acceptAndStart');
         }}
         failure={moveFailure ?? startFailure}
+        roomPoints={roomPoints}
       />
       {confirming && (
         <ConfirmDialog

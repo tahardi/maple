@@ -9,6 +9,7 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
     worktreesDir: '/tmp/wts',
     vaultDir: null,
     notifications: false,
+    reviewPoints: 20,
     projects: [
       { name: 'Bearclave', jiraKey: 'BEAR', jiraBoardId: 1, plannerDir: '/tmp/planner/bear' },
       { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 2, plannerDir: '/tmp/planner/dig' },

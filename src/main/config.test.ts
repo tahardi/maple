@@ -132,6 +132,16 @@ describe('loadConfig', () => {
       content: JSON.stringify(stringBoardId),
       error: /^reading config: projects\.0\.jiraBoardId/,
     },
+    {
+      name: 'a negative reviewPoints',
+      content: JSON.stringify({ ...validConfig, reviewPoints: -1 }),
+      error: /^reading config: reviewPoints:/,
+    },
+    {
+      name: 'a fractional reviewPoints',
+      content: JSON.stringify({ ...validConfig, reviewPoints: 2.5 }),
+      error: /^reading config: reviewPoints:/,
+    },
   ])('reports $name', async ({ content, error }) => {
     // given
     await writeFile(join(dir, 'config.json'), content);
@@ -141,6 +151,29 @@ describe('loadConfig', () => {
     expect(result.data).toBeNull();
     expect(result.error).toMatch(error);
   });
+
+  test('defaults reviewPoints to 20', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify(validConfig));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBeNull();
+    expect(result.data?.reviewPoints).toBe(20);
+  });
+
+  test.each([{ reviewPoints: 30 }, { reviewPoints: 0 }])(
+    'reads reviewPoints $reviewPoints from the file',
+    async ({ reviewPoints }) => {
+      // given
+      await writeFile(join(dir, 'config.json'), JSON.stringify({ ...validConfig, reviewPoints }));
+      // when
+      const result = await loadConfig(dir);
+      // then
+      expect(result.error).toBeNull();
+      expect(result.data?.reviewPoints).toBe(reviewPoints);
+    },
+  );
 
   test('reports a missing file', async () => {
     // given

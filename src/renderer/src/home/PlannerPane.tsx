@@ -15,6 +15,7 @@ type Props = {
   onAccept: () => void;
   onAcceptAndStart: () => void;
   failure: string | null;
+  roomPoints: number;
 };
 
 export function PlannerPane({
@@ -29,6 +30,7 @@ export function PlannerPane({
   onAccept,
   onAcceptAndStart,
   failure,
+  roomPoints,
 }: Props) {
   const [tabId, setTabId] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
@@ -60,7 +62,7 @@ export function PlannerPane({
     }
     setAnswered(false);
     onBatch([]);
-    window.maple.session.sendPrompt(tabId, SUGGEST_PROMPT(projectKey));
+    window.maple.session.sendPrompt(tabId, SUGGEST_PROMPT(projectKey, roomPoints));
   };
 
   return (

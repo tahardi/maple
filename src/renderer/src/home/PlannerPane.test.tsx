@@ -57,6 +57,7 @@ function setup(
       onAccept={onAccept}
       onAcceptAndStart={onAcceptAndStart}
       failure={failure}
+      roomPoints={9}
     />,
   );
   return {
@@ -97,7 +98,7 @@ describe('PlannerPane', () => {
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Suggest next batch' }));
     // then
-    expect(sendPrompt).toHaveBeenCalledWith('p1', SUGGEST_PROMPT('DIG'));
+    expect(sendPrompt).toHaveBeenCalledWith('p1', SUGGEST_PROMPT('DIG', 9));
     expect(onBatch).toHaveBeenCalledWith([]);
   });
 
