@@ -1,5 +1,5 @@
 import { parsePrBody } from '@shared/prBody';
-import type { ChecksSummary, PrInfo } from '@shared/types';
+import type { ChecksSummary, PrInfo, ReviewComment } from '@shared/types';
 import { z } from 'zod';
 import type { Runner } from './preflight';
 
@@ -14,6 +14,18 @@ const listSchema = z.array(
 );
 
 const checksSchema = z.array(z.object({ bucket: z.string() }));
+
+const reviewCommentsSchema = z.array(
+  z.array(
+    z.object({
+      path: z.string(),
+      line: z.number().nullable(),
+      side: z.string(),
+      body: z.string(),
+      user: z.object({ login: z.string() }),
+    }),
+  ),
+);
 
 const pendingExitCode = 8;
 
@@ -56,4 +68,56 @@ export async function commentOnPr(run: Runner, worktree: string, num: number, bo
   if (code !== 0) {
     throw new Error(`commenting on PR: ${stderr}`);
   }
+}
+
+export async function commentOnLine(
+  run: Runner,
+  worktree: string,
+  num: number,
+  comment: { path: string; line: number; body: string },
+): Promise<void> {
+  const head = await run('gh', ['pr', 'view', String(num), '--json', 'headRefOid', '--jq', '.headRefOid'], worktree);
+  if (head.code !== 0) {
+    throw new Error(`commenting on line: ${head.stderr}`);
+  }
+  const { code, stderr } = await run(
+    'gh',
+    [
+      'api',
+      '--method',
+      'POST',
+      `repos/{owner}/{repo}/pulls/${String(num)}/comments`,
+      '-f',
+      `body=${comment.body}`,
+      '-f',
+      `commit_id=${head.stdout.trim()}`,
+      '-f',
+      `path=${comment.path}`,
+      '-F',
+      `line=${String(comment.line)}`,
+      '-f',
+      'side=RIGHT',
+    ],
+    worktree,
+  );
+  if (code !== 0) {
+    throw new Error(`commenting on line: ${stderr}`);
+  }
+}
+
+export async function reviewComments(run: Runner, worktree: string, num: number): Promise<ReviewComment[]> {
+  const { code, stdout, stderr } = await run(
+    'gh',
+    ['api', '--paginate', '--slurp', `repos/{owner}/{repo}/pulls/${String(num)}/comments`],
+    worktree,
+  );
+  if (code !== 0) {
+    throw new Error(`listing review comments: ${stderr}`);
+  }
+  return reviewCommentsSchema
+    .parse(JSON.parse(stdout))
+    .flat()
+    .flatMap((c) =>
+      c.line !== null && c.side === 'RIGHT' ? [{ path: c.path, line: c.line, author: c.user.login, body: c.body }] : [],
+    );
 }
