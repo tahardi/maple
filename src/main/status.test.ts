@@ -80,6 +80,104 @@ describe('StatusEngine', () => {
     ]);
   });
 
+  test('an unprompted spawn of a Done card tab emits merged', async () => {
+    // given
+    const { sessions, emitted, prFor } = setup({ getCard: () => Promise.resolve({ ...card, status: 'Done' }) });
+    // when
+    sessions.emit('spawn', 't1', false);
+    // then
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe('merged');
+    });
+    expect(prFor).not.toHaveBeenCalled();
+  });
+
+  test('an unprompted spawn of a card that is not Done stays idle', async () => {
+    // given
+    const { sessions, engine, emitted, getCard } = setup();
+    // when
+    sessions.emit('spawn', 't1', false);
+    // then
+    await vi.waitFor(() => {
+      expect(getCard).toHaveBeenCalledWith('DIG-44');
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(emitted.map((s) => s.dot)).toEqual(['idle']);
+    expect(engine.statuses()[0]?.dot).toBe('idle');
+  });
+
+  test('a prompted spawn does not look up the card', async () => {
+    // given
+    const { sessions, getCard } = setup();
+    // when
+    sessions.emit('spawn', 't1', true);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // then
+    expect(getCard).not.toHaveBeenCalled();
+  });
+
+  test('an unprompted spawn with a failed card lookup stays idle and warns', async () => {
+    // given
+    const { sessions, engine, emitted, logger } = setup({
+      getCard: () => Promise.reject(new Error('fetching card: down')),
+    });
+    // when
+    sessions.emit('spawn', 't1', false);
+    // then
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith('jira', 'failed', {
+        operation: 'getCard',
+        error: 'fetching card: down',
+      });
+    });
+    expect(emitted.map((s) => s.dot)).toEqual(['idle']);
+    expect(engine.statuses()[0]?.dot).toBe('idle');
+  });
+
+  test('an unprompted spawn of a planner tab does not look up a card', async () => {
+    // given
+    const planner: TabState = { ...cardTab, kind: 'planner', cardKey: null, worktreePath: null };
+    const { sessions, getCard } = setup({ tab: planner });
+    // when
+    sessions.emit('spawn', 't1', false);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // then
+    expect(getCard).not.toHaveBeenCalled();
+  });
+
+  test('logs the card status when a spawn restores the merged dot', async () => {
+    // given
+    const { sessions, logger } = setup({ getCard: () => Promise.resolve({ ...card, status: 'Done' }) });
+    // when
+    sessions.emit('spawn', 't1', false);
+    // then
+    await vi.waitFor(() => {
+      expect(logger.info).toHaveBeenCalledWith('dot', 'changed', {
+        tabId: 't1',
+        from: 'idle',
+        to: 'merged',
+        input: 'spawn',
+        cardStatus: 'Done',
+      });
+    });
+  });
+
+  test('a prompt during the spawn lookup wins', async () => {
+    // given
+    let resolveCard: (c: Card) => void = () => undefined;
+    const pending = new Promise<Card>((resolve) => {
+      resolveCard = resolve;
+    });
+    const { sessions, engine, emitted } = setup({ getCard: () => pending });
+    sessions.emit('spawn', 't1', false);
+    // when
+    engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    resolveCard({ ...card, status: 'Done' });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // then
+    expect(emitted.map((s) => s.dot)).toEqual(['idle', 'working']);
+  });
+
   test('logs a dot change', () => {
     // given
     const { sessions, engine, logger } = setup();
