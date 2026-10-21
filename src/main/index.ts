@@ -152,6 +152,8 @@ async function start(): Promise<() => number> {
       await persist({ notifications: on });
     },
     warnings: () => warnings,
+    setLastProject: (key) => persist({ lastProject: key }),
+    lastProject: () => Promise.resolve(saved.lastProject),
     setZoom: async (change) => {
       const contents = mainWindow?.webContents;
       if (!contents) {

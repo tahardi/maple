@@ -1,12 +1,22 @@
 import { app, ipcMain } from 'electron';
 import { z } from 'zod';
 import { send, type IpcDeps } from './index';
-import { handle } from './validated';
+import { handle, projectKeyArg } from './validated';
 
-export function registerApp({ setNotifications, warnings, sessions, status, window }: IpcDeps): void {
+export function registerApp({
+  setNotifications,
+  warnings,
+  setLastProject,
+  lastProject,
+  sessions,
+  status,
+  window,
+}: IpcDeps): void {
   let confirmed = false;
   handle('app:setNotifications', z.tuple([z.boolean()]), (on) => setNotifications(on));
   ipcMain.handle('app:warnings', () => warnings());
+  handle('app:setLastProject', z.tuple([projectKeyArg]), (key) => setLastProject(key));
+  ipcMain.handle('app:lastProject', () => lastProject());
   ipcMain.on('app:confirmQuit', () => {
     confirmed = true;
     app.quit();

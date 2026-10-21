@@ -36,6 +36,8 @@ function setup() {
     warnings: () => [],
     setNotifications: () => Promise.resolve(),
     setZoom: () => Promise.resolve(),
+    setLastProject: () => Promise.resolve(),
+    lastProject: () => Promise.resolve(null),
   });
   return { sessions, sendToWindow };
 }

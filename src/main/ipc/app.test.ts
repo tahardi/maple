@@ -25,9 +25,14 @@ const tabs: Record<string, TabState> = {
   t4: { id: 't4', projectKey: 'DIG', kind: 'planner', cardKey: null, sessionId: 's4', worktreePath: null },
 };
 
-function setup(dots: Record<string, TabStatus['dot']> = {}, warnings: string[] = []) {
+function setup(
+  dots: Record<string, TabStatus['dot']> = {},
+  warnings: string[] = [],
+  lastProject: string | null = 'MPL',
+) {
   const sendToWindow = vi.fn();
   const setNotifications = vi.fn(() => Promise.resolve());
+  const setLastProject = vi.fn(() => Promise.resolve());
   const statuses = Object.entries(dots).map(([tabId, dot]) => ({
     tabId,
     dot,
@@ -46,6 +51,8 @@ function setup(dots: Record<string, TabStatus['dot']> = {}, warnings: string[] =
     setNotifications,
     setZoom: () => Promise.resolve(),
     warnings: () => warnings,
+    setLastProject,
+    lastProject: () => Promise.resolve(lastProject),
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];
   const confirmQuit = on.mock.calls.find(([name]) => name === 'app:confirmQuit')?.[1];
@@ -57,7 +64,7 @@ function setup(dots: Record<string, TabStatus['dot']> = {}, warnings: string[] =
     beforeQuit(event);
     return event;
   };
-  return { sendToWindow, setNotifications, requestQuit, confirmQuit };
+  return { sendToWindow, setNotifications, setLastProject, requestQuit, confirmQuit };
 }
 
 describe('registerApp', () => {
@@ -73,6 +80,45 @@ describe('registerApp', () => {
     await call?.[1]({} as IpcMainInvokeEvent, on);
     // then
     expect(setNotifications).toHaveBeenCalledWith(on);
+  });
+
+  test('app:setLastProject passes the key to the setter', async () => {
+    // given
+    const { setLastProject } = setup();
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:setLastProject');
+    // when
+    await call?.[1]({} as IpcMainInvokeEvent, 'MPL');
+    // then
+    expect(setLastProject).toHaveBeenCalledWith('MPL');
+  });
+
+  test.each([
+    { name: 'a number', args: [42] },
+    { name: 'no key', args: [] },
+    { name: 'an empty key', args: [''] },
+    { name: 'a malformed key', args: ['mpl x'] },
+  ])('app:setLastProject rejects $name', async ({ args }) => {
+    // given
+    const { setLastProject } = setup();
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:setLastProject');
+    // when
+    const got = Promise.resolve().then(() => call?.[1]({} as IpcMainInvokeEvent, ...args));
+    // then
+    await expect(got).rejects.toThrow('handling app:setLastProject: arguments are invalid');
+    expect(setLastProject).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'the saved project', saved: 'MPL' },
+    { name: 'null when nothing is saved', saved: null },
+  ])('app:lastProject returns $name', async ({ saved }) => {
+    // given
+    setup({}, [], saved);
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:lastProject');
+    // when
+    const got = await call?.[1]({} as IpcMainInvokeEvent);
+    // then
+    expect(got).toBe(saved);
   });
 
   test.each([
