@@ -35,6 +35,7 @@ describe('JiraClient', () => {
     // when
     const got = await client.activeSprint(7);
     // then
+    expect(got?.id).toBe(6);
     expect(got?.name).toBe('HALO Sprint 1');
     expect(got?.startDate).toBe('2026-10-12T13:00:00.000Z');
     expect(got?.endDate).toBe('2026-10-26T21:00:00.000Z');
@@ -143,6 +144,32 @@ describe('JiraClient', () => {
     expect(got.descriptionMd).toContain('**Plan:** Obsidian vault `Projects/Halo/Implementation Plan.md`');
   });
 
+  test('moveToSprint posts the keys to the sprint', async () => {
+    // given
+    const fetchFn = vi.fn<typeof fetch>(() => Promise.resolve(new Response(null, { status: 204 })));
+    const client = new JiraClient(creds, fetchFn);
+    // when
+    await client.moveToSprint(6, ['HALO-20', 'HALO-21']);
+    // then
+    const [input, init] = vi.mocked(fetchFn).mock.calls[0] ?? [];
+    const headers = new Headers(init?.headers);
+    expect(input).toBe(`${creds.site}/rest/agile/1.0/sprint/6/issue`);
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe('{"issues":["HALO-20","HALO-21"]}');
+    expect(headers.get('Content-Type')).toBe('application/json');
+    expect(headers.get('Authorization')).toBe(`Basic ${Buffer.from('me@example.com:secret').toString('base64')}`);
+  });
+
+  test('moveToSprint rejects when Jira returns 400', async () => {
+    // given
+    const fetchFn = vi.fn<typeof fetch>(() => Promise.resolve(new Response('', { status: 400 })));
+    const client = new JiraClient(creds, fetchFn);
+    // when
+    const got = client.moveToSprint(6, ['HALO-20']);
+    // then
+    await expect(got).rejects.toThrow('moving cards to sprint: Jira returned 400');
+  });
+
   test('sends basic auth from email and token', async () => {
     // given
     const fetchFn = fakeFetch(activeRoutes);
@@ -205,6 +232,52 @@ describe('JiraClient', () => {
     const got = call(client);
     // then
     await expect(got).rejects.toThrow(want);
+  });
+
+  test.each([
+    { name: 'with a parent', parentKey: 'MPL-70', labels: [], parent: { key: 'MPL-70' } },
+    { name: 'without a parent', parentKey: null, labels: ['needs-refinement'], parent: undefined },
+  ])('createIssue posts the issue and returns its key and url $name', async ({ parentKey, labels, parent }) => {
+    // given
+    const fetchFn = vi.fn<typeof fetch>(() => Promise.resolve(new Response(fixture('create-issue.json'))));
+    const client = new JiraClient(creds, fetchFn);
+    const doc = { version: 1, type: 'doc', content: [] };
+    // when
+    const got = await client.createIssue({
+      projectKey: 'MPL',
+      summary: 'Crash on start',
+      description: doc,
+      parentKey,
+      labels,
+    });
+    // then
+    expect(got).toEqual({ key: 'MPL-80', url: 'https://example.atlassian.net/browse/MPL-80' });
+    const [input, init] = vi.mocked(fetchFn).mock.calls[0] ?? [];
+    expect(input).toBe('https://example.atlassian.net/rest/api/3/issue');
+    expect(init?.method).toBe('POST');
+    const headers = new Headers(init?.headers);
+    expect(headers.get('Content-Type')).toBe('application/json');
+    expect(headers.get('Authorization')).toBe(`Basic ${Buffer.from('me@example.com:secret').toString('base64')}`);
+    const body = JSON.parse(init?.body as string) as { fields: Record<string, unknown> };
+    expect(body.fields).toEqual({
+      project: { key: 'MPL' },
+      summary: 'Crash on start',
+      issuetype: { name: 'Task' },
+      description: doc,
+      labels,
+      parent,
+    });
+    expect(Object.hasOwn(body.fields, 'parent')).toBe(parent !== undefined);
+  });
+
+  test('createIssue rejects when Jira returns 400', async () => {
+    // given
+    const fetchFn = vi.fn<typeof fetch>(() => Promise.resolve(new Response('{}', { status: 400 })));
+    const client = new JiraClient(creds, fetchFn);
+    // when
+    const got = client.createIssue({ projectKey: 'MPL', summary: 's', description: {}, parentKey: null, labels: [] });
+    // then
+    await expect(got).rejects.toThrow('creating issue: Jira returned 400');
   });
 });
 

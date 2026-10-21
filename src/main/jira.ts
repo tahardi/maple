@@ -2,10 +2,18 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { BacklogGroup, Blocker, Card, Sprint } from '@shared/types';
+import type { BacklogGroup, Blocker, Card, Filed, Sprint } from '@shared/types';
 import { adfToMarkdown } from './adf';
 
 export type JiraCreds = { site: string; email: string; token: string };
+
+export type NewIssue = {
+  projectKey: string;
+  summary: string;
+  description: unknown;
+  parentKey: string | null;
+  labels: string[];
+};
 
 const FIELDS = 'summary,status,labels,issuelinks,customfield_10016,description,parent';
 
@@ -32,6 +40,8 @@ const issueSchema = z.object({
 const sprintsSchema = z.object({
   values: z.array(z.object({ id: z.number(), name: z.string(), startDate: z.string(), endDate: z.string() })),
 });
+
+const createdSchema = z.object({ key: z.string() });
 
 const searchSchema = z.object({ issues: z.array(issueSchema), nextPageToken: z.string().optional() });
 
@@ -85,7 +95,7 @@ export class JiraClient {
       }
       const issues = await this.search(`sprint=${String(sprint.id)} ORDER BY Rank`);
       const cards = issues.map((issue) => this.toCard(issue));
-      return { name: sprint.name, startDate: sprint.startDate, endDate: sprint.endDate, cards };
+      return { id: sprint.id, name: sprint.name, startDate: sprint.startDate, endDate: sprint.endDate, cards };
     } catch (err) {
       throw new Error(`fetching sprint: ${errorMessage(err)}`, { cause: err });
     }
@@ -122,6 +132,31 @@ export class JiraClient {
     }
   }
 
+  async moveToSprint(sprintId: number, keys: readonly string[]): Promise<void> {
+    try {
+      await this.post(`/rest/agile/1.0/sprint/${String(sprintId)}/issue`, { issues: keys });
+    } catch (err) {
+      throw new Error(`moving cards to sprint: ${errorMessage(err)}`, { cause: err });
+    }
+  }
+
+  async createIssue(issue: NewIssue): Promise<Filed> {
+    try {
+      const fields = {
+        project: { key: issue.projectKey },
+        summary: issue.summary,
+        issuetype: { name: 'Task' },
+        description: issue.description,
+        labels: issue.labels,
+        ...(issue.parentKey === null ? {} : { parent: { key: issue.parentKey } }),
+      };
+      const { key } = createdSchema.parse(await this.post('/rest/api/3/issue', { fields }));
+      return { key, url: `${this.creds.site}/browse/${key}` };
+    } catch (err) {
+      throw new Error(`creating issue: ${errorMessage(err)}`, { cause: err });
+    }
+  }
+
   private async search(jql: string): Promise<z.infer<typeof issueSchema>[]> {
     const issues: z.infer<typeof issueSchema>[] = [];
     let pageToken: string | undefined;
@@ -137,15 +172,31 @@ export class JiraClient {
     return issues;
   }
 
-  private async get(path: string): Promise<unknown> {
+  private get(path: string): Promise<unknown> {
+    return this.send(path, {});
+  }
+
+  private post(path: string, body: unknown): Promise<unknown> {
+    return this.send(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  private async send(
+    path: string,
+    init: { method?: string; headers?: Record<string, string>; body?: string },
+  ): Promise<unknown> {
     const auth = Buffer.from(`${this.creds.email}:${this.creds.token}`).toString('base64');
     const res = await this.fetchFn(`${this.creds.site}${path}`, {
-      headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' },
+      ...init,
+      headers: { ...init.headers, Authorization: `Basic ${auth}`, Accept: 'application/json' },
     });
     if (!res.ok) {
       throw new Error(`Jira returned ${String(res.status)}`);
     }
-    return res.json();
+    return res.status === 204 ? null : res.json();
   }
 
   private toCard(issue: z.infer<typeof issueSchema>): Card {
