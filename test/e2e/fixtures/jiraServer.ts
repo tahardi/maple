@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 
-const fixtures = join(import.meta.dirname, '../../test/fixtures/jira');
+const fixtures = join(import.meta.dirname, '../../fixtures/jira');
 
 const routes: readonly { pattern: RegExp; file: string }[] = [
   { pattern: /^\/rest\/agile\/1\.0\/board\/\d+\/sprint\?state=active$/, file: 'board-sprint-active.json' },
