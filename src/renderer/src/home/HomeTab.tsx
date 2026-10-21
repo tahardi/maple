@@ -1,4 +1,4 @@
-import type { TabState } from '@shared/types';
+import type { Card, TabState } from '@shared/types';
 import { useCallback, useState } from 'react';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
@@ -27,6 +27,12 @@ function failureMessage(err: unknown): string {
   return message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 }
 
+function addBody(card: Card, sprintName: string): string {
+  const blockers = card.blockedBy.filter((b) => b.status !== 'Done').map((b) => b.key);
+  const blocked = blockers.length > 0 ? ` Blocked by ${blockers.join(', ')}.` : '';
+  return `Move ${card.key} ${card.summary} into ${sprintName}?${blocked}`;
+}
+
 export function HomeTab({ projectKey }: Props) {
   const { sprint, refresh: refreshSprint } = useSprint(projectKey);
   const { backlog, refresh: refreshBacklog } = useBacklog(projectKey);
@@ -39,14 +45,20 @@ export function HomeTab({ projectKey }: Props) {
   const [suggested, setSuggested] = useState<readonly string[]>([]);
   const [confirming, setConfirming] = useState<'accept' | 'acceptAndStart' | null>(null);
   const [moveFailure, setMoveFailure] = useState<string | null>(null);
-  const backlogToDo = backlog?.data?.flatMap((g) => g.cards).filter((c) => c.status === 'To Do') ?? [];
+  const [confirmKey, setConfirmKey] = useState<string | null>(null);
+  const backlogCards = backlog?.data?.flatMap((g) => g.cards) ?? [];
+  const backlogToDo = backlogCards.filter((c) => c.status === 'To Do');
   const accepting = backlogToDo.filter((c) => suggested.includes(c.key));
   const toAccept = accepting.map((c) => c.key);
   const toDo = sprint?.data?.cards.filter((c) => c.status === 'To Do') ?? [];
   const selected = toDo.map((c) => c.key).filter((key) => picked.includes(key));
   const openKeys = new Set(tabs.filter((t) => t.projectKey === projectKey).flatMap((t) => t.cardKey ?? []));
   const ready = readyToStart(toDo, openKeys);
-  const card = sprint?.data?.cards.find((c) => c.key === detailKey) ?? null;
+  const sprintCard = sprint?.data?.cards.find((c) => c.key === detailKey) ?? null;
+  const backlogCard = sprintCard ? null : (backlogCards.find((c) => c.key === detailKey) ?? null);
+  const card = sprintCard ?? backlogCard;
+  const confirmCard = backlogCards.find((c) => c.key === confirmKey) ?? null;
+  const activeSprint = sprint?.data ?? null;
   const tabFor = (key: string) =>
     tabs.find((t) => t.kind === 'card' && t.projectKey === projectKey && t.cardKey === key) ?? null;
   const activateTab = (tab: TabState) => {
@@ -112,6 +124,23 @@ export function HomeTab({ projectKey }: Props) {
       await start(startKeys);
     }
   };
+  const addToSprint = async (key: string, sprintId: number) => {
+    setConfirmKey(null);
+    setFailure(null);
+    try {
+      await window.maple.jira.moveToSprint(sprintId, [key]);
+    } catch (err: unknown) {
+      setFailure(failureMessage(err));
+      return;
+    }
+    refreshSprint();
+    refreshBacklog();
+  };
+  const onAddToSprint = activeSprint
+    ? () => {
+        setConfirmKey(detailKey);
+      }
+    : null;
 
   return (
     <div className={styles.home} data-testid="home">
@@ -126,7 +155,7 @@ export function HomeTab({ projectKey }: Props) {
         ) : (
           sprint?.error === null && <p className={styles.empty}>No active sprint</p>
         )}
-        {backlog?.data && <Backlog groups={backlog.data} highlighted={toAccept} />}
+        {backlog?.data && <Backlog groups={backlog.data} highlighted={toAccept} onSelect={select} />}
       </div>
       {card && (
         <CardDetail
@@ -148,6 +177,7 @@ export function HomeTab({ projectKey }: Props) {
           onClose={() => {
             setDetailKey(null);
           }}
+          onAddToSprint={backlogCard ? onAddToSprint : undefined}
         />
       )}
       <PlannerPane
@@ -181,6 +211,17 @@ export function HomeTab({ projectKey }: Props) {
           onConfirm={() => void accept(confirming === 'acceptAndStart')}
           onCancel={() => {
             setConfirming(null);
+          }}
+        />
+      )}
+      {confirmCard && activeSprint && (
+        <ConfirmDialog
+          title="Add to sprint"
+          body={addBody(confirmCard, activeSprint.name)}
+          confirmLabel="Move to sprint"
+          onConfirm={() => void addToSprint(confirmCard.key, activeSprint.id)}
+          onCancel={() => {
+            setConfirmKey(null);
           }}
         />
       )}

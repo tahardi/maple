@@ -10,6 +10,7 @@ type Props = {
   onOpen: () => void;
   onGoTo: () => void;
   onClose: () => void;
+  onAddToSprint?: (() => void) | null;
 };
 
 function action(card: Card, tab: TabState | null, props: Props): { label: string; run: () => void } | null {
@@ -26,7 +27,7 @@ function action(card: Card, tab: TabState | null, props: Props): { label: string
 }
 
 export function CardDetail(props: Props) {
-  const { card, tab, failure, onClose } = props;
+  const { card, tab, failure, onClose, onAddToSprint } = props;
   const next = action(card, tab, props);
 
   return (
@@ -50,7 +51,13 @@ export function CardDetail(props: Props) {
         </ul>
       )}
       <div className={styles.actions}>
-        {next && <button onClick={next.run}>{next.label}</button>}
+        {onAddToSprint !== undefined ? (
+          <button onClick={onAddToSprint ?? undefined} disabled={onAddToSprint === null}>
+            Add to sprint
+          </button>
+        ) : (
+          next && <button onClick={next.run}>{next.label}</button>
+        )}
         <a href={card.url} target="_blank" rel="noreferrer">
           Open in Jira
         </a>
