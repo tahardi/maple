@@ -86,7 +86,7 @@ vi.mock('@monaco-editor/react', async () => {
     DiffEditor: (props: {
       original: string;
       modified: string;
-      options: { renderSideBySide: boolean; readOnly: boolean };
+      options: { renderSideBySide: boolean; readOnly: boolean; minimap?: { enabled: boolean; size: string } };
       onMount: (editor: unknown) => void;
     }) => {
       const { onMount } = props;
@@ -100,6 +100,7 @@ vi.mock('@monaco-editor/react', async () => {
           data-modified={props.modified}
           data-side-by-side={String(props.options.renderSideBySide)}
           data-readonly={String(props.options.readOnly)}
+          data-minimap={JSON.stringify(props.options.minimap)}
         />
       );
     },
@@ -363,15 +364,24 @@ describe('FileViewer', () => {
     });
   });
 
-  test('turns on the minimap', async () => {
+  test.each([
+    { name: 'in file', mode: 'in-file', pair: changed, testId: 'editor' },
+    { name: 'side by side', mode: 'side-by-side', pair: changed, testId: 'diff-editor' },
+    {
+      name: 'a deleted file',
+      mode: 'in-file',
+      pair: { kind: 'text', path: 'src/old.ts', current: null, base: 'old\n' } as const,
+      testId: 'editor',
+    },
+  ])('turns on the minimap for $name', async ({ mode, pair, testId }) => {
     // given
-    const pair = changed;
+    localStorage.setItem('maple.viewMode', mode);
     // when
     renderViewer(pair);
     // then
-    const editor = await screen.findByTestId('editor');
+    const editor = await screen.findByTestId(testId);
     const minimap: unknown = JSON.parse(editor.getAttribute('data-minimap') ?? 'null');
-    expect(minimap).toMatchObject({ enabled: true, size: 'fit' });
+    expect(minimap).toEqual({ enabled: true, renderCharacters: false, size: 'fit', showSlider: 'always' });
   });
 
   test.each([
