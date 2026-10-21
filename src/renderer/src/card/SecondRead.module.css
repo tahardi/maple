@@ -1,0 +1,41 @@
+.findings {
+  border-top: 1px solid var(--border);
+  padding: 8px;
+  font-size: 13px;
+  max-height: 35%;
+  overflow: auto;
+}
+
+.findings h4 {
+  margin: 0 0 4px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.finding {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.place {
+  font-family: monospace;
+  color: var(--text-strong);
+}
+
+.none {
+  margin: 0;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}

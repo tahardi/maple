@@ -1,4 +1,4 @@
-import type { FilePair, ReviewComment } from '@shared/types';
+import type { FilePair, Finding, ReviewComment } from '@shared/types';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
@@ -112,6 +112,7 @@ function renderViewer(
   writeFile = vi.fn(() => Promise.resolve()),
   canComment = false,
   comments = vi.fn(() => Promise.resolve<ReviewComment[]>([])),
+  notes: readonly Finding[] = [],
 ) {
   const maple = fakeMaple({ repo: { readFile: () => Promise.resolve(pair), writeFile }, pr: { comments } });
   const props = {
@@ -123,6 +124,7 @@ function renderViewer(
     prBody: null,
     line: null,
     canComment,
+    notes,
   };
   return { maple, props, ...render(<FileViewer {...props} />) };
 }
@@ -153,6 +155,7 @@ describe('FileViewer', () => {
         prBody={'## Summary\n\nHello'}
         line={null}
         canComment={false}
+        notes={[]}
       />,
     );
     // then
@@ -179,6 +182,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        notes={[]}
       />,
     );
     // then
@@ -201,6 +205,7 @@ describe('FileViewer', () => {
       prBody: null,
       line: null,
       canComment: false,
+      notes: [],
     };
     const { rerender } = render(<FileViewer {...props} activeFile="vault:Spike.md" />);
     await screen.findByRole('heading', { name: 'First' });
@@ -326,6 +331,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        notes={[]}
       />,
     );
     await screen.findByTestId('editor');
@@ -429,6 +435,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        notes={[]}
       />,
     );
     // then
@@ -459,6 +466,7 @@ describe('FileViewer', () => {
       prBody: null,
       line: null,
       canComment: false,
+      notes: [],
     };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
     rerender(<FileViewer {...props} activeFile="b.ts" />);
@@ -486,6 +494,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        notes={[]}
       />,
     );
     await screen.findByText('Binary file, not shown');
@@ -509,6 +518,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={3}
         canComment={false}
+        notes={[]}
       />,
     );
     // then
@@ -536,6 +546,7 @@ describe('FileViewer', () => {
       onCloseFile: vi.fn(),
       prBody: null,
       canComment: false,
+      notes: [],
     };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" line={null} />);
     await screen.findByTestId('editor');
@@ -573,6 +584,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        notes={[]}
       />,
     );
     await screen.findByTestId(mode === 'in-file' ? 'editor' : 'diff-editor');
@@ -597,6 +609,50 @@ describe('FileViewer', () => {
     // then
     const editor = await screen.findByTestId('editor');
     expect(editor.getAttribute('data-language')).toBe(want);
+  });
+
+  test.each([
+    {
+      name: 'a changed file',
+      pair: { kind: 'text', path: 'src/a.ts', current: 'a\nb\nc\n', base: 'a\nb\nx\n' } as const,
+      diff: [
+        {
+          range: { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 1 },
+          options: {
+            isWholeLine: true,
+            className: 'line-chg',
+            marginClassName: 'margin-chg',
+            overviewRuler: { color: '#d4b106', position: 7 },
+            hoverMessage: { value: 'Was:\n```\nx\n```' },
+          },
+        },
+      ],
+    },
+    {
+      name: 'an unchanged file',
+      pair: { kind: 'text', path: 'src/a.ts', current: 'a\nb\nc\n', base: 'a\nb\nc\n' } as const,
+      diff: [],
+    },
+  ])('pins notes for the active file in the glyph margin on $name', async ({ pair, diff }) => {
+    // given
+    monaco.enabled.value = true;
+    const notes = [
+      { path: 'src/a.ts', line: 3, text: 'off by one' },
+      { path: 'src/b.ts', line: 1, text: 'elsewhere' },
+    ];
+    // when
+    renderViewer(pair, undefined, false, undefined, notes);
+    // then
+    await screen.findByTestId('editor');
+    await vi.waitFor(() => {
+      expect(monaco.editor.createDecorationsCollection).toHaveBeenLastCalledWith([
+        ...diff,
+        {
+          range: { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 1 },
+          options: { glyphMarginClassName: 'margin-note', hoverMessage: { value: 'off by one' } },
+        },
+      ]);
+    });
   });
 
   test('adds no decorations to an unchanged file', async () => {
@@ -694,6 +750,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        notes={[]}
       />,
     );
     await screen.findByTestId('editor');
@@ -784,6 +841,7 @@ describe('FileViewer', () => {
       prBody: null,
       line: null,
       canComment: false,
+      notes: [],
     };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
     const editor = await screen.findByTestId('editor');

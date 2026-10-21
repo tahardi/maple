@@ -26,6 +26,7 @@ export type IpcDeps = {
   setNotifications: (on: boolean) => Promise<void>;
   setZoom: (change: ZoomChange) => Promise<void>;
   warnings: () => string[];
+  hooksFile: string;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [

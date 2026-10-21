@@ -446,6 +446,29 @@ describe('CardTab', () => {
     expect(await slot.findByRole('alert')).toHaveTextContent(/^approving PR: offline$/);
   });
 
+  test('Second read lists the findings under the PR summary', async () => {
+    // given
+    const secondRead = vi
+      .fn<() => Promise<{ path: string; line: number; text: string }[]>>()
+      .mockResolvedValueOnce([{ path: 'src/a.ts', line: 3, text: 'off by one' }])
+      .mockRejectedValueOnce(new Error("Error invoking remote method 'pr:secondRead': Error: reviewing PR: boom"));
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), secondRead } });
+    render(<CardTab tab={tab} />);
+    const slot = within(screen.getByTestId('claude-slot'));
+    // when
+    await userEvent.click(await slot.findByRole('button', { name: 'Second read' }));
+    // then
+    expect(secondRead).toHaveBeenCalledWith('t1');
+    const list = await screen.findByRole('region', { name: 'Second read' });
+    expect(list).toHaveTextContent('src/a.ts:3');
+    expect(list).toHaveTextContent('off by one');
+    expect(slot.queryByRole('alert')).not.toBeInTheDocument();
+    // when
+    await userEvent.click(await slot.findByRole('button', { name: 'Second read' }));
+    // then
+    expect(await slot.findByRole('alert')).toHaveTextContent(/^reviewing PR: boom$/);
+  });
+
   test('a working tab disables Approve', async () => {
     // given
     fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });

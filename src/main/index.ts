@@ -152,6 +152,7 @@ async function start(): Promise<() => number> {
       await persist({ notifications: on });
     },
     warnings: () => warnings,
+    hooksFile,
     setZoom: async (change) => {
       const contents = mainWindow?.webContents;
       if (!contents) {

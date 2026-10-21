@@ -34,6 +34,7 @@ function setup() {
     status: {} as StatusEngine,
     setActiveTab: () => undefined,
     warnings: () => [],
+    hooksFile: '/cfg/hooksFile.json',
     setNotifications: () => Promise.resolve(),
     setZoom: () => Promise.resolve(),
   });

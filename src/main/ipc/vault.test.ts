@@ -31,6 +31,7 @@ function invoke(vaultDir: string | null, channel: string, ...args: unknown[]): u
       status: {} as StatusEngine,
       setActiveTab: () => undefined,
       warnings: () => [],
+      hooksFile: '/cfg/hooksFile.json',
       setNotifications: () => Promise.resolve(),
       setZoom: () => Promise.resolve(),
     },

@@ -1,4 +1,4 @@
-import type { FileChange, TabState, VaultNote } from '@shared/types';
+import type { FileChange, Finding, TabState, VaultNote } from '@shared/types';
 import { useEffect, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { useMaple } from '../store';
@@ -12,6 +12,7 @@ import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
 import { QuickOpen } from './QuickOpen';
 import { PR_DESCRIPTION } from './prDescription';
+import { SecondRead } from './SecondRead';
 import { TerminalPane } from './TerminalPane';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
@@ -33,6 +34,11 @@ function branchName(worktreePath: string | null, cardKey: string): string | null
   return name === undefined || start === -1 ? null : name.slice(start);
 }
 
+function errorText(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.replace(/^Error invoking remote method '[^']+': Error: /, '');
+}
+
 export function CardTab({ tab }: { tab: TabState }) {
   const { changes, files, pr, card, cost } = useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
@@ -45,7 +51,9 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [line, setLine] = useState<number | null>(null);
   const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
-  const [approveError, setApproveError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [findings, setFindings] = useState<readonly Finding[] | null>(null);
+  const [reading, setReading] = useState(false);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
   const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
   const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
@@ -62,6 +70,9 @@ export function CardTab({ tab }: { tab: TabState }) {
   const showsVault = hasVault && view === 'vault';
   const vault = useVault(tab.id, showsVault);
   const recent = writtenNotes(vault.notes, vault.written);
+  const showActionError = (err: unknown) => {
+    setActionError(errorText(err));
+  };
   const actions =
     config === null
       ? []
@@ -71,15 +82,23 @@ export function CardTab({ tab }: { tab: TabState }) {
           pr: pr?.data ?? null,
           dot,
           worktreeExists,
+          reading,
           send: (text) => {
             window.maple.session.sendPrompt(tab.id, text);
           },
           approve: () => {
-            setApproveError(null);
-            window.maple.pr.approve(tab.id).catch((err: unknown) => {
-              const message = err instanceof Error ? err.message : String(err);
-              setApproveError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
-            });
+            setActionError(null);
+            window.maple.pr.approve(tab.id).catch(showActionError);
+          },
+          secondRead: () => {
+            setActionError(null);
+            setReading(true);
+            window.maple.pr
+              .secondRead(tab.id)
+              .then(setFindings, showActionError)
+              .finally(() => {
+                setReading(false);
+              });
           },
         });
 
@@ -200,6 +219,16 @@ export function CardTab({ tab }: { tab: TabState }) {
               }}
             />
           )}
+          {findings !== null && (
+            <SecondRead
+              tabId={tab.id}
+              findings={findings}
+              onOpen={openFile}
+              onRemove={(finding) => {
+                setFindings((all) => all?.filter((f) => f !== finding) ?? null);
+              }}
+            />
+          )}
         </div>
         <div className={styles.divider} onPointerDown={drag('left')} />
         <div className={styles.middle} data-testid="viewer-slot">
@@ -215,6 +244,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 onCloseFile={closeFile}
                 prBody={pr?.data?.body ?? null}
                 canComment={pr?.data?.state === 'OPEN'}
+                notes={findings ?? []}
                 line={line}
               />
             )}
@@ -233,9 +263,9 @@ export function CardTab({ tab }: { tab: TabState }) {
         <div className={styles.divider} onPointerDown={drag('right')} />
         <div className={styles.right} style={{ width: `${String(columns.right)}%` }} data-testid="claude-slot">
           {card?.status === 'Done' && !worktreeExists && <MergedNotice onClose={() => void closeTab(tab.id, false)} />}
-          {approveError !== null && (
-            <div className={styles.approveError} role="alert">
-              {approveError}
+          {actionError !== null && (
+            <div className={styles.actionError} role="alert">
+              {actionError}
             </div>
           )}
           <ClaudePane tabId={tab.id} actions={actions} />

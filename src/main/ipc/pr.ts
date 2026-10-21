@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
-import type { Fetched, PrInfo, ReviewComment } from '@shared/types';
+import type { Fetched, Finding, PrInfo, ReviewComment } from '@shared/types';
 import { currentBranch } from '../git';
 import { commentOnLine, commentOnPr, prForBranch, reviewComments } from '../github';
 import { appLogger, type Logger } from '../log';
 import { defaultRunner } from '../preflight';
+import { secondRead } from '../secondRead';
 import type { IpcDeps } from './index';
 import { handle, tabIdArg } from './validated';
 
@@ -88,6 +89,26 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       const error = err instanceof Error ? err.message : String(err);
       logger.warn('gh', 'failed', { operation: 'pr:comments', tabId, error });
       throw err;
+    }
+  });
+  handle('pr:secondRead', z.tuple([tabIdArg]), async (tabId): Promise<Finding[]> => {
+    try {
+      const worktree = deps.worktreeFor(tabId);
+      if (worktree === null) {
+        throw new Error('tab has no card worktree');
+      }
+      const pr = await lookup(worktree);
+      if (pr?.state !== 'OPEN') {
+        throw new Error('branch has no open PR');
+      }
+      return await secondRead(defaultRunner, worktree, deps.hooksFile, pr.number);
+    } catch (err) {
+      logger.warn('gh', 'failed', {
+        operation: 'pr:secondRead',
+        tabId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw new Error(`reviewing PR: ${err instanceof Error ? err.message : String(err)}`);
     }
   });
 }

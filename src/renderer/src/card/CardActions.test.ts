@@ -24,29 +24,32 @@ const pr: PrInfo = {
   checks: { passed: 3, failed: 0, pending: 0, total: 3 },
 };
 
-function actions(overrides: { pr?: PrInfo | null; dot?: Dot; worktreeExists?: boolean } = {}) {
+function actions(overrides: { pr?: PrInfo | null; dot?: Dot; worktreeExists?: boolean; reading?: boolean } = {}) {
   const send = vi.fn();
   const approve = vi.fn();
+  const secondRead = vi.fn();
   const list = cardActions({
     config,
     cardKey: 'DIG-44',
     pr: overrides.pr === undefined ? pr : overrides.pr,
     dot: overrides.dot ?? 'ready',
     worktreeExists: overrides.worktreeExists ?? true,
+    reading: overrides.reading ?? false,
     send,
     approve,
+    secondRead,
   });
-  return { list, send, approve };
+  return { list, send, approve, secondRead };
 }
 
 describe('cardActions', () => {
-  test('gives one button per config action, then Approve', () => {
+  test('gives one button per config action, then Second read, then Approve', () => {
     // given
     const { list } = actions();
     // when
     const labels = list.map((a) => a.label);
     // then
-    expect(labels).toEqual(['Address review', 'Merge main', 'Approve']);
+    expect(labels).toEqual(['Address review', 'Merge main', 'Second read', 'Approve']);
     expect(list.every((a) => !a.disabled)).toBe(true);
   });
 
@@ -87,7 +90,7 @@ describe('cardActions', () => {
     const approve = list.find((a) => a.label === 'Approve');
     // then
     expect(approve).toMatchObject({ disabled: true, title });
-    expect(list.filter((a) => a.disabled)).toHaveLength(1);
+    expect(list.filter((a) => a.disabled && a.label !== 'Second read')).toHaveLength(1);
   });
 
   test('every button is disabled without a worktree', () => {
@@ -96,7 +99,7 @@ describe('cardActions', () => {
     // when
     const states = list.map((a) => ({ disabled: a.disabled, title: a.title }));
     // then
-    expect(states).toEqual(Array(3).fill({ disabled: true, title: 'No worktree' }));
+    expect(states).toEqual(Array(4).fill({ disabled: true, title: 'No worktree' }));
   });
 
   test.each([
@@ -111,8 +114,10 @@ describe('cardActions', () => {
       pr: withPr,
       dot: 'ready',
       worktreeExists: true,
+      reading: false,
       send,
       approve: vi.fn(),
+      secondRead: vi.fn(),
     });
     // when
     list[0].onClick();
@@ -154,7 +159,7 @@ describe('cardActions', () => {
     expect(approve?.title).toBe(title);
   });
 
-  test('a config with no actions gives only Approve', () => {
+  test('a config with no actions gives only Second read and Approve', () => {
     // given
     const list = cardActions({
       config: { ...config, actions: [] },
@@ -162,12 +167,60 @@ describe('cardActions', () => {
       pr,
       dot: 'ready',
       worktreeExists: true,
+      reading: false,
       send: vi.fn(),
       approve: vi.fn(),
+      secondRead: vi.fn(),
     });
     // when
     const labels = list.map((a) => a.label);
     // then
-    expect(labels).toEqual(['Approve']);
+    expect(labels).toEqual(['Second read', 'Approve']);
+  });
+
+  test('Second read calls secondRead', () => {
+    // given
+    const { list, secondRead } = actions();
+    // when
+    list.find((a) => a.label === 'Second read')?.onClick();
+    // then
+    expect(secondRead).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    { name: 'there is no PR', overrides: { pr: null }, want: { label: 'Second read', title: 'No open PR' } },
+    {
+      name: 'the PR is merged',
+      overrides: { pr: { ...pr, state: 'MERGED' as const } },
+      want: { label: 'Second read', title: 'No open PR' },
+    },
+    { name: 'a read runs', overrides: { reading: true }, want: { label: 'Reading…' } },
+    {
+      name: 'there is no worktree',
+      overrides: { worktreeExists: false },
+      want: { label: 'Second read', title: 'No worktree' },
+    },
+  ])('Second read is disabled when $name', ({ overrides, want }) => {
+    // given
+    const { list } = actions(overrides);
+    // when
+    const button = list.at(-2);
+    // then
+    expect(button).toMatchObject({ ...want, disabled: true });
+  });
+
+  test.each([
+    { name: 'the agent is working', overrides: { dot: 'working' as const } },
+    {
+      name: 'checks are failing',
+      overrides: { pr: { ...pr, checks: { passed: 2, failed: 1, pending: 0, total: 3 } } },
+    },
+  ])('Second read stays enabled when $name', ({ overrides }) => {
+    // given
+    const { list } = actions(overrides);
+    // when
+    const button = list.find((a) => a.label === 'Second read');
+    // then
+    expect(button?.disabled).toBeUndefined();
   });
 });

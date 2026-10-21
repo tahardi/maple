@@ -34,6 +34,7 @@ function invoke(channel: string, ...args: unknown[]): unknown {
       status: {} as StatusEngine,
       setActiveTab: () => undefined,
       warnings: () => [],
+      hooksFile: '/cfg/hooksFile.json',
       setNotifications: () => Promise.resolve(),
       setZoom: () => Promise.resolve(),
     },

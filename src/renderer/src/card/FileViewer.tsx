@@ -1,6 +1,6 @@
 import { DiffEditor, Editor, useMonaco } from '@monaco-editor/react';
 import { lineMarks } from '@shared/diffMarks';
-import type { Draft, FilePair, ReviewComment } from '@shared/types';
+import type { Draft, FilePair, Finding, ReviewComment } from '@shared/types';
 import type { editor } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { MarkdownText } from '../shell/MarkdownText';
@@ -22,6 +22,7 @@ type Props = {
   prBody: string | null;
   line: number | null;
   canComment: boolean;
+  notes: readonly Finding[];
 };
 
 type Mode = 'in-file' | 'side-by-side';
@@ -32,7 +33,7 @@ const NO_DRAFTS: Record<string, Draft> = {};
 
 const NO_COMMENTS: ReviewComment[] = [];
 
-const OPTIONS = { readOnly: true, domReadOnly: true, minimap: { enabled: false } };
+const OPTIONS = { readOnly: true, domReadOnly: true, minimap: { enabled: false }, glyphMargin: true };
 
 function loadMode(): Mode {
   try {
@@ -58,7 +59,17 @@ function baseName(path: string): string {
   return bare.split('/').at(-1) ?? bare;
 }
 
-export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody, line, canComment }: Props) {
+export function FileViewer({
+  tabId,
+  openFiles,
+  activeFile,
+  onActivate,
+  onCloseFile,
+  prBody,
+  line,
+  canComment,
+  notes,
+}: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
@@ -161,12 +172,14 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
     [text, edited],
   );
 
+  const pins = useMemo(() => notes.filter((note) => note.path === text?.path), [notes, text]);
+
   useEffect(() => {
     if (plain === null || monaco === null) {
       return;
     }
-    const decorations = plain.createDecorationsCollection(
-      specs.map((spec) => ({
+    const decorations = plain.createDecorationsCollection([
+      ...specs.map((spec) => ({
         range: { startLineNumber: spec.startLine, startColumn: 1, endLineNumber: spec.endLine, endColumn: 1 },
         options: {
           isWholeLine: true,
@@ -176,11 +189,15 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
           hoverMessage: spec.hover === null ? null : { value: spec.hover },
         },
       })),
-    );
+      ...pins.map((pin) => ({
+        range: { startLineNumber: pin.line, startColumn: 1, endLineNumber: pin.line, endColumn: 1 },
+        options: { glyphMarginClassName: 'margin-note', hoverMessage: { value: pin.text } },
+      })),
+    ]);
     return () => {
       decorations.clear();
     };
-  }, [plain, monaco, specs]);
+  }, [plain, monaco, specs, pins]);
 
   useEffect(() => {
     if (!canComment) {

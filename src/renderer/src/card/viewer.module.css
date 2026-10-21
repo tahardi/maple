@@ -116,6 +116,11 @@
   border-left: 3px solid var(--success);
 }
 
+:global(.margin-note)::before {
+  content: '●';
+  color: var(--accent);
+}
+
 :global(.margin-chg) {
   border-left: 3px solid var(--warning);
 }

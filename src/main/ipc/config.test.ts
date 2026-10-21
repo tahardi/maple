@@ -56,6 +56,7 @@ function deps(window: () => BrowserWindow | null = () => null) {
     status: {} as StatusEngine,
     setActiveTab: vi.fn(),
     warnings: () => [],
+    hooksFile: '/cfg/hooksFile.json',
     setNotifications: vi.fn(() => Promise.resolve()),
     setZoom: vi.fn(() => Promise.resolve()),
   };

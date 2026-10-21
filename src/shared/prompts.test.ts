@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { cardPrompt, fillAction, SUGGEST_PROMPT } from './prompts';
+import { cardPrompt, fillAction, secondReadPrompt, SUGGEST_PROMPT } from './prompts';
 
 describe('cardPrompt', () => {
   test('builds the card command', () => {
@@ -35,5 +35,25 @@ describe('SUGGEST_PROMPT', () => {
     // then
     expect(prompt).toContain('active DIG sprint');
     expect(prompt.endsWith('(or MAPLE-BATCH: none).')).toBe(true);
+  });
+});
+
+describe('secondReadPrompt', () => {
+  test('secondReadPrompt names the PR and the findings line', () => {
+    // given
+    const num = 33;
+    // when
+    const prompt = secondReadPrompt(num);
+    // then
+    expect(prompt).toContain('gh pr diff 33');
+    expect(prompt).toContain('Do not edit files, commit, push, or comment');
+    expect(prompt).toContain('relative to the repo root');
+    expect(prompt).toContain('line numbers in the current file');
+    expect(
+      prompt.endsWith(
+        'End your answer with exactly one line in this format and nothing after it: ' +
+          'MAPLE-FINDINGS: <JSON array of {"path","line","text"}> (or MAPLE-FINDINGS: []).',
+      ),
+    ).toBe(true);
   });
 });

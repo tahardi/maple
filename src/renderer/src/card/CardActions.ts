@@ -8,8 +8,10 @@ type CardActionsInput = {
   pr: PrInfo | null;
   dot: Dot;
   worktreeExists: boolean;
+  reading: boolean;
   send: (text: string) => void;
   approve: () => void;
+  secondRead: () => void;
 };
 
 function approveBlocker({ dot, pr }: CardActionsInput): string | null {
@@ -23,7 +25,7 @@ function approveBlocker({ dot, pr }: CardActionsInput): string | null {
 }
 
 export function cardActions(input: CardActionsInput): PaneAction[] {
-  const { config, cardKey, pr, worktreeExists, send, approve } = input;
+  const { config, cardKey, pr, worktreeExists, reading, send, approve, secondRead } = input;
   const disable = (title: string | null) =>
     !worktreeExists ? { disabled: true, title: 'No worktree' } : title === null ? {} : { disabled: true, title };
   return [
@@ -34,6 +36,9 @@ export function cardActions(input: CardActionsInput): PaneAction[] {
       },
       ...disable(null),
     })),
+    worktreeExists && reading
+      ? { label: 'Reading…', onClick: secondRead, disabled: true }
+      : { label: 'Second read', onClick: secondRead, ...disable(pr?.state === 'OPEN' ? null : 'No open PR') },
     { label: 'Approve', onClick: approve, ...disable(approveBlocker(input)) },
   ];
 }

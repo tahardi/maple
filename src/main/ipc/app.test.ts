@@ -46,6 +46,7 @@ function setup(dots: Record<string, TabStatus['dot']> = {}, warnings: string[] =
     setNotifications,
     setZoom: () => Promise.resolve(),
     warnings: () => warnings,
+    hooksFile: '/cfg/hooksFile.json',
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];
   const confirmQuit = on.mock.calls.find(([name]) => name === 'app:confirmQuit')?.[1];

@@ -8,8 +8,8 @@ import { registerPr } from './pr';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
 
-const { handle, prForBranch, commentOnPr, commentOnLine, reviewComments, defaultRunner, currentBranch } = vi.hoisted(
-  () => ({
+const { handle, prForBranch, commentOnPr, commentOnLine, reviewComments, defaultRunner, currentBranch, secondRead } =
+  vi.hoisted(() => ({
     handle: vi.fn<(channel: string, handler: Handler) => void>(),
     prForBranch: vi.fn(),
     commentOnPr: vi.fn(),
@@ -17,13 +17,14 @@ const { handle, prForBranch, commentOnPr, commentOnLine, reviewComments, default
     reviewComments: vi.fn(),
     defaultRunner: vi.fn(),
     currentBranch: vi.fn(),
-  }),
-);
+    secondRead: vi.fn(),
+  }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 vi.mock('../git', () => ({ currentBranch }));
 vi.mock('../github', () => ({ prForBranch, commentOnPr, commentOnLine, reviewComments }));
 vi.mock('../preflight', () => ({ defaultRunner }));
+vi.mock('../secondRead', () => ({ secondRead }));
 
 const event = {} as IpcMainInvokeEvent;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -54,6 +55,7 @@ function register(
       status: {} as StatusEngine,
       setActiveTab: () => undefined,
       warnings: () => [],
+      hooksFile: '/cfg/hooksFile.json',
       setNotifications: () => Promise.resolve(),
       setZoom: () => Promise.resolve(),
     },
@@ -299,6 +301,39 @@ describe('registerPr', () => {
     });
   });
 
+  test('secondRead runs the reviewer on the open PR', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const found = [{ path: 'src/a.ts', line: 3, text: 'off by one' }];
+    secondRead.mockResolvedValue(found);
+    const read = register('pr:secondRead', '/wt');
+    // when
+    const result = await read('t1');
+    // then
+    expect(result).toEqual(found);
+    expect(secondRead).toHaveBeenCalledWith(defaultRunner, '/wt', '/cfg/hooksFile.json', 33);
+  });
+
+  test.each([
+    { name: 'there is no PR', worktree: '/wt', found: null, want: 'branch has no open PR' },
+    {
+      name: 'the PR is merged',
+      worktree: '/wt',
+      found: { ...pr, state: 'MERGED' as const },
+      want: 'branch has no open PR',
+    },
+    { name: 'the tab has no worktree', worktree: null, found: pr, want: 'tab has no card worktree' },
+  ])('secondRead rejects when $name', async ({ worktree, found, want }) => {
+    // given
+    prForBranch.mockResolvedValue(found);
+    const read = register('pr:secondRead', worktree);
+    // when
+    const result = read('t1');
+    // then
+    await expect(result).rejects.toThrow(`reviewing PR: ${want}`);
+    expect(secondRead).not.toHaveBeenCalled();
+  });
+
   test('logs a failed PR lookup at warn', async () => {
     // given
     prForBranch.mockRejectedValue(new Error('listing PRs: offline'));
@@ -340,6 +375,21 @@ describe('registerPr', () => {
       operation: 'pr:comment',
       tabId: 't1',
       error: 'commenting on line: line must be part of the diff',
+    });
+  });
+
+  test('logs a failed secondRead at warn', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    secondRead.mockRejectedValue(new Error('running second read: boom'));
+    const read = register('pr:secondRead', '/wt');
+    // when
+    await read('t1').catch(() => undefined);
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:secondRead',
+      tabId: 't1',
+      error: 'running second read: boom',
     });
   });
 });
