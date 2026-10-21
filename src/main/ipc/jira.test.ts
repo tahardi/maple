@@ -32,6 +32,8 @@ const deps = {
   warnings: () => [],
   setNotifications: () => Promise.resolve(),
   setZoom: () => Promise.resolve(),
+  setLastProject: () => Promise.resolve(),
+  lastProject: () => Promise.resolve(null),
 };
 
 function fixture(name: string): string {

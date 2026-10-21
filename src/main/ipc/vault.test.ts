@@ -33,6 +33,8 @@ function invoke(vaultDir: string | null, channel: string, ...args: unknown[]): u
       warnings: () => [],
       setNotifications: () => Promise.resolve(),
       setZoom: () => Promise.resolve(),
+      setLastProject: () => Promise.resolve(),
+      lastProject: () => Promise.resolve(null),
     },
     logger,
     () => Promise.resolve(vaultDir),

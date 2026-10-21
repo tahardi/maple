@@ -1,3 +1,4 @@
+import type { MapleApi } from '@shared/ipc';
 import type { Fetched, MapleConfig, TabState, TabStatus } from '@shared/types';
 import { useMaple } from './store';
 import { FAKE_CONFIG, fakeMaple } from './testing/fakeMaple';
@@ -19,7 +20,22 @@ const status = (tabId: string, dot: TabStatus['dot']): TabStatus => ({
   resumeFailed: false,
 });
 
-function setup(tabs: TabState[] = [tab('bear-1', 'BEAR'), tab('dig-1', 'DIG')]) {
+const MPL_CONFIG: Fetched<MapleConfig> = {
+  ...FAKE_CONFIG,
+  data: FAKE_CONFIG.data && {
+    ...FAKE_CONFIG.data,
+    projects: [
+      ...FAKE_CONFIG.data.projects.slice(0, 1),
+      { name: 'Maple', jiraKey: 'MPL', jiraBoardId: 3, plannerDir: '/tmp/planner/mpl' },
+    ],
+  },
+};
+
+function setup(
+  tabs: TabState[] = [tab('bear-1', 'BEAR'), tab('dig-1', 'DIG')],
+  app: Partial<MapleApi['app']> = {},
+  config: Fetched<MapleConfig> = FAKE_CONFIG,
+) {
   const ignore = () => undefined;
   const events: {
     tabsChanged: (tabs: TabState[]) => void;
@@ -48,11 +64,13 @@ function setup(tabs: TabState[] = [tab('bear-1', 'BEAR'), tab('dig-1', 'DIG')]) 
       },
     },
     config: {
+      get: () => Promise.resolve(config),
       onChanged: (cb) => {
         events.configChanged = cb;
         return unsubscribe;
       },
     },
+    app,
   });
   return { events, setActive, unsubscribe };
 }
@@ -73,6 +91,74 @@ describe('useMaple', () => {
     expect(state.tabs).toEqual([tab('bear-1', 'BEAR')]);
     expect(state.statuses).toEqual({ 'bear-1': status('bear-1', 'working') });
     expect(state.activeTabId).toBeNull();
+  });
+
+  test.each([
+    {
+      name: 'init selects the saved project when it is in the config',
+      saved: () => Promise.resolve('MPL'),
+      want: 'MPL',
+    },
+    {
+      name: 'init falls back to the first project when the saved one is gone',
+      saved: () => Promise.resolve('OLD'),
+      want: 'BEAR',
+    },
+    {
+      name: 'init falls back to the first project when reading the saved one fails',
+      saved: () => Promise.reject(new Error('reading state: boom')),
+      want: 'BEAR',
+    },
+  ])('$name', async ({ saved, want }) => {
+    // given
+    setup(undefined, { lastProject: saved }, MPL_CONFIG);
+    // when
+    await useMaple.getState().init();
+    // then
+    expect(useMaple.getState().projectKey).toBe(want);
+  });
+
+  test('selecting a project saves it', async () => {
+    // given
+    const setLastProject = vi.fn(() => Promise.resolve());
+    setup(undefined, { setLastProject }, MPL_CONFIG);
+    await useMaple.getState().init();
+    // when
+    useMaple.getState().selectProject('MPL');
+    // then
+    expect(setLastProject).toHaveBeenCalledWith('MPL');
+  });
+
+  test('init does not save the project it falls back to', async () => {
+    // given
+    const setLastProject = vi.fn(() => Promise.resolve());
+    setup(undefined, { lastProject: () => Promise.resolve('OLD'), setLastProject }, MPL_CONFIG);
+    // when
+    await useMaple.getState().init();
+    // then
+    expect(setLastProject).not.toHaveBeenCalled();
+  });
+
+  test('init leaves the project empty when the config fails even with a saved project', async () => {
+    // given
+    setup(undefined, { lastProject: () => Promise.resolve('MPL') }, { ...MPL_CONFIG, data: null, error: 'boom' });
+    // when
+    await useMaple.getState().init();
+    // then
+    expect(useMaple.getState().projectKey).toBeNull();
+  });
+
+  test('selecting a project ignores a failed save', async () => {
+    // given
+    const failed = Promise.reject(new Error('saving state: boom'));
+    const caught = vi.spyOn(failed, 'catch');
+    setup(undefined, { setLastProject: () => failed }, MPL_CONFIG);
+    await useMaple.getState().init();
+    // when
+    useMaple.getState().selectProject('MPL');
+    // then
+    expect(caught).toHaveBeenCalled();
+    expect(useMaple.getState().projectKey).toBe('MPL');
   });
 
   test('switching projects restores the last active tab', async () => {
@@ -215,12 +301,14 @@ describe('useMaple', () => {
 
   test('tabs:activate switches to the tab project and activates the tab', async () => {
     // given
-    const { events, setActive } = setup();
+    const setLastProject = vi.fn(() => Promise.resolve());
+    const { events, setActive } = setup(undefined, { setLastProject });
     await useMaple.getState().init();
     // when
     events.activate('dig-1');
     // then
     expect(useMaple.getState().projectKey).toBe('DIG');
+    expect(setLastProject).toHaveBeenCalledWith('DIG');
     expect(useMaple.getState().activeTabId).toBe('dig-1');
     expect(setActive).toHaveBeenLastCalledWith('dig-1');
   });

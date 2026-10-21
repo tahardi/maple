@@ -56,6 +56,8 @@ function register(
       warnings: () => [],
       setNotifications: () => Promise.resolve(),
       setZoom: () => Promise.resolve(),
+      setLastProject: () => Promise.resolve(),
+      lastProject: () => Promise.resolve(null),
     },
     logger,
   );

@@ -58,6 +58,8 @@ function deps(window: () => BrowserWindow | null = () => null) {
     warnings: () => [],
     setNotifications: vi.fn(() => Promise.resolve()),
     setZoom: vi.fn(() => Promise.resolve()),
+    setLastProject: vi.fn(() => Promise.resolve()),
+    lastProject: () => Promise.resolve(null),
   };
 }
 

@@ -36,6 +36,8 @@ function invoke(channel: string, ...args: unknown[]): unknown {
       warnings: () => [],
       setNotifications: () => Promise.resolve(),
       setZoom: () => Promise.resolve(),
+      setLastProject: () => Promise.resolve(),
+      lastProject: () => Promise.resolve(null),
     },
     logger,
   );
