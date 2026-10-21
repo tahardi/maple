@@ -27,7 +27,7 @@ const monaco = vi.hoisted(() => {
   const cursor: { value: (e: { position: { lineNumber: number } }) => void } = { value: () => undefined };
   const model = { getLineMaxColumn: () => 9 };
   const api = {
-    editor: { OverviewRulerLane: { Full: 7 } },
+    editor: { OverviewRulerLane: { Full: 7 }, MinimapPosition: { Gutter: 2 } },
     languages: {
       getLanguages: () => [
         { id: 'typescript', extensions: ['.ts'] },
@@ -40,17 +40,18 @@ const monaco = vi.hoisted(() => {
 });
 
 vi.mock('@monaco-editor/react', async () => {
-  const { useEffect, useRef } = await import('react');
+  const { useEffect, useRef, useState } = await import('react');
   return {
     useMonaco: () => (monaco.enabled.value ? monaco.api : null),
     Editor: (props: {
       value: string;
       language: string | undefined;
-      options: { readOnly: boolean };
+      options: { readOnly: boolean; minimap?: { enabled: boolean; size: string } };
       onMount: (editor: unknown) => void;
       onChange: (value: string | undefined) => void;
     }) => {
       const { onMount } = props;
+      const [ready, setReady] = useState(false);
       monaco.change.value = props.onChange;
       const instance = useRef({
         ...monaco.editor,
@@ -63,10 +64,12 @@ vi.mock('@monaco-editor/react', async () => {
         const mounted = instance.current;
         if (!monaco.slowMount.value) {
           onMount(mounted);
+          setReady(true);
           return;
         }
         const timer = setTimeout(() => {
           onMount(mounted);
+          setReady(true);
         }, 10);
         return () => {
           clearTimeout(timer);
@@ -81,29 +84,35 @@ vi.mock('@monaco-editor/react', async () => {
       return (
         <div
           data-testid="editor"
+          data-mounted={String(ready)}
           data-value={props.value}
           data-language={props.language}
           data-readonly={String(props.options.readOnly)}
+          data-minimap={JSON.stringify(props.options.minimap)}
         />
       );
     },
     DiffEditor: (props: {
       original: string;
       modified: string;
-      options: { renderSideBySide: boolean; readOnly: boolean };
+      options: { renderSideBySide: boolean; readOnly: boolean; minimap?: { enabled: boolean; size: string } };
       onMount: (editor: unknown) => void;
     }) => {
       const { onMount } = props;
+      const [ready, setReady] = useState(false);
       useEffect(() => {
         onMount({ getModifiedEditor: () => monaco.editor });
+        setReady(true);
       }, [onMount]);
       return (
         <div
           data-testid="diff-editor"
+          data-mounted={String(ready)}
           data-original={props.original}
           data-modified={props.modified}
           data-side-by-side={String(props.options.renderSideBySide)}
           data-readonly={String(props.options.readOnly)}
+          data-minimap={JSON.stringify(props.options.minimap)}
         />
       );
     },
@@ -363,11 +372,32 @@ describe('FileViewer', () => {
             className: 'line-chg',
             marginClassName: 'margin-chg',
             overviewRuler: { color: '#d4b106', position: 7 },
+            minimap: { color: '#d4b106', position: 2 },
             hoverMessage: { value: 'Was:\n```\nold\n```' },
           },
         },
       ]);
     });
+  });
+
+  test.each([
+    { name: 'in file', mode: 'in-file', pair: changed, testId: 'editor' },
+    { name: 'side by side', mode: 'side-by-side', pair: changed, testId: 'diff-editor' },
+    {
+      name: 'a deleted file',
+      mode: 'in-file',
+      pair: { kind: 'text', path: 'src/old.ts', current: null, base: 'old\n' } as const,
+      testId: 'editor',
+    },
+  ])('turns on the minimap for $name', async ({ mode, pair, testId }) => {
+    // given
+    localStorage.setItem('maple.viewMode', mode);
+    // when
+    renderViewer(pair);
+    // then
+    const editor = await screen.findByTestId(testId);
+    const minimap: unknown = JSON.parse(editor.getAttribute('data-minimap') ?? 'null');
+    expect(minimap).toEqual({ enabled: true, renderCharacters: false, size: 'fit', showSlider: 'always' });
   });
 
   test.each([
@@ -584,7 +614,9 @@ describe('FileViewer', () => {
         canComment={false}
       />,
     );
-    await screen.findByTestId(mode === 'in-file' ? 'editor' : 'diff-editor');
+    await vi.waitFor(() => {
+      expect(screen.getByTestId(mode === 'in-file' ? 'editor' : 'diff-editor')).toHaveAttribute('data-mounted', 'true');
+    });
     expect(monaco.editor.setScrollTop).not.toHaveBeenCalled();
     // when
     current = 'two\n';
@@ -841,12 +873,12 @@ describe('FileViewer', () => {
   test('Comment opens the line comment form for the cursor line', async () => {
     // given
     renderViewer(changed, undefined, true);
-    await screen.findByTestId('editor');
+    const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Comment' })).toBeEnabled();
+      expect(button).not.toHaveAttribute('title');
     });
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    await userEvent.click(button);
     // then
     expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:3' })).toBeInTheDocument();
   });
@@ -933,7 +965,9 @@ describe('FileViewer', () => {
     // when
     renderViewer(pair, undefined, canComment);
     // then
-    await screen.findByTestId(testId);
+    await vi.waitFor(() => {
+      expect(screen.getByTestId(testId)).toHaveAttribute('data-mounted', 'true');
+    });
     expect(screen.queryByRole('button', { name: 'Comment' })).not.toBeInTheDocument();
   });
 
@@ -983,10 +1017,10 @@ describe('FileViewer', () => {
     // when
     renderViewer({ kind: 'text', path: 'src/a.ts', current: 'same\n', base: 'same\n' }, undefined, true, comments);
     // then
-    await screen.findByTestId('editor');
     await vi.waitFor(() => {
-      expect(comments).toHaveBeenCalled();
+      expect(screen.getByTestId('editor')).toHaveAttribute('data-mounted', 'true');
     });
+    expect(comments).toHaveBeenCalled();
     expect(JSON.stringify(monaco.editor.createDecorationsCollection.mock.calls)).not.toContain('margin-comment');
   });
 
@@ -1010,8 +1044,11 @@ describe('FileViewer', () => {
     const comments = vi.fn(() => Promise.resolve([]));
     const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }));
     renderViewer(changed, undefined, true, comments, diffLines);
-    await screen.findByTestId('editor');
-    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    await userEvent.click(button);
     // when
     await userEvent.type(screen.getByRole('textbox'), 'why?');
     await userEvent.click(screen.getByRole('button', { name: 'Post' }));
