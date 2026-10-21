@@ -1,6 +1,7 @@
 import type { FileChange, TabState, VaultNote } from '@shared/types';
 import { useEffect, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
+import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
 import { buildTree } from './buildTree';
 import { cardActions } from './CardActions';
@@ -17,6 +18,7 @@ import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
 import { useQuickOpenKeys, type QuickOpenMode } from './useQuickOpenKeys';
 import { useVault } from './useVault';
+import { useViewed } from './useViewed';
 import { VAULT_PREFIX, VaultSwitch, type TreeView } from './VaultSwitch';
 
 const WAITING = 'Waiting for worktree…';
@@ -24,7 +26,9 @@ const MERGED = 'Merged, worktree removed';
 
 function writtenNotes(notes: readonly VaultNote[], written: readonly string[]): FileChange[] {
   const paths = new Set(written);
-  return notes.filter((note) => paths.has(note.path)).map((note) => ({ path: note.path, status: 'M', oldPath: null }));
+  return notes
+    .filter((note) => paths.has(note.path))
+    .map((note) => ({ path: note.path, status: 'M', oldPath: null, stamp: null }));
 }
 
 function branchName(worktreePath: string | null, cardKey: string): string | null {
@@ -46,6 +50,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [line, setLine] = useState<number | null>(null);
   const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [confirmApprove, setConfirmApprove] = useState(false);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
   const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
   const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
@@ -54,6 +59,8 @@ export function CardTab({ tab }: { tab: TabState }) {
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const changed = changes?.files ?? [];
+  const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed);
+  const unviewed = changed.length - viewed.size;
   const worktreeExists = tab.worktreePath !== null;
   useQuickOpenKeys(active && worktreeExists ? setQuickOpen : null);
   const placeholder = card?.status === 'Done' ? MERGED : WAITING;
@@ -62,6 +69,13 @@ export function CardTab({ tab }: { tab: TabState }) {
   const showsVault = hasVault && view === 'vault';
   const vault = useVault(tab.id, showsVault);
   const recent = writtenNotes(vault.notes, vault.written);
+  const approvePr = () => {
+    setApproveError(null);
+    window.maple.pr.approve(tab.id).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      setApproveError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
+    });
+  };
   const actions =
     config === null
       ? []
@@ -75,11 +89,11 @@ export function CardTab({ tab }: { tab: TabState }) {
             window.maple.session.sendPrompt(tab.id, text);
           },
           approve: () => {
-            setApproveError(null);
-            window.maple.pr.approve(tab.id).catch((err: unknown) => {
-              const message = err instanceof Error ? err.message : String(err);
-              setApproveError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
-            });
+            if (unviewed > 0) {
+              setConfirmApprove(true);
+            } else {
+              approvePr();
+            }
           },
         });
 
@@ -190,6 +204,8 @@ export function CardTab({ tab }: { tab: TabState }) {
               changedOnly={changedOnly}
               onToggle={setChangedOverride}
               changedCount={changed.length}
+              viewed={viewed}
+              onToggleViewed={toggleViewed}
             />
           )}
           {pr && (
@@ -241,6 +257,20 @@ export function CardTab({ tab }: { tab: TabState }) {
           <ClaudePane tabId={tab.id} actions={actions} />
         </div>
       </div>
+      {confirmApprove && (
+        <ConfirmDialog
+          title="Unviewed files"
+          body={`${String(unviewed)} changed ${unviewed === 1 ? 'file' : 'files'} not viewed. Approve anyway?`}
+          confirmLabel="Approve anyway"
+          onConfirm={() => {
+            setConfirmApprove(false);
+            approvePr();
+          }}
+          onCancel={() => {
+            setConfirmApprove(false);
+          }}
+        />
+      )}
       {quickOpen !== null && (
         <QuickOpen
           tabId={tab.id}

@@ -16,9 +16,9 @@ const card: Card = {
 const changes: ChangeSet = {
   base: 'abc123',
   files: [
-    { path: 'a.ts', status: 'A', oldPath: null },
-    { path: 'b.ts', status: 'M', oldPath: null },
-    { path: 'c.ts', status: 'D', oldPath: null },
+    { path: 'a.ts', status: 'A', oldPath: null, stamp: '1:1' },
+    { path: 'b.ts', status: 'M', oldPath: null, stamp: '1:1' },
+    { path: 'c.ts', status: 'D', oldPath: null, stamp: null },
   ],
   added: 68,
   removed: 29,

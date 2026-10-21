@@ -54,7 +54,7 @@ function fakeRepo(withPr: boolean) {
       changes: () =>
         Promise.resolve({
           base: 'abc',
-          files: [{ path: 'src/a.ts', status: 'M', oldPath: null }],
+          files: [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: '1:1' }],
           added: 1,
           removed: 0,
         }),
@@ -444,6 +444,87 @@ describe('CardTab', () => {
     await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
     // then
     expect(await slot.findByRole('alert')).toHaveTextContent(/^approving PR: offline$/);
+  });
+
+  function fakeApprove(
+    paths: readonly string[] = ['src/a.ts'],
+    approve = vi.fn<(tabId: string) => Promise<void>>(() => Promise.resolve()),
+  ) {
+    fakeMaple({
+      repo: {
+        changes: () =>
+          Promise.resolve({
+            base: 'abc',
+            files: paths.map((path) => ({ path, status: 'M' as const, oldPath: null, stamp: '1:1' })),
+            added: 1,
+            removed: 0,
+          }),
+        listFiles: () => Promise.resolve(['README.md', ...paths]),
+      },
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), approve },
+    });
+    return approve;
+  }
+
+  test.each([
+    { name: 'one file', paths: ['src/a.ts'], text: '1 changed file not viewed. Approve anyway?' },
+    { name: 'two files', paths: ['src/a.ts', 'src/b.ts'], text: '2 changed files not viewed. Approve anyway?' },
+  ])('Approve asks first while a changed file is not viewed: $name', async ({ paths, text }) => {
+    // given
+    const approve = fakeApprove(paths);
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
+    const slot = within(screen.getByTestId('claude-slot'));
+    // when
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    // then
+    expect(screen.getByRole('dialog')).toHaveTextContent(text);
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'Approve anyway approves', button: 'Approve anyway', approved: true },
+    { name: 'Cancel does not approve', button: 'Cancel', approved: false },
+  ])('the unviewed files dialog: $name', async ({ button, approved }) => {
+    // given
+    const approve = fakeApprove();
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    // when
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: button }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(approve.mock.calls).toEqual(approved ? [['t1']] : []);
+  });
+
+  test('a failed Approve anyway shows its error', async () => {
+    // given
+    fakeApprove(
+      ['src/a.ts'],
+      vi.fn<(tabId: string) => Promise<void>>().mockRejectedValue(new Error('approving PR: offline')),
+    );
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
+    const slot = within(screen.getByTestId('claude-slot'));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    // when
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' }));
+    // then
+    expect(await slot.findByRole('alert')).toHaveTextContent('approving PR: offline');
+  });
+
+  test('Approve goes straight through when every changed file is viewed', async () => {
+    // given
+    const approve = fakeApprove();
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' }));
+    const slot = within(screen.getByTestId('claude-slot'));
+    // when
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(approve).toHaveBeenCalledWith('t1');
   });
 
   test('a working tab disables Approve', async () => {

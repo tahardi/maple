@@ -9,9 +9,20 @@ type Props = {
   changedOnly: boolean;
   onToggle: (changedOnly: boolean) => void;
   changedCount: number;
+  viewed?: ReadonlySet<string>;
+  onToggleViewed?: (path: string) => void;
 };
 
-export function FileTree({ nodes, selected, onSelect, changedOnly, onToggle, changedCount }: Props) {
+export function FileTree({
+  nodes,
+  selected,
+  onSelect,
+  changedOnly,
+  onToggle,
+  changedCount,
+  viewed,
+  onToggleViewed,
+}: Props) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 
   const flip = (path: string) => {
@@ -40,7 +51,24 @@ export function FileTree({ nodes, selected, onSelect, changedOnly, onToggle, cha
         }}
       >
         <span className={node.dir ? styles.dir : undefined}>{node.name}</span>
-        {node.status && <span className={`${styles.badge} ${styles[node.status]}`}>{node.status}</span>}
+        {node.status && (
+          <span className={styles.marks}>
+            <span className={`${styles.badge} ${styles[node.status]}`}>{node.status}</span>
+            {onToggleViewed && (
+              <input
+                type="checkbox"
+                aria-label={`Viewed ${node.path}`}
+                checked={viewed?.has(node.path) ?? false}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                onChange={() => {
+                  onToggleViewed(node.path);
+                }}
+              />
+            )}
+          </span>
+        )}
       </li>,
       ...(collapsed.has(node.path) ? [] : rows(node.children, depth + 1)),
     ]);
