@@ -7,8 +7,8 @@ const BACKLOG_CHARS = 200_000;
 export type TerminalDeps = { spawn: typeof spawn };
 
 type Events = {
-  data: [tabId: string, data: string];
-  exit: [tabId: string, code: number];
+  data: [terminalId: string, data: string];
+  exit: [terminalId: string, code: number];
 };
 
 type Shell = { pty: IPty; alive: boolean; backlog: string };
@@ -20,8 +20,8 @@ export class Terminals extends EventEmitter<Events> {
     super();
   }
 
-  open(tabId: string, cwd: string): void {
-    const existing = this.shells.get(tabId);
+  open(terminalId: string, cwd: string): void {
+    const existing = this.shells.get(terminalId);
     if (existing?.alive) {
       return;
     }
@@ -36,46 +36,54 @@ export class Terminals extends EventEmitter<Events> {
       env: { ...env, TERM: 'xterm-256color' },
     });
     const shell: Shell = { pty, alive: true, backlog: existing?.backlog ?? '' };
-    this.shells.set(tabId, shell);
+    this.shells.set(terminalId, shell);
     pty.onData((data) => {
       shell.backlog = (shell.backlog + data).slice(-BACKLOG_CHARS);
-      this.emit('data', tabId, data);
+      this.emit('data', terminalId, data);
     });
     pty.onExit(({ exitCode }) => {
-      if (this.shells.get(tabId) === shell) {
+      if (this.shells.get(terminalId) === shell) {
         shell.alive = false;
-        this.emit('exit', tabId, exitCode);
+        this.emit('exit', terminalId, exitCode);
       }
     });
   }
 
-  write(tabId: string, data: string): void {
-    this.live(tabId)?.pty.write(data);
+  write(terminalId: string, data: string): void {
+    this.live(terminalId)?.pty.write(data);
   }
 
-  resize(tabId: string, cols: number, rows: number): void {
+  resize(terminalId: string, cols: number, rows: number): void {
     if (cols >= 1 && rows >= 1) {
-      this.live(tabId)?.pty.resize(cols, rows);
+      this.live(terminalId)?.pty.resize(cols, rows);
     }
   }
 
-  backlog(tabId: string): string {
-    return this.shells.get(tabId)?.backlog ?? '';
+  backlog(terminalId: string): string {
+    return this.shells.get(terminalId)?.backlog ?? '';
   }
 
-  close(tabId: string): void {
-    this.shells.get(tabId)?.pty.kill();
-    this.shells.delete(tabId);
+  close(terminalId: string): void {
+    this.shells.get(terminalId)?.pty.kill();
+    this.shells.delete(terminalId);
+  }
+
+  closeTab(tabId: string): void {
+    for (const terminalId of [...this.shells.keys()]) {
+      if (terminalId === tabId || terminalId.startsWith(`${tabId}:`)) {
+        this.close(terminalId);
+      }
+    }
   }
 
   closeAll(): void {
-    for (const tabId of [...this.shells.keys()]) {
-      this.close(tabId);
+    for (const terminalId of [...this.shells.keys()]) {
+      this.close(terminalId);
     }
   }
 
-  private live(tabId: string): Shell | undefined {
-    const shell = this.shells.get(tabId);
+  private live(terminalId: string): Shell | undefined {
+    const shell = this.shells.get(terminalId);
     return shell?.alive ? shell : undefined;
   }
 }

@@ -1,0 +1,44 @@
+.backdrop {
+  composes: backdrop from './ConfirmDialog.module.css';
+}
+
+.dialog {
+  composes: dialog from './ConfirmDialog.module.css';
+  width: 480px;
+}
+
+.buttons {
+  composes: buttons from './ConfirmDialog.module.css';
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kinds {
+  display: flex;
+  gap: 16px;
+}
+
+.kinds label {
+  flex-direction: row;
+  align-items: center;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.form [role='alert'] {
+  margin: 0;
+  color: var(--danger);
+}

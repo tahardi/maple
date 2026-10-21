@@ -148,4 +148,13 @@ describe('TabBar', () => {
     // then
     expect(activate).not.toHaveBeenCalled();
   });
+
+  test('Report opens the report form', async () => {
+    // given
+    render(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Report' }));
+    // then
+    expect(screen.getByRole('dialog', { name: 'Report a bug or feature' })).toBeInTheDocument();
+  });
 });

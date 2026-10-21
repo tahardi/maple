@@ -32,6 +32,15 @@ describe('Backlog', () => {
     ]);
   });
 
+  test('highlights the given keys', () => {
+    // given
+    render(<Backlog groups={GROUPS} highlighted={['HALO-13']} />);
+    // when
+    const items = screen.getAllByRole('listitem', { hidden: true });
+    // then
+    expect(items.map((i) => i.getAttribute('data-highlighted'))).toEqual([null, 'true', null]);
+  });
+
   test('shows nothing to plan when the backlog is empty', () => {
     // given
     render(<Backlog groups={[]} />);
