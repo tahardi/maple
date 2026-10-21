@@ -95,7 +95,7 @@ export class JiraClient {
       }
       const issues = await this.search(`sprint=${String(sprint.id)} ORDER BY Rank`);
       const cards = issues.map((issue) => this.toCard(issue));
-      return { name: sprint.name, startDate: sprint.startDate, endDate: sprint.endDate, cards };
+      return { id: sprint.id, name: sprint.name, startDate: sprint.startDate, endDate: sprint.endDate, cards };
     } catch (err) {
       throw new Error(`fetching sprint: ${errorMessage(err)}`, { cause: err });
     }
@@ -129,6 +129,14 @@ export class JiraClient {
       return this.toCard(issueSchema.parse(await this.get(`/rest/api/3/issue/${key}?fields=${FIELDS}`)));
     } catch (err) {
       throw new Error(`fetching card: ${errorMessage(err)}`, { cause: err });
+    }
+  }
+
+  async moveToSprint(sprintId: number, keys: readonly string[]): Promise<void> {
+    try {
+      await this.post(`/rest/agile/1.0/sprint/${String(sprintId)}/issue`, { issues: keys });
+    } catch (err) {
+      throw new Error(`moving cards to sprint: ${errorMessage(err)}`, { cause: err });
     }
   }
 
@@ -188,7 +196,7 @@ export class JiraClient {
     if (!res.ok) {
       throw new Error(`Jira returned ${String(res.status)}`);
     }
-    return res.json();
+    return res.status === 204 ? null : res.json();
   }
 
   private toCard(issue: z.infer<typeof issueSchema>): Card {

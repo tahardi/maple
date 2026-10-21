@@ -7,7 +7,7 @@ import { appLogger, logsDir, type Logger } from '../log';
 import { logTail, reportDescription } from '../report';
 import { SprintCache } from '../sprintCache';
 import type { IpcDeps } from './index';
-import { handle, projectKeyArg } from './validated';
+import { cardKeyArg, handle, projectKeyArg } from './validated';
 
 type Caches = { sprint: SprintCache<Sprint>; backlog: SprintCache<BacklogGroup[]> };
 
@@ -58,6 +58,25 @@ export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
   );
   handle('jira:backlog', z.tuple([projectKeyArg]), (projectKey) =>
     serve(projectKey, 'backlog', 'backlog', (c) => c.backlog),
+  );
+  handle(
+    'jira:moveToSprint',
+    z.tuple([z.number().int().positive(), z.array(cardKeyArg).min(1).max(50)]),
+    async (sprintId, keys) => {
+      const { client, error } = await ready;
+      if (!client) {
+        throw new Error(error);
+      }
+      try {
+        await client.moveToSprint(sprintId, keys);
+      } catch (err) {
+        logger.warn('jira', 'failed', {
+          operation: 'moveToSprint',
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    },
   );
   handle('jira:report', z.tuple([reportArg]), async (report): Promise<Filed> => {
     const jira = await ready;

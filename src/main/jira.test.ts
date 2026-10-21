@@ -35,6 +35,7 @@ describe('JiraClient', () => {
     // when
     const got = await client.activeSprint(7);
     // then
+    expect(got?.id).toBe(6);
     expect(got?.name).toBe('HALO Sprint 1');
     expect(got?.startDate).toBe('2026-10-12T13:00:00.000Z');
     expect(got?.endDate).toBe('2026-10-26T21:00:00.000Z');
@@ -141,6 +142,32 @@ describe('JiraClient', () => {
     expect(got.summary).toBe('Summary Extractor');
     expect(got.blockedBy.map((b) => b.key)).toEqual(['HALO-12', 'HALO-18']);
     expect(got.descriptionMd).toContain('**Plan:** Obsidian vault `Projects/Halo/Implementation Plan.md`');
+  });
+
+  test('moveToSprint posts the keys to the sprint', async () => {
+    // given
+    const fetchFn = vi.fn<typeof fetch>(() => Promise.resolve(new Response(null, { status: 204 })));
+    const client = new JiraClient(creds, fetchFn);
+    // when
+    await client.moveToSprint(6, ['HALO-20', 'HALO-21']);
+    // then
+    const [input, init] = vi.mocked(fetchFn).mock.calls[0] ?? [];
+    const headers = new Headers(init?.headers);
+    expect(input).toBe(`${creds.site}/rest/agile/1.0/sprint/6/issue`);
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe('{"issues":["HALO-20","HALO-21"]}');
+    expect(headers.get('Content-Type')).toBe('application/json');
+    expect(headers.get('Authorization')).toBe(`Basic ${Buffer.from('me@example.com:secret').toString('base64')}`);
+  });
+
+  test('moveToSprint rejects when Jira returns 400', async () => {
+    // given
+    const fetchFn = vi.fn<typeof fetch>(() => Promise.resolve(new Response('', { status: 400 })));
+    const client = new JiraClient(creds, fetchFn);
+    // when
+    const got = client.moveToSprint(6, ['HALO-20']);
+    // then
+    await expect(got).rejects.toThrow('moving cards to sprint: Jira returned 400');
   });
 
   test('sends basic auth from email and token', async () => {
