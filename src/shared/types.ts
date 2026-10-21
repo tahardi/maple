@@ -84,3 +84,5 @@ export type PreflightProblem = {
 };
 export type CloseResult = { closed: boolean; needsConfirm: boolean };
 export type Unsubscribe = () => void;
+export type Report = { kind: 'bug' | 'feature'; title: string; description: string };
+export type Filed = { key: string; url: string };
