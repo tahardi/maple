@@ -26,9 +26,7 @@ async function sandbox() {
   const claudeJson = join(root, 'claude.json');
   writeFileSync(claudeJson, JSON.stringify({ projects: { [plannerDir]: { hasTrustDialogAccepted: true } } }));
   const parent = Object.fromEntries(
-    Object.entries(process.env).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined && entry[0] !== 'XDG_RUNTIME_DIR',
-    ),
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   );
   const env = {
     ...parent,
