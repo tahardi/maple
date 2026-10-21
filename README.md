@@ -17,10 +17,10 @@ make lint
 make typecheck
 make test-unit  # run the unit tests, except the socket tests
 make test-socket  # run the tests that open Unix sockets, which sandboxed runs cannot do
-make test-e2e  # build the app and run the Playwright smoke test
+make test-e2e  # build the app and run the Playwright smoke test (needs a display and tmux, so not in the sandbox)
 make test-all  # run test-unit, test-socket, test-live, and test-e2e
 make clean  # delete node_modules and build and test output
-make run     # start the app in development mode
+make run     # start the app in development mode (needs a display, so not in the sandbox)
 make try  # start a separate Maple with its own tabs and sessions, safe to close next to your main one
 make test-live  # check Maple's assumptions against the real claude, Jira, and GitHub
 make install-apparmor  # install the AppArmor profile Maple needs, with sudo
@@ -31,7 +31,7 @@ Run `make install-apparmor` once before the first `make install`, and again when
 
 The launcher starts Maple through your login shell, so Maple and its Claude sessions get the PATH from your shell config each launch.
 
-Only one Maple runs per config dir: opening a second one, from the launcher or `make run`, focuses the open window. To test a card's branch next to your main Maple, run `make try` in its worktree. It copies your `config.json` into `.maple-try/` in the worktree and keeps that copy's tabs, sessions, and settings there, so closing it never touches your main Maple's sessions.
+Only one Maple runs per config dir: opening a second one, from the launcher or `make run`, focuses the open window. To test a card's branch next to your main Maple, run `make try` in its worktree. It copies your `config.json` into `.maple-try/` in the worktree and keeps that copy's tabs, sessions, and settings there, so closing it never touches your main Maple's sessions. Like `make run`, it needs a display, so it does not run in the sandbox.
 
 It uses your real Jira projects, so give every made-up test card the `test-card` label and a `[TEST]` summary prefix.
 
