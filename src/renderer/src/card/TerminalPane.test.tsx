@@ -80,6 +80,35 @@ describe('TerminalPane', () => {
     expect(strip()).toEqual([{ name: '1', pressed: 'true' }]);
   });
 
+  test.each([
+    { name: 'the first while it is shown', show: '1', close: 'tab-1', views: ['tab-1:2', 'tab-1:3'], shown: 'tab-1:2' },
+    { name: 'one that is not shown', show: null, close: 'tab-1:2', views: ['tab-1', 'tab-1:3'], shown: 'tab-1:3' },
+    { name: 'the middle while it is shown', show: '2', close: 'tab-1:2', views: ['tab-1', 'tab-1:3'], shown: 'tab-1' },
+    { name: 'the last while it is shown', show: '3', close: 'tab-1:3', views: ['tab-1', 'tab-1:2'], shown: 'tab-1:2' },
+  ])('× on $name of three terminals', async ({ show, close, views: want, shown }) => {
+    // given
+    const closeFn = vi.fn(() => Promise.resolve());
+    fakeMaple({ terminal: { close: closeFn } });
+    render(<TerminalPane tabId="tab-1" />);
+    const add = screen.getByRole('button', { name: 'New terminal' });
+    await userEvent.click(add);
+    await userEvent.click(add);
+    if (show !== null) {
+      await userEvent.click(screen.getByRole('button', { name: show }));
+    }
+    const label = close === 'tab-1' ? '1' : close.slice('tab-1:'.length);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: `Close terminal ${label}` }));
+    // then
+    expect(closeFn).toHaveBeenCalledWith(close);
+    expect(views().map((v) => v.id)).toEqual(want);
+    expect(
+      views()
+        .filter((v) => !v.hidden)
+        .map((v) => v.id),
+    ).toEqual([shown]);
+  });
+
   test('numbers keep counting after a close', async () => {
     // given
     fakeMaple();

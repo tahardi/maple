@@ -193,6 +193,7 @@ describe('Terminals', () => {
     terminals.write('t9', 'x');
     terminals.resize('t9', 80, 24);
     terminals.close('t9');
+    terminals.closeTab('t9');
     // then
     expect(spawnFn).not.toHaveBeenCalled();
     expect(terminals.backlog('t9')).toBe('');
@@ -232,6 +233,19 @@ describe('Terminals', () => {
     terminals.closeTab('t1');
     // then
     expect(ptys.map((p) => p.killed)).toEqual([true, true, false]);
+    expect(terminals.backlog('t1:2')).toBe('');
+  });
+
+  test('closeTab kills the extra shells after the first shell was closed', () => {
+    // given
+    const { terminals, ptys } = setup();
+    terminals.open('t1', '/tmp/a');
+    terminals.open('t1:2', '/tmp/a');
+    terminals.close('t1');
+    // when
+    terminals.closeTab('t1');
+    // then
+    expect(ptys[1].killed).toBe(true);
   });
 
   test('closeAll kills every pty', () => {

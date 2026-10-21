@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useXterm, type XtermIo } from '../claude/useXterm';
-import styles from './TerminalPane.module.css';
+import styles from './TerminalView.module.css';
 
 type Props = { tabId: string; terminalId: string; hidden?: boolean };
 

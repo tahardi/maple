@@ -96,7 +96,7 @@ describe('registerTerminal', () => {
     expect(terminals.open).toHaveBeenCalledWith('t1:2', '/tmp/dig');
   });
 
-  test.each(['t2', 't2:1', 't10'])('terminal:open rejects %s for tab t1', async (terminalId) => {
+  test.each(['t2', 't2:1', 't10', 't1x'])('terminal:open rejects %s for tab t1', async (terminalId) => {
     // given
     const { terminals } = setup([tab, { ...tab, id: 't2' }, { ...tab, id: 't10' }]);
     // when
@@ -113,6 +113,16 @@ describe('registerTerminal', () => {
     await invoke('terminal:close', 't1:2');
     // then
     expect(terminals.close).toHaveBeenCalledWith('t1:2');
+  });
+
+  test('terminal:close rejects an empty terminal id', () => {
+    // given
+    const { terminals } = setup();
+    // when
+    const got = () => invoke('terminal:close', '');
+    // then
+    expect(got).toThrow('handling terminal:close: arguments are invalid');
+    expect(terminals.close).not.toHaveBeenCalled();
   });
 
   test('terminal:open rejects an unknown tab', async () => {

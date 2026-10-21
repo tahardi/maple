@@ -12,6 +12,28 @@ vi.mock('../claude/useXterm', () => ({
   },
 }));
 
+function exitable() {
+  const handlers: ((code: number) => void)[] = [];
+  const open = vi.fn(() => Promise.resolve());
+  fakeMaple({
+    terminal: {
+      open,
+      onExit: vi.fn((_terminalId: string, cb: (code: number) => void) => {
+        handlers.push(cb);
+        return vi.fn();
+      }),
+    },
+  });
+  return {
+    open,
+    exit: (code: number) => {
+      handlers.forEach((cb) => {
+        cb(code);
+      });
+    },
+  };
+}
+
 describe('TerminalView', () => {
   beforeEach(() => {
     captured.io = null;
@@ -70,24 +92,38 @@ describe('TerminalView', () => {
     expect(stop).toHaveBeenCalledOnce();
   });
 
-  test('an exit shows the exit code and Restart opens the shell again', async () => {
+  test.each([
+    { hidden: true, want: true },
+    { hidden: false, want: false },
+    { hidden: undefined, want: false },
+  ])('hidden=$hidden hides the view: $want', ({ hidden, want }) => {
     // given
-    let exit: (code: number) => void = () => undefined;
-    const open = vi.fn(() => Promise.resolve());
-    fakeMaple({
-      terminal: {
-        open,
-        onExit: vi.fn((_terminalId: string, cb: (code: number) => void) => {
-          exit = cb;
-          return vi.fn();
-        }),
-      },
+    fakeMaple();
+    // when
+    const { container } = render(<TerminalView tabId="tab-1" terminalId="tab-1:2" hidden={hidden} />);
+    // then
+    expect(container.firstElementChild).toHaveProperty('hidden', want);
+  });
+
+  test('an exit shows the exit code', () => {
+    // given
+    const { exit } = exitable();
+    render(<TerminalView tabId="tab-1" terminalId="tab-1:2" />);
+    // when
+    act(() => {
+      exit(1);
     });
+    // then
+    expect(screen.getByText('Shell exited (code 1)')).toBeInTheDocument();
+  });
+
+  test('Restart opens the shell again and clears the exit', async () => {
+    // given
+    const { exit, open } = exitable();
     render(<TerminalView tabId="tab-1" terminalId="tab-1:2" />);
     act(() => {
       exit(1);
     });
-    expect(screen.getByText('Shell exited (code 1)')).toBeInTheDocument();
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Restart' }));
     // then

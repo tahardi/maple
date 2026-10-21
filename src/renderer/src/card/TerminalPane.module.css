@@ -35,28 +35,3 @@
   flex: 1;
   min-height: 0;
 }
-
-.view {
-  position: absolute;
-  inset: 0;
-}
-
-.view[hidden] {
-  display: none;
-}
-
-.terminal {
-  position: absolute;
-  inset: 0;
-}
-
-.overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: var(--overlay);
-  color: var(--text);
-}
