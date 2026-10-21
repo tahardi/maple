@@ -57,6 +57,8 @@ describe('registerIpc', () => {
     warnings: () => [],
     setNotifications: vi.fn(),
     setZoom: vi.fn(),
+    setLastProject: vi.fn(() => Promise.resolve()),
+    lastProject: () => Promise.resolve(null),
   };
 
   sessions.setMaxListeners(0);

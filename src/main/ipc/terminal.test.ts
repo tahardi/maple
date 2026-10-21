@@ -50,6 +50,8 @@ function setup(tabs: TabState[] = [tab]) {
     warnings: () => [],
     setNotifications: () => Promise.resolve(),
     setZoom: () => Promise.resolve(),
+    setLastProject: () => Promise.resolve(),
+    lastProject: () => Promise.resolve(null),
   });
   return { terminals, sendToWindow };
 }
