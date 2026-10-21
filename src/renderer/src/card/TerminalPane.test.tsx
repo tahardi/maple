@@ -1,95 +1,125 @@
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { XtermIo } from '../claude/useXterm';
 import { fakeMaple } from '../testing/fakeMaple';
 import { TerminalPane } from './TerminalPane';
 
-const captured = vi.hoisted(() => ({ io: null as XtermIo | null }));
-
-vi.mock('../claude/useXterm', () => ({
-  useXterm: (_host: unknown, io: XtermIo) => {
-    captured.io = io;
-  },
+vi.mock('./TerminalView', () => ({
+  TerminalView: ({ terminalId, hidden }: { terminalId: string; hidden?: boolean }) => (
+    <div data-testid="view" data-terminal={terminalId} hidden={hidden} />
+  ),
 }));
 
+function views() {
+  return screen.getAllByTestId('view').map((v) => ({ id: v.dataset.terminal, hidden: v.hidden }));
+}
+
+function strip() {
+  return screen
+    .getAllByRole('button', { name: /^\d+$/ })
+    .map((b) => ({ name: b.textContent, pressed: b.getAttribute('aria-pressed') }));
+}
+
 describe('TerminalPane', () => {
-  beforeEach(() => {
-    captured.io = null;
-  });
-
-  test('mounting opens the tab shell', () => {
+  test('starts with one terminal named after the tab and no close button', () => {
     // given
-    const open = vi.fn(() => Promise.resolve());
-    fakeMaple({ terminal: { open } });
+    fakeMaple();
     // when
     render(<TerminalPane tabId="tab-1" />);
     // then
-    expect(open).toHaveBeenCalledWith('tab-1');
+    expect(views()).toEqual([{ id: 'tab-1', hidden: false }]);
+    expect(strip()).toEqual([{ name: '1', pressed: 'true' }]);
+    expect(screen.queryByRole('button', { name: /^Close terminal/ })).not.toBeInTheDocument();
   });
 
-  test('typed data goes to terminal.write', () => {
+  test('+ adds a terminal and shows it', async () => {
     // given
-    const write = vi.fn();
-    fakeMaple({ terminal: { write } });
+    fakeMaple();
     render(<TerminalPane tabId="tab-1" />);
     // when
-    captured.io?.write('ls\r');
+    await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
     // then
-    expect(write).toHaveBeenCalledWith('tab-1', 'ls\r');
+    expect(views()).toEqual([
+      { id: 'tab-1', hidden: true },
+      { id: 'tab-1:2', hidden: false },
+    ]);
+    expect(strip()).toEqual([
+      { name: '1', pressed: 'false' },
+      { name: '2', pressed: 'true' },
+    ]);
   });
 
-  test('resize, backlog, and live data use the tab terminal', async () => {
+  test('clicking a terminal in the strip shows it', async () => {
     // given
-    const resize = vi.fn();
-    const backlog = vi.fn(() => Promise.resolve('old'));
-    const onData = vi.fn(() => vi.fn());
-    fakeMaple({ terminal: { resize, backlog, onData } });
+    fakeMaple();
     render(<TerminalPane tabId="tab-1" />);
-    const cb = vi.fn();
+    await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
     // when
-    captured.io?.resize(100, 30);
-    const got = await captured.io?.backlog();
-    captured.io?.onData(cb);
+    await userEvent.click(screen.getByRole('button', { name: '1' }));
     // then
-    expect(resize).toHaveBeenCalledWith('tab-1', 100, 30);
-    expect(got).toBe('old');
-    expect(backlog).toHaveBeenCalledWith('tab-1');
-    expect(onData).toHaveBeenCalledWith('tab-1', cb);
+    expect(views()).toEqual([
+      { id: 'tab-1', hidden: false },
+      { id: 'tab-1:2', hidden: true },
+    ]);
+    expect(strip()).toEqual([
+      { name: '1', pressed: 'true' },
+      { name: '2', pressed: 'false' },
+    ]);
   });
 
-  test('unmount stops listening for exits', () => {
+  test('× closes that terminal and shows its neighbor', async () => {
     // given
-    const stop = vi.fn();
-    fakeMaple({ terminal: { onExit: vi.fn(() => stop) } });
-    const { unmount } = render(<TerminalPane tabId="tab-1" />);
-    // when
-    unmount();
-    // then
-    expect(stop).toHaveBeenCalledOnce();
-  });
-
-  test('an exit shows the exit code and Restart opens the shell again', async () => {
-    // given
-    let exit: (code: number) => void = () => undefined;
-    const open = vi.fn(() => Promise.resolve());
-    fakeMaple({
-      terminal: {
-        open,
-        onExit: vi.fn((_tabId: string, cb: (code: number) => void) => {
-          exit = cb;
-          return vi.fn();
-        }),
-      },
-    });
+    const close = vi.fn(() => Promise.resolve());
+    fakeMaple({ terminal: { close } });
     render(<TerminalPane tabId="tab-1" />);
-    act(() => {
-      exit(1);
-    });
-    expect(screen.getByText('Shell exited (code 1)')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Restart' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Close terminal 2' }));
     // then
-    expect(open).toHaveBeenCalledTimes(2);
-    expect(screen.queryByText('Shell exited (code 1)')).not.toBeInTheDocument();
+    expect(close).toHaveBeenCalledWith('tab-1:2');
+    expect(views()).toEqual([{ id: 'tab-1', hidden: false }]);
+    expect(strip()).toEqual([{ name: '1', pressed: 'true' }]);
+  });
+
+  test.each([
+    { name: 'the first while it is shown', show: '1', close: 'tab-1', views: ['tab-1:2', 'tab-1:3'], shown: 'tab-1:2' },
+    { name: 'one that is not shown', show: null, close: 'tab-1:2', views: ['tab-1', 'tab-1:3'], shown: 'tab-1:3' },
+    { name: 'the middle while it is shown', show: '2', close: 'tab-1:2', views: ['tab-1', 'tab-1:3'], shown: 'tab-1' },
+    { name: 'the last while it is shown', show: '3', close: 'tab-1:3', views: ['tab-1', 'tab-1:2'], shown: 'tab-1:2' },
+  ])('× on $name of three terminals', async ({ show, close, views: want, shown }) => {
+    // given
+    const closeFn = vi.fn(() => Promise.resolve());
+    fakeMaple({ terminal: { close: closeFn } });
+    render(<TerminalPane tabId="tab-1" />);
+    const add = screen.getByRole('button', { name: 'New terminal' });
+    await userEvent.click(add);
+    await userEvent.click(add);
+    if (show !== null) {
+      await userEvent.click(screen.getByRole('button', { name: show }));
+    }
+    const label = close === 'tab-1' ? '1' : close.slice('tab-1:'.length);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: `Close terminal ${label}` }));
+    // then
+    expect(closeFn).toHaveBeenCalledWith(close);
+    expect(views().map((v) => v.id)).toEqual(want);
+    expect(
+      views()
+        .filter((v) => !v.hidden)
+        .map((v) => v.id),
+    ).toEqual([shown]);
+  });
+
+  test('numbers keep counting after a close', async () => {
+    // given
+    fakeMaple();
+    render(<TerminalPane tabId="tab-1" />);
+    const add = screen.getByRole('button', { name: 'New terminal' });
+    await userEvent.click(add);
+    await userEvent.click(screen.getByRole('button', { name: 'Close terminal 2' }));
+    // when
+    await userEvent.click(add);
+    // then
+    expect(views().map((v) => v.id)).toEqual(['tab-1', 'tab-1:3']);
+    expect(strip().map((b) => b.name)).toEqual(['1', '3']);
   });
 });

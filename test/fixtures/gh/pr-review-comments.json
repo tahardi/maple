@@ -1,0 +1,50 @@
+[
+  [
+    {
+      "id": 101,
+      "path": "src/a.ts",
+      "line": 3,
+      "original_line": 3,
+      "side": "RIGHT",
+      "commit_id": "abc123",
+      "body": "why?",
+      "user": { "login": "tahardi", "type": "User" },
+      "created_at": "2026-10-20T12:00:00Z"
+    },
+    {
+      "id": 102,
+      "path": "src/a.ts",
+      "line": 3,
+      "original_line": 3,
+      "side": "RIGHT",
+      "commit_id": "abc123",
+      "body": "**Claude:** explained in the PR body",
+      "user": { "login": "tahardi", "type": "User" },
+      "created_at": "2026-10-20T12:05:00Z"
+    }
+  ],
+  [
+    {
+      "id": 103,
+      "path": "src/b.ts",
+      "line": null,
+      "original_line": 7,
+      "side": "RIGHT",
+      "commit_id": "old456",
+      "body": "outdated",
+      "user": { "login": "tahardi", "type": "User" },
+      "created_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": 104,
+      "path": "src/b.ts",
+      "line": 2,
+      "original_line": 2,
+      "side": "LEFT",
+      "commit_id": "abc123",
+      "body": "on the old side",
+      "user": { "login": "tahardi", "type": "User" },
+      "created_at": "2026-10-19T10:00:00Z"
+    }
+  ]
+]

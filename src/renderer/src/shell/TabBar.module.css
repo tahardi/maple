@@ -17,7 +17,8 @@
 }
 
 .tab,
-.close {
+.close,
+.report {
   background: transparent;
   color: inherit;
   border: none;
@@ -30,6 +31,12 @@
 
 .close {
   padding: 0 8px 0 0;
+}
+
+.report {
+  margin-left: auto;
+  padding: 0 14px;
+  color: var(--text-muted);
 }
 
 .active {

@@ -29,7 +29,7 @@ export function registerTabs(
       return { closed: false, needsConfirm: true };
     }
     sessions.close(tabId);
-    terminals.close(tabId);
+    terminals.closeTab(tabId);
     return { closed: true, needsConfirm: false };
   });
   handle('tabs:resume', z.tuple([tabIdArg]), (tabId) => {

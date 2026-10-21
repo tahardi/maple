@@ -135,7 +135,7 @@ describe('useCardData', () => {
       jira: {
         sprint: () =>
           Promise.resolve({
-            data: { name: 'S1', startDate: '', endDate: '', cards: [card] },
+            data: { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card] },
             error: null,
             fetchedAt: null,
           }),
