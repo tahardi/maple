@@ -24,6 +24,7 @@ import { saveState, loadState, type SavedState } from './state';
 import { StatusEngine } from './status';
 import { endTmux, writeTmuxConf } from './tmux';
 import { hasTranscript } from './transcripts';
+import { windowTitle } from './windowTitle';
 import { zoomLevel } from './zoom';
 
 let mainWindow: BrowserWindow | null = null;
@@ -33,7 +34,7 @@ function createWindow(zoom: () => number): void {
   const window = new BrowserWindow({
     width: 1600,
     height: 1000,
-    title: 'Maple',
+    title: windowTitle(process.env),
     webPreferences: webPreferences(join(import.meta.dirname, '../preload/index.cjs'), app.isPackaged),
   });
 
@@ -41,6 +42,9 @@ function createWindow(zoom: () => number): void {
   const rendererUrl = app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL;
   const indexFile = join(import.meta.dirname, '../renderer/index.html');
   lockDown(window.webContents, rendererUrl ?? pathToFileURL(indexFile).href);
+  window.on('page-title-updated', (event) => {
+    event.preventDefault();
+  });
   window.webContents.on('did-finish-load', () => {
     window.webContents.setZoomLevel(zoom());
   });
