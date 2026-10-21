@@ -31,19 +31,11 @@ const monaco = vi.hoisted(() => {
     },
   };
   const change: { value: (text: string) => void } = { value: () => undefined };
-  return {
-    editor,
-    collection,
-    api,
-    change,
-    mounted: vi.fn(),
-    enabled: { value: false },
-    slowMount: { value: false },
-  };
+  return { editor, collection, api, change, enabled: { value: false }, slowMount: { value: false } };
 });
 
 vi.mock('@monaco-editor/react', async () => {
-  const { useEffect, useRef } = await import('react');
+  const { useEffect, useRef, useState } = await import('react');
   return {
     useMonaco: () => (monaco.enabled.value ? monaco.api : null),
     Editor: (props: {
@@ -54,6 +46,7 @@ vi.mock('@monaco-editor/react', async () => {
       onChange: (value: string | undefined) => void;
     }) => {
       const { onMount } = props;
+      const [ready, setReady] = useState(false);
       monaco.change.value = props.onChange;
       const instance = useRef({
         ...monaco.editor,
@@ -66,12 +59,12 @@ vi.mock('@monaco-editor/react', async () => {
         const mounted = instance.current;
         if (!monaco.slowMount.value) {
           onMount(mounted);
-          monaco.mounted();
+          setReady(true);
           return;
         }
         const timer = setTimeout(() => {
           onMount(mounted);
-          monaco.mounted();
+          setReady(true);
         }, 10);
         return () => {
           clearTimeout(timer);
@@ -86,6 +79,7 @@ vi.mock('@monaco-editor/react', async () => {
       return (
         <div
           data-testid="editor"
+          data-mounted={String(ready)}
           data-value={props.value}
           data-language={props.language}
           data-readonly={String(props.options.readOnly)}
@@ -99,13 +93,15 @@ vi.mock('@monaco-editor/react', async () => {
       onMount: (editor: unknown) => void;
     }) => {
       const { onMount } = props;
+      const [ready, setReady] = useState(false);
       useEffect(() => {
         onMount({ getModifiedEditor: () => monaco.editor });
-        monaco.mounted();
+        setReady(true);
       }, [onMount]);
       return (
         <div
           data-testid="diff-editor"
+          data-mounted={String(ready)}
           data-original={props.original}
           data-modified={props.modified}
           data-side-by-side={String(props.options.renderSideBySide)}
@@ -587,7 +583,7 @@ describe('FileViewer', () => {
       />,
     );
     await vi.waitFor(() => {
-      expect(monaco.mounted).toHaveBeenCalled();
+      expect(screen.getByTestId(mode === 'in-file' ? 'editor' : 'diff-editor')).toHaveAttribute('data-mounted', 'true');
     });
     expect(monaco.editor.setScrollTop).not.toHaveBeenCalled();
     // when
@@ -867,7 +863,9 @@ describe('FileViewer', () => {
     // when
     renderViewer(pair, undefined, canComment);
     // then
-    await screen.findByTestId(testId);
+    await vi.waitFor(() => {
+      expect(screen.getByTestId(testId)).toHaveAttribute('data-mounted', 'true');
+    });
     expect(screen.queryByRole('button', { name: 'Comment' })).not.toBeInTheDocument();
   });
 
@@ -917,10 +915,10 @@ describe('FileViewer', () => {
     // when
     renderViewer({ kind: 'text', path: 'src/a.ts', current: 'same\n', base: 'same\n' }, undefined, true, comments);
     // then
-    await screen.findByTestId('editor');
     await vi.waitFor(() => {
-      expect(comments).toHaveBeenCalled();
+      expect(screen.getByTestId('editor')).toHaveAttribute('data-mounted', 'true');
     });
+    expect(comments).toHaveBeenCalled();
     expect(JSON.stringify(monaco.editor.createDecorationsCollection.mock.calls)).not.toContain('margin-comment');
   });
 
