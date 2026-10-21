@@ -1,4 +1,4 @@
-import type { FilePair } from '@shared/types';
+import type { FilePair, ReviewComment } from '@shared/types';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
@@ -18,6 +18,7 @@ const monaco = vi.hoisted(() => {
     setSelection: vi.fn(),
     focus: vi.fn(),
     getModel: vi.fn(() => model),
+    getPosition: vi.fn(() => ({ lineNumber: 3 })),
   };
   const model = { getLineMaxColumn: () => 9 };
   const api = {
@@ -107,8 +108,13 @@ vi.mock('@monaco-editor/react', async () => {
 
 const changed: FilePair = { kind: 'text', path: 'src/a.ts', current: 'new\n', base: 'old\n' };
 
-function renderViewer(pair: FilePair, writeFile = vi.fn(() => Promise.resolve())) {
-  const maple = fakeMaple({ repo: { readFile: () => Promise.resolve(pair), writeFile } });
+function renderViewer(
+  pair: FilePair,
+  writeFile = vi.fn(() => Promise.resolve()),
+  canComment = false,
+  comments = vi.fn(() => Promise.resolve<ReviewComment[]>([])),
+) {
+  const maple = fakeMaple({ repo: { readFile: () => Promise.resolve(pair), writeFile }, pr: { comments } });
   const props = {
     tabId: 't1',
     openFiles: [pair.path, 'README.md'],
@@ -117,6 +123,7 @@ function renderViewer(pair: FilePair, writeFile = vi.fn(() => Promise.resolve())
     onCloseFile: vi.fn(),
     prBody: null,
     line: null,
+    canComment,
   };
   return { maple, props, ...render(<FileViewer {...props} />) };
 }
@@ -146,6 +153,7 @@ describe('FileViewer', () => {
         onCloseFile={vi.fn()}
         prBody={'## Summary\n\nHello'}
         line={null}
+        canComment={false}
       />,
     );
     // then
@@ -171,6 +179,7 @@ describe('FileViewer', () => {
         onCloseFile={vi.fn()}
         prBody={null}
         line={null}
+        canComment={false}
       />,
     );
     // then
@@ -192,6 +201,7 @@ describe('FileViewer', () => {
       onCloseFile: vi.fn(),
       prBody: null,
       line: null,
+      canComment: false,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="vault:Spike.md" />);
     await screen.findByRole('heading', { name: 'First' });
@@ -316,6 +326,7 @@ describe('FileViewer', () => {
         onCloseFile={vi.fn()}
         prBody={null}
         line={null}
+        canComment={false}
       />,
     );
     await screen.findByTestId('editor');
@@ -430,6 +441,7 @@ describe('FileViewer', () => {
         onCloseFile={vi.fn()}
         prBody={null}
         line={null}
+        canComment={false}
       />,
     );
     // then
@@ -459,6 +471,7 @@ describe('FileViewer', () => {
       onCloseFile: vi.fn(),
       prBody: null,
       line: null,
+      canComment: false,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
     rerender(<FileViewer {...props} activeFile="b.ts" />);
@@ -485,6 +498,7 @@ describe('FileViewer', () => {
         onCloseFile={vi.fn()}
         prBody={null}
         line={null}
+        canComment={false}
       />,
     );
     await screen.findByText('Binary file, not shown');
@@ -507,6 +521,7 @@ describe('FileViewer', () => {
         onCloseFile={vi.fn()}
         prBody={null}
         line={3}
+        canComment={false}
       />,
     );
     // then
@@ -533,6 +548,7 @@ describe('FileViewer', () => {
       onActivate: vi.fn(),
       onCloseFile: vi.fn(),
       prBody: null,
+      canComment: false,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" line={null} />);
     await screen.findByTestId('editor');
@@ -569,6 +585,7 @@ describe('FileViewer', () => {
         onCloseFile={vi.fn()}
         prBody={null}
         line={null}
+        canComment={false}
       />,
     );
     await screen.findByTestId(mode === 'in-file' ? 'editor' : 'diff-editor');
@@ -689,6 +706,7 @@ describe('FileViewer', () => {
         onCloseFile={vi.fn()}
         prBody={null}
         line={null}
+        canComment={false}
       />,
     );
     await screen.findByTestId('editor');
@@ -778,6 +796,7 @@ describe('FileViewer', () => {
       onCloseFile: vi.fn(),
       prBody: null,
       line: null,
+      canComment: false,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
     const editor = await screen.findByTestId('editor');
@@ -821,6 +840,105 @@ describe('FileViewer', () => {
         }),
       ]);
     });
+  });
+
+  test('Comment opens the line comment form for the cursor line', async () => {
+    // given
+    renderViewer(changed, undefined, true);
+    await screen.findByTestId('editor');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    // then
+    expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:3' })).toBeInTheDocument();
+  });
+
+  test.each<{ name: string; canComment: boolean; mode: string; pair: FilePair; testId: string }>([
+    { name: 'without an open PR', canComment: false, mode: 'in-file', pair: changed, testId: 'editor' },
+    { name: 'side by side', canComment: true, mode: 'side-by-side', pair: changed, testId: 'diff-editor' },
+    {
+      name: 'for a deleted file',
+      canComment: true,
+      mode: 'in-file',
+      pair: { kind: 'text', path: 'src/a.ts', current: null, base: 'old\n' },
+      testId: 'editor',
+    },
+  ])('hides Comment $name', async ({ canComment, mode, pair, testId }) => {
+    // given
+    localStorage.setItem('maple.viewMode', mode);
+    // when
+    renderViewer(pair, undefined, canComment);
+    // then
+    await screen.findByTestId(testId);
+    expect(screen.queryByRole('button', { name: 'Comment' })).not.toBeInTheDocument();
+  });
+
+  test('shows the PR review comments on their lines', async () => {
+    // given
+    monaco.enabled.value = true;
+    const comments = vi.fn(() =>
+      Promise.resolve([
+        { path: 'src/a.ts', line: 1, author: 'tahardi', body: 'why?' },
+        { path: 'README.md', line: 1, author: 'tahardi', body: 'elsewhere' },
+      ]),
+    );
+    // when
+    renderViewer({ kind: 'text', path: 'src/a.ts', current: 'same\n', base: 'same\n' }, undefined, true, comments);
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.editor.createDecorationsCollection).toHaveBeenLastCalledWith([
+        {
+          range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 9 },
+          options: {
+            isWholeLine: true,
+            showIfCollapsed: true,
+            linesDecorationsClassName: 'margin-comment',
+            after: { content: '  💬 tahardi: why?', inlineClassName: 'comment-preview' },
+            hoverMessage: { value: '**tahardi**: why?' },
+          },
+        },
+      ]);
+    });
+    expect(comments).toHaveBeenCalledWith('t1');
+  });
+
+  test('reads no review comments without an open PR', async () => {
+    // given
+    const comments = vi.fn(() => Promise.resolve([]));
+    // when
+    renderViewer(changed, undefined, false, comments);
+    // then
+    await screen.findByTestId('editor');
+    expect(comments).not.toHaveBeenCalled();
+  });
+
+  test('shows the file without comment marks when the review comments fail to load', async () => {
+    // given
+    monaco.enabled.value = true;
+    const comments = vi.fn(() => Promise.reject(new Error('listing review comments: offline')));
+    // when
+    renderViewer({ kind: 'text', path: 'src/a.ts', current: 'same\n', base: 'same\n' }, undefined, true, comments);
+    // then
+    await screen.findByTestId('editor');
+    await vi.waitFor(() => {
+      expect(comments).toHaveBeenCalled();
+    });
+    expect(JSON.stringify(monaco.editor.createDecorationsCollection.mock.calls)).not.toContain('margin-comment');
+  });
+
+  test('re-reads the review comments after posting one', async () => {
+    // given
+    const comments = vi.fn(() => Promise.resolve([]));
+    renderViewer(changed, undefined, true, comments);
+    await screen.findByTestId('editor');
+    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    // when
+    await userEvent.type(screen.getByRole('textbox'), 'why?');
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    // then
+    await vi.waitFor(() => {
+      expect(comments).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByRole('heading', { name: 'Comment on src/a.ts:3' })).not.toBeInTheDocument();
   });
 
   test('shows a dot on every open file with a draft', async () => {

@@ -33,6 +33,17 @@ The launcher starts Maple through your login shell, so Maple and its Claude sess
 
 Only one Maple runs per config dir: opening a second one, from the launcher or `make run`, focuses the open window. To test a card's branch next to your main Maple, run `make try` in its worktree. It copies your `config.json` into `.maple-try/` in the worktree and keeps that copy's tabs, sessions, and settings there, so closing it never touches your main Maple's sessions.
 
+It uses your real Jira projects, so give every made-up test card the `test-card` label and a `[TEST]` summary prefix.
+
+## Tests
+
+- **Unit** (`make test-unit`): Vitest tests next to the code in `src/`. They mock the outside world: recorded Jira and GitHub JSON in `test/fixtures/`, a fake `node-pty`, and git repos built in a temp dir. Fast and free; `make pre-pr` runs them.
+- **Socket** (`make test-socket`): the few unit tests that open Unix sockets for Claude's hooks. They are kept apart because the Claude sandbox blocks sockets.
+- **E2E** (`test/e2e/`, `make test-e2e`): builds Maple and drives the real Electron window with Playwright. Everything outside Maple is fake: a local Jira server serving the recorded JSON, a stub `claude` that echoes its arguments, and a temp config dir. They check that the main process, IPC, and renderer work together. They need a display and tmux.
+- **Live** (`test/live/`, `make test-live`): call Maple's Jira, GitHub, preflight, and session code against the real Jira, `gh`, and `claude`, using your credentials. They check that the outside world still matches the fixtures and fakes the other tests rely on. They cost money and can break when real data changes.
+
+CI runs unit, socket, and e2e on every PR. Live tests run only by hand. The Claude sandbox can run only `make pre-pr`.
+
 ## Config
 
 Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `~` expands to your home directory.

@@ -20,7 +20,7 @@ export type Card = {
   url: string;
 };
 export type BacklogGroup = { epic: { key: string; summary: string } | null; cards: Card[] };
-export type Sprint = { name: string; startDate: string; endDate: string; cards: Card[] };
+export type Sprint = { id: number; name: string; startDate: string; endDate: string; cards: Card[] };
 export type Fetched<T> = { data: T | null; error: string | null; fetchedAt: string | null };
 export type TabKind = 'planner' | 'card';
 export type TabState = {
@@ -51,6 +51,7 @@ export type HookEvent = {
   event: 'Stop' | 'Notification' | 'UserPromptSubmit';
   notificationType: string | null;
 };
+export type ReviewComment = { path: string; line: number; author: string; body: string };
 export type ChecksSummary = { passed: number; failed: number; pending: number; total: number };
 export type PrInfo = {
   number: number;
@@ -83,3 +84,5 @@ export type PreflightProblem = {
 };
 export type CloseResult = { closed: boolean; needsConfirm: boolean };
 export type Unsubscribe = () => void;
+export type Report = { kind: 'bug' | 'feature'; title: string; description: string };
+export type Filed = { key: string; url: string };

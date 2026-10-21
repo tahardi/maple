@@ -3,7 +3,7 @@ import type { ProjectConfig, Sprint } from '@shared/types';
 import { SprintCache } from './sprintCache';
 
 const project: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
-const sprint: Sprint = { name: 'HALO Sprint 1', startDate: '2026-10-12', endDate: '2026-10-26', cards: [] };
+const sprint: Sprint = { id: 6, name: 'HALO Sprint 1', startDate: '2026-10-12', endDate: '2026-10-26', cards: [] };
 
 describe('SprintCache', () => {
   test('success sets fetchedAt and a null error', async () => {

@@ -11,6 +11,9 @@ type Props = {
   onSelectReady: () => void;
   onStart: () => void;
   onClear: () => void;
+  toAccept: readonly string[];
+  onAccept: () => void;
+  onAcceptAndStart: () => void;
   failure: string | null;
 };
 
@@ -22,6 +25,9 @@ export function PlannerPane({
   onSelectReady,
   onStart,
   onClear,
+  toAccept,
+  onAccept,
+  onAcceptAndStart,
   failure,
 }: Props) {
   const [tabId, setTabId] = useState<string | null>(null);
@@ -70,7 +76,15 @@ export function PlannerPane({
             <button onClick={onClear}>Clear</button>
           </>
         )}
-        {answered && selected.length === 0 && <span className={styles.nothing}>Nothing to start right now</span>}
+        {toAccept.length > 0 && (
+          <>
+            <button onClick={onAccept}>{`Accept ${String(toAccept.length)}`}</button>
+            <button onClick={onAcceptAndStart}>{`Accept ${String(toAccept.length)} and start all`}</button>
+          </>
+        )}
+        {answered && selected.length === 0 && toAccept.length === 0 && (
+          <span className={styles.nothing}>Nothing to start right now</span>
+        )}
         {failure !== null && (
           <span role="alert" className={styles.failure}>
             {failure}

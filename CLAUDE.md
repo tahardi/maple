@@ -54,3 +54,5 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
 - Never call real Jira, GitHub, or `claude` - Jira and GitHub tests use recorded JSON in `test/fixtures/`.
 - Run `git` only on repos built in a temp dir - tests never touch a real checkout.
 - Mock `node-pty` in session tests - no real terminals in CI.
+- Hand-test visible changes with `make try` in the card's worktree, never by restarting the real Maple - it has its own sessions, so closing it is safe.
+- Made-up cards for hand testing go in the real Jira project with the `test-card` label and a `[TEST]` summary prefix; move them to `Done` when finished - so they never pass for real work.

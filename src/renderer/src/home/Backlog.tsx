@@ -1,9 +1,9 @@
 import type { BacklogGroup } from '@shared/types';
 import styles from './Backlog.module.css';
 
-type Props = { groups: readonly BacklogGroup[] };
+type Props = { groups: readonly BacklogGroup[]; highlighted?: readonly string[] };
 
-export function Backlog({ groups }: Props) {
+export function Backlog({ groups, highlighted = [] }: Props) {
   const count = groups.reduce((sum, g) => sum + g.cards.length, 0);
 
   return (
@@ -15,7 +15,11 @@ export function Backlog({ groups }: Props) {
           <h3>{group.epic ? `${group.epic.key} ${group.epic.summary}` : 'No epic'}</h3>
           <ul>
             {group.cards.map((card) => (
-              <li key={card.key} className={styles.card}>
+              <li
+                key={card.key}
+                className={styles.card}
+                data-highlighted={highlighted.includes(card.key) ? 'true' : undefined}
+              >
                 <span className={styles.key}>{card.key}</span>
                 <span>{card.summary}</span>
                 {card.points !== null && <span className={styles.points}>{`${String(card.points)} pts`}</span>}
