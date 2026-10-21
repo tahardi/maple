@@ -32,7 +32,11 @@ const NO_DRAFTS: Record<string, Draft> = {};
 
 const NO_COMMENTS: ReviewComment[] = [];
 
-const OPTIONS = { readOnly: true, domReadOnly: true, minimap: { enabled: false } };
+const OPTIONS = {
+  readOnly: true,
+  domReadOnly: true,
+  minimap: { enabled: true, renderCharacters: false, size: 'fit', showSlider: 'always' },
+} as const;
 
 function loadMode(): Mode {
   try {
@@ -173,6 +177,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
           className: spec.className,
           marginClassName: spec.marginClassName,
           overviewRuler: { color: spec.overviewColor, position: monaco.editor.OverviewRulerLane.Full },
+          minimap: { color: spec.overviewColor, position: monaco.editor.MinimapPosition.Gutter },
           hoverMessage: spec.hover === null ? null : { value: spec.hover },
         },
       })),
