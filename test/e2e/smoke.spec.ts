@@ -17,8 +17,8 @@ import { startJiraServer } from './fixtures/jiraServer';
 const fixtures = join(import.meta.dirname, 'fixtures');
 const cardKey = 'HALO-13';
 
-async function sandbox() {
-  const jira = await startJiraServer();
+async function sandbox(jiraDown = false) {
+  const jira = await startJiraServer(jiraDown);
   const root = mkdtempSync(join(tmpdir(), 'maple-e2e-'));
   const configDir = join(root, 'config');
   const plannerDir = join(root, 'planner');
@@ -136,6 +136,23 @@ test.describe('smoke', () => {
       // then
       await expect(cardTabs).toHaveCount(1);
       await expect(cardTabs).toHaveAttribute('aria-selected', 'true');
+    } finally {
+      await cleanup(app);
+    }
+  });
+
+  test('shows Jira unreachable on Home when Jira is down', async () => {
+    // given
+    const { launch, cleanup } = await sandbox(true);
+    const app = await launch();
+
+    try {
+      // when
+      const page = await app.firstWindow();
+
+      // then
+      await expect(page.getByText('Jira unreachable', { exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'To Do', exact: true })).toHaveCount(0);
     } finally {
       await cleanup(app);
     }

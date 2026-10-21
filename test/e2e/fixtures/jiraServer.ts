@@ -12,11 +12,15 @@ const routes: readonly { pattern: RegExp; file: string }[] = [
 
 export type JiraServer = { url: string; requests: readonly string[]; close: () => Promise<void> };
 
-export async function startJiraServer(): Promise<JiraServer> {
+export async function startJiraServer(down = false): Promise<JiraServer> {
   const requests: string[] = [];
   const server = createServer((req, res) => {
     requests.push(`${new Date().toISOString()} ${req.method ?? ''} ${req.url ?? ''}`);
     const route = routes.find((r) => r.pattern.test(req.url ?? ''));
+    if (down) {
+      res.writeHead(503).end();
+      return;
+    }
     if (!route) {
       res.writeHead(404).end();
       return;
