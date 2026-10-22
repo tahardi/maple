@@ -125,23 +125,28 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       }
     },
   );
-  handle('pr:resolve', z.tuple([tabIdArg, z.string().min(1).max(200)]), async (tabId, threadId): Promise<void> => {
-    try {
-      const worktree = deps.worktreeFor(tabId);
-      if (worktree === null) {
-        throw new Error('resolving thread: tab has no card worktree');
+  handle(
+    'pr:resolve',
+    z.tuple([tabIdArg, z.string().min(1).max(200), z.boolean()]),
+    async (tabId, threadId, resolved): Promise<void> => {
+      try {
+        const worktree = deps.worktreeFor(tabId);
+        if (worktree === null) {
+          throw new Error(`${resolved ? 'resolving' : 'unresolving'} thread: tab has no card worktree`);
+        }
+        await resolveThread(defaultRunner, worktree, threadId, resolved);
+      } catch (err) {
+        logger.warn('gh', 'failed', {
+          operation: 'pr:resolve',
+          tabId,
+          threadId,
+          resolved,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
       }
-      await resolveThread(defaultRunner, worktree, threadId);
-    } catch (err) {
-      logger.warn('gh', 'failed', {
-        operation: 'pr:resolve',
-        tabId,
-        threadId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      throw err;
-    }
-  });
+    },
+  );
   handle('pr:comments', z.tuple([tabIdArg]), async (tabId): Promise<ReviewComment[]> => {
     const worktree = deps.worktreeFor(tabId);
     if (worktree === null) {

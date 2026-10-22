@@ -136,7 +136,7 @@ describe('CommentThread', () => {
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Resolve' }));
     // then
-    expect(resolve).toHaveBeenCalledWith('t1', 'PRRT_101');
+    expect(resolve).toHaveBeenCalledWith('t1', 'PRRT_101', true);
     expect(onPosted).toHaveBeenCalled();
   });
 
@@ -190,5 +190,35 @@ describe('CommentThread', () => {
     expect(screen.queryByRole('textbox', { name: 'Reply' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Hide' }));
     expect(screen.queryByText('because')).not.toBeInTheDocument();
+  });
+
+  test('unresolves a shown resolved thread', async () => {
+    // given
+    const resolve = vi.fn(() => Promise.resolve());
+    fakeMaple({ pr: { resolve } });
+    const onPosted = vi.fn();
+    render(<CommentThread tabId="t1" thread={{ ...thread, resolved: true }} onPosted={onPosted} />);
+    expect(screen.queryByRole('button', { name: 'Unresolve' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Unresolve' }));
+    // then
+    expect(resolve).toHaveBeenCalledWith('t1', 'PRRT_101', false);
+    expect(onPosted).toHaveBeenCalled();
+  });
+
+  test('shows the error when unresolving fails', async () => {
+    // given
+    const resolve = vi.fn(() =>
+      Promise.reject(new Error("Error invoking remote method 'pr:resolve': Error: unresolving thread: not found")),
+    );
+    fakeMaple({ pr: { resolve } });
+    render(<CommentThread tabId="t1" thread={{ ...thread, resolved: true }} onPosted={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Show' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Unresolve' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^unresolving thread: not found$/);
+    expect(screen.getByRole('button', { name: 'Unresolve' })).toBeEnabled();
   });
 });

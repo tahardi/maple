@@ -386,33 +386,32 @@ describe('reviewComments', () => {
 });
 
 describe('resolveThread', () => {
-  test('resolves the thread in the worktree', async () => {
+  test.each([
+    { name: 'resolves', resolved: true, mutation: 'resolveReviewThread(input: { threadId: $id })' },
+    { name: 'unresolves', resolved: false, mutation: 'unresolveReviewThread(input: { threadId: $id })' },
+  ])('$name the thread in the worktree', async ({ resolved, mutation }) => {
     // given
     const run = vi.fn<Runner>(() => Promise.resolve(ok('')));
     // when
-    await resolveThread(run, '/wt', 'PRRT_101');
+    await resolveThread(run, '/wt', 'PRRT_101', resolved);
     // then
     expect(run).toHaveBeenCalledWith(
       'gh',
-      [
-        'api',
-        'graphql',
-        '-f',
-        'id=PRRT_101',
-        '-f',
-        expect.stringContaining('resolveReviewThread(input: { threadId: $id })'),
-      ],
+      ['api', 'graphql', '-f', 'id=PRRT_101', '-f', expect.stringContaining(` ${mutation}`)],
       '/wt',
     );
   });
 
-  test('rejects with the gh error', async () => {
+  test.each([
+    { resolved: true, want: 'resolving thread: not found' },
+    { resolved: false, want: 'unresolving thread: not found' },
+  ])('rejects with $want', async ({ resolved, want }) => {
     // given
     const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'not found' }));
     // when
-    const result = resolveThread(run, '/wt', 'PRRT_101');
+    const result = resolveThread(run, '/wt', 'PRRT_101', resolved);
     // then
-    await expect(result).rejects.toThrow('resolving thread: not found');
+    await expect(result).rejects.toThrow(want);
   });
 });
 

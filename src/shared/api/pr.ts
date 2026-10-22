@@ -6,7 +6,7 @@ export type PrApi = {
   approve(tabId: string): Promise<void>;
   comment(tabId: string, path: string, startLine: number | null, line: number, body: string): Promise<void>;
   reply(tabId: string, commentId: number, body: string): Promise<void>;
-  resolve(tabId: string, threadId: string): Promise<void>;
+  resolve(tabId: string, threadId: string, resolved: boolean): Promise<void>;
   comments(tabId: string): Promise<ReviewComment[]>;
   diffLines(tabId: string): Promise<DiffLines>;
 };

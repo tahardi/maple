@@ -62,8 +62,8 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $en
   }
 }`;
 
-const RESOLVE_MUTATION = `mutation($id: ID!) {
-  resolveReviewThread(input: { threadId: $id }) { thread { id } }
+const resolveMutation = (field: string) => `mutation($id: ID!) {
+  ${field}(input: { threadId: $id }) { thread { id } }
 }`;
 
 const filesSchema = z.array(z.array(z.object({ filename: z.string(), patch: z.string().optional() })));
@@ -294,13 +294,14 @@ export async function reviewComments(run: Runner, worktree: string, num: number)
     );
 }
 
-export async function resolveThread(run: Runner, worktree: string, threadId: string): Promise<void> {
+export async function resolveThread(run: Runner, worktree: string, threadId: string, resolved: boolean): Promise<void> {
+  const field = resolved ? 'resolveReviewThread' : 'unresolveReviewThread';
   const { code, stderr } = await run(
     'gh',
-    ['api', 'graphql', '-f', `id=${threadId}`, '-f', `query=${RESOLVE_MUTATION}`],
+    ['api', 'graphql', '-f', `id=${threadId}`, '-f', `query=${resolveMutation(field)}`],
     worktree,
   );
   if (code !== 0) {
-    throw new Error(`resolving thread: ${stderr}`);
+    throw new Error(`${resolved ? 'resolving' : 'unresolving'} thread: ${stderr}`);
   }
 }

@@ -95,12 +95,31 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
               <button
                 disabled={busy}
                 onClick={() => {
-                  send(window.maple.pr.resolve(tabId, threadId), () => undefined);
+                  send(window.maple.pr.resolve(tabId, threadId, true), () => undefined);
                 }}
               >
                 Resolve
               </button>
             )}
+          </div>
+        </div>
+      )}
+      {!open && shown && threadId !== null && (
+        <div className={styles.reply}>
+          {error !== null && (
+            <div className={styles.error} role="alert">
+              {error}
+            </div>
+          )}
+          <div className={styles.actions}>
+            <button
+              disabled={busy}
+              onClick={() => {
+                send(window.maple.pr.resolve(tabId, threadId, false), () => undefined);
+              }}
+            >
+              Unresolve
+            </button>
           </div>
         </div>
       )}

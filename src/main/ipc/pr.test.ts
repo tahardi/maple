@@ -384,16 +384,25 @@ describe('registerPr', () => {
     // given
     const resolve = register('pr:resolve', '/wt');
     // when
-    await resolve('t1', 'PRRT_101');
+    await resolve('t1', 'PRRT_101', true);
     // then
-    expect(resolveThread).toHaveBeenCalledWith(defaultRunner, '/wt', 'PRRT_101');
+    expect(resolveThread).toHaveBeenCalledWith(defaultRunner, '/wt', 'PRRT_101', true);
+  });
+
+  test('resolve unresolves the thread from the tab worktree', async () => {
+    // given
+    const resolve = register('pr:resolve', '/wt');
+    // when
+    await resolve('t1', 'PRRT_101', false);
+    // then
+    expect(resolveThread).toHaveBeenCalledWith(defaultRunner, '/wt', 'PRRT_101', false);
   });
 
   test('resolve rejects and resolves nothing when the tab has no worktree', async () => {
     // given
     const resolve = register('pr:resolve', null);
     // when
-    const result = resolve('t1', 'PRRT_101');
+    const result = resolve('t1', 'PRRT_101', true);
     // then
     await expect(result).rejects.toThrow('resolving thread: tab has no card worktree');
     expect(resolveThread).not.toHaveBeenCalled();
@@ -404,13 +413,14 @@ describe('registerPr', () => {
     resolveThread.mockRejectedValueOnce(new Error('resolving thread: not found'));
     const resolve = register('pr:resolve', '/wt');
     // when
-    const result = resolve('t1', 'PRRT_101');
+    const result = resolve('t1', 'PRRT_101', true);
     // then
     await expect(result).rejects.toThrow(/^resolving thread: not found$/);
     expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
       operation: 'pr:resolve',
       tabId: 't1',
       threadId: 'PRRT_101',
+      resolved: true,
       error: 'resolving thread: not found',
     });
   });
