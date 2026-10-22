@@ -50,7 +50,7 @@ export class StatusEngine extends EventEmitter<Events> {
       }
       this.emitStatus(tabId, prev?.status.dot ?? dot);
       if (!prompted) {
-        void this.restoreMergedDot(tabId);
+        void this.restoreDot(tabId, resumed);
       }
     });
     sessions.on('exit', (tabId, exitCode) => {
@@ -130,21 +130,30 @@ export class StatusEngine extends EventEmitter<Events> {
     }
   }
 
-  private async restoreMergedDot(tabId: string): Promise<void> {
+  private async restoreDot(tabId: string, resumed: boolean): Promise<void> {
     const tab = this.deps.sessions.get(tabId);
     const seq = this.tabs.get(tabId)?.seq;
     if (tab?.kind !== 'card' || tab.cardKey === null || seq === undefined) {
       return;
     }
-    let card: Card;
+    let input: DotInput;
     try {
-      card = await timeout(this.deps.getCard(tab.cardKey)).catch((err: unknown) => this.fail('jira', 'getCard', err));
+      const card = await timeout(this.deps.getCard(tab.cardKey)).catch((err: unknown) =>
+        this.fail('jira', 'getCard', err),
+      );
+      const worktreePath = this.deps.sessions.get(tabId)?.worktreePath ?? null;
+      const pr =
+        card.status === 'In Review' && worktreePath !== null
+          ? await timeout(this.deps.prFor(worktreePath)).catch((err: unknown) => this.fail('gh', 'prFor', err))
+          : null;
+      input = { type: 'stop', kind: 'card', cardStatus: card.status, pr };
     } catch {
       return;
     }
+    const dot = nextDot(input);
     const tracked = this.tabs.get(tabId);
-    if (card.status === 'Done' && tracked?.seq === seq) {
-      this.setDot(tracked, 'merged', { input: 'spawn', cardStatus: card.status });
+    if ((resumed || dot === 'merged') && tracked?.seq === seq) {
+      this.setDot(tracked, dot, { ...this.inputFields(input), input: 'spawn' }, dot);
     }
   }
 
@@ -178,12 +187,12 @@ export class StatusEngine extends EventEmitter<Events> {
     this.setDot(tracked, nextDot(input), this.inputFields(input));
   }
 
-  private setDot(tracked: Tracked, dot: Dot, fields: Record<string, unknown>): void {
+  private setDot(tracked: Tracked, dot: Dot, fields: Record<string, unknown>, emittedPrev?: Dot): void {
     const prev = tracked.status.dot;
     if (dot !== prev) {
       tracked.status = { ...tracked.status, dot };
       this.log.info('dot', 'changed', { tabId: tracked.status.tabId, from: prev, to: dot, ...fields });
-      this.emit('status', tracked.status, prev);
+      this.emit('status', tracked.status, emittedPrev ?? prev);
     }
   }
 
