@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { ChangeSet, FileChange, FilePair, SearchHit } from '@shared/types';
 import { matchWorktree } from '@shared/worktree';
-import { isInside, MAX_BYTES, realOrSelf } from './paths';
+import { isInside, MAX_BYTES, realOrSelf } from '@main/app/paths';
 
 const execFileAsync = promisify(execFile);
 const SNIFF_BYTES = 8000;

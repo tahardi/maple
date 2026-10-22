@@ -10,6 +10,7 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "paths": {
+      "@main/*": ["./src/main/*"],
       "@shared/*": ["./src/shared/*"],
       "@renderer/*": ["./src/renderer/src/*"]
     }

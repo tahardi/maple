@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import type { TabState } from '@shared/types';
 import { restoreTabs } from './restore';
 import type { SessionManager } from './sessions';
-import type { SavedState } from './state';
+import type { SavedState } from '@main/app/state';
 
 function savedTab(kind: TabState['kind'], projectKey: string, cardKey: string | null, sessionId: string): TabState {
   return { id: `old-${sessionId}`, projectKey, kind, cardKey, sessionId, worktreePath: '/wts/old' };

@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { appLogger, logFailure, type Logger } from '../log';
-import { listNotes, readNote } from '../vault';
-import { vaultWrites } from '../vaultWrites';
+import { appLogger, logFailure, type Logger } from '@main/app/log';
+import { listNotes, readNote } from '@main/vault/vault';
+import { vaultWrites } from '@main/vault/vaultWrites';
 import { vaultDir as configuredVaultDir } from './config';
 import type { IpcDeps } from './index';
 import { handle, tabIdArg } from './validated';

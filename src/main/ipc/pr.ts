@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
 import type { DiffLines, Fetched, PrInfo, ReviewComment } from '@shared/types';
-import { changedSince, currentBranch } from '../git';
+import { changedSince, currentBranch } from '@main/git/git';
 import {
   commentOnLine,
   commentOnPr,
@@ -11,9 +11,9 @@ import {
   replyToComment,
   resolveThread,
   reviewComments,
-} from '../github';
-import { appLogger, type Logger } from '../log';
-import { defaultRunner } from '../preflight';
+} from '@main/github/github';
+import { appLogger, type Logger } from '@main/app/log';
+import { defaultRunner } from '@main/app/preflight';
 import type { IpcDeps } from './index';
 import { handle, tabIdArg } from './validated';
 

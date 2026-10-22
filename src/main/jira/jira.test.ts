@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import { JiraClient, readCreds } from './jira';
 
-const fixtures = resolve(import.meta.dirname, '../../test/fixtures/jira');
+const fixtures = resolve(import.meta.dirname, '../../../test/fixtures/jira');
 const creds = { site: 'https://example.atlassian.net', email: 'me@example.com', token: 'secret' };
 
 function fixture(name: string): string {

@@ -2,9 +2,9 @@ import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionCost, TabState, TabStatus } from '@shared/types';
-import type { SessionManager } from '../sessions';
-import type { StatusEngine } from '../status';
-import type { Terminals } from '../terminals';
+import type { SessionManager } from '@main/sessions/sessions';
+import type { StatusEngine } from '@main/sessions/status';
+import type { Terminals } from '@main/sessions/terminals';
 import { registerTabs } from './tabs';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;

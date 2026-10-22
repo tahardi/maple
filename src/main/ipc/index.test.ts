@@ -1,9 +1,9 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { IPC_CHANNELS, type ChannelKind } from '@shared/ipc';
-import { SessionManager } from '../sessions';
-import { StatusEngine } from '../status';
-import { Terminals } from '../terminals';
+import { SessionManager } from '@main/sessions/sessions';
+import { StatusEngine } from '@main/sessions/status';
+import { Terminals } from '@main/sessions/terminals';
 import { registerIpc } from './index';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
@@ -18,7 +18,9 @@ vi.mock('electron', () => ({
   app: { on: vi.fn(), quit: vi.fn() },
   Menu: { setApplicationMenu: vi.fn(), buildFromTemplate: vi.fn() },
 }));
-vi.mock('../config', () => ({ loadConfig: () => Promise.resolve({ data: null, error: null, fetchedAt: null }) }));
+vi.mock('@main/app/config', () => ({
+  loadConfig: () => Promise.resolve({ data: null, error: null, fetchedAt: null }),
+}));
 
 function channelsOf(kind: ChannelKind): string[] {
   return Object.entries(IPC_CHANNELS).flatMap(([area, methods]) =>

@@ -1,6 +1,6 @@
-import { appLogger, type Logger } from './log';
+import { appLogger, type Logger } from '@main/app/log';
 import type { SessionManager } from './sessions';
-import type { SavedState } from './state';
+import type { SavedState } from '@main/app/state';
 
 export async function restoreTabs(
   saved: SavedState,

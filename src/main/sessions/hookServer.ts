@@ -3,8 +3,8 @@ import { createServer } from 'node:net';
 import { join } from 'node:path';
 import type { HookEvent } from '@shared/types';
 import { z } from 'zod';
-import { configDir } from './config';
-import { appLogger, type Logger } from './log';
+import { configDir } from '@main/app/config';
+import { appLogger, type Logger } from '@main/app/log';
 
 const MAX_LINE = 64 * 1024;
 

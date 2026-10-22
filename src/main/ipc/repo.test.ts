@@ -1,8 +1,8 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SessionManager } from '../sessions';
-import type { StatusEngine } from '../status';
-import type { Terminals } from '../terminals';
+import type { SessionManager } from '@main/sessions/sessions';
+import type { StatusEngine } from '@main/sessions/status';
+import type { Terminals } from '@main/sessions/terminals';
 import { registerRepo } from './repo';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
@@ -18,8 +18,8 @@ const { handle, changes, listFiles, mergeBase, readFilePair, searchFiles, writeW
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('../git', () => ({ changes, listFiles, mergeBase, readFilePair, searchFiles, writeWorktreeFile }));
-vi.mock('../worktreeWatcher', () => ({ watchWorktree: () => () => undefined }));
+vi.mock('@main/git/git', () => ({ changes, listFiles, mergeBase, readFilePair, searchFiles, writeWorktreeFile }));
+vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktree: () => () => undefined }));
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 

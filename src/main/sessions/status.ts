@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { nextDot, type DotInput } from '@shared/dots';
 import type { Card, Dot, HookEvent, PrInfo, TabStatus } from '@shared/types';
-import { appLogger, type Logger } from './log';
+import { appLogger, type Logger } from '@main/app/log';
 import type { SessionManager } from './sessions';
 
 export type StatusDeps = {

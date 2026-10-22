@@ -4,10 +4,10 @@ import type { IPty, spawn } from 'node-pty';
 import { parseBatch } from '@shared/batch';
 import { cardPrompt } from '@shared/prompts';
 import type { MapleConfig, TabState } from '@shared/types';
-import { findWorktree } from './git';
-import { appLogger, type Logger } from './log';
+import { findWorktree } from '@main/git/git';
+import { appLogger, type Logger } from '@main/app/log';
 import { tmuxArgs } from './tmux';
-import { watchWorktrees } from './worktreeWatcher';
+import { watchWorktrees } from '@main/git/worktreeWatcher';
 
 const BACKLOG_CHARS = 200_000;
 const LINE_CHARS = 10_000;

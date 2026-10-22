@@ -2,7 +2,7 @@ import { hunkLines } from '@shared/hunkLines';
 import { parsePrBody } from '@shared/prBody';
 import type { ChecksSummary, PrInfo, ReviewComment } from '@shared/types';
 import { z } from 'zod';
-import type { Runner } from './preflight';
+import type { Runner } from '@main/app/preflight';
 
 const listSchema = z.array(
   z.object({

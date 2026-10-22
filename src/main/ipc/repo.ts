@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { changes, listFiles, mergeBase, readFilePair, searchFiles, writeWorktreeFile } from '../git';
-import { appLogger, logFailure, type Logger } from '../log';
-import { watchWorktree } from '../worktreeWatcher';
+import { changes, listFiles, mergeBase, readFilePair, searchFiles, writeWorktreeFile } from '@main/git/git';
+import { appLogger, logFailure, type Logger } from '@main/app/log';
+import { watchWorktree } from '@main/git/worktreeWatcher';
 import { send, type IpcDeps } from './index';
 import { handle, tabIdArg } from './validated';
 

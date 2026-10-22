@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { expandHome } from '../../src/main/config';
-import { prForBranch } from '../../src/main/github';
-import { defaultRunner } from '../../src/main/preflight';
+import { expandHome } from '../../src/main/app/config';
+import { prForBranch } from '../../src/main/github/github';
+import { defaultRunner } from '../../src/main/app/preflight';
 
 const repo = expandHome('~/Documents/code/maple');
 

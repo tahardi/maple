@@ -1,7 +1,7 @@
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { VaultNote } from '@shared/types';
-import { isInside, MAX_BYTES, realOrSelf } from './paths';
+import { isInside, MAX_BYTES, realOrSelf } from '@main/app/paths';
 
 async function walk(vaultDir: string, dir: string): Promise<VaultNote[]> {
   const entries = await readdir(join(vaultDir, dir), { withFileTypes: true });

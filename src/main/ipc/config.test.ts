@@ -1,11 +1,11 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SessionManager } from '../sessions';
-import type { StatusEngine } from '../status';
-import type { Terminals } from '../terminals';
+import type { SessionManager } from '@main/sessions/sessions';
+import type { StatusEngine } from '@main/sessions/status';
+import type { Terminals } from '@main/sessions/terminals';
 import type { Fetched, MapleConfig, ProjectConfig } from '@shared/types';
 import { notificationsDefault, projectByKey, registerConfig } from './config';
-import type { ZoomChange } from '../zoom';
+import type { ZoomChange } from '@main/app/zoom';
 
 type Handler = (event: IpcMainInvokeEvent) => Promise<unknown>;
 
@@ -23,8 +23,8 @@ const { handle, loadConfig, setAppMenu } = vi.hoisted(() => ({
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('../config', () => ({ loadConfig }));
-vi.mock('../menu', () => ({ setAppMenu }));
+vi.mock('@main/app/config', () => ({ loadConfig }));
+vi.mock('@main/app/menu', () => ({ setAppMenu }));
 
 const event = {} as IpcMainInvokeEvent;
 const sessions = {} as SessionManager;

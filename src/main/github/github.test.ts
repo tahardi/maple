@@ -11,9 +11,9 @@ import {
   resolveThread,
   reviewComments,
 } from './github';
-import type { Runner } from './preflight';
+import type { Runner } from '@main/app/preflight';
 
-const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../test/fixtures/gh', name), 'utf8');
+const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');
 
 type Reply = { code: number; stdout: string; stderr: string };
 

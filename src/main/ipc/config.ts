@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import type { Fetched, MapleConfig, ProjectConfig } from '@shared/types';
-import { loadConfig } from '../config';
-import { setAppMenu } from '../menu';
+import { loadConfig } from '@main/app/config';
+import { setAppMenu } from '@main/app/menu';
 import { send, type IpcDeps } from './index';
 
 let cached: Promise<Fetched<MapleConfig>> | null = null;

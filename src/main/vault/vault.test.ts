@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { MAX_BYTES } from './paths';
+import { MAX_BYTES } from '@main/app/paths';
 import { listNotes, readNote } from './vault';
 
 describe('vault', () => {

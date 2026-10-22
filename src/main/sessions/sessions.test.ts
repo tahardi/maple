@@ -1,13 +1,13 @@
 import type { IPty, spawn } from 'node-pty';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MapleConfig, TabState } from '@shared/types';
-import { findWorktree } from './git';
+import { findWorktree } from '@main/git/git';
 import { SessionManager } from './sessions';
 import { tmuxArgs } from './tmux';
-import { watchWorktrees } from './worktreeWatcher';
+import { watchWorktrees } from '@main/git/worktreeWatcher';
 
-vi.mock('./git', () => ({ findWorktree: vi.fn() }));
-vi.mock('./worktreeWatcher', () => ({ watchWorktrees: vi.fn() }));
+vi.mock('@main/git/git', () => ({ findWorktree: vi.fn() }));
+vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktrees: vi.fn() }));
 
 type FakePty = {
   args: string[];
