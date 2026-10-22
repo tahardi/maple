@@ -1,0 +1,49 @@
+.thread {
+  margin: 4px 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  white-space: normal;
+}
+
+.label {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.comment {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.author {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.reply {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 10px 8px;
+}
+
+.text {
+  min-height: 40px;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px;
+  font: inherit;
+}
+
+.error {
+  color: var(--danger);
+}

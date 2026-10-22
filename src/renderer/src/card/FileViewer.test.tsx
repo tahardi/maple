@@ -1,5 +1,5 @@
 import type { DiffLines, FilePair, ReviewComment } from '@shared/types';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';
@@ -10,7 +10,15 @@ vi.mock('./monacoSetup', () => ({}));
 
 const monaco = vi.hoisted(() => {
   const collection = { clear: vi.fn() };
+  const zones = {
+    addZone: vi.fn<(zone: { afterLineNumber: number; domNode: HTMLElement; heightInPx: number }) => string>(() => 'z1'),
+    removeZone: vi.fn(),
+    layoutZone: vi.fn(),
+  };
   const editor = {
+    changeViewZones: vi.fn((cb: (accessor: typeof zones) => void) => {
+      cb(zones);
+    }),
     createDecorationsCollection: vi.fn(() => collection),
     getScrollTop: vi.fn(() => 120),
     setScrollTop: vi.fn(),
@@ -36,7 +44,16 @@ const monaco = vi.hoisted(() => {
     },
   };
   const change: { value: (text: string) => void } = { value: () => undefined };
-  return { editor, collection, api, change, cursor, enabled: { value: false }, slowMount: { value: false } };
+  return {
+    editor,
+    zones,
+    collection,
+    api,
+    change,
+    cursor,
+    enabled: { value: false },
+    slowMount: { value: false },
+  };
 });
 
 vi.mock('@monaco-editor/react', async () => {
@@ -119,6 +136,22 @@ vi.mock('@monaco-editor/react', async () => {
   };
 });
 
+const review = (id: number, body: string, replyTo: number | null = null): ReviewComment => ({
+  id,
+  replyTo,
+  startLine: null,
+  path: 'src/a.ts',
+  line: 3,
+  author: 'tahardi',
+  body,
+});
+
+const same: FilePair = { kind: 'text', path: 'src/a.ts', current: 'same\n', base: 'same\n' };
+
+const resize: { value: () => void } = { value: () => undefined };
+
+const disconnect = vi.fn();
+
 const changed: FilePair = { kind: 'text', path: 'src/a.ts', current: 'new\n', base: 'old\n' };
 
 function renderViewer(
@@ -141,6 +174,7 @@ function renderViewer(
     prBody: null,
     line: null,
     canComment,
+    prFetchedAt: null,
   };
   return { maple, props, ...render(<FileViewer {...props} />) };
 }
@@ -153,6 +187,17 @@ describe('FileViewer', () => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
     useMaple.setState(useMaple.getInitialState(), true);
+    vi.stubGlobal(
+      'ResizeObserver',
+      vi.fn(function ResizeObserver(cb: () => void) {
+        resize.value = cb;
+        return { observe: vi.fn(), disconnect };
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   test('renders the PR description as Markdown', () => {
@@ -171,6 +216,7 @@ describe('FileViewer', () => {
         prBody={'## Summary\n\nHello'}
         line={null}
         canComment={false}
+        prFetchedAt={null}
       />,
     );
     // then
@@ -197,6 +243,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        prFetchedAt={null}
       />,
     );
     // then
@@ -219,6 +266,7 @@ describe('FileViewer', () => {
       prBody: null,
       line: null,
       canComment: false,
+      prFetchedAt: null,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="vault:Spike.md" />);
     await screen.findByRole('heading', { name: 'First' });
@@ -344,6 +392,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        prFetchedAt={null}
       />,
     );
     await screen.findByTestId('editor');
@@ -468,6 +517,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        prFetchedAt={null}
       />,
     );
     // then
@@ -498,6 +548,7 @@ describe('FileViewer', () => {
       prBody: null,
       line: null,
       canComment: false,
+      prFetchedAt: null,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
     rerender(<FileViewer {...props} activeFile="b.ts" />);
@@ -525,6 +576,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        prFetchedAt={null}
       />,
     );
     await screen.findByText('Binary file, not shown');
@@ -548,6 +600,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={3}
         canComment={false}
+        prFetchedAt={null}
       />,
     );
     // then
@@ -575,6 +628,7 @@ describe('FileViewer', () => {
       onCloseFile: vi.fn(),
       prBody: null,
       canComment: false,
+      prFetchedAt: null,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" line={null} />);
     await screen.findByTestId('editor');
@@ -612,6 +666,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        prFetchedAt={null}
       />,
     );
     await vi.waitFor(() => {
@@ -735,6 +790,7 @@ describe('FileViewer', () => {
         prBody={null}
         line={null}
         canComment={false}
+        prFetchedAt={null}
       />,
     );
     await screen.findByTestId('editor');
@@ -825,6 +881,7 @@ describe('FileViewer', () => {
       prBody: null,
       line: null,
       canComment: false,
+      prFetchedAt: null,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="a.ts" />);
     const editor = await screen.findByTestId('editor');
@@ -971,33 +1028,245 @@ describe('FileViewer', () => {
     expect(screen.queryByRole('button', { name: 'Comment' })).not.toBeInTheDocument();
   });
 
-  test('shows the PR review comments on their lines', async () => {
+  test('shows each PR review thread in a zone under its line', async () => {
     // given
-    monaco.enabled.value = true;
     const comments = vi.fn(() =>
       Promise.resolve([
-        { path: 'src/a.ts', line: 1, author: 'tahardi', body: 'why?' },
-        { path: 'README.md', line: 1, author: 'tahardi', body: 'elsewhere' },
+        review(101, 'why?'),
+        review(102, 'because', 101),
+        { ...review(103, 'elsewhere'), path: 'README.md' },
       ]),
     );
     // when
-    renderViewer({ kind: 'text', path: 'src/a.ts', current: 'same\n', base: 'same\n' }, undefined, true, comments);
+    renderViewer(same, undefined, true, comments);
     // then
     await vi.waitFor(() => {
-      expect(monaco.editor.createDecorationsCollection).toHaveBeenLastCalledWith([
-        {
-          range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 9 },
-          options: {
-            isWholeLine: true,
-            showIfCollapsed: true,
-            linesDecorationsClassName: 'margin-comment',
-            after: { content: '  💬 tahardi: why?', inlineClassName: 'comment-preview' },
-            hoverMessage: { value: '**tahardi**: why?' },
-          },
-        },
-      ]);
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
     });
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    expect(zone).toMatchObject({ afterLineNumber: 3 });
+    const box = await within(zone.domNode).findByRole('textbox', { name: 'Reply' });
+    expect(box).toHaveValue('');
+    expect(zone.domNode).toHaveTextContent(/why\?.*because/);
+    expect(zone.domNode).not.toHaveTextContent('elsewhere');
     expect(comments).toHaveBeenCalledWith('t1');
+  });
+
+  test('adds no zone without review comments', async () => {
+    // given
+    const comments = vi.fn(() => Promise.resolve([]));
+    // when
+    renderViewer(same, undefined, true, comments);
+    // then
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('editor')).toHaveAttribute('data-mounted', 'true');
+      expect(comments).toHaveBeenCalled();
+    });
+    expect(monaco.zones.addZone).not.toHaveBeenCalled();
+  });
+
+  test('grows a zone with its thread box', async () => {
+    // given
+    renderViewer(
+      same,
+      undefined,
+      true,
+      vi.fn(() => Promise.resolve([review(101, 'why?')])),
+    );
+    await vi.waitFor(() => {
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    });
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    const content = zone.domNode.firstElementChild;
+    if (!(content instanceof HTMLElement)) {
+      throw new Error('finding zone content');
+    }
+    vi.spyOn(content, 'offsetHeight', 'get').mockReturnValue(180);
+    // when
+    resize.value();
+    // then
+    expect(zone.heightInPx).toBe(180);
+    expect(monaco.zones.layoutZone).toHaveBeenCalledWith('z1');
+  });
+
+  test.each([
+    {
+      name: 'another file opens',
+      leave: (view: ReturnType<typeof renderViewer>) => {
+        view.rerender(<FileViewer {...view.props} activeFile="README.md" />);
+      },
+    },
+    {
+      name: 'the viewer unmounts',
+      leave: (view: ReturnType<typeof renderViewer>) => {
+        view.unmount();
+      },
+    },
+  ])('removes the zones when $name', async ({ leave }) => {
+    // given
+    const view = renderViewer(
+      same,
+      undefined,
+      true,
+      vi.fn(() => Promise.resolve([review(101, 'why?')])),
+    );
+    await vi.waitFor(() => {
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    });
+    // when
+    leave(view);
+    // then
+    expect(monaco.zones.removeZone).toHaveBeenCalledWith('z1');
+  });
+
+  test('re-reads the review comments when the PR summary refreshes', async () => {
+    // given
+    const comments = vi.fn(() => Promise.resolve([]));
+    const { props, rerender } = renderViewer(same, undefined, true, comments);
+    await vi.waitFor(() => {
+      expect(comments).toHaveBeenCalledTimes(1);
+    });
+    // when
+    rerender(<FileViewer {...props} prFetchedAt="2026-10-22T12:00:00.000Z" />);
+    // then
+    await vi.waitFor(() => {
+      expect(comments).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  test('re-reads the review comments after posting a reply', async () => {
+    // given
+    const comments = vi.fn(() => Promise.resolve([review(101, 'why?')]));
+    renderViewer(same, undefined, true, comments);
+    await vi.waitFor(() => {
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    });
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    const box = await within(zone.domNode).findByRole('textbox', { name: 'Reply' });
+    // when
+    fireEvent.change(box, { target: { value: 'thanks' } });
+    fireEvent.click(within(zone.domNode).getByRole('button', { name: 'Post' }));
+    // then
+    await vi.waitFor(() => {
+      expect(comments).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  test('keeps the zones and an unsent reply when the review comments refresh', async () => {
+    // given
+    const comments = vi.fn(() => Promise.resolve([review(101, 'why?')]));
+    const { props, rerender } = renderViewer(same, undefined, true, comments);
+    await vi.waitFor(() => {
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    });
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    const box = await within(zone.domNode).findByRole('textbox', { name: 'Reply' });
+    fireEvent.change(box, { target: { value: 'half written' } });
+    // when
+    rerender(<FileViewer {...props} prFetchedAt="2026-10-22T12:00:00.000Z" />);
+    // then
+    await vi.waitFor(() => {
+      expect(comments).toHaveBeenCalledTimes(2);
+    });
+    await act(() => Promise.resolve());
+    expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    expect(monaco.zones.removeZone).not.toHaveBeenCalled();
+    expect(within(zone.domNode).getByRole('textbox', { name: 'Reply' })).toBe(box);
+    expect(box).toHaveValue('half written');
+  });
+
+  test('removes only the zone of a thread that disappears', async () => {
+    // given
+    monaco.zones.addZone.mockReturnValueOnce('z1').mockReturnValueOnce('z2');
+    const comments = vi
+      .fn<() => Promise<ReviewComment[]>>()
+      .mockResolvedValueOnce([review(101, 'why?'), { ...review(105, 'nit'), line: 7 }])
+      .mockResolvedValue([review(101, 'why?')]);
+    const { props, rerender } = renderViewer(same, undefined, true, comments);
+    await vi.waitFor(() => {
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(2);
+    });
+    // when
+    rerender(<FileViewer {...props} prFetchedAt="2026-10-22T12:00:00.000Z" />);
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.zones.removeZone).toHaveBeenCalledWith('z2');
+    });
+    expect(monaco.zones.removeZone).not.toHaveBeenCalledWith('z1');
+    expect(monaco.zones.addZone).toHaveBeenCalledTimes(2);
+  });
+
+  test('ignores a resize that measures nothing', async () => {
+    // given
+    renderViewer(
+      same,
+      undefined,
+      true,
+      vi.fn(() => Promise.resolve([review(101, 'why?')])),
+    );
+    await vi.waitFor(() => {
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    });
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    // when
+    resize.value();
+    // then
+    expect(zone.heightInPx).toBe(120);
+    expect(monaco.zones.layoutZone).not.toHaveBeenCalled();
+  });
+
+  test('stops watching zone sizes on unmount', async () => {
+    // given
+    const view = renderViewer(
+      same,
+      undefined,
+      true,
+      vi.fn(() => Promise.resolve([review(101, 'why?')])),
+    );
+    await vi.waitFor(() => {
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    });
+    // when
+    view.unmount();
+    // then
+    expect(disconnect).toHaveBeenCalled();
+  });
+
+  test('adds no zones side by side', async () => {
+    // given
+    localStorage.setItem('maple.viewMode', 'side-by-side');
+    const comments = vi.fn(() => Promise.resolve([review(101, 'why?')]));
+    // when
+    renderViewer(changed, undefined, true, comments);
+    // then
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('diff-editor')).toHaveAttribute('data-mounted', 'true');
+      expect(comments).toHaveBeenCalled();
+    });
+    expect(monaco.zones.addZone).not.toHaveBeenCalled();
+  });
+
+  test('keeps keys typed in a reply from reaching the editor', async () => {
+    // given
+    renderViewer(
+      same,
+      undefined,
+      true,
+      vi.fn(() => Promise.resolve([review(101, 'why?')])),
+    );
+    await vi.waitFor(() => {
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    });
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    const box = await within(zone.domNode).findByRole('textbox', { name: 'Reply' });
+    const outer = document.createElement('div');
+    outer.appendChild(zone.domNode);
+    const reached = vi.fn();
+    outer.addEventListener('keydown', reached);
+    // when
+    fireEvent.keyDown(box, { key: 'a' });
+    // then
+    expect(reached).not.toHaveBeenCalled();
   });
 
   test('reads no review comments without an open PR', async () => {
@@ -1010,18 +1279,17 @@ describe('FileViewer', () => {
     expect(comments).not.toHaveBeenCalled();
   });
 
-  test('shows the file without comment marks when the review comments fail to load', async () => {
+  test('shows the file without comment threads when the review comments fail to load', async () => {
     // given
-    monaco.enabled.value = true;
     const comments = vi.fn(() => Promise.reject(new Error('listing review comments: offline')));
     // when
-    renderViewer({ kind: 'text', path: 'src/a.ts', current: 'same\n', base: 'same\n' }, undefined, true, comments);
+    renderViewer(same, undefined, true, comments);
     // then
     await vi.waitFor(() => {
       expect(screen.getByTestId('editor')).toHaveAttribute('data-mounted', 'true');
     });
     expect(comments).toHaveBeenCalled();
-    expect(JSON.stringify(monaco.editor.createDecorationsCollection.mock.calls)).not.toContain('margin-comment');
+    expect(monaco.zones.addZone).not.toHaveBeenCalled();
   });
 
   test('re-reads the PR diff when another file opens', async () => {

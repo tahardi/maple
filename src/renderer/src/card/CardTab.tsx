@@ -231,6 +231,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 onCloseFile={closeFile}
                 prBody={pr?.data?.body ?? null}
                 canComment={pr?.data?.state === 'OPEN'}
+                prFetchedAt={pr?.fetchedAt ?? null}
                 line={line}
               />
             )}

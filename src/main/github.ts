@@ -19,6 +19,9 @@ const checksSchema = z.array(z.object({ bucket: z.string() }));
 const reviewCommentsSchema = z.array(
   z.array(
     z.object({
+      id: z.number(),
+      in_reply_to_id: z.number().optional(),
+      start_line: z.number().nullable().optional(),
       path: z.string(),
       line: z.number().nullable(),
       side: z.string(),
@@ -160,6 +163,30 @@ export async function commentOnLine(
   }
 }
 
+export async function replyToComment(
+  run: Runner,
+  worktree: string,
+  num: number,
+  commentId: number,
+  body: string,
+): Promise<void> {
+  const { code, stderr } = await run(
+    'gh',
+    [
+      'api',
+      '--method',
+      'POST',
+      `repos/{owner}/{repo}/pulls/${String(num)}/comments/${String(commentId)}/replies`,
+      '-f',
+      `body=${body}`,
+    ],
+    worktree,
+  );
+  if (code !== 0) {
+    throw new Error(`replying to comment: ${stderr}`);
+  }
+}
+
 export async function reviewComments(run: Runner, worktree: string, num: number): Promise<ReviewComment[]> {
   const { code, stdout, stderr } = await run(
     'gh',
@@ -173,6 +200,18 @@ export async function reviewComments(run: Runner, worktree: string, num: number)
     .parse(JSON.parse(stdout))
     .flat()
     .flatMap((c) =>
-      c.line !== null && c.side === 'RIGHT' ? [{ path: c.path, line: c.line, author: c.user.login, body: c.body }] : [],
+      c.line !== null && c.side === 'RIGHT'
+        ? [
+            {
+              id: c.id,
+              replyTo: c.in_reply_to_id ?? null,
+              startLine: c.start_line ?? null,
+              path: c.path,
+              line: c.line,
+              author: c.user.login,
+              body: c.body,
+            },
+          ]
+        : [],
     );
 }

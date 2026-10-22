@@ -3,13 +3,16 @@ import { lineMarks } from '@shared/diffMarks';
 import type { DiffLines, Draft, FilePair, ReviewComment } from '@shared/types';
 import type { editor } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { MarkdownText } from '../shell/MarkdownText';
 import { useMaple } from '../store';
-import { toCommentMarks } from './commentMarks';
+import { CommentThread } from './CommentThread';
+import { toThreads } from './commentThreads';
 import { toDecorations } from './inFileDecorations';
 import { LineComment } from './LineComment';
 import './monacoSetup';
 import { PR_DESCRIPTION } from './prDescription';
+import { useThreadZones } from './useThreadZones';
 import { VAULT_PREFIX } from './VaultSwitch';
 import styles from './viewer.module.css';
 
@@ -22,6 +25,7 @@ type Props = {
   prBody: string | null;
   line: number | null;
   canComment: boolean;
+  prFetchedAt: string | null;
 };
 
 type Mode = 'in-file' | 'side-by-side';
@@ -68,7 +72,17 @@ function baseName(path: string): string {
   return bare.split('/').at(-1) ?? bare;
 }
 
-export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFile, prBody, line, canComment }: Props) {
+export function FileViewer({
+  tabId,
+  openFiles,
+  activeFile,
+  onActivate,
+  onCloseFile,
+  prBody,
+  line,
+  canComment,
+  prFetchedAt,
+}: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
@@ -216,7 +230,7 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
     return () => {
       live = false;
     };
-  }, [tabId, canComment, commentsRead]);
+  }, [tabId, canComment, commentsRead, prFetchedAt]);
 
   useEffect(() => {
     if (!canComment) {
@@ -248,37 +262,12 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
     };
   }, [plain]);
 
-  const commentMarks = useMemo(
-    () => (text === null || !canComment ? [] : toCommentMarks(comments, text.path)),
+  const threads = useMemo(
+    () => (text === null || !canComment ? [] : toThreads(comments, text.path)),
     [comments, text, canComment],
   );
 
-  useEffect(() => {
-    const model = plain?.getModel() ?? null;
-    if (plain === null || model === null || commentMarks.length === 0) {
-      return;
-    }
-    const decorations = plain.createDecorationsCollection(
-      commentMarks.map((mark) => ({
-        range: {
-          startLineNumber: mark.line,
-          startColumn: 1,
-          endLineNumber: mark.line,
-          endColumn: model.getLineMaxColumn(mark.line),
-        },
-        options: {
-          isWholeLine: true,
-          showIfCollapsed: true,
-          linesDecorationsClassName: 'margin-comment',
-          after: { content: mark.preview, inlineClassName: 'comment-preview' },
-          hoverMessage: { value: mark.hover },
-        },
-      })),
-    );
-    return () => {
-      decorations.clear();
-    };
-  }, [plain, commentMarks]);
+  const zones = useThreadZones(plain, threads);
 
   const language = useMemo(() => {
     if (activeFile === null || monaco === null) {
@@ -500,6 +489,19 @@ export function FileViewer({ tabId, openFiles, activeFile, onActivate, onCloseFi
         )}
       </div>
       <div className={styles.body}>{body()}</div>
+      {zones.map(({ thread, node }) =>
+        createPortal(
+          <CommentThread
+            tabId={tabId}
+            thread={thread}
+            onPosted={() => {
+              setCommentsRead((n) => n + 1);
+            }}
+          />,
+          node,
+          thread.id,
+        ),
+      )}
     </div>
   );
 }

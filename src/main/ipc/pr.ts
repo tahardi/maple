@@ -2,7 +2,15 @@ import { z } from 'zod';
 import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
 import type { DiffLines, Fetched, PrInfo, ReviewComment } from '@shared/types';
 import { changedSince, currentBranch } from '../git';
-import { commentOnLine, commentOnPr, diffLines, headCommit, prForBranch, reviewComments } from '../github';
+import {
+  commentOnLine,
+  commentOnPr,
+  diffLines,
+  headCommit,
+  prForBranch,
+  replyToComment,
+  reviewComments,
+} from '../github';
 import { appLogger, type Logger } from '../log';
 import { defaultRunner } from '../preflight';
 import type { IpcDeps } from './index';
@@ -74,6 +82,33 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
           tabId,
           path,
           line,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    },
+  );
+  handle(
+    'pr:reply',
+    z.tuple([tabIdArg, z.number().int().min(1), z.string().min(1).max(65_536)]),
+    async (tabId, commentId, body): Promise<void> => {
+      try {
+        const worktree = deps.worktreeFor(tabId);
+        if (worktree === null) {
+          throw new Error('replying to comment: tab has no card worktree');
+        }
+        const pr = await lookup(worktree).catch((err: unknown) => {
+          throw new Error(`replying to comment: ${err instanceof Error ? err.message : String(err)}`);
+        });
+        if (pr?.state !== 'OPEN') {
+          throw new Error('replying to comment: branch has no open PR');
+        }
+        await replyToComment(defaultRunner, worktree, pr.number, commentId, body);
+      } catch (err) {
+        logger.warn('gh', 'failed', {
+          operation: 'pr:reply',
+          tabId,
+          commentId,
           error: err instanceof Error ? err.message : String(err),
         });
         throw err;

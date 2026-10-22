@@ -1,7 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { commentOnLine, commentOnPr, diffLines, headCommit, prForBranch, reviewComments } from './github';
+import {
+  commentOnLine,
+  commentOnPr,
+  diffLines,
+  headCommit,
+  prForBranch,
+  replyToComment,
+  reviewComments,
+} from './github';
 import type { Runner } from './preflight';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../test/fixtures/gh', name), 'utf8');
@@ -226,6 +234,30 @@ describe('commentOnLine', () => {
   });
 });
 
+describe('replyToComment', () => {
+  test('posts a reply to the comment in the worktree', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve(ok('')));
+    // when
+    await replyToComment(run, '/wt', 33, 101, 'thanks');
+    // then
+    expect(run).toHaveBeenCalledWith(
+      'gh',
+      ['api', '--method', 'POST', 'repos/{owner}/{repo}/pulls/33/comments/101/replies', '-f', 'body=thanks'],
+      '/wt',
+    );
+  });
+
+  test('rejects with the gh error', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'not found' }));
+    // when
+    const result = replyToComment(run, '/wt', 33, 101, 'thanks');
+    // then
+    await expect(result).rejects.toThrow('replying to comment: not found');
+  });
+});
+
 describe('reviewComments', () => {
   test('returns the current comments on the new side of the diff', async () => {
     // given
@@ -239,8 +271,16 @@ describe('reviewComments', () => {
       '/wt',
     );
     expect(result).toEqual([
-      { path: 'src/a.ts', line: 3, author: 'tahardi', body: 'why?' },
-      { path: 'src/a.ts', line: 3, author: 'tahardi', body: '**Claude:** explained in the PR body' },
+      { id: 101, replyTo: null, startLine: 1, path: 'src/a.ts', line: 3, author: 'tahardi', body: 'why?' },
+      {
+        id: 102,
+        replyTo: 101,
+        startLine: null,
+        path: 'src/a.ts',
+        line: 3,
+        author: 'tahardi',
+        body: '**Claude:** explained in the PR body',
+      },
     ]);
   });
 
