@@ -2,16 +2,8 @@ import { z } from 'zod';
 import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
 import type { DiffLines, Fetched, PrInfo, ReviewComment } from '@shared/types';
 import { changedSince, currentBranch } from '@main/git/git';
-import {
-  commentOnLine,
-  commentOnPr,
-  diffLines,
-  headCommit,
-  prForBranch,
-  replyToComment,
-  resolveThread,
-  reviewComments,
-} from '@main/github/github';
+import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@main/github/comments';
+import { commentOnPr, diffLines, headCommit, prForBranch } from '@main/github/pr';
 import { appLogger, type Logger } from '@main/app/log';
 import { defaultRunner } from '@main/app/preflight';
 import type { IpcDeps } from './index';

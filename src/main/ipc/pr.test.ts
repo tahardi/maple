@@ -38,16 +38,8 @@ const {
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 vi.mock('@main/git/git', () => ({ currentBranch, changedSince }));
-vi.mock('@main/github/github', () => ({
-  prForBranch,
-  commentOnPr,
-  commentOnLine,
-  replyToComment,
-  resolveThread,
-  reviewComments,
-  diffLines,
-  headCommit,
-}));
+vi.mock('@main/github/pr', () => ({ prForBranch, commentOnPr, diffLines, headCommit }));
+vi.mock('@main/github/comments', () => ({ commentOnLine, replyToComment, resolveThread, reviewComments }));
 vi.mock('@main/app/preflight', () => ({ defaultRunner }));
 
 const event = {} as IpcMainInvokeEvent;

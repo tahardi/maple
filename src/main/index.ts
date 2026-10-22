@@ -8,7 +8,7 @@ import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
 import { writeHooksFile } from '@main/sessions/hooksFile';
 import { currentBranch, findWorktree } from '@main/git/git';
-import { prForBranch } from '@main/github/github';
+import { prForBranch } from '@main/github/pr';
 import { registerIpc } from './ipc';
 import { notificationsDefault, projectByKey } from './ipc/config';
 import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/jira';
