@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
+import { card } from '../testing/sprintFixture';
 import { CardTab } from './CardTab';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 
@@ -51,7 +52,7 @@ const pr: PrInfo = {
   checks: { passed: 4, failed: 0, pending: 0, total: 4, runs: [] },
 };
 
-function fakeRepo(withPr: boolean) {
+function fakeRepo(withPr: boolean, cards: readonly Card[] = []) {
   fakeMaple({
     repo: {
       changes: () =>
@@ -64,10 +65,22 @@ function fakeRepo(withPr: boolean) {
       listFiles: () => Promise.resolve(['README.md', 'src/a.ts']),
     },
     pr: { get: () => Promise.resolve({ data: withPr ? pr : null, error: null, fetchedAt: null }) },
+    jira: {
+      sprint: () =>
+        Promise.resolve({
+          data: { id: 1, name: 'S1', startDate: '', endDate: '', cards: [...cards] },
+          error: null,
+          fetchedAt: null,
+        }),
+    },
   });
 }
 
-function fakeVault(notes: readonly VaultNote[], written: readonly string[] = notes.map((note) => note.path)) {
+function fakeVault(
+  notes: readonly VaultNote[],
+  written: readonly string[] = notes.map((note) => note.path),
+  cards: readonly Card[] = [],
+) {
   useMaple.setState({
     config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
   });
@@ -76,7 +89,17 @@ function fakeVault(notes: readonly VaultNote[], written: readonly string[] = not
     read: vi.fn(() => Promise.resolve('## Findings')),
     written: vi.fn(() => Promise.resolve([...written])),
   };
-  fakeMaple({ vault });
+  fakeMaple({
+    vault,
+    jira: {
+      sprint: () =>
+        Promise.resolve({
+          data: { id: 1, name: 'S1', startDate: '', endDate: '', cards: [...cards] },
+          error: null,
+          fetchedAt: null,
+        }),
+    },
+  });
   return vault;
 }
 
@@ -295,6 +318,98 @@ describe('CardTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Full description' }));
     // then
     expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
+  });
+
+  test('opens the card description on first load when the card has no PR', async () => {
+    // given
+    fakeRepo(false, [card('MPL-20', 'In Progress', { descriptionMd: '## Goal' })]);
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Goal' })).toBeInTheDocument();
+  });
+
+  test('keeps the PR description active and the card description closed when the card has a PR', async () => {
+    // given
+    fakeRepo(true, [card('MPL-20', 'In Progress', { descriptionMd: '## Goal' })]);
+    // when
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('button', { name: 'Card description' });
+    // then
+    expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['PR description']);
+  });
+
+  test('Card description opens the card description', async () => {
+    // given
+    fakeRepo(true, [card('MPL-20', 'In Progress', { descriptionMd: '## Goal' })]);
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('tab', { name: 'PR description' });
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: 'Card description' }));
+    // then
+    expect(screen.getByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close Card description' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Card description' }));
+    // then
+    expect(screen.getByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
+  });
+
+  test('keeps a closed card description closed when the card data reloads', async () => {
+    // given
+    const listeners: (() => void)[] = [];
+    fakeMaple({
+      repo: {
+        listFiles: () => Promise.resolve(['README.md']),
+        onChanged: (_tabId, callback) => {
+          listeners.push(callback);
+          return () => undefined;
+        },
+      },
+      jira: {
+        sprint: () =>
+          Promise.resolve({
+            data: { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card('MPL-20', 'In Progress')] },
+            error: null,
+            fetchedAt: null,
+          }),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Close Card description' }));
+    // when
+    act(() => {
+      listeners.forEach((listener) => {
+        listener();
+      });
+    });
+    // then
+    expect(await screen.findByRole('button', { name: 'Card description' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Card description' })).not.toBeInTheDocument();
+  });
+
+  test('opens the card description in the vault view of a tab without a worktree', async () => {
+    // given
+    fakeVault([], [], [card('MPL-20', 'In Progress', { descriptionMd: '## Goal' })]);
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    expect(await screen.findByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Goal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vault', pressed: true })).toBeInTheDocument();
+  });
+
+  test('shows no Card description button without the card', async () => {
+    // given
+    fakeRepo(false);
+    // when
+    render(<CardTab tab={tab} />);
+    await screen.findByText('README.md');
+    // then
+    expect(screen.queryByRole('button', { name: 'Card description' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Card description' })).not.toBeInTheDocument();
   });
 
   test('keeps a file opened before the PR exists active when the PR appears', async () => {
