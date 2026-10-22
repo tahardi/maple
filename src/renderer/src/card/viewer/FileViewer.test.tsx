@@ -157,6 +157,15 @@ const select = (start: number, end: number, endColumn = 4) => ({
   selection: { startLineNumber: start, startColumn: 1, endLineNumber: end, endColumn },
 });
 
+async function moveCursor(event: ReturnType<typeof select>) {
+  await vi.waitFor(() => {
+    expect(monaco.editor.onDidChangeCursorSelection).toHaveBeenCalled();
+  });
+  act(() => {
+    monaco.cursor.value(event);
+  });
+}
+
 const resize: { value: () => void } = { value: () => undefined };
 
 const disconnect = vi.fn();
@@ -1036,9 +1045,7 @@ describe('FileViewer', () => {
       />,
     );
     const button = await screen.findByRole('button', { name: 'Comment' });
-    act(() => {
-      monaco.cursor.value(select(2, end, endColumn));
-    });
+    await moveCursor(select(2, end, endColumn));
     await vi.waitFor(() => {
       expect(button).not.toHaveAttribute('title');
     });
@@ -1059,9 +1066,7 @@ describe('FileViewer', () => {
     await vi.waitFor(() => {
       expect(diffLines).toHaveBeenCalled();
     });
-    act(() => {
-      monaco.cursor.value(select(8, 12));
-    });
+    await moveCursor(select(8, 12));
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     // then
@@ -1103,9 +1108,7 @@ describe('FileViewer', () => {
     await vi.waitFor(() => {
       expect(diffLines).toHaveBeenCalled();
     });
-    act(() => {
-      monaco.cursor.value(select(cursor, cursor));
-    });
+    await moveCursor(select(cursor, cursor));
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     // then
@@ -1121,15 +1124,11 @@ describe('FileViewer', () => {
     await vi.waitFor(() => {
       expect(diffLines).toHaveBeenCalled();
     });
-    act(() => {
-      monaco.cursor.value(select(20, 20));
-    });
+    await moveCursor(select(20, 20));
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     await screen.findByRole('alert');
     // when
-    act(() => {
-      monaco.cursor.value(select(10, 10));
-    });
+    await moveCursor(select(10, 10));
     // then
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
