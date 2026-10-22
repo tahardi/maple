@@ -9,9 +9,9 @@ import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
 import { CardTab } from './CardTab';
-import { TerminalPane } from './TerminalPane';
+import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 
-vi.mock('./monacoSetup', () => ({}));
+vi.mock('@renderer/card/viewer/monacoSetup', () => ({}));
 
 vi.mock('../claude/ClaudePane', async () => {
   const { ActionBar } = await import('../claude/ActionBar');
@@ -20,7 +20,7 @@ vi.mock('../claude/ClaudePane', async () => {
   };
 });
 
-vi.mock('./TerminalPane', () => ({
+vi.mock('@renderer/card/terminal/TerminalPane', () => ({
   TerminalPane: vi.fn(({ tabId }: { tabId: string }) => <div data-testid="terminal-pane">{tabId}</div>),
 }));
 

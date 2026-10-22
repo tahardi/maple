@@ -1,7 +1,7 @@
 import type { ReviewComment } from '@shared/types/github';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { fakeMaple } from '../testing/fakeMaple';
+import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { CommentThread } from './CommentThread';
 import type { Thread } from './commentThreads';
 

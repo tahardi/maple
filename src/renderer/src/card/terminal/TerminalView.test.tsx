@@ -1,12 +1,12 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { XtermIo } from '../claude/useXterm';
-import { fakeMaple } from '../testing/fakeMaple';
+import type { XtermIo } from '@renderer/claude/useXterm';
+import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { TerminalView } from './TerminalView';
 
 const captured = vi.hoisted(() => ({ io: null as XtermIo | null }));
 
-vi.mock('../claude/useXterm', () => ({
+vi.mock('@renderer/claude/useXterm', () => ({
   useXterm: (_host: unknown, io: XtermIo) => {
     captured.io = io;
   },

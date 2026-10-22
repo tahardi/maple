@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { fakeMaple } from '../testing/fakeMaple';
+import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { QuickOpen } from './QuickOpen';
 
 const files = ['README.md', 'src/a.ts', 'src/card/CardTab.tsx'];

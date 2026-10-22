@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MarkdownText } from '../shell/MarkdownText';
+import { MarkdownText } from '@renderer/shell/MarkdownText';
 import styles from './CommentThread.module.css';
 import type { Thread } from './commentThreads';
 

@@ -2,10 +2,10 @@ import type { DiffLines, FilePair } from '@shared/types/files';
 import type { ReviewComment } from '@shared/types/github';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useMaple } from '../store';
-import { fakeMaple } from '../testing/fakeMaple';
+import { useMaple } from '@renderer/store';
+import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { FileViewer } from './FileViewer';
-import { PR_DESCRIPTION } from './prDescription';
+import { PR_DESCRIPTION } from '@renderer/card/prDescription';
 
 vi.mock('./monacoSetup', () => ({}));
 

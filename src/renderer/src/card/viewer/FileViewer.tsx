@@ -5,17 +5,17 @@ import type { ReviewComment } from '@shared/types/github';
 import type { editor } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { MarkdownText } from '../shell/MarkdownText';
-import { useMaple } from '../store';
-import { CommentThread } from './CommentThread';
+import { MarkdownText } from '@renderer/shell/MarkdownText';
+import { useMaple } from '@renderer/store';
+import { CommentThread } from '@renderer/card/comments/CommentThread';
 import { linesLabel, selectedLines, type Lines } from './selectedLines';
-import { toThreads } from './commentThreads';
+import { toThreads } from '@renderer/card/comments/commentThreads';
 import { toDecorations } from './inFileDecorations';
-import { LineComment } from './LineComment';
+import { LineComment } from '@renderer/card/comments/LineComment';
 import './monacoSetup';
-import { PR_DESCRIPTION } from './prDescription';
-import { useThreadZones } from './useThreadZones';
-import { VAULT_PREFIX } from './VaultSwitch';
+import { PR_DESCRIPTION } from '@renderer/card/prDescription';
+import { useThreadZones } from '@renderer/card/comments/useThreadZones';
+import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
 import styles from './viewer.module.css';
 
 type Props = {
