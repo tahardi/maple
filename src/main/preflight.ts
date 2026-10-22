@@ -18,11 +18,13 @@ export const defaultRunner: Runner = (cmd, args, cwd) =>
   });
 
 const tools = ['claude', 'gh', 'git', 'tmux'] as const;
+const sandboxTools = ['socat', 'bwrap'] as const;
 
 export async function runPreflight(
   run: Runner,
   jiraEnvPath: string,
   claudeJsonPath: string,
+  claudeSettingsPath: string,
   plannerDirs: string[],
   logger: Logger = appLogger,
 ): Promise<PreflightProblem[]> {
@@ -47,6 +49,7 @@ export async function runPreflight(
       message: `trusting folder: ${plannerDir} is not trusted by Claude, run claude there once and choose Yes`,
     });
   }
+  problems.push(...(await sandboxProblems(run, claudeSettingsPath)));
   for (const { tool, message } of problems) {
     logger.warn('preflight', 'problem', { tool, message });
   }
@@ -54,6 +57,39 @@ export async function runPreflight(
     logger.info('preflight', 'passed');
   }
   return problems;
+}
+
+async function sandboxProblems(run: Runner, claudeSettingsPath: string): Promise<PreflightProblem[]> {
+  const sandbox = await sandboxSettings(claudeSettingsPath);
+  if (sandbox?.enabled !== true) {
+    return [];
+  }
+  const problems: PreflightProblem[] = [];
+  if (sandbox.allowUnsandboxedCommands !== false) {
+    problems.push({
+      tool: 'claude-sandbox',
+      message: `sandbox escape hatch is on: set sandbox.allowUnsandboxedCommands to false in ${claudeSettingsPath}`,
+    });
+  }
+  for (const tool of sandboxTools) {
+    if ((await run(tool, ['--version'])).code === 127) {
+      problems.push({ tool: 'claude-sandbox', message: `${tool} is not on PATH, so the Claude sandbox cannot start` });
+    }
+  }
+  return problems;
+}
+
+async function sandboxSettings(
+  claudeSettingsPath: string,
+): Promise<{ enabled?: unknown; allowUnsandboxedCommands?: unknown } | null> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(claudeSettingsPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  const sandbox = typeof parsed === 'object' && parsed !== null && 'sandbox' in parsed ? parsed.sandbox : null;
+  return typeof sandbox === 'object' && sandbox !== null ? sandbox : null;
 }
 
 async function trustedFolders(claudeJsonPath: string): Promise<Set<string>> {

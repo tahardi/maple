@@ -80,7 +80,7 @@ export type LineMark =
   | { kind: 'chg'; line: number; oldText: string | null }
   | { kind: 'del'; afterLine: number; oldText: string };
 export type PreflightProblem = {
-  tool: 'claude' | 'gh' | 'git' | 'tmux' | 'gh-auth' | 'jira-env' | 'claude-trust';
+  tool: 'claude' | 'gh' | 'git' | 'tmux' | 'gh-auth' | 'jira-env' | 'claude-trust' | 'claude-sandbox';
   message: string;
 };
 export type CloseResult = { closed: boolean; needsConfirm: boolean };

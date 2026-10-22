@@ -43,6 +43,7 @@ async function sandbox(jiraDown = false) {
     MAPLE_CONFIG_DIR: configDir,
     MAPLE_JIRA_ENV: jiraEnv,
     MAPLE_CLAUDE_JSON: claudeJson,
+    MAPLE_CLAUDE_SETTINGS: join(root, 'claude-settings.json'),
     TMUX_TMPDIR: root,
   };
   const tmux = (...args: string[]) => execFileSync('tmux', ['-L', 'maple', ...args], { env }).toString();
