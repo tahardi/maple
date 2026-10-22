@@ -4,14 +4,13 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 export type XtermIo = {
   write(data: string): void;
   resize(cols: number, rows: number): void;
   backlog(): Promise<string>;
   onData(cb: (data: string) => void): Unsubscribe;
-  wheelLines?(): number;
 };
 
 function clipboardKeys(term: Terminal) {
@@ -62,7 +61,17 @@ function wheelReports(term: Terminal, host: HTMLElement, lines: () => number, wr
   };
 }
 
-export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): void {
+export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo, wheelLines = 1): void {
+  const lines = useRef(wheelLines);
+  const terminal = useRef<Terminal | null>(null);
+
+  useEffect(() => {
+    lines.current = wheelLines;
+    if (terminal.current !== null) {
+      terminal.current.options.scrollSensitivity = wheelLines;
+    }
+  }, [wheelLines]);
+
   useEffect(() => {
     const el = host.current;
     if (el === null) {
@@ -72,9 +81,11 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): v
       fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
       fontSize: 13,
       scrollback: 10_000,
+      scrollSensitivity: lines.current,
       theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
       allowProposedApi: true,
     });
+    terminal.current = term;
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.loadAddon(new Unicode11Addon());
@@ -86,7 +97,7 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): v
       wheelReports(
         term,
         el,
-        () => io.wheelLines?.() ?? 1,
+        () => lines.current,
         (data) => {
           io.write(data);
         },
@@ -124,6 +135,7 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): v
       unsubscribe?.();
       observer.disconnect();
       typing.dispose();
+      terminal.current = null;
       term.dispose();
     };
   }, [host, io]);
