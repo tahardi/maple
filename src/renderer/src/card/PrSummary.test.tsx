@@ -1,4 +1,5 @@
-import type { CheckRun, ChecksSummary, Fetched, PrInfo } from '@shared/types';
+import type { CheckRun, ChecksSummary, PrInfo } from '@shared/types/github';
+import type { Fetched } from '@shared/types/app';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PrSummary } from './PrSummary';

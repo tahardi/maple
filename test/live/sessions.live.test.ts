@@ -3,15 +3,16 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node-pty';
-import type { HookEvent, MapleConfig } from '@shared/types';
+import type { HookEvent } from '@shared/types/tabs';
+import type { MapleConfig } from '@shared/types/config';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { expandHome } from '../../src/main/config';
-import { startHookServer } from '../../src/main/hookServer';
-import { writeHooksFile } from '../../src/main/hooksFile';
-import { createLogger } from '../../src/main/log';
-import { SessionManager } from '../../src/main/sessions';
-import { endTmux, writeTmuxConf } from '../../src/main/tmux';
-import { hasTranscript } from '../../src/main/transcripts';
+import { expandHome } from '../../src/main/app/config';
+import { startHookServer } from '../../src/main/sessions/hookServer';
+import { writeHooksFile } from '../../src/main/sessions/hooksFile';
+import { createLogger } from '../../src/main/app/log';
+import { SessionManager } from '../../src/main/sessions/sessions';
+import { endTmux, writeTmuxConf } from '../../src/main/sessions/tmux';
+import { hasTranscript } from '../../src/main/sessions/transcripts';
 
 const silent = createLogger(() => undefined);
 

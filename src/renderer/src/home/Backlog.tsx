@@ -1,4 +1,4 @@
-import type { BacklogGroup } from '@shared/types';
+import type { BacklogGroup } from '@shared/types/jira';
 import styles from './Backlog.module.css';
 
 type Props = { groups: readonly BacklogGroup[]; highlighted?: readonly string[]; onSelect: (key: string) => void };

@@ -1,4 +1,7 @@
-import type { Card, PrInfo, TabState, VaultNote } from '@shared/types';
+import type { Card } from '@shared/types/jira';
+import type { PrInfo } from '@shared/types/github';
+import type { TabState } from '@shared/types/tabs';
+import type { VaultNote } from '@shared/types/files';
 import type { PaneAction } from '../claude/ClaudePane';
 import { act, render, screen, within } from '@testing-library/react';
 import { useEffect } from 'react';
@@ -6,9 +9,9 @@ import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
 import { CardTab } from './CardTab';
-import { TerminalPane } from './TerminalPane';
+import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 
-vi.mock('./monacoSetup', () => ({}));
+vi.mock('@renderer/card/viewer/monacoSetup', () => ({}));
 
 vi.mock('../claude/ClaudePane', async () => {
   const { ActionBar } = await import('../claude/ActionBar');
@@ -17,7 +20,7 @@ vi.mock('../claude/ClaudePane', async () => {
   };
 });
 
-vi.mock('./TerminalPane', () => ({
+vi.mock('@renderer/card/terminal/TerminalPane', () => ({
   TerminalPane: vi.fn(({ tabId }: { tabId: string }) => <div data-testid="terminal-pane">{tabId}</div>),
 }));
 

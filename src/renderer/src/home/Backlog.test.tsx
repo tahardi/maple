@@ -1,4 +1,4 @@
-import type { BacklogGroup } from '@shared/types';
+import type { BacklogGroup } from '@shared/types/jira';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { card } from '../testing/sprintFixture';

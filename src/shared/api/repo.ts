@@ -1,5 +1,6 @@
 import type { ChannelKind } from '../ipc';
-import type { ChangeSet, FilePair, SearchHit, Unsubscribe } from '../types';
+import type { ChangeSet, FilePair, SearchHit } from '../types/files';
+import type { Unsubscribe } from '../types/app';
 
 export type RepoApi = {
   changes(tabId: string): Promise<ChangeSet | null>;

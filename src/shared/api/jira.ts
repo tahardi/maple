@@ -1,5 +1,6 @@
 import type { ChannelKind } from '../ipc';
-import type { BacklogGroup, Fetched, Filed, Report, Sprint } from '../types';
+import type { BacklogGroup, Filed, Report, Sprint } from '../types/jira';
+import type { Fetched } from '../types/app';
 
 export type JiraApi = {
   sprint(projectKey: string): Promise<Fetched<Sprint>>;

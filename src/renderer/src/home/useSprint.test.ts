@@ -1,4 +1,5 @@
-import type { Fetched, Sprint } from '@shared/types';
+import type { Fetched } from '@shared/types/app';
+import type { Sprint } from '@shared/types/jira';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { fakeMaple } from '../testing/fakeMaple';
 import { SPRINT } from '../testing/sprintFixture';

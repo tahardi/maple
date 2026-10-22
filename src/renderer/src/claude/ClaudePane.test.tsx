@@ -1,4 +1,4 @@
-import type { TabStatus } from '@shared/types';
+import type { TabStatus } from '@shared/types/tabs';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebglAddon } from '@xterm/addon-webgl';

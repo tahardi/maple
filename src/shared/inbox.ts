@@ -1,4 +1,4 @@
-import type { TabKind, TabState, TabStatus } from './types';
+import type { TabKind, TabState, TabStatus } from './types/tabs';
 
 export type InboxItem = {
   tabId: string;

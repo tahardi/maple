@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { IpcMainInvokeEvent } from 'electron';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { ProjectConfig } from '@shared/types';
-import type { SessionManager } from '../sessions';
-import type { StatusEngine } from '../status';
-import type { Terminals } from '../terminals';
+import type { ProjectConfig } from '@shared/types/config';
+import type { SessionManager } from '@main/sessions/sessions';
+import type { StatusEngine } from '@main/sessions/status';
+import type { Terminals } from '@main/sessions/terminals';
 import { registerJira } from './jira';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;

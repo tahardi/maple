@@ -1,8 +1,8 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SessionManager } from '../sessions';
-import type { StatusEngine } from '../status';
-import type { Terminals } from '../terminals';
+import type { SessionManager } from '@main/sessions/sessions';
+import type { StatusEngine } from '@main/sessions/status';
+import type { Terminals } from '@main/sessions/terminals';
 import { registerVault } from './vault';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
@@ -15,8 +15,8 @@ const { handle, listNotes, readNote, vaultWrites } = vi.hoisted(() => ({
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('../vault', () => ({ listNotes, readNote }));
-vi.mock('../vaultWrites', () => ({ vaultWrites }));
+vi.mock('@main/vault/vault', () => ({ listNotes, readNote }));
+vi.mock('@main/vault/vaultWrites', () => ({ vaultWrites }));
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 

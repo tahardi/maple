@@ -5,6 +5,7 @@ import { defineConfig } from 'electron-vite';
 import type { Plugin } from 'vite';
 
 const alias = {
+  '@main': resolve('src/main'),
   '@shared': resolve('src/shared'),
   '@renderer': resolve('src/renderer/src'),
 };

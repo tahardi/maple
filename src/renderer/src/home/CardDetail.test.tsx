@@ -1,4 +1,5 @@
-import type { Card, TabState } from '@shared/types';
+import type { Card } from '@shared/types/jira';
+import type { TabState } from '@shared/types/tabs';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { card } from '../testing/sprintFixture';

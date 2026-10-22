@@ -1,4 +1,4 @@
-import type { SessionCost, TabState } from '@shared/types';
+import type { SessionCost, TabState } from '@shared/types/tabs';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';

@@ -1,5 +1,5 @@
 import type { ChannelKind } from '../ipc';
-import type { VaultNote } from '../types';
+import type { VaultNote } from '../types/files';
 
 export type VaultApi = {
   list(): Promise<VaultNote[]>;

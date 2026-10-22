@@ -1,4 +1,4 @@
-import type { Card, Sprint } from '@shared/types';
+import type { Card, Sprint } from '@shared/types/jira';
 
 export function card(key: string, status: Card['status'], extra: Partial<Card> = {}): Card {
   return {

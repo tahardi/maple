@@ -1,5 +1,5 @@
-import type { TabState } from '@shared/types';
-import { SUGGEST_PROMPT } from '@shared/prompts';
+import type { TabState } from '@shared/types/tabs';
+import { suggestPrompt } from '@shared/prompts';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
@@ -97,7 +97,7 @@ describe('PlannerPane', () => {
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Suggest next batch' }));
     // then
-    expect(sendPrompt).toHaveBeenCalledWith('p1', SUGGEST_PROMPT('DIG'));
+    expect(sendPrompt).toHaveBeenCalledWith('p1', suggestPrompt('DIG'));
     expect(onBatch).toHaveBeenCalledWith([]);
   });
 

@@ -1,4 +1,8 @@
-import type { Card, ChangeSet, Fetched, PrInfo, SessionCost, TabState } from '@shared/types';
+import type { Card } from '@shared/types/jira';
+import type { ChangeSet } from '@shared/types/files';
+import type { Fetched } from '@shared/types/app';
+import type { PrInfo } from '@shared/types/github';
+import type { SessionCost, TabState } from '@shared/types/tabs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMaple } from '../store';
 

@@ -2,9 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { expandHome } from '../../src/main/config';
-import { createLogger } from '../../src/main/log';
-import { defaultRunner, runPreflight } from '../../src/main/preflight';
+import { expandHome } from '../../src/main/app/config';
+import { createLogger } from '../../src/main/app/log';
+import { defaultRunner, runPreflight } from '../../src/main/app/preflight';
 
 describe('preflight', () => {
   test('passes on this machine and flags only a folder Claude has not trusted', async () => {

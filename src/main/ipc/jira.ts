@@ -1,11 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { BacklogGroup, Fetched, Filed, ProjectConfig, Report, Sprint } from '@shared/types';
-import { JiraClient, jiraEnvPath, readCreds, type JiraCreds } from '../jira';
-import { appLogger, logsDir, type Logger } from '../log';
-import { logTail, reportDescription } from '../report';
-import { SprintCache } from '../sprintCache';
+import type { BacklogGroup, Filed, Report, Sprint } from '@shared/types/jira';
+import type { Fetched } from '@shared/types/app';
+import type { ProjectConfig } from '@shared/types/config';
+import { JiraClient, jiraEnvPath, readCreds, type JiraCreds } from '@main/jira/jira';
+import { appLogger, logsDir, type Logger } from '@main/app/log';
+import { logTail, reportDescription } from '@main/jira/report';
+import { SprintCache } from '@main/jira/sprintCache';
 import type { IpcDeps } from './index';
 import { cardKeyArg, handle, projectKeyArg } from './validated';
 

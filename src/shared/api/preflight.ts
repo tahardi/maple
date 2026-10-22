@@ -1,5 +1,5 @@
 import type { ChannelKind } from '../ipc';
-import type { PreflightProblem } from '../types';
+import type { PreflightProblem } from '../types/app';
 
 export type PreflightApi = {
   run(): Promise<PreflightProblem[]>;

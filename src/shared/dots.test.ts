@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import type { Dot, PrInfo, TabState, TabStatus } from './types';
+import type { Dot, TabState, TabStatus } from './types/tabs';
+import type { PrInfo } from './types/github';
 import { nextDot, projectCounts, type DotInput } from './dots';
 
 const pr = (state: PrInfo['state'], failed: number): PrInfo => ({

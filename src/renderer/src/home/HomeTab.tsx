@@ -1,4 +1,5 @@
-import type { Card, TabState } from '@shared/types';
+import type { Card } from '@shared/types/jira';
+import type { TabState } from '@shared/types/tabs';
 import { useCallback, useState } from 'react';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';

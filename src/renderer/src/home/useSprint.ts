@@ -1,4 +1,5 @@
-import type { Fetched, Sprint } from '@shared/types';
+import type { Fetched } from '@shared/types/app';
+import type { Sprint } from '@shared/types/jira';
 import { useCallback, useEffect, useState } from 'react';
 
 const REFRESH_MS = 60_000;

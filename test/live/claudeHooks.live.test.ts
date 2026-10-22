@@ -3,12 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { HookEvent } from '@shared/types';
+import type { HookEvent } from '@shared/types/tabs';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { startHookServer } from '../../src/main/hookServer';
-import { writeHooksFile } from '../../src/main/hooksFile';
-import { createLogger } from '../../src/main/log';
-import { hasTranscript } from '../../src/main/transcripts';
+import { startHookServer } from '../../src/main/sessions/hookServer';
+import { writeHooksFile } from '../../src/main/sessions/hooksFile';
+import { createLogger } from '../../src/main/app/log';
+import { hasTranscript } from '../../src/main/sessions/transcripts';
 
 function runClaude(args: string[], env: Record<string, string>): Promise<{ code: number | null; stdout: string }> {
   return new Promise((done, fail) => {

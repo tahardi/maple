@@ -1,9 +1,9 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { PrInfo } from '@shared/types';
-import type { SessionManager } from '../sessions';
-import type { StatusEngine } from '../status';
-import type { Terminals } from '../terminals';
+import type { PrInfo } from '@shared/types/github';
+import type { SessionManager } from '@main/sessions/sessions';
+import type { StatusEngine } from '@main/sessions/status';
+import type { Terminals } from '@main/sessions/terminals';
 import { registerPr } from './pr';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
@@ -37,18 +37,10 @@ const {
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('../git', () => ({ currentBranch, changedSince }));
-vi.mock('../github', () => ({
-  prForBranch,
-  commentOnPr,
-  commentOnLine,
-  replyToComment,
-  resolveThread,
-  reviewComments,
-  diffLines,
-  headCommit,
-}));
-vi.mock('../preflight', () => ({ defaultRunner }));
+vi.mock('@main/git/git', () => ({ currentBranch, changedSince }));
+vi.mock('@main/github/pr', () => ({ prForBranch, commentOnPr, diffLines, headCommit }));
+vi.mock('@main/github/comments', () => ({ commentOnLine, replyToComment, resolveThread, reviewComments }));
+vi.mock('@main/app/preflight', () => ({ defaultRunner }));
 
 const event = {} as IpcMainInvokeEvent;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
