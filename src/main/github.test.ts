@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { commentOnLine, commentOnPr, prForBranch, reviewComments } from './github';
+import { commentOnLine, commentOnPr, diffLines, headCommit, prForBranch, reviewComments } from './github';
 import type { Runner } from './preflight';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../test/fixtures/gh', name), 'utf8');
@@ -159,17 +159,60 @@ describe('commentOnLine', () => {
     );
   });
 
-  test('rejects with the gh error', async () => {
+  test.each([
+    {
+      name: 'the reasons GitHub lists as strings',
+      stdout: JSON.stringify({
+        message: 'Validation Failed',
+        errors: ['pull_request_review_thread.line must be part of the diff'],
+        status: '422',
+      }),
+      want: 'commenting on line: pull_request_review_thread.line must be part of the diff',
+    },
+    {
+      name: 'the reasons GitHub lists as objects',
+      stdout: JSON.stringify({
+        message: 'Validation Failed',
+        errors: [{ resource: 'PullRequestReviewComment', code: 'custom', field: 'path', message: 'path is missing' }],
+      }),
+      want: 'commenting on line: path is missing',
+    },
+    {
+      name: 'every reason joined when GitHub lists several',
+      stdout: JSON.stringify({ message: 'Validation Failed', errors: ['line is wrong', { message: 'path is wrong' }] }),
+      want: 'commenting on line: line is wrong; path is wrong',
+    },
+    {
+      name: 'the GitHub message when the reasons are empty',
+      stdout: JSON.stringify({ message: 'Validation Failed', errors: [] }),
+      want: 'commenting on line: Validation Failed',
+    },
+    {
+      name: 'stderr when the JSON is not a GitHub error',
+      stdout: JSON.stringify({ errors: 5 }),
+      want: 'commenting on line: gh: Validation Failed (HTTP 422)',
+    },
+    {
+      name: 'the GitHub message when there are no reasons',
+      stdout: JSON.stringify({ message: 'Not Found', status: '404' }),
+      want: 'commenting on line: Not Found',
+    },
+    {
+      name: 'stderr when stdout is not JSON',
+      stdout: '',
+      want: 'commenting on line: gh: Validation Failed (HTTP 422)',
+    },
+  ])('rejects with $name', async ({ stdout, want }) => {
     // given
     const run = vi.fn<Runner>((_cmd, args) =>
       Promise.resolve(
-        args[0] === 'pr' ? ok('abc123\n') : { code: 1, stdout: '', stderr: 'line must be part of the diff' },
+        args[0] === 'pr' ? ok('abc123\n') : { code: 1, stdout, stderr: 'gh: Validation Failed (HTTP 422)' },
       ),
     );
     // when
     const result = commentOnLine(run, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
     // then
-    await expect(result).rejects.toThrow('commenting on line: line must be part of the diff');
+    await expect(result).rejects.toThrow(new Error(want));
   });
 
   test('rejects and posts nothing when the head commit lookup fails', async () => {
@@ -178,7 +221,7 @@ describe('commentOnLine', () => {
     // when
     const result = commentOnLine(run, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
     // then
-    await expect(result).rejects.toThrow('commenting on line: no pull requests found');
+    await expect(result).rejects.toThrow('commenting on line: reading PR head: no pull requests found');
     expect(run).toHaveBeenCalledTimes(1);
   });
 });
@@ -208,5 +251,82 @@ describe('reviewComments', () => {
     const result = reviewComments(run, '/wt', 33);
     // then
     await expect(result).rejects.toThrow('listing review comments: offline');
+  });
+});
+
+describe('diffLines', () => {
+  test('maps each file to the new-side ranges of its hunks', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve(ok(fixture('pr-files.json'))));
+    // when
+    const result = await diffLines(run, '/wt', 53);
+    // then
+    expect(run).toHaveBeenCalledWith(
+      'gh',
+      ['api', '--paginate', '--slurp', 'repos/{owner}/{repo}/pulls/53/files'],
+      '/wt',
+    );
+    expect(result).toEqual({
+      '.github/workflows/ci.yml': [[86, 96]],
+      'README.md': [[35, 49]],
+      'playwright.config.ts': [[1, 10]],
+      'test/e2e/fixtures/bin/claude': [],
+      'test/e2e/fixtures/config/config.json': [],
+      'test/e2e/fixtures/jira.env': [],
+      'test/e2e/fixtures/jiraServer.ts': [
+        [2, 26],
+        [38, 44],
+      ],
+      'test/e2e/smoke.spec.ts': [
+        [1, 14],
+        [17, 24],
+        [46, 105],
+        [141, 163],
+      ],
+      'tsconfig.node.json': [[18, 24]],
+    });
+  });
+
+  test('joins the files from every page', async () => {
+    // given
+    const pages = JSON.stringify([
+      [{ filename: 'a.ts', patch: '@@ -1 +1 @@\n-a\n+b' }],
+      [{ filename: 'b.ts', patch: '@@ -3,2 +3,4 @@\n x\n+y\n+z\n w' }],
+    ]);
+    const run = vi.fn<Runner>(() => Promise.resolve(ok(pages)));
+    // when
+    const result = await diffLines(run, '/wt', 53);
+    // then
+    expect(result).toEqual({ 'a.ts': [[1, 1]], 'b.ts': [[3, 6]] });
+  });
+
+  test('rejects with the gh error', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'offline' }));
+    // when
+    const result = diffLines(run, '/wt', 53);
+    // then
+    await expect(result).rejects.toThrow('listing PR files: offline');
+  });
+});
+
+describe('headCommit', () => {
+  test('returns the PR head commit', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve(ok('abc123\n')));
+    // when
+    const head = await headCommit(run, '/wt', 33);
+    // then
+    expect(head).toBe('abc123');
+    expect(run).toHaveBeenCalledWith('gh', ['pr', 'view', '33', '--json', 'headRefOid', '--jq', '.headRefOid'], '/wt');
+  });
+
+  test('rejects with the gh error', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'no pull requests found' }));
+    // when
+    const result = headCommit(run, '/wt', 33);
+    // then
+    await expect(result).rejects.toThrow('reading PR head: no pull requests found');
   });
 });
