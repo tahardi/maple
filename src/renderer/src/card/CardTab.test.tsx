@@ -45,7 +45,7 @@ const pr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
-  checks: { passed: 4, failed: 0, pending: 0, total: 4 },
+  checks: { passed: 4, failed: 0, pending: 0, total: 4, runs: [] },
 };
 
 function fakeRepo(withPr: boolean) {

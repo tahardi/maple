@@ -11,7 +11,7 @@ const pr = (state: PrInfo['state'], failed: number): PrInfo => ({
   needsTaylor: null,
   cardImpacts: null,
   body: '',
-  checks: { passed: 3 - failed, failed, pending: 0, total: 3 },
+  checks: { passed: 3 - failed, failed, pending: 0, total: 3, runs: [] },
 });
 
 describe('nextDot', () => {

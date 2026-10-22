@@ -33,7 +33,7 @@ const openPr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
-  checks: { passed: 2, failed: 0, pending: 0, total: 2 },
+  checks: { passed: 2, failed: 0, pending: 0, total: 2, runs: [] },
 };
 
 type Overrides = {

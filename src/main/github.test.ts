@@ -26,6 +26,7 @@ const ok = (stdout: string): Reply => ({ code: 0, stdout, stderr: '' });
 describe('prForBranch', () => {
   test('returns the PR with parsed sections and a checks summary', async () => {
     // given
+    const jobs = 'https://github.com/tahardi/maple/actions/runs/18620000001/job';
     const run = fakeRunner(ok(fixture('pr-list.json')), { code: 8, stdout: fixture('pr-checks.json'), stderr: '' });
     // when
     const pr = await prForBranch(run, '/wt', 'mpl-13-github-client');
@@ -41,7 +42,19 @@ describe('prForBranch', () => {
       body:
         '## Describe your changes\n\nAdds the GitHub client.\n\n## Deviations from the card\n\nNone\n\n' +
         '## Needs Taylor\n\n- Try it on device\n\n## Card impacts\n\n- MPL-15: rename foo to bar\n',
-      checks: { passed: 4, failed: 0, pending: 1, total: 5 },
+      checks: {
+        passed: 4,
+        failed: 0,
+        pending: 1,
+        total: 5,
+        runs: [
+          { name: 'format', bucket: 'pass', link: `${jobs}/53090000001` },
+          { name: 'lint', bucket: 'pass', link: `${jobs}/53090000002` },
+          { name: 'typecheck', bucket: 'pass', link: `${jobs}/53090000003` },
+          { name: 'unit-test', bucket: 'skipping', link: `${jobs}/53090000004` },
+          { name: 'e2e', bucket: 'pending', link: `${jobs}/53090000005` },
+        ],
+      },
     });
     expect(run).toHaveBeenCalledWith(
       'gh',
@@ -59,17 +72,21 @@ describe('prForBranch', () => {
       ],
       '/wt',
     );
-    expect(run).toHaveBeenCalledWith('gh', ['pr', 'checks', '33', '--json', 'bucket'], '/wt');
+    expect(run).toHaveBeenCalledWith('gh', ['pr', 'checks', '33', '--json', 'name,bucket,link'], '/wt');
   });
 
   test('counts failed and cancelled checks as failed', async () => {
     // given
-    const buckets = JSON.stringify([{ bucket: 'fail' }, { bucket: 'cancel' }, { bucket: 'pass' }]);
-    const run = fakeRunner(ok(fixture('pr-list.json')), ok(buckets));
+    const runs = [
+      { name: 'lint', bucket: 'fail', link: 'https://github.com/tahardi/maple/actions/runs/1/job/1' },
+      { name: 'e2e', bucket: 'cancel', link: 'https://github.com/tahardi/maple/actions/runs/1/job/2' },
+      { name: 'format', bucket: 'pass', link: 'https://github.com/tahardi/maple/actions/runs/1/job/3' },
+    ];
+    const run = fakeRunner(ok(fixture('pr-list.json')), ok(JSON.stringify(runs)));
     // when
     const pr = await prForBranch(run, '/wt', 'b');
     // then
-    expect(pr?.checks).toEqual({ passed: 1, failed: 2, pending: 0, total: 3 });
+    expect(pr?.checks).toEqual({ passed: 1, failed: 2, pending: 0, total: 3, runs });
   });
 
   test('returns all zeros when no checks are reported yet', async () => {
@@ -82,7 +99,7 @@ describe('prForBranch', () => {
     // when
     const pr = await prForBranch(run, '/wt', 'b');
     // then
-    expect(pr?.checks).toEqual({ passed: 0, failed: 0, pending: 0, total: 0 });
+    expect(pr?.checks).toEqual({ passed: 0, failed: 0, pending: 0, total: 0, runs: [] });
   });
 
   test('returns null when the branch has no PR', async () => {

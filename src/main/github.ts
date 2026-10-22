@@ -14,7 +14,13 @@ const listSchema = z.array(
   }),
 );
 
-const checksSchema = z.array(z.object({ bucket: z.string() }));
+const checksSchema = z.array(
+  z.object({
+    name: z.string(),
+    bucket: z.enum(['pass', 'fail', 'pending', 'skipping', 'cancel']),
+    link: z.string(),
+  }),
+);
 
 const reviewCommentsSchema = z.array(
   z.array(
@@ -91,20 +97,25 @@ function apiReason(stdout: string, stderr: string): string {
 }
 
 async function checksFor(run: Runner, worktree: string, num: number): Promise<ChecksSummary> {
-  const { code, stdout, stderr } = await run('gh', ['pr', 'checks', String(num), '--json', 'bucket'], worktree);
+  const { code, stdout, stderr } = await run(
+    'gh',
+    ['pr', 'checks', String(num), '--json', 'name,bucket,link'],
+    worktree,
+  );
   if (code !== 0 && code !== pendingExitCode) {
     if (stderr.includes('no checks reported')) {
-      return { passed: 0, failed: 0, pending: 0, total: 0 };
+      return { passed: 0, failed: 0, pending: 0, total: 0, runs: [] };
     }
     throw new Error(`checking PR: ${stderr}`);
   }
-  const buckets = checksSchema.parse(JSON.parse(stdout)).map((c) => c.bucket);
-  const count = (names: string[]) => buckets.filter((b) => names.includes(b)).length;
+  const runs = checksSchema.parse(JSON.parse(stdout));
+  const count = (names: string[]) => runs.filter((r) => names.includes(r.bucket)).length;
   return {
     passed: count(['pass', 'skipping']),
     failed: count(['fail', 'cancel']),
     pending: count(['pending']),
-    total: buckets.length,
+    total: runs.length,
+    runs,
   };
 }
 

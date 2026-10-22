@@ -62,7 +62,8 @@ export type ReviewComment = {
   threadId: string | null;
   resolved: boolean;
 };
-export type ChecksSummary = { passed: number; failed: number; pending: number; total: number };
+export type CheckRun = { name: string; bucket: 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel'; link: string };
+export type ChecksSummary = { passed: number; failed: number; pending: number; total: number; runs: CheckRun[] };
 export type PrInfo = {
   number: number;
   url: string;
