@@ -34,6 +34,9 @@ export class StatusEngine extends EventEmitter<Events> {
         this.log.info('dot', 'changed', { tabId, from: prev.status.dot, to: dot, input: 'spawn' });
       }
       this.emitStatus(tabId, prev?.status.dot ?? dot);
+      if (!prompted) {
+        void this.restoreMergedDot(tabId);
+      }
     });
     sessions.on('exit', (tabId, exitCode) => {
       const tracked = this.tabs.get(tabId);
@@ -99,6 +102,24 @@ export class StatusEngine extends EventEmitter<Events> {
     const tracked = this.tabs.get(tabId);
     if (tracked?.seq === seq) {
       this.setDot(tracked, input === null ? 'waiting' : nextDot(input), this.inputFields(input));
+    }
+  }
+
+  private async restoreMergedDot(tabId: string): Promise<void> {
+    const tab = this.deps.sessions.get(tabId);
+    const seq = this.tabs.get(tabId)?.seq;
+    if (tab?.kind !== 'card' || tab.cardKey === null || seq === undefined) {
+      return;
+    }
+    let card: Card;
+    try {
+      card = await this.deps.getCard(tab.cardKey).catch((err: unknown) => this.fail('jira', 'getCard', err));
+    } catch {
+      return;
+    }
+    const tracked = this.tabs.get(tabId);
+    if (card.status === 'Done' && tracked?.seq === seq) {
+      this.setDot(tracked, 'merged', { input: 'spawn', cardStatus: card.status });
     }
   }
 
