@@ -63,6 +63,30 @@ describe('toDecorations', () => {
         hover: 'Was:\n```\ngone\n```',
       },
     },
+    {
+      name: 'a chg whose old text has three backticks in a longer fence',
+      mark: { kind: 'chg', line: 2, oldText: 'a\n```\n[x](https://evil.example)' },
+      want: {
+        startLine: 2,
+        endLine: 2,
+        className: 'line-chg',
+        marginClassName: 'margin-chg',
+        overviewColor: '#d4b106',
+        hover: 'Was:\n````\na\n```\n[x](https://evil.example)\n````',
+      },
+    },
+    {
+      name: 'a del whose old text has a single backtick in a three-backtick fence',
+      mark: { kind: 'del', afterLine: 5, oldText: 'x = `y`' },
+      want: {
+        startLine: 5,
+        endLine: 5,
+        className: 'del-below',
+        marginClassName: 'margin-del',
+        overviewColor: '#e5534b',
+        hover: 'Was:\n```\nx = `y`\n```',
+      },
+    },
   ])('maps $name', ({ mark, want }) => {
     // given
     const marks = [mark];
@@ -70,6 +94,30 @@ describe('toDecorations', () => {
     const specs = toDecorations(marks);
     // then
     expect(specs).toEqual([want]);
+  });
+
+  test.each([
+    { name: 'the longest of several backtick runs', oldText: '`a` ```b``` ``c``', want: '````' },
+    { name: 'a run longer than three', oldText: 'a\n`````\nb', want: '``````' },
+    { name: 'old text that is only backticks', oldText: '```', want: '````' },
+    { name: 'empty old text', oldText: '', want: '```' },
+  ])('fences $name', ({ oldText, want }) => {
+    // given
+    const marks: LineMark[] = [{ kind: 'chg', line: 1, oldText }];
+    // when
+    const specs = toDecorations(marks);
+    // then
+    expect(specs[0]?.hover).toBe(`Was:\n${want}\n${oldText}\n${want}`);
+  });
+
+  test('fences old text with very many backtick runs', () => {
+    // given
+    const oldText = '`a'.repeat(500000);
+    const marks: LineMark[] = [{ kind: 'chg', line: 1, oldText }];
+    // when
+    const specs = toDecorations(marks);
+    // then
+    expect(specs[0]?.hover).toBe(`Was:\n\`\`\`\n${oldText}\n\`\`\``);
   });
 
   test('keeps marks in order', () => {

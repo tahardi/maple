@@ -10,7 +10,12 @@ export type DecorationSpec = {
 };
 
 function was(oldText: string | null): string | null {
-  return oldText === null ? null : `Was:\n\`\`\`\n${oldText}\n\`\`\``;
+  if (oldText === null) {
+    return null;
+  }
+  const longest = (oldText.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
+  const fence = '`'.repeat(Math.max(3, longest + 1));
+  return `Was:\n${fence}\n${oldText}\n${fence}`;
 }
 
 function toDecoration(mark: LineMark): DecorationSpec {

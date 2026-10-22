@@ -222,6 +222,31 @@ describe('CardTab', () => {
     });
   });
 
+  test('marks the files that have review comments in the tree', async () => {
+    // given
+    fakeRepo(true);
+    window.maple.pr.comments = vi.fn(() =>
+      Promise.resolve([
+        {
+          id: 1,
+          replyTo: null,
+          startLine: null,
+          path: 'src/a.ts',
+          line: 1,
+          author: 'tahardi',
+          body: 'why?',
+          threadId: null,
+          resolved: false,
+        },
+      ]),
+    );
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const mark = await screen.findByRole('img', { name: 'Has review comments' });
+    expect(mark.closest('li')).toHaveTextContent(/^a\.ts/);
+  });
+
   test('opens tree selections as file tabs and closes them', async () => {
     // given
     fakeRepo(false);
