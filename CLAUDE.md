@@ -7,6 +7,7 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
 - Never add code comments unless the card asks for one - the code and the card are the documentation.
 - Keep lines at 120 characters or less - Prettier enforces it with `.prettierrc`.
 - One component, hook, or module per file - small focused files are easier to review.
+- Group files by topic in folders: `src/main/<topic>/`, `src/renderer/src/<area>/<topic>/`, `src/shared/types/<subject>.ts` - put a new file next to what it works with, and start a new folder once a topic has more than one file.
 - Name components `PascalCase.tsx` and everything else `camelCase.ts` - the name tells you what the file holds.
 - Error messages are present tense and start with an "-ing" verb, like `reading config: x` - they read as a trail.
 - Pin dependencies exactly with `npm install --save-exact` - builds stay reproducible.

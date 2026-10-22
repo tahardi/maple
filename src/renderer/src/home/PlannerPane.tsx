@@ -1,4 +1,4 @@
-import { SUGGEST_PROMPT } from '@shared/prompts';
+import { suggestPrompt } from '@shared/prompts';
 import { useEffect, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import styles from './PlannerPane.module.css';
@@ -60,7 +60,7 @@ export function PlannerPane({
     }
     setAnswered(false);
     onBatch([]);
-    window.maple.session.sendPrompt(tabId, SUGGEST_PROMPT(projectKey));
+    window.maple.session.sendPrompt(tabId, suggestPrompt(projectKey));
   };
 
   return (

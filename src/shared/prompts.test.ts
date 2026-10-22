@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { cardPrompt, fillAction, SUGGEST_PROMPT } from './prompts';
+import { cardPrompt, fillAction, suggestPrompt } from './prompts';
 
 describe('cardPrompt', () => {
   test('builds the card command', () => {
@@ -26,12 +26,12 @@ describe('fillAction', () => {
   });
 });
 
-describe('SUGGEST_PROMPT', () => {
+describe('suggestPrompt', () => {
   test('names the sprint and ends with the batch format', () => {
     // given
     const jiraKey = 'DIG';
     // when
-    const prompt = SUGGEST_PROMPT(jiraKey);
+    const prompt = suggestPrompt(jiraKey);
     // then
     expect(prompt).toContain('active DIG sprint');
     expect(prompt.endsWith('(or MAPLE-BATCH: none).')).toBe(true);
@@ -41,7 +41,7 @@ describe('SUGGEST_PROMPT', () => {
     // given
     const jiraKey = 'DIG';
     // when
-    const prompt = SUGGEST_PROMPT(jiraKey);
+    const prompt = suggestPrompt(jiraKey);
     // then
     expect(prompt).toContain('If no To Do card in the active DIG sprint can start');
     expect(prompt).toContain('DIG backlog');
