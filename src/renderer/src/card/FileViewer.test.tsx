@@ -1122,6 +1122,19 @@ describe('FileViewer', () => {
     expect(comments).toHaveBeenCalledWith('t1');
   });
 
+  test('reports each read of the review comments', async () => {
+    // given
+    const comments = vi.fn(() => Promise.resolve([review(101, 'why?')]));
+    const onComments = vi.fn();
+    const { props, rerender } = renderViewer(same, undefined, true, comments);
+    // when
+    rerender(<FileViewer {...props} onComments={onComments} />);
+    // then
+    await vi.waitFor(() => {
+      expect(onComments).toHaveBeenCalledWith([review(101, 'why?')]);
+    });
+  });
+
   test('adds no zone without review comments', async () => {
     // given
     const comments = vi.fn(() => Promise.resolve([]));

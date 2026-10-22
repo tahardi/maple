@@ -27,6 +27,7 @@ type Props = {
   line: number | null;
   canComment: boolean;
   prFetchedAt: string | null;
+  onComments?: (comments: readonly ReviewComment[]) => void;
 };
 
 type Mode = 'in-file' | 'side-by-side';
@@ -83,6 +84,7 @@ export function FileViewer({
   line,
   canComment,
   prFetchedAt,
+  onComments,
 }: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
@@ -231,6 +233,7 @@ export function FileViewer({
       (next) => {
         if (live) {
           setComments(next);
+          onComments?.(next);
         }
       },
       () => undefined,
@@ -238,7 +241,7 @@ export function FileViewer({
     return () => {
       live = false;
     };
-  }, [tabId, canComment, commentsRead, prFetchedAt, dot]);
+  }, [tabId, canComment, commentsRead, prFetchedAt, dot, onComments]);
 
   useEffect(() => {
     if (!canComment) {
