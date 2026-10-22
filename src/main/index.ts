@@ -75,6 +75,11 @@ async function start(): Promise<() => number> {
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
   const tmuxConf = await writeTmuxConf(configDir());
   const socketPath = hookSocketPath();
+  const creds = readCreds(jiraEnvPath());
+  const jiraEnv = await creds.then(
+    (c): Record<string, string> => ({ JIRA_SITE: c.site, JIRA_EMAIL: c.email, JIRA_TOKEN: c.token }),
+    () => ({}),
+  );
   let saved = state;
   let saving = Promise.resolve();
   const persist = (patch: Partial<SavedState>) => {
@@ -99,9 +104,10 @@ async function start(): Promise<() => number> {
     hasTranscript,
     tmuxConf,
     endTmux,
+    sessionEnv: jiraEnv,
   });
   const terminals = new Terminals({ spawn });
-  const jira = readCreds(jiraEnvPath()).then((creds) => new JiraClient(creds));
+  const jira = creds.then((c) => new JiraClient(c));
   jira.catch(() => undefined);
   const status = new StatusEngine({
     sessions,

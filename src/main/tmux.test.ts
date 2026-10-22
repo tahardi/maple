@@ -44,7 +44,7 @@ describe('writeTmuxConf', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('writes a conf that hides the status bar and frees Ctrl+B', async () => {
+  test('writes a conf that hides the status bar, frees Ctrl+B, and passes the Jira env into sessions', async () => {
     // given
     const want = [
       'set -g status off',
@@ -52,6 +52,9 @@ describe('writeTmuxConf', () => {
       'unbind C-b',
       'set -g escape-time 0',
       "set -ga terminal-overrides ',xterm-256color:smcup@:rmcup@'",
+      'set -ga update-environment JIRA_SITE',
+      'set -ga update-environment JIRA_EMAIL',
+      'set -ga update-environment JIRA_TOKEN',
     ];
     // when
     const path = await writeTmuxConf(dir);

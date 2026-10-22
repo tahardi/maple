@@ -71,6 +71,8 @@ function fakeSpawn(ptys: FakePty[]): typeof spawn {
   });
 }
 
+const JIRA_ENV = { JIRA_SITE: 'https://x.atlassian.net', JIRA_EMAIL: 'me@example.com', JIRA_TOKEN: 'tok-1' };
+
 function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: string) => boolean = () => true) {
   const ptys: FakePty[] = [];
   let n = 0;
@@ -89,6 +91,7 @@ function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: 
     hasTranscript,
     tmuxConf: '/tmp/maple/tmux.conf',
     endTmux,
+    sessionEnv: JIRA_ENV,
     logger,
   });
   return { manager, ptys, save, spawnFn, logger, endTmux };
@@ -147,6 +150,16 @@ describe('SessionManager', () => {
     vi.unstubAllEnvs();
     expect(ptys[0].options.env).not.toHaveProperty('CLAUDE_CODE_CHILD_SESSION');
     expect(ptys[0].options.env).toMatchObject({ MAPLE_TEST_KEEP: 'kept' });
+  });
+
+  test('gives the session the Jira env through the pty env, never the tmux arguments', () => {
+    // given
+    const { manager, ptys } = setup();
+    // when
+    manager.openPlanner('DIG', null);
+    // then
+    expect(ptys[0].options.env).toMatchObject(JIRA_ENV);
+    expect(ptys[0].args.join(' ')).not.toContain('tok-1');
   });
 
   test('logs spawned with the args', () => {
