@@ -87,6 +87,51 @@ describe('CardDetail', () => {
     expect(screen.getByRole('complementary').querySelector('img')).toBeNull();
   });
 
+  test.each([
+    { name: 'a backlog card', status: 'To Do' as const, hasTab: false },
+    { name: 'an In Progress backlog card', status: 'In Progress' as const, hasTab: false },
+    { name: 'a backlog card with a tab', status: 'In Progress' as const, hasTab: true },
+  ])('$name offers Add to sprint instead of Start', async ({ status, hasTab }) => {
+    // given
+    const onAddToSprint = vi.fn();
+    render(
+      <CardDetail
+        card={card('DIG-41', status)}
+        tab={hasTab ? tab : null}
+        failure={null}
+        onStart={vi.fn()}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+        onClose={vi.fn()}
+        onAddToSprint={onAddToSprint}
+      />,
+    );
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Add to sprint' }));
+    // then
+    const actions = screen.getAllByRole('button').filter((b) => b.textContent !== 'Close');
+    expect(actions.map((b) => b.textContent)).toEqual(['Add to sprint']);
+    expect(onAddToSprint).toHaveBeenCalledOnce();
+  });
+
+  test('Add to sprint is disabled without an active sprint', () => {
+    // given
+    render(
+      <CardDetail
+        card={card('DIG-41', 'To Do')}
+        tab={null}
+        failure={null}
+        onStart={vi.fn()}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+        onClose={vi.fn()}
+        onAddToSprint={null}
+      />,
+    );
+    // then
+    expect(screen.getByRole('button', { name: 'Add to sprint' })).toBeDisabled();
+  });
+
   test('Close calls onClose', async () => {
     // given
     const { onClose } = renderDetail(card('DIG-41', 'To Do'), null);

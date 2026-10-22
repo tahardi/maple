@@ -1,9 +1,9 @@
 import type { BacklogGroup } from '@shared/types';
 import styles from './Backlog.module.css';
 
-type Props = { groups: readonly BacklogGroup[]; highlighted?: readonly string[] };
+type Props = { groups: readonly BacklogGroup[]; highlighted?: readonly string[]; onSelect: (key: string) => void };
 
-export function Backlog({ groups, highlighted = [] }: Props) {
+export function Backlog({ groups, highlighted = [], onSelect }: Props) {
   const count = groups.reduce((sum, g) => sum + g.cards.length, 0);
 
   return (
@@ -20,9 +20,16 @@ export function Backlog({ groups, highlighted = [] }: Props) {
                 className={styles.card}
                 data-highlighted={highlighted.includes(card.key) ? 'true' : undefined}
               >
-                <span className={styles.key}>{card.key}</span>
-                <span>{card.summary}</span>
-                {card.points !== null && <span className={styles.points}>{`${String(card.points)} pts`}</span>}
+                <button
+                  className={styles.button}
+                  onClick={() => {
+                    onSelect(card.key);
+                  }}
+                >
+                  <span className={styles.key}>{card.key}</span>
+                  <span>{card.summary}</span>
+                  {card.points !== null && <span className={styles.points}>{`${String(card.points)} pts`}</span>}
+                </button>
               </li>
             ))}
           </ul>
