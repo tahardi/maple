@@ -12,7 +12,14 @@ vi.mock('./monacoSetup', () => ({}));
 const monaco = vi.hoisted(() => {
   const collection = { clear: vi.fn() };
   const zones = {
-    addZone: vi.fn<(zone: { afterLineNumber: number; domNode: HTMLElement; heightInPx: number }) => string>(() => 'z1'),
+    addZone: vi.fn<
+      (zone: {
+        afterLineNumber: number;
+        domNode: HTMLElement;
+        heightInPx: number;
+        suppressMouseDown?: boolean;
+      }) => string
+    >(() => 'z1'),
     removeZone: vi.fn(),
     layoutZone: vi.fn(),
   };
@@ -935,7 +942,7 @@ describe('FileViewer', () => {
     });
   });
 
-  test('Comment opens the line comment form for the cursor line', async () => {
+  test('Comment opens the line comment form in a zone under the cursor line', async () => {
     // given
     renderViewer(changed, undefined, true);
     const button = await screen.findByRole('button', { name: 'Comment' });
@@ -945,7 +952,155 @@ describe('FileViewer', () => {
     // when
     await userEvent.click(button);
     // then
-    expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:3' })).toBeInTheDocument();
+    expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    expect(zone.afterLineNumber).toBe(3);
+    expect(Number(zone.domNode.style.zIndex)).toBeGreaterThan(0);
+    expect(zone.suppressMouseDown).not.toBe(true);
+    within(zone.domNode).getByRole('heading', { name: 'Comment on src/a.ts:3' });
+    expect(screen.queryByRole('heading', { name: /^Comment on / })).not.toBeInTheDocument();
+  });
+
+  test('Cancel removes the new comment zone without posting', async () => {
+    // given
+    renderViewer(changed, undefined, true);
+    const comment = vi.spyOn(window.maple.pr, 'comment');
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    await userEvent.click(button);
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    // when
+    fireEvent.click(within(zone.domNode).getByRole('button', { name: 'Cancel' }));
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.zones.removeZone).toHaveBeenCalledWith('z1');
+    });
+    expect(comment).not.toHaveBeenCalled();
+  });
+
+  test('keeps keys typed in a new comment from reaching the editor', async () => {
+    // given
+    renderViewer(changed, undefined, true);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    await userEvent.click(button);
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    const box = within(zone.domNode).getByRole('textbox');
+    const outer = document.createElement('div');
+    outer.appendChild(zone.domNode);
+    const reached = vi.fn();
+    outer.addEventListener('keydown', reached);
+    // when
+    fireEvent.keyDown(box, { key: 'a' });
+    // then
+    expect(reached).not.toHaveBeenCalled();
+  });
+
+  test('opens the form under a thread on the same line without replacing it', async () => {
+    // given
+    monaco.zones.addZone.mockReturnValueOnce('z1').mockReturnValueOnce('z2');
+    renderViewer(
+      changed,
+      undefined,
+      true,
+      vi.fn(() => Promise.resolve([review(101, 'why?')])),
+    );
+    await vi.waitFor(() => {
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    });
+    const button = screen.getByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    // when
+    await userEvent.click(button);
+    // then
+    expect(monaco.zones.addZone).toHaveBeenCalledTimes(2);
+    const [thread] = monaco.zones.addZone.mock.calls[0];
+    const [form] = monaco.zones.addZone.mock.calls[1];
+    expect(thread.afterLineNumber).toBe(3);
+    expect(form.afterLineNumber).toBe(3);
+    within(form.domNode).getByRole('heading', { name: 'Comment on src/a.ts:3' });
+    expect(thread.domNode).toHaveTextContent('why?');
+    expect(monaco.zones.removeZone).not.toHaveBeenCalled();
+  });
+
+  test('moves the form to the last line of a new selection', async () => {
+    // given
+    renderViewer(changed, undefined, true);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    await userEvent.click(button);
+    act(() => {
+      monaco.cursor.value(select(5, 6));
+    });
+    // when
+    await userEvent.click(button);
+    // then
+    expect(monaco.zones.removeZone).toHaveBeenCalledWith('z1');
+    expect(monaco.zones.addZone).toHaveBeenCalledTimes(2);
+    const [zone] = monaco.zones.addZone.mock.calls[1];
+    expect(zone.afterLineNumber).toBe(6);
+    within(zone.domNode).getByRole('heading', { name: 'Comment on src/a.ts:5-6' });
+  });
+
+  test('keeps the form zone and shows the error when posting fails', async () => {
+    // given
+    renderViewer(changed, undefined, true);
+    vi.spyOn(window.maple.pr, 'comment').mockRejectedValue(new Error('posting review comment: offline'));
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    await userEvent.click(button);
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    const form = within(zone.domNode);
+    // when
+    fireEvent.change(form.getByRole('textbox'), { target: { value: 'why?' } });
+    fireEvent.click(form.getByRole('button', { name: 'Post' }));
+    // then
+    expect(await form.findByRole('alert')).toHaveTextContent('posting review comment: offline');
+    expect(monaco.zones.removeZone).not.toHaveBeenCalled();
+  });
+
+  test('removes the form zone when another file opens', async () => {
+    // given
+    const { props, rerender } = renderViewer(changed, undefined, true);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    await userEvent.click(button);
+    expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    // when
+    rerender(<FileViewer {...props} activeFile="README.md" />);
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.zones.removeZone).toHaveBeenCalledWith('z1');
+    });
+  });
+
+  test('removes the form zone when switching to side by side', async () => {
+    // given
+    renderViewer(changed, undefined, true);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    await userEvent.click(button);
+    expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Side by side' }));
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.zones.removeZone).toHaveBeenCalledWith('z1');
+    });
   });
 
   test.each([
@@ -985,9 +1140,12 @@ describe('FileViewer', () => {
     });
     // when
     await userEvent.click(button);
-    expect(screen.getByRole('heading', { name: want })).toBeInTheDocument();
-    await userEvent.type(screen.getByRole('textbox'), 'why?');
-    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    expect(zone.afterLineNumber).toBe(4);
+    const form = within(zone.domNode);
+    form.getByRole('heading', { name: want });
+    fireEvent.change(form.getByRole('textbox'), { target: { value: 'why?' } });
+    fireEvent.click(form.getByRole('button', { name: 'Post' }));
     // then
     expect(comment).toHaveBeenCalledWith('t1', 'src/a.ts', 2, 4, 'why?');
   });
@@ -1051,7 +1209,7 @@ describe('FileViewer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     // then
     expect(await screen.findByRole('alert')).toHaveTextContent(`Can't comment on line ${String(cursor)}. ${reason}`);
-    expect(screen.queryByRole('heading', { name: /^Comment on / })).not.toBeInTheDocument();
+    expect(monaco.zones.addZone).not.toHaveBeenCalled();
   });
 
   test('drops the explanation and opens the form once the cursor moves into the PR diff', async () => {
@@ -1074,7 +1232,9 @@ describe('FileViewer', () => {
     // then
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
-    expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:10' })).toBeInTheDocument();
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    expect(zone.afterLineNumber).toBe(10);
+    within(zone.domNode).getByRole('heading', { name: 'Comment on src/a.ts:10' });
   });
 
   test.each<{ name: string; canComment: boolean; mode: string; pair: FilePair; testId: string }>([
@@ -1436,16 +1596,18 @@ describe('FileViewer', () => {
       expect(button).not.toHaveAttribute('title');
     });
     await userEvent.click(button);
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    const form = within(zone.domNode);
     // when
-    await userEvent.type(screen.getByRole('textbox'), 'why?');
-    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    fireEvent.change(form.getByRole('textbox'), { target: { value: 'why?' } });
+    fireEvent.click(form.getByRole('button', { name: 'Post' }));
     // then
     await vi.waitFor(() => {
       expect(comments).toHaveBeenCalledTimes(2);
       expect(diffLines).toHaveBeenCalledTimes(2);
     });
     expect(diffLines).toHaveBeenCalledWith('t1');
-    expect(screen.queryByRole('heading', { name: 'Comment on src/a.ts:3' })).not.toBeInTheDocument();
+    expect(monaco.zones.removeZone).toHaveBeenCalledWith('z1');
   });
 
   test('shows a dot on every open file with a draft', async () => {
