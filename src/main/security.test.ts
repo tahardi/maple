@@ -8,12 +8,26 @@ const { openExternal } = vi.hoisted(() => ({ openExternal: vi.fn(() => Promise.r
 vi.mock('electron', () => ({ shell: { openExternal } }));
 
 type OpenHandler = (details: { url: string }) => { action: string };
+type RequestHandler = (contents: unknown, permission: string, callback: (granted: boolean) => void) => void;
+type CheckHandler = (contents: unknown, permission: string) => boolean;
 
 function fakeContents() {
   let openHandler: OpenHandler = () => ({ action: 'allow' });
+  let requestHandler: RequestHandler = (_contents, _permission, callback) => {
+    callback(true);
+  };
+  let checkHandler: CheckHandler = () => true;
   const contents = Object.assign(new EventEmitter(), {
     setWindowOpenHandler: (handler: OpenHandler) => {
       openHandler = handler;
+    },
+    session: {
+      setPermissionRequestHandler: (handler: RequestHandler) => {
+        requestHandler = handler;
+      },
+      setPermissionCheckHandler: (handler: CheckHandler) => {
+        checkHandler = handler;
+      },
     },
   });
   lockDown(contents as unknown as WebContents, 'file:///opt/maple/renderer/index.html');
@@ -24,6 +38,12 @@ function fakeContents() {
       contents.emit(event, { preventDefault, url });
       return preventDefault;
     },
+    request: (permission: string) => {
+      const callback = vi.fn();
+      requestHandler(contents, permission, callback);
+      return callback;
+    },
+    check: (permission: string) => checkHandler(contents, permission),
   };
 }
 
@@ -86,5 +106,26 @@ describe('lockDown', () => {
     const preventDefault = contents.navigate(event, url);
     // then
     expect(preventDefault).toHaveBeenCalledTimes(prevented ? 1 : 0);
+  });
+
+  test.each([
+    { permission: 'clipboard-read', allowed: true },
+    { permission: 'clipboard-sanitized-write', allowed: true },
+    { permission: 'notifications', allowed: false },
+    { permission: 'media', allowed: false },
+    { permission: 'geolocation', allowed: false },
+    { permission: 'openExternal', allowed: false },
+    { permission: 'clipboard-read-x', allowed: false },
+    { permission: '', allowed: false },
+  ])('grants $permission: $allowed', ({ permission, allowed }) => {
+    // given
+    const contents = fakeContents();
+    // when
+    const callback = contents.request(permission);
+    const checked = contents.check(permission);
+    // then
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(allowed);
+    expect(checked).toBe(allowed);
   });
 });
