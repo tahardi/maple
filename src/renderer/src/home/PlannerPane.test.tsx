@@ -1,5 +1,5 @@
 import type { TabState } from '@shared/types/tabs';
-import { suggestPrompt } from '@shared/prompts';
+import { refinePrompt, suggestPrompt } from '@shared/prompts';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
@@ -22,11 +22,12 @@ type Options = {
   selected?: readonly string[];
   toAccept?: readonly string[];
   readyCount?: number;
+  refineCount?: number;
   failure?: string | null;
 };
 
 function setup(
-  { selected = [], toAccept = [], readyCount = 0, failure = null }: Options = {},
+  { selected = [], toAccept = [], readyCount = 0, refineCount = 0, failure = null }: Options = {},
   planner: Promise<TabState> = Promise.resolve(PLANNER),
 ) {
   let emit: (keys: string[]) => void = () => undefined;
@@ -50,6 +51,7 @@ function setup(
       onBatch={onBatch}
       selected={selected}
       readyCount={readyCount}
+      refineCount={refineCount}
       onSelectReady={onSelectReady}
       onStart={onStart}
       onClear={onClear}
@@ -112,6 +114,48 @@ describe('PlannerPane', () => {
     expect(onBatch).toHaveBeenCalledWith(['DIG-44', 'DIG-99']);
   });
 
+  test('Refine (2) sends the refine command to the planner', async () => {
+    // given
+    const { sendPrompt, onBatch } = setup({ refineCount: 2 });
+    await screen.findByTestId('claude-pane');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Refine (2)' }));
+    // then
+    expect(sendPrompt).toHaveBeenCalledWith('p1', refinePrompt('DIG'));
+    expect(onBatch).not.toHaveBeenCalled();
+  });
+
+  test('Refine (0) is disabled', async () => {
+    // given
+    setup({ refineCount: 0 });
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.getByRole('button', { name: 'Refine (0)' })).toBeDisabled();
+  });
+
+  test('Refine is disabled until the planner opens', async () => {
+    // given
+    let open: (tab: TabState) => void = () => undefined;
+    const { sendPrompt } = setup(
+      { refineCount: 1 },
+      new Promise<TabState>((resolve) => {
+        open = resolve;
+      }),
+    );
+    const button = screen.getByRole('button', { name: 'Refine (1)' });
+    // when
+    await userEvent.click(button);
+    // then
+    expect(button).toBeDisabled();
+    expect(sendPrompt).not.toHaveBeenCalled();
+    await act(async () => {
+      open(PLANNER);
+      await Promise.resolve();
+    });
+    expect(button).toBeEnabled();
+  });
+
   test('Select ready (2) calls onSelectReady', async () => {
     // given
     const { onSelectReady } = setup({ readyCount: 2 });
@@ -155,12 +199,13 @@ describe('PlannerPane', () => {
 
   test('the bar shows its buttons in order', async () => {
     // given
-    setup({ selected: ['DIG-41'], toAccept: ['DIG-50'], readyCount: 1 });
+    setup({ selected: ['DIG-41'], toAccept: ['DIG-50'], readyCount: 1, refineCount: 1 });
     // when
     await screen.findByTestId('claude-pane');
     // then
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
       'Suggest next batch',
+      'Refine (1)',
       'Select ready (1)',
       'Start (1)',
       'Clear',
