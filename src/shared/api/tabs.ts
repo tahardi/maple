@@ -7,6 +7,7 @@ export type TabsApi = {
   startCard(projectKey: string, cardKey: string): Promise<TabState>;
   openCard(projectKey: string, cardKey: string): Promise<TabState>;
   openPlanner(projectKey: string): Promise<TabState>;
+  openVault(projectKey: string): Promise<TabState>;
   close(tabId: string, force: boolean): Promise<CloseResult>;
   resume(tabId: string): Promise<void>;
   startFresh(tabId: string): Promise<void>;
@@ -23,6 +24,7 @@ export const TABS_CHANNELS = {
   startCard: 'invoke',
   openCard: 'invoke',
   openPlanner: 'invoke',
+  openVault: 'invoke',
   close: 'invoke',
   resume: 'invoke',
   startFresh: 'invoke',

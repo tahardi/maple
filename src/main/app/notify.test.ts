@@ -122,6 +122,7 @@ describe('notifyTab', () => {
       tab: { ...cardTab, kind: 'planner', cardKey: null },
       title: 'Dig Days planner needs you',
     },
+    { name: 'a vault tab', tab: { ...cardTab, kind: 'vault', cardKey: null }, title: 'Dig Days vault needs you' },
   ])('shows a notification for $name', ({ tab, title }) => {
     // given
     const { asWindow } = fakeWindow(false);

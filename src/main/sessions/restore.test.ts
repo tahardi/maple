@@ -40,6 +40,9 @@ function fakeSessions(projects: string[]) {
     openPlanner: vi.fn((projectKey: string, id: string | null, tabId: string | null = null) =>
       open(projectKey, 'planner', null, id, tabId),
     ),
+    openVault: vi.fn((projectKey: string, id: string | null, tabId: string | null = null) =>
+      open(projectKey, 'vault', null, id, tabId),
+    ),
     setWorktree: vi.fn((tabId: string, path: string) => {
       const tab = opened.find((t) => t.id === tabId);
       if (tab) {
@@ -79,6 +82,7 @@ describe('restoreTabs', () => {
   test.each([
     { tab: savedTab('card', 'DIG', 'DIG-44', 's1'), warning: 'dropped DIG-44: project DIG is not in config' },
     { tab: savedTab('planner', 'DIG', null, 's2'), warning: 'dropped DIG planner: project DIG is not in config' },
+    { tab: savedTab('vault', 'DIG', null, 's4'), warning: 'dropped DIG vault: project DIG is not in config' },
   ])('drops a $tab.kind tab whose project is gone', async ({ tab, warning }) => {
     // given
     const { sessions, manager } = fakeSessions(['BEAR']);
@@ -89,6 +93,54 @@ describe('restoreTabs', () => {
     expect(result).toEqual({ restored: 1, warnings: [warning] });
     expect(sessions.openCard.mock.calls).toEqual([['BEAR', 'BEAR-12', 's3', 'old-s3']]);
     expect(sessions.openPlanner).not.toHaveBeenCalled();
+  });
+
+  test('reopens a vault tab with its saved session id', async () => {
+    // given
+    const { sessions, manager } = fakeSessions(['DIG']);
+    // when
+    const result = await restoreTabs(saved([savedTab('vault', 'DIG', null, 's4')]), manager, () =>
+      Promise.resolve(null),
+    );
+    // then
+    expect(result).toEqual({ restored: 1, warnings: [] });
+    expect(sessions.openVault.mock.calls).toEqual([['DIG', 's4', 'old-s4']]);
+  });
+
+  test('drops a vault tab when the vault is not configured', async () => {
+    // given
+    const { sessions, manager } = fakeSessions(['DIG']);
+    sessions.openVault.mockImplementation(() => {
+      throw new Error('opening vault: no vaultDir in config');
+    });
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    // when
+    const result = await restoreTabs(
+      saved([savedTab('vault', 'DIG', null, 's4')]),
+      manager,
+      () => Promise.resolve(null),
+      logger,
+    );
+    // then
+    expect(result).toEqual({ restored: 0, warnings: ['dropped DIG vault: opening vault: no vaultDir in config'] });
+    expect(logger.warn).toHaveBeenCalledWith('restore', 'dropped', {
+      tab: 'DIG vault',
+      reason: 'opening vault: no vaultDir in config',
+    });
+  });
+
+  test('keeps restoring tabs after a vault tab fails', async () => {
+    // given
+    const { sessions, manager } = fakeSessions(['DIG']);
+    sessions.openVault.mockImplementation(() => {
+      throw new Error('opening vault: no vaultDir in config');
+    });
+    const state = saved([savedTab('vault', 'DIG', null, 's4'), savedTab('card', 'DIG', 'DIG-44', 's1')]);
+    // when
+    const result = await restoreTabs(state, manager, () => Promise.resolve(null));
+    // then
+    expect(result.restored).toBe(1);
+    expect(sessions.openCard.mock.calls).toEqual([['DIG', 'DIG-44', 's1', 'old-s1']]);
   });
 
   test('reopens a card whose worktree is gone with no worktree path', async () => {

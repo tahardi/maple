@@ -31,6 +31,7 @@ function fakeSessions() {
     startCard: vi.fn(() => tab),
     openCard: vi.fn(() => tab),
     openPlanner: vi.fn(() => tab),
+    openVault: vi.fn(() => tab),
     close: vi.fn(),
     resume: vi.fn(),
     startFresh: vi.fn(),
@@ -103,6 +104,7 @@ describe('registerTabs', () => {
       result: tab,
     },
     { channel: 'tabs:openPlanner', args: ['DIG'], method: 'openPlanner', want: ['DIG', null], result: tab },
+    { channel: 'tabs:openVault', args: ['DIG'], method: 'openVault', want: ['DIG', null], result: tab },
     { channel: 'tabs:resume', args: ['t1'], method: 'resume', want: ['t1'], result: undefined },
     { channel: 'tabs:startFresh', args: ['t1'], method: 'startFresh', want: ['t1'], result: undefined },
   ] as const)('$channel calls $method', ({ channel, args, method, want, result }) => {
@@ -234,6 +236,7 @@ describe('registerTabs', () => {
     { channel: 'tabs:startCard', args: ['NOPE', 'NOPE-1'], method: 'startCard' },
     { channel: 'tabs:openCard', args: ['NOPE', 'NOPE-1'], method: 'openCard' },
     { channel: 'tabs:openPlanner', args: ['NOPE'], method: 'openPlanner' },
+    { channel: 'tabs:openVault', args: ['NOPE'], method: 'openVault' },
     { channel: 'tabs:resume', args: ['gone'], method: 'resume' },
     { channel: 'tabs:startFresh', args: ['gone'], method: 'startFresh' },
   ] as const)('$channel logs a failure at warn and rethrows', ({ channel, args, method }) => {
