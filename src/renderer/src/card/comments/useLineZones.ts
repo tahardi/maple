@@ -1,8 +1,7 @@
 import type { editor } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Thread } from './commentThreads';
 
-export type ThreadZone = { thread: Thread; node: HTMLElement };
+export type LineZone<T> = { item: T; node: HTMLElement };
 
 type Box = { zone: HTMLElement; content: HTMLElement; height: number };
 
@@ -40,20 +39,23 @@ function place(code: editor.ICodeEditor, accessor: editor.IViewZoneChangeAccesso
   return { id, line, observer };
 }
 
-export function useThreadZones(code: editor.ICodeEditor | null, threads: readonly Thread[]): ThreadZone[] {
-  const [boxes, setBoxes] = useState(() => new Map<number, Box>());
-  if (threads.length !== boxes.size || threads.some((thread) => !boxes.has(thread.id))) {
-    setBoxes(new Map(threads.map((thread) => [thread.id, boxes.get(thread.id) ?? makeBox()])));
+export function useLineZones<T extends { id: number | string; line: number }>(
+  code: editor.ICodeEditor | null,
+  items: readonly T[],
+): LineZone<T>[] {
+  const [boxes, setBoxes] = useState(() => new Map<number | string, Box>());
+  if (items.length !== boxes.size || items.some((item) => !boxes.has(item.id))) {
+    setBoxes(new Map(items.map((item) => [item.id, boxes.get(item.id) ?? makeBox()])));
   }
   const zones = useRef(new Map<Box, Placed>());
 
   const placed = useMemo(
     () =>
-      threads.flatMap((thread) => {
-        const box = boxes.get(thread.id);
-        return box === undefined ? [] : [{ thread, box }];
+      items.flatMap((item) => {
+        const box = boxes.get(item.id);
+        return box === undefined ? [] : [{ item, box }];
       }),
-    [threads, boxes],
+    [items, boxes],
   );
 
   useEffect(() => {
@@ -79,7 +81,7 @@ export function useThreadZones(code: editor.ICodeEditor | null, threads: readonl
       return;
     }
     const live = zones.current;
-    const wanted = new Map(placed.map(({ thread, box }) => [box, thread.line]));
+    const wanted = new Map(placed.map(({ item, box }) => [box, item.line]));
     code.changeViewZones((accessor) => {
       for (const [box, { id, line, observer }] of live) {
         if (wanted.get(box) !== line) {
@@ -96,5 +98,5 @@ export function useThreadZones(code: editor.ICodeEditor | null, threads: readonl
     });
   }, [code, placed]);
 
-  return useMemo(() => placed.map(({ thread, box }) => ({ thread, node: box.content })), [placed]);
+  return useMemo(() => placed.map(({ item, box }) => ({ item, node: box.content })), [placed]);
 }

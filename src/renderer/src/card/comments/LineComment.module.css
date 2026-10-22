@@ -2,9 +2,13 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin: 4px 12px 8px;
   padding: 8px 12px;
   background: var(--bg-raised);
-  border-bottom: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: system-ui, sans-serif;
+  white-space: normal;
 }
 
 .heading {

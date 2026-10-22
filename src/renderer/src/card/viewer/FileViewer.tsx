@@ -15,7 +15,7 @@ import { LineComment } from '@renderer/card/comments/LineComment';
 import './monacoSetup';
 import { PR_DESCRIPTION } from '@renderer/card/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/cardDescription';
-import { useThreadZones } from '@renderer/card/comments/useThreadZones';
+import { useLineZones } from '@renderer/card/comments/useLineZones';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
 import styles from './viewer.module.css';
 
@@ -297,7 +297,34 @@ export function FileViewer({
     [comments, text, canComment],
   );
 
-  const zones = useThreadZones(plain, threads);
+  const zones = useLineZones(plain, threads);
+
+  const textPath = text?.path ?? null;
+
+  const formItems = useMemo(
+    () =>
+      commentable && commenting !== null && commenting.path === textPath ? [{ id: 'new', line: commenting.end }] : [],
+    [commentable, commenting, textPath],
+  );
+
+  const forms = useLineZones(plain, formItems);
+
+  useEffect(() => {
+    const node = forms.at(0)?.node;
+    if (node === undefined) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      if (node.offsetHeight > 0) {
+        observer.disconnect();
+        node.querySelector('textarea')?.focus();
+      }
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+    };
+  }, [forms]);
 
   const language = useMemo(() => {
     if (activeFile === null || monaco === null) {
@@ -423,18 +450,6 @@ export function FileViewer({
               {`Can't comment on ${linesLabel(refused)}. ${blocked}`}
             </div>
           )}
-        {commentable && commenting?.path === shown.path && (
-          <LineComment
-            tabId={tabId}
-            path={commenting.path}
-            startLine={commenting.start === commenting.end ? null : commenting.start}
-            line={commenting.end}
-            onDone={() => {
-              setCommenting(null);
-              setCommentsRead((n) => n + 1);
-            }}
-          />
-        )}
         <div className={styles.editor} onKeyDown={save}>
           <Editor
             value={edited ?? shown.base ?? ''}
@@ -524,19 +539,36 @@ export function FileViewer({
         )}
       </div>
       <div className={styles.body}>{body()}</div>
-      {zones.map(({ thread, node }) =>
+      {zones.map(({ item, node }) =>
         createPortal(
           <CommentThread
             tabId={tabId}
-            thread={thread}
+            thread={item}
             onPosted={() => {
               setCommentsRead((n) => n + 1);
             }}
           />,
           node,
-          thread.id,
+          item.id,
         ),
       )}
+      {commenting !== null &&
+        forms.map(({ node }) =>
+          createPortal(
+            <LineComment
+              tabId={tabId}
+              path={commenting.path}
+              startLine={commenting.start === commenting.end ? null : commenting.start}
+              line={commenting.end}
+              onDone={() => {
+                setCommenting(null);
+                setCommentsRead((n) => n + 1);
+              }}
+            />,
+            node,
+            'new',
+          ),
+        )}
     </div>
   );
 }
