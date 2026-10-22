@@ -1,5 +1,6 @@
 import type { BacklogGroup } from '@shared/types';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { card } from '../testing/sprintFixture';
 import { Backlog } from './Backlog';
 
@@ -11,7 +12,7 @@ const GROUPS: BacklogGroup[] = [
 describe('Backlog', () => {
   test('shows the card count and groups cards under each epic', () => {
     // given
-    render(<Backlog groups={GROUPS} />);
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} />);
     // when
     const headings = screen.getAllByRole('heading', { level: 3, hidden: true });
     // then
@@ -21,7 +22,7 @@ describe('Backlog', () => {
 
   test('each card shows key, summary, and points', () => {
     // given
-    render(<Backlog groups={GROUPS} />);
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} />);
     // when
     const items = screen.getAllByRole('listitem', { hidden: true });
     // then
@@ -34,16 +35,27 @@ describe('Backlog', () => {
 
   test('highlights the given keys', () => {
     // given
-    render(<Backlog groups={GROUPS} highlighted={['HALO-13']} />);
+    render(<Backlog groups={GROUPS} highlighted={['HALO-13']} onSelect={vi.fn()} />);
     // when
     const items = screen.getAllByRole('listitem', { hidden: true });
     // then
     expect(items.map((i) => i.getAttribute('data-highlighted'))).toEqual([null, 'true', null]);
   });
 
+  test('clicking a card calls onSelect with its key', async () => {
+    // given
+    const onSelect = vi.fn();
+    render(<Backlog groups={GROUPS} onSelect={onSelect} />);
+    await userEvent.click(screen.getByText('Backlog (3)'));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /HALO-13/ }));
+    // then
+    expect(onSelect).toHaveBeenCalledWith('HALO-13');
+  });
+
   test('shows nothing to plan when the backlog is empty', () => {
     // given
-    render(<Backlog groups={[]} />);
+    render(<Backlog groups={[]} onSelect={vi.fn()} />);
     // when
     const summary = screen.getByText('Backlog (0)');
     // then
