@@ -9,14 +9,27 @@ describe('LineComment', () => {
     const comment = vi.fn(() => Promise.resolve());
     fakeMaple({ pr: { comment } });
     const onDone = vi.fn();
-    render(<LineComment tabId="t1" path="src/a.ts" line={3} onDone={onDone} />);
+    render(<LineComment tabId="t1" path="src/a.ts" startLine={null} line={3} onDone={onDone} />);
     // when
     await userEvent.type(screen.getByRole('textbox'), 'why?');
     await userEvent.click(screen.getByRole('button', { name: 'Post' }));
     // then
     expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:3' })).toBeInTheDocument();
-    expect(comment).toHaveBeenCalledWith('t1', 'src/a.ts', 3, 'why?');
+    expect(comment).toHaveBeenCalledWith('t1', 'src/a.ts', null, 3, 'why?');
     expect(onDone).toHaveBeenCalled();
+  });
+
+  test('posts on a range of lines', async () => {
+    // given
+    const comment = vi.fn(() => Promise.resolve());
+    fakeMaple({ pr: { comment } });
+    render(<LineComment tabId="t1" path="src/a.ts" startLine={1} line={3} onDone={vi.fn()} />);
+    // when
+    await userEvent.type(screen.getByRole('textbox'), 'why?');
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    // then
+    expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:1-3' })).toBeInTheDocument();
+    expect(comment).toHaveBeenCalledWith('t1', 'src/a.ts', 1, 3, 'why?');
   });
 
   test('shows the error and keeps the text when posting fails', async () => {
@@ -30,7 +43,7 @@ describe('LineComment', () => {
     );
     fakeMaple({ pr: { comment } });
     const onDone = vi.fn();
-    render(<LineComment tabId="t1" path="src/a.ts" line={3} onDone={onDone} />);
+    render(<LineComment tabId="t1" path="src/a.ts" startLine={null} line={3} onDone={onDone} />);
     // when
     await userEvent.type(screen.getByRole('textbox'), 'why?');
     await userEvent.click(screen.getByRole('button', { name: 'Post' }));
@@ -46,7 +59,7 @@ describe('LineComment', () => {
     const comment = vi.fn(() => Promise.resolve());
     fakeMaple({ pr: { comment } });
     const onDone = vi.fn();
-    render(<LineComment tabId="t1" path="src/a.ts" line={3} onDone={onDone} />);
+    render(<LineComment tabId="t1" path="src/a.ts" startLine={null} line={3} onDone={onDone} />);
     // when
     await userEvent.type(screen.getByRole('textbox'), 'why?');
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -61,7 +74,7 @@ describe('LineComment', () => {
   ])('disables Post while the text is $name', async ({ text }) => {
     // given
     fakeMaple();
-    render(<LineComment tabId="t1" path="src/a.ts" line={3} onDone={vi.fn()} />);
+    render(<LineComment tabId="t1" path="src/a.ts" startLine={null} line={3} onDone={vi.fn()} />);
     // when
     if (text !== '') {
       await userEvent.type(screen.getByRole('textbox'), text);
@@ -73,7 +86,7 @@ describe('LineComment', () => {
   test('disables Post while a post is in flight', async () => {
     // given
     fakeMaple({ pr: { comment: vi.fn(() => new Promise<void>(() => undefined)) } });
-    render(<LineComment tabId="t1" path="src/a.ts" line={3} onDone={vi.fn()} />);
+    render(<LineComment tabId="t1" path="src/a.ts" startLine={null} line={3} onDone={vi.fn()} />);
     // when
     await userEvent.type(screen.getByRole('textbox'), 'why?');
     await userEvent.click(screen.getByRole('button', { name: 'Post' }));

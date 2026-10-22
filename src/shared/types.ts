@@ -51,7 +51,17 @@ export type HookEvent = {
   event: 'Stop' | 'Notification' | 'UserPromptSubmit';
   notificationType: string | null;
 };
-export type ReviewComment = { path: string; line: number; author: string; body: string };
+export type ReviewComment = {
+  id: number;
+  replyTo: number | null;
+  startLine: number | null;
+  path: string;
+  line: number;
+  author: string;
+  body: string;
+  threadId: string | null;
+  resolved: boolean;
+};
 export type ChecksSummary = { passed: number; failed: number; pending: number; total: number };
 export type PrInfo = {
   number: number;

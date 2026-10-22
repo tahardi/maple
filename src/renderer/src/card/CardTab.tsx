@@ -1,5 +1,5 @@
-import type { FileChange, TabState, VaultNote } from '@shared/types';
-import { useEffect, useRef, useState } from 'react';
+import type { FileChange, ReviewComment, TabState, VaultNote } from '@shared/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
@@ -60,6 +60,10 @@ export function CardTab({ tab }: { tab: TabState }) {
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const changed = changes?.files ?? [];
   const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed);
+  const [commented, setCommented] = useState<ReadonlySet<string>>(new Set());
+  const showComments = useCallback((comments: readonly ReviewComment[]) => {
+    setCommented(new Set(comments.map((c) => c.path)));
+  }, []);
   const unviewed = changed.length - viewed.size;
   const worktreeExists = tab.worktreePath !== null;
   useQuickOpenKeys(active && worktreeExists ? setQuickOpen : null);
@@ -206,6 +210,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               changedCount={changed.length}
               viewed={viewed}
               onToggleViewed={toggleViewed}
+              commented={commented}
             />
           )}
           {pr && (
@@ -231,6 +236,8 @@ export function CardTab({ tab }: { tab: TabState }) {
                 onCloseFile={closeFile}
                 prBody={pr?.data?.body ?? null}
                 canComment={pr?.data?.state === 'OPEN'}
+                prFetchedAt={pr?.fetchedAt ?? null}
+                onComments={showComments}
                 line={line}
               />
             )}

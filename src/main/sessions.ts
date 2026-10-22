@@ -31,6 +31,7 @@ type Events = {
   spawn: [tabId: string, prompted: boolean, resumed: boolean];
   exit: [tabId: string, code: number];
   input: [tabId: string];
+  interrupt: [tabId: string];
   batch: [projectKey: string, keys: string[]];
   changed: [tabs: TabState[]];
 };
@@ -150,6 +151,9 @@ export class SessionManager extends EventEmitter<Events> {
     }
     session.pty?.write(data);
     this.emit('input', tabId);
+    if (data === '\x1b' || data === '\x03') {
+      this.emit('interrupt', tabId);
+    }
   }
 
   resize(tabId: string, cols: number, rows: number): void {

@@ -1,6 +1,7 @@
 import { shell, type WebContents, type WebPreferences } from 'electron';
 
 const EXTERNAL_PROTOCOLS = new Set(['http:', 'https:']);
+const ALLOWED_PERMISSIONS = new Set(['clipboard-read', 'clipboard-sanitized-write']);
 
 function parse(url: string): URL | null {
   try {
@@ -46,4 +47,8 @@ export function lockDown(contents: WebContents, appUrl: string): void {
   };
   contents.on('will-navigate', guard);
   contents.on('will-redirect', guard);
+  contents.session.setPermissionRequestHandler((_contents, permission, callback) => {
+    callback(ALLOWED_PERMISSIONS.has(permission));
+  });
+  contents.session.setPermissionCheckHandler((_contents, permission) => ALLOWED_PERMISSIONS.has(permission));
 }
