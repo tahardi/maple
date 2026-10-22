@@ -212,11 +212,25 @@ describe('FileViewer', () => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
     useMaple.setState(useMaple.getInitialState(), true);
+    resize.value = () => undefined;
     vi.stubGlobal(
       'ResizeObserver',
       vi.fn(function ResizeObserver(cb: () => void) {
-        resize.value = cb;
-        return { observe: vi.fn(), disconnect };
+        let live = true;
+        const earlier = resize.value;
+        resize.value = () => {
+          earlier();
+          if (live) {
+            cb();
+          }
+        };
+        return {
+          observe: vi.fn(),
+          disconnect: () => {
+            live = false;
+            disconnect();
+          },
+        };
       }),
     );
   });
@@ -1029,7 +1043,7 @@ describe('FileViewer', () => {
     expect(screen.queryByRole('heading', { name: /^Comment on / })).not.toBeInTheDocument();
   });
 
-  test('Comment puts the cursor in the new comment box', async () => {
+  test('Comment puts the cursor in the new comment box once the editor shows it', async () => {
     // given
     monaco.zones.addZone.mockImplementationOnce((zone) => {
       document.body.appendChild(zone.domNode);
@@ -1043,11 +1057,24 @@ describe('FileViewer', () => {
     await vi.waitFor(() => {
       expect(button).not.toHaveAttribute('title');
     });
-    // when
     await userEvent.click(button);
-    // then
     const [zone] = monaco.zones.addZone.mock.calls[0];
-    expect(within(zone.domNode).getByRole('textbox')).toHaveFocus();
+    const box = within(zone.domNode).getByRole('textbox');
+    const content = zone.domNode.firstElementChild;
+    if (!(content instanceof HTMLElement)) {
+      throw new Error('finding zone content');
+    }
+    act(() => {
+      resize.value();
+    });
+    expect(box).not.toHaveFocus();
+    vi.spyOn(content, 'offsetHeight', 'get').mockReturnValue(120);
+    // when
+    act(() => {
+      resize.value();
+    });
+    // then
+    expect(box).toHaveFocus();
   });
 
   test('leaves the cursor where it is when the file reloads under an open form', async () => {

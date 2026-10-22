@@ -310,7 +310,20 @@ export function FileViewer({
   const forms = useLineZones(plain, formItems);
 
   useEffect(() => {
-    forms.at(0)?.node.querySelector('textarea')?.focus();
+    const node = forms.at(0)?.node;
+    if (node === undefined) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      if (node.offsetHeight > 0) {
+        observer.disconnect();
+        node.querySelector('textarea')?.focus();
+      }
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+    };
   }, [forms]);
 
   const language = useMemo(() => {
