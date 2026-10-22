@@ -1105,9 +1105,7 @@ describe('FileViewer', () => {
       expect(button).not.toHaveAttribute('title');
     });
     await userEvent.click(button);
-    act(() => {
-      monaco.cursor.value(select(5, 6));
-    });
+    await moveCursor(select(5, 6));
     // when
     await userEvent.click(button);
     // then
