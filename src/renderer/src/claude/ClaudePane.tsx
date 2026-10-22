@@ -1,5 +1,5 @@
 import type { TabStatus } from '@shared/types';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useMaple } from '../store';
 import { ActionBar } from './ActionBar';
 import styles from './ClaudePane.module.css';
@@ -16,6 +16,11 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
   const host = useRef<HTMLDivElement>(null);
   const status = useMaple((s): TabStatus | undefined => s.statuses[tabId]);
   const [wheelLines, setWheelLines] = useWheelLines();
+  const wheelLinesRef = useRef(wheelLines);
+
+  useEffect(() => {
+    wheelLinesRef.current = wheelLines;
+  }, [wheelLines]);
 
   const io = useMemo((): XtermIo => {
     const { session } = window.maple;
@@ -28,9 +33,10 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       },
       backlog: () => session.backlog(tabId),
       onData: (cb) => session.onData(tabId, cb),
+      wheelLines: () => wheelLinesRef.current,
     };
   }, [tabId]);
-  useXterm(host, io, wheelLines);
+  useXterm(host, io);
 
   return (
     <div className={styles.pane}>

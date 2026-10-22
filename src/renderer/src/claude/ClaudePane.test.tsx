@@ -37,7 +37,6 @@ const xterm = vi.hoisted(() => {
     }),
     buffer: { active: { type: 'normal' } },
     modes: { mouseTrackingMode: 'none' },
-    options: { scrollSensitivity: 1 },
     unicode: { activeVersion: '6' },
     getSelection: vi.fn(() => 'selected'),
     paste,
@@ -116,7 +115,6 @@ describe('ClaudePane', () => {
     localStorage.clear();
     xterm.terminal.buffer.active.type = 'normal';
     xterm.terminal.modes.mouseTrackingMode = 'none';
-    xterm.terminal.options.scrollSensitivity = 1;
     xterm.terminal.unicode.activeVersion = '6';
     vi.clearAllMocks();
     vi.mocked(xterm.terminal.loadAddon).mockReset();
@@ -241,7 +239,6 @@ describe('ClaudePane', () => {
       fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
       fontSize: 13,
       scrollback: 10_000,
-      scrollSensitivity: 3,
       theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
       allowProposedApi: true,
     });
@@ -400,7 +397,8 @@ describe('ClaudePane', () => {
     { name: 'up in the alternate buffer', buffer: 'alternate', mode: 'vt200', deltaY: -100, report: '\x1b[<64;11;3M' },
     { name: 'down in the alternate buffer', buffer: 'alternate', mode: 'any', deltaY: 100, report: '\x1b[<65;11;3M' },
     { name: 'no mouse tracking', buffer: 'alternate', mode: 'none', deltaY: 100, report: null },
-    { name: 'the normal buffer', buffer: 'normal', mode: 'vt200', deltaY: 100, report: null },
+    { name: 'the normal buffer', buffer: 'normal', mode: 'vt200', deltaY: 100, report: '\x1b[<65;11;3M' },
+    { name: 'the normal buffer without mouse tracking', buffer: 'normal', mode: 'none', deltaY: 100, report: null },
     { name: 'a sideways scroll', buffer: 'alternate', mode: 'vt200', deltaY: 0, report: null },
   ])('repeats wheel events while the app tracks the mouse: $name', async ({ buffer, mode, deltaY, report }) => {
     // given
@@ -438,28 +436,6 @@ describe('ClaudePane', () => {
     send();
     // then
     expect(write).toHaveBeenCalledWith('t1', '\x1b[<65;11;3M'.repeat(5));
-  });
-
-  test('the terminal opens scrolling its scrollback at the saved scroll speed', async () => {
-    // given
-    localStorage.setItem('maple.wheelLines', '7');
-    fakeMaple();
-    // when
-    render(<ClaudePane tabId="t1" actions={[]} />);
-    await flush();
-    // then
-    expect(vi.mocked(Terminal).mock.calls[0]?.[0]?.scrollSensitivity).toBe(7);
-  });
-
-  test('changing the scroll speed changes how fast the scrollback scrolls', async () => {
-    // given
-    fakeMaple();
-    render(<ClaudePane tabId="t1" actions={[]} />);
-    await flush();
-    // when
-    fireEvent.change(screen.getByLabelText('Scroll speed'), { target: { value: '5' } });
-    // then
-    expect(xterm.terminal.options.scrollSensitivity).toBe(5);
   });
 
   test('shows the action bar', () => {
