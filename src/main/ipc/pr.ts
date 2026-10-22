@@ -9,6 +9,7 @@ import {
   headCommit,
   prForBranch,
   replyToComment,
+  resolveThread,
   reviewComments,
 } from '../github';
 import { appLogger, type Logger } from '../log';
@@ -62,8 +63,16 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
   });
   handle(
     'pr:comment',
-    z.tuple([tabIdArg, z.string().min(1).max(4096), z.number().int().min(1), z.string().min(1).max(65_536)]),
-    async (tabId, path, line, body): Promise<void> => {
+    z
+      .tuple([
+        tabIdArg,
+        z.string().min(1).max(4096),
+        z.number().int().min(1).nullable(),
+        z.number().int().min(1),
+        z.string().min(1).max(65_536),
+      ])
+      .refine(([, , startLine, line]) => startLine === null || startLine < line),
+    async (tabId, path, startLine, line, body): Promise<void> => {
       try {
         const worktree = deps.worktreeFor(tabId);
         if (worktree === null) {
@@ -75,12 +84,13 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
         if (pr?.state !== 'OPEN') {
           throw new Error('commenting on line: branch has no open PR');
         }
-        await commentOnLine(defaultRunner, worktree, pr.number, { path, line, body });
+        await commentOnLine(defaultRunner, worktree, pr.number, { path, startLine, line, body });
       } catch (err) {
         logger.warn('gh', 'failed', {
           operation: 'pr:comment',
           tabId,
           path,
+          startLine,
           line,
           error: err instanceof Error ? err.message : String(err),
         });
@@ -115,6 +125,23 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       }
     },
   );
+  handle('pr:resolve', z.tuple([tabIdArg, z.string().min(1).max(200)]), async (tabId, threadId): Promise<void> => {
+    try {
+      const worktree = deps.worktreeFor(tabId);
+      if (worktree === null) {
+        throw new Error('resolving thread: tab has no card worktree');
+      }
+      await resolveThread(defaultRunner, worktree, threadId);
+    } catch (err) {
+      logger.warn('gh', 'failed', {
+        operation: 'pr:resolve',
+        tabId,
+        threadId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+  });
   handle('pr:comments', z.tuple([tabIdArg]), async (tabId): Promise<ReviewComment[]> => {
     const worktree = deps.worktreeFor(tabId);
     if (worktree === null) {

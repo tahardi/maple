@@ -13,12 +13,16 @@ const comment = (id: number, author: string, body: string, replyTo: number | nul
   line: 3,
   author,
   body,
+  threadId: 'PRRT_101',
+  resolved: false,
 });
 
 const thread: Thread = {
   id: 101,
   line: 3,
   startLine: null,
+  threadId: 'PRRT_101',
+  resolved: false,
   comments: [comment(101, 'tahardi', 'why **bold**?'), comment(102, 'claude', 'because', 101)],
 };
 
@@ -121,5 +125,70 @@ describe('CommentThread', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
     expect(reply).toHaveBeenCalledTimes(2);
+  });
+
+  test('resolves the thread', async () => {
+    // given
+    const resolve = vi.fn(() => Promise.resolve());
+    fakeMaple({ pr: { resolve } });
+    const onPosted = vi.fn();
+    render(<CommentThread tabId="t1" thread={thread} onPosted={onPosted} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Resolve' }));
+    // then
+    expect(resolve).toHaveBeenCalledWith('t1', 'PRRT_101');
+    expect(onPosted).toHaveBeenCalled();
+  });
+
+  test('shows the error when resolving fails', async () => {
+    // given
+    const resolve = vi.fn(() =>
+      Promise.reject(new Error("Error invoking remote method 'pr:resolve': Error: resolving thread: not found")),
+    );
+    fakeMaple({ pr: { resolve } });
+    const onPosted = vi.fn();
+    render(<CommentThread tabId="t1" thread={thread} onPosted={onPosted} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Resolve' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^resolving thread: not found$/);
+    expect(screen.getByRole('button', { name: 'Resolve' })).toBeEnabled();
+    expect(onPosted).not.toHaveBeenCalled();
+  });
+
+  test('disables Resolve while resolving', async () => {
+    // given
+    fakeMaple({ pr: { resolve: vi.fn(() => new Promise<void>(() => undefined)) } });
+    render(<CommentThread tabId="t1" thread={thread} onPosted={vi.fn()} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Resolve' }));
+    // then
+    expect(screen.getByRole('button', { name: 'Resolve' })).toBeDisabled();
+  });
+
+  test('offers no Resolve without a GitHub thread', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<CommentThread tabId="t1" thread={{ ...thread, threadId: null }} onPosted={vi.fn()} />);
+    // then
+    expect(screen.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument();
+  });
+
+  test('collapses a resolved thread until shown', async () => {
+    // given
+    fakeMaple();
+    render(<CommentThread tabId="t1" thread={{ ...thread, resolved: true }} onPosted={vi.fn()} />);
+    expect(screen.getByText('Resolved')).toBeInTheDocument();
+    expect(screen.queryByText('because')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Reply' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Show' }));
+    // then
+    expect(screen.getByText('because')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Reply' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Hide' }));
+    expect(screen.queryByText('because')).not.toBeInTheDocument();
   });
 });

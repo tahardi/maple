@@ -59,6 +59,8 @@ export type ReviewComment = {
   line: number;
   author: string;
   body: string;
+  threadId: string | null;
+  resolved: boolean;
 };
 export type ChecksSummary = { passed: number; failed: number; pending: number; total: number };
 export type PrInfo = {

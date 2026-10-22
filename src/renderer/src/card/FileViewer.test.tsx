@@ -26,13 +26,14 @@ const monaco = vi.hoisted(() => {
     setSelection: vi.fn(),
     focus: vi.fn(),
     getModel: vi.fn(() => model),
-    getPosition: vi.fn(() => ({ lineNumber: 3 })),
-    onDidChangeCursorPosition: vi.fn((cb: (e: { position: { lineNumber: number } }) => void) => {
+    getSelection: vi.fn(() => ({ startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 1 })),
+    onDidChangeCursorSelection: vi.fn((cb: (e: { selection: Selection }) => void) => {
       cursor.value = cb;
       return { dispose: vi.fn() };
     }),
   };
-  const cursor: { value: (e: { position: { lineNumber: number } }) => void } = { value: () => undefined };
+  type Selection = { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+  const cursor: { value: (e: { selection: Selection }) => void } = { value: () => undefined };
   const model = { getLineMaxColumn: () => 9 };
   const api = {
     editor: { OverviewRulerLane: { Full: 7 }, MinimapPosition: { Gutter: 2 } },
@@ -144,9 +145,15 @@ const review = (id: number, body: string, replyTo: number | null = null): Review
   line: 3,
   author: 'tahardi',
   body,
+  threadId: null,
+  resolved: false,
 });
 
 const same: FilePair = { kind: 'text', path: 'src/a.ts', current: 'same\n', base: 'same\n' };
+
+const select = (start: number, end: number, endColumn = 4) => ({
+  selection: { startLineNumber: start, startColumn: 1, endLineNumber: end, endColumn },
+});
 
 const resize: { value: () => void } = { value: () => undefined };
 
@@ -940,6 +947,69 @@ describe('FileViewer', () => {
     expect(screen.getByRole('heading', { name: 'Comment on src/a.ts:3' })).toBeInTheDocument();
   });
 
+  test.each([
+    { name: 'the selected lines', end: 4, endColumn: 6, want: 'Comment on src/a.ts:2-4' },
+    {
+      name: 'the selected lines up to a selection ending at the start of a line',
+      end: 5,
+      endColumn: 1,
+      want: 'Comment on src/a.ts:2-4',
+    },
+  ])('Comment opens the form for $name', async ({ end, endColumn, want }) => {
+    // given
+    const comment = vi.fn(() => Promise.resolve());
+    fakeMaple({
+      repo: { readFile: () => Promise.resolve(changed) },
+      pr: { comment, diffLines: () => Promise.resolve({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }) },
+    });
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment
+        prFetchedAt={null}
+      />,
+    );
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    act(() => {
+      monaco.cursor.value(select(2, end, endColumn));
+    });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    // when
+    await userEvent.click(button);
+    expect(screen.getByRole('heading', { name: want })).toBeInTheDocument();
+    await userEvent.type(screen.getByRole('textbox'), 'why?');
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    // then
+    expect(comment).toHaveBeenCalledWith('t1', 'src/a.ts', 2, 4, 'why?');
+  });
+
+  test('explains why Comment does nothing on lines that leave the PR diff', async () => {
+    // given
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }));
+    renderViewer(changed, undefined, true, undefined, diffLines);
+    await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(diffLines).toHaveBeenCalled();
+    });
+    act(() => {
+      monaco.cursor.value(select(8, 12));
+    });
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Can't comment on lines 8-12. GitHub only accepts comments on lines in the PR diff",
+    );
+  });
+
   test.each<{ name: string; lines: DiffLines; cursor: number; reason: string }>([
     {
       name: 'outside the PR diff',
@@ -974,7 +1044,7 @@ describe('FileViewer', () => {
       expect(diffLines).toHaveBeenCalled();
     });
     act(() => {
-      monaco.cursor.value({ position: { lineNumber: cursor } });
+      monaco.cursor.value(select(cursor, cursor));
     });
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
@@ -992,13 +1062,13 @@ describe('FileViewer', () => {
       expect(diffLines).toHaveBeenCalled();
     });
     act(() => {
-      monaco.cursor.value({ position: { lineNumber: 20 } });
+      monaco.cursor.value(select(20, 20));
     });
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     await screen.findByRole('alert');
     // when
     act(() => {
-      monaco.cursor.value({ position: { lineNumber: 10 } });
+      monaco.cursor.value(select(10, 10));
     });
     // then
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -1245,6 +1315,41 @@ describe('FileViewer', () => {
     });
     expect(monaco.zones.addZone).not.toHaveBeenCalled();
   });
+
+  test('lifts each zone above the editor text so its Reply box takes clicks', async () => {
+    // given
+    const comments = vi.fn(() => Promise.resolve([review(101, 'why?')]));
+    // when
+    renderViewer(same, undefined, true, comments);
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    });
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    expect(Number(zone.domNode.style.zIndex)).toBeGreaterThan(0);
+  });
+
+  test.each(['idle', 'ready', 'waiting'] as const)(
+    're-reads the review comments when the session turns %s',
+    async (dot) => {
+      // given
+      const comments = vi.fn(() => Promise.resolve([]));
+      renderViewer(same, undefined, true, comments);
+      await vi.waitFor(() => {
+        expect(comments).toHaveBeenCalledTimes(1);
+      });
+      // when
+      act(() => {
+        useMaple.setState({
+          statuses: { t1: { tabId: 't1', dot, sessionAlive: true, exitCode: null, resumeFailed: false } },
+        });
+      });
+      // then
+      await vi.waitFor(() => {
+        expect(comments).toHaveBeenCalledTimes(2);
+      });
+    },
+  );
 
   test('keeps keys typed in a reply from reaching the editor', async () => {
     // given

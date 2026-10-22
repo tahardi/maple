@@ -12,6 +12,7 @@ const FIRST_HEIGHT = 120;
 
 function makeBox(): Box {
   const zone = document.createElement('div');
+  zone.style.zIndex = '10';
   const content = document.createElement('div');
   content.style.display = 'flow-root';
   zone.appendChild(content);

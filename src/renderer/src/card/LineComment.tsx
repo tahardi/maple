@@ -4,11 +4,12 @@ import styles from './LineComment.module.css';
 type Props = {
   tabId: string;
   path: string;
+  startLine: number | null;
   line: number;
   onDone: () => void;
 };
 
-export function LineComment({ tabId, path, line, onDone }: Props) {
+export function LineComment({ tabId, path, startLine, line, onDone }: Props) {
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +17,7 @@ export function LineComment({ tabId, path, line, onDone }: Props) {
   const post = () => {
     setPosting(true);
     setError(null);
-    window.maple.pr.comment(tabId, path, line, text).then(onDone, (err: unknown) => {
+    window.maple.pr.comment(tabId, path, startLine, line, text).then(onDone, (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       setError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
       setPosting(false);
@@ -25,7 +26,9 @@ export function LineComment({ tabId, path, line, onDone }: Props) {
 
   return (
     <div className={styles.form}>
-      <h3 className={styles.heading}>{`Comment on ${path}:${String(line)}`}</h3>
+      <h3
+        className={styles.heading}
+      >{`Comment on ${path}:${startLine === null ? '' : `${String(startLine)}-`}${String(line)}`}</h3>
       <textarea
         className={styles.text}
         value={text}

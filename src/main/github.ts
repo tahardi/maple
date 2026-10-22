@@ -31,6 +31,41 @@ const reviewCommentsSchema = z.array(
   ),
 );
 
+const threadsSchema = z.array(
+  z.object({
+    data: z.object({
+      repository: z.object({
+        pullRequest: z.object({
+          reviewThreads: z.object({
+            nodes: z.array(
+              z.object({
+                id: z.string(),
+                isResolved: z.boolean(),
+                comments: z.object({ nodes: z.array(z.object({ databaseId: z.number() })) }),
+              }),
+            ),
+          }),
+        }),
+      }),
+    }),
+  }),
+);
+
+const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $endCursor) {
+        nodes { id isResolved comments(first: 1) { nodes { databaseId } } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}`;
+
+const RESOLVE_MUTATION = `mutation($id: ID!) {
+  resolveReviewThread(input: { threadId: $id }) { thread { id } }
+}`;
+
 const filesSchema = z.array(z.array(z.object({ filename: z.string(), patch: z.string().optional() })));
 
 const apiErrorSchema = z.object({
@@ -133,7 +168,7 @@ export async function commentOnLine(
   run: Runner,
   worktree: string,
   num: number,
-  comment: { path: string; line: number; body: string },
+  comment: { path: string; startLine: number | null; line: number; body: string },
 ): Promise<void> {
   const head = await headCommit(run, worktree, num).catch((err: unknown) => {
     throw new Error(`commenting on line: ${err instanceof Error ? err.message : String(err)}`);
@@ -155,6 +190,9 @@ export async function commentOnLine(
       `line=${String(comment.line)}`,
       '-f',
       'side=RIGHT',
+      ...(comment.startLine === null
+        ? []
+        : ['-F', `start_line=${String(comment.startLine)}`, '-f', 'start_side=RIGHT']),
     ],
     worktree,
   );
@@ -187,6 +225,44 @@ export async function replyToComment(
   }
 }
 
+async function reviewThreads(
+  run: Runner,
+  worktree: string,
+  num: number,
+): Promise<Map<number, { threadId: string; resolved: boolean }>> {
+  const { code, stdout, stderr } = await run(
+    'gh',
+    [
+      'api',
+      'graphql',
+      '--paginate',
+      '--slurp',
+      '-F',
+      'owner={owner}',
+      '-F',
+      'name={repo}',
+      '-F',
+      `number=${String(num)}`,
+      '-f',
+      `query=${THREADS_QUERY}`,
+    ],
+    worktree,
+  );
+  if (code !== 0) {
+    throw new Error(`listing review threads: ${stderr}`);
+  }
+  return new Map(
+    threadsSchema
+      .parse(JSON.parse(stdout))
+      .flatMap((page) => page.data.repository.pullRequest.reviewThreads.nodes)
+      .flatMap((t) =>
+        t.comments.nodes
+          .slice(0, 1)
+          .map((first) => [first.databaseId, { threadId: t.id, resolved: t.isResolved }] as const),
+      ),
+  );
+}
+
 export async function reviewComments(run: Runner, worktree: string, num: number): Promise<ReviewComment[]> {
   const { code, stdout, stderr } = await run(
     'gh',
@@ -196,6 +272,7 @@ export async function reviewComments(run: Runner, worktree: string, num: number)
   if (code !== 0) {
     throw new Error(`listing review comments: ${stderr}`);
   }
+  const threads = await reviewThreads(run, worktree, num);
   return reviewCommentsSchema
     .parse(JSON.parse(stdout))
     .flat()
@@ -210,8 +287,20 @@ export async function reviewComments(run: Runner, worktree: string, num: number)
               line: c.line,
               author: c.user.login,
               body: c.body,
+              ...(threads.get(c.in_reply_to_id ?? c.id) ?? { threadId: null, resolved: false }),
             },
           ]
         : [],
     );
+}
+
+export async function resolveThread(run: Runner, worktree: string, threadId: string): Promise<void> {
+  const { code, stderr } = await run(
+    'gh',
+    ['api', 'graphql', '-f', `id=${threadId}`, '-f', `query=${RESOLVE_MUTATION}`],
+    worktree,
+  );
+  if (code !== 0) {
+    throw new Error(`resolving thread: ${stderr}`);
+  }
 }

@@ -14,6 +14,7 @@ const {
   commentOnPr,
   commentOnLine,
   replyToComment,
+  resolveThread,
   reviewComments,
   diffLines,
   headCommit,
@@ -26,6 +27,7 @@ const {
   commentOnPr: vi.fn(),
   commentOnLine: vi.fn(),
   replyToComment: vi.fn(),
+  resolveThread: vi.fn(),
   reviewComments: vi.fn(),
   diffLines: vi.fn(),
   headCommit: vi.fn(),
@@ -41,6 +43,7 @@ vi.mock('../github', () => ({
   commentOnPr,
   commentOnLine,
   replyToComment,
+  resolveThread,
   reviewComments,
   diffLines,
   headCommit,
@@ -255,9 +258,14 @@ describe('registerPr', () => {
     prForBranch.mockResolvedValue(pr);
     const comment = register('pr:comment', '/wt');
     // when
-    await comment('t1', 'src/a.ts', 3, 'why?');
+    await comment('t1', 'src/a.ts', null, 3, 'why?');
     // then
-    expect(commentOnLine).toHaveBeenCalledWith(defaultRunner, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
+    expect(commentOnLine).toHaveBeenCalledWith(defaultRunner, '/wt', 33, {
+      path: 'src/a.ts',
+      startLine: null,
+      line: 3,
+      body: 'why?',
+    });
   });
 
   test.each([
@@ -274,7 +282,7 @@ describe('registerPr', () => {
     prForBranch.mockResolvedValue(found);
     const comment = register('pr:comment', worktree);
     // when
-    const result = comment('t1', 'src/a.ts', 3, 'why?');
+    const result = comment('t1', 'src/a.ts', null, 3, 'why?');
     // then
     await expect(result).rejects.toThrow(`commenting on line: ${want}`);
     expect(commentOnLine).not.toHaveBeenCalled();
@@ -286,15 +294,31 @@ describe('registerPr', () => {
     commentOnLine.mockRejectedValueOnce(new Error('commenting on line: line must be part of the diff'));
     const comment = register('pr:comment', '/wt');
     // when
-    const result = comment('t1', 'src/a.ts', 3, 'why?');
+    const result = comment('t1', 'src/a.ts', null, 3, 'why?');
     // then
     await expect(result).rejects.toThrow(/^commenting on line: line must be part of the diff$/);
     expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
       operation: 'pr:comment',
       tabId: 't1',
       path: 'src/a.ts',
+      startLine: null,
       line: 3,
       error: 'commenting on line: line must be part of the diff',
+    });
+  });
+
+  test('comment posts on a range of lines', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const comment = register('pr:comment', '/wt');
+    // when
+    await comment('t1', 'src/a.ts', 1, 3, 'why?');
+    // then
+    expect(commentOnLine).toHaveBeenCalledWith(defaultRunner, '/wt', 33, {
+      path: 'src/a.ts',
+      startLine: 1,
+      line: 3,
+      body: 'why?',
     });
   });
 
@@ -356,6 +380,41 @@ describe('registerPr', () => {
     });
   });
 
+  test('resolve resolves the thread from the tab worktree', async () => {
+    // given
+    const resolve = register('pr:resolve', '/wt');
+    // when
+    await resolve('t1', 'PRRT_101');
+    // then
+    expect(resolveThread).toHaveBeenCalledWith(defaultRunner, '/wt', 'PRRT_101');
+  });
+
+  test('resolve rejects and resolves nothing when the tab has no worktree', async () => {
+    // given
+    const resolve = register('pr:resolve', null);
+    // when
+    const result = resolve('t1', 'PRRT_101');
+    // then
+    await expect(result).rejects.toThrow('resolving thread: tab has no card worktree');
+    expect(resolveThread).not.toHaveBeenCalled();
+  });
+
+  test('resolve logs the thread id when it fails', async () => {
+    // given
+    resolveThread.mockRejectedValueOnce(new Error('resolving thread: not found'));
+    const resolve = register('pr:resolve', '/wt');
+    // when
+    const result = resolve('t1', 'PRRT_101');
+    // then
+    await expect(result).rejects.toThrow(/^resolving thread: not found$/);
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:resolve',
+      tabId: 't1',
+      threadId: 'PRRT_101',
+      error: 'resolving thread: not found',
+    });
+  });
+
   test('diffLines returns the PR diff ranges and the files that differ from the PR head', async () => {
     // given
     prForBranch.mockResolvedValue(pr);
@@ -391,7 +450,7 @@ describe('registerPr', () => {
     prForBranch.mockRejectedValueOnce(new Error('listing PRs: offline'));
     const comment = register('pr:comment', '/wt');
     // when
-    const result = comment('t1', 'src/a.ts', 3, 'why?');
+    const result = comment('t1', 'src/a.ts', null, 3, 'why?');
     // then
     await expect(result).rejects.toThrow(/^commenting on line: listing PRs: offline$/);
     expect(commentOnLine).not.toHaveBeenCalled();

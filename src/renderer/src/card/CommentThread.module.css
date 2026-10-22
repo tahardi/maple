@@ -9,6 +9,9 @@
 }
 
 .label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 4px 10px;
   font-size: 12px;
   color: var(--text-muted);
@@ -46,4 +49,13 @@
 
 .error {
   color: var(--danger);
+}
+
+.resolved {
+  color: var(--success);
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
 }

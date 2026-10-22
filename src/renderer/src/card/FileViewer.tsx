@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { MarkdownText } from '../shell/MarkdownText';
 import { useMaple } from '../store';
 import { CommentThread } from './CommentThread';
+import { linesLabel, selectedLines, type Lines } from './selectedLines';
 import { toThreads } from './commentThreads';
 import { toDecorations } from './inFileDecorations';
 import { LineComment } from './LineComment';
@@ -93,14 +94,15 @@ export function FileViewer({
   const keepScroll = useRef<number | null>(null);
   const drafts = useMaple((s) => (Object.hasOwn(s.drafts, tabId) ? s.drafts[tabId] : NO_DRAFTS));
   const setDraft = useMaple((s) => s.setDraft);
+  const dot = useMaple((s) => (tabId in s.statuses ? s.statuses[tabId].dot : null));
   const [saveError, setSaveError] = useState<{ path: string; message: string } | null>(null);
   const pendingLine = useRef<number | null>(null);
-  const [commenting, setCommenting] = useState<{ path: string; line: number } | null>(null);
-  const [refused, setRefused] = useState<{ path: string; line: number } | null>(null);
+  const [commenting, setCommenting] = useState<({ path: string } & Lines) | null>(null);
+  const [refused, setRefused] = useState<({ path: string } & Lines) | null>(null);
   const [comments, setComments] = useState<ReviewComment[]>(NO_COMMENTS);
   const [commentsRead, setCommentsRead] = useState(0);
   const [diff, setDiff] = useState<DiffLines>(NO_DIFF);
-  const [cursor, setCursor] = useState<{ editor: editor.ICodeEditor; line: number } | null>(null);
+  const [picked, setPicked] = useState<{ editor: editor.ICodeEditor; lines: Lines } | null>(null);
 
   const showsDescription = activeFile === PR_DESCRIPTION;
   const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
@@ -183,8 +185,14 @@ export function FileViewer({
   const stale = text !== null && draft !== null && draft.disk !== text.current;
   const commentable = canComment && text !== null && text.current !== null && !sideBySide && plain !== null;
   const ranges = text !== null && Object.hasOwn(diff.ranges, text.path) ? diff.ranges[text.path] : [];
-  const cursorLine = cursor !== null && cursor.editor === plain ? cursor.line : plain?.getPosition()?.lineNumber;
-  const inDiff = cursorLine !== undefined && ranges.some(([start, end]) => start <= cursorLine && cursorLine <= end);
+  const shownSelection = plain?.getSelection() ?? null;
+  const selected =
+    picked !== null && picked.editor === plain
+      ? picked.lines
+      : shownSelection === null
+        ? null
+        : selectedLines(shownSelection);
+  const inDiff = selected !== null && ranges.some(([start, end]) => start <= selected.start && selected.end <= end);
   const blocked = text !== null && diff.unpushed.includes(text.path) ? NOT_PUSHED : inDiff ? null : OUTSIDE_DIFF;
 
   const specs = useMemo(
@@ -230,7 +238,7 @@ export function FileViewer({
     return () => {
       live = false;
     };
-  }, [tabId, canComment, commentsRead, prFetchedAt]);
+  }, [tabId, canComment, commentsRead, prFetchedAt, dot]);
 
   useEffect(() => {
     if (!canComment) {
@@ -254,8 +262,8 @@ export function FileViewer({
     if (plain === null) {
       return;
     }
-    const subscription = plain.onDidChangeCursorPosition((e) => {
-      setCursor({ editor: plain, line: e.position.lineNumber });
+    const subscription = plain.onDidChangeCursorSelection((e) => {
+      setPicked({ editor: plain, lines: selectedLines(e.selection) });
     });
     return () => {
       subscription.dispose();
@@ -384,16 +392,21 @@ export function FileViewer({
             </button>
           </div>
         )}
-        {commentable && blocked !== null && refused?.path === shown.path && refused.line === cursorLine && (
-          <div className={styles.notice} role="alert">
-            {`Can't comment on line ${String(refused.line)}. ${blocked}`}
-          </div>
-        )}
+        {commentable &&
+          blocked !== null &&
+          refused?.path === shown.path &&
+          refused.start === selected?.start &&
+          refused.end === selected.end && (
+            <div className={styles.notice} role="alert">
+              {`Can't comment on ${linesLabel(refused)}. ${blocked}`}
+            </div>
+          )}
         {commentable && commenting?.path === shown.path && (
           <LineComment
             tabId={tabId}
             path={commenting.path}
-            line={commenting.line}
+            startLine={commenting.start === commenting.end ? null : commenting.start}
+            line={commenting.end}
             onDone={() => {
               setCommenting(null);
               setCommentsRead((n) => n + 1);
@@ -471,14 +484,14 @@ export function FileViewer({
               <button
                 title={blocked ?? undefined}
                 onClick={() => {
-                  if (cursorLine === undefined) {
+                  if (selected === null) {
                     return;
                   }
                   if (blocked === null) {
                     setRefused(null);
-                    setCommenting({ path: text.path, line: cursorLine });
+                    setCommenting({ path: text.path, ...selected });
                   } else {
-                    setRefused({ path: text.path, line: cursorLine });
+                    setRefused({ path: text.path, ...selected });
                   }
                 }}
               >

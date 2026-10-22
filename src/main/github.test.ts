@@ -8,6 +8,7 @@ import {
   headCommit,
   prForBranch,
   replyToComment,
+  resolveThread,
   reviewComments,
 } from './github';
 import type { Runner } from './preflight';
@@ -142,7 +143,7 @@ describe('commentOnLine', () => {
     // given
     const run = vi.fn<Runner>((_cmd, args) => Promise.resolve(ok(args[0] === 'pr' ? 'abc123\n' : '')));
     // when
-    await commentOnLine(run, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
+    await commentOnLine(run, '/wt', 33, { path: 'src/a.ts', startLine: null, line: 3, body: 'why?' });
     // then
     expect(run).toHaveBeenCalledWith('gh', ['pr', 'view', '33', '--json', 'headRefOid', '--jq', '.headRefOid'], '/wt');
     expect(run).toHaveBeenCalledWith(
@@ -162,6 +163,38 @@ describe('commentOnLine', () => {
         'line=3',
         '-f',
         'side=RIGHT',
+      ],
+      '/wt',
+    );
+  });
+
+  test('posts a comment on a range of lines with its first line', async () => {
+    // given
+    const run = vi.fn<Runner>((_cmd, args) => Promise.resolve(ok(args[0] === 'pr' ? 'abc123\n' : '')));
+    // when
+    await commentOnLine(run, '/wt', 33, { path: 'src/a.ts', startLine: 1, line: 3, body: 'why?' });
+    // then
+    expect(run).toHaveBeenCalledWith(
+      'gh',
+      [
+        'api',
+        '--method',
+        'POST',
+        'repos/{owner}/{repo}/pulls/33/comments',
+        '-f',
+        'body=why?',
+        '-f',
+        'commit_id=abc123',
+        '-f',
+        'path=src/a.ts',
+        '-F',
+        'line=3',
+        '-f',
+        'side=RIGHT',
+        '-F',
+        'start_line=1',
+        '-f',
+        'start_side=RIGHT',
       ],
       '/wt',
     );
@@ -218,7 +251,7 @@ describe('commentOnLine', () => {
       ),
     );
     // when
-    const result = commentOnLine(run, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
+    const result = commentOnLine(run, '/wt', 33, { path: 'src/a.ts', startLine: null, line: 3, body: 'why?' });
     // then
     await expect(result).rejects.toThrow(new Error(want));
   });
@@ -227,7 +260,7 @@ describe('commentOnLine', () => {
     // given
     const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'no pull requests found' }));
     // when
-    const result = commentOnLine(run, '/wt', 33, { path: 'src/a.ts', line: 3, body: 'why?' });
+    const result = commentOnLine(run, '/wt', 33, { path: 'src/a.ts', startLine: null, line: 3, body: 'why?' });
     // then
     await expect(result).rejects.toThrow('commenting on line: reading PR head: no pull requests found');
     expect(run).toHaveBeenCalledTimes(1);
@@ -259,9 +292,14 @@ describe('replyToComment', () => {
 });
 
 describe('reviewComments', () => {
-  test('returns the current comments on the new side of the diff', async () => {
+  const runner = (threads: Reply) =>
+    vi.fn<Runner>((_cmd, args) =>
+      Promise.resolve(args[1] === 'graphql' ? threads : ok(fixture('pr-review-comments.json'))),
+    );
+
+  test('returns the current comments on the new side of the diff with their thread', async () => {
     // given
-    const run = vi.fn<Runner>(() => Promise.resolve(ok(fixture('pr-review-comments.json'))));
+    const run = runner(ok(fixture('pr-review-threads.json')));
     // when
     const result = await reviewComments(run, '/wt', 33);
     // then
@@ -270,8 +308,36 @@ describe('reviewComments', () => {
       ['api', '--paginate', '--slurp', 'repos/{owner}/{repo}/pulls/33/comments'],
       '/wt',
     );
+    expect(run).toHaveBeenCalledWith(
+      'gh',
+      [
+        'api',
+        'graphql',
+        '--paginate',
+        '--slurp',
+        '-F',
+        'owner={owner}',
+        '-F',
+        'name={repo}',
+        '-F',
+        'number=33',
+        '-f',
+        expect.stringContaining('reviewThreads(first: 100, after: $endCursor)'),
+      ],
+      '/wt',
+    );
     expect(result).toEqual([
-      { id: 101, replyTo: null, startLine: 1, path: 'src/a.ts', line: 3, author: 'tahardi', body: 'why?' },
+      {
+        id: 101,
+        replyTo: null,
+        startLine: 1,
+        path: 'src/a.ts',
+        line: 3,
+        author: 'tahardi',
+        body: 'why?',
+        threadId: 'PRRT_101',
+        resolved: true,
+      },
       {
         id: 102,
         replyTo: 101,
@@ -280,7 +346,23 @@ describe('reviewComments', () => {
         line: 3,
         author: 'tahardi',
         body: '**Claude:** explained in the PR body',
+        threadId: 'PRRT_101',
+        resolved: true,
       },
+    ]);
+  });
+
+  test('leaves a comment with no matching thread open and unresolvable', async () => {
+    // given
+    const run = runner(
+      ok(JSON.stringify([{ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } }])),
+    );
+    // when
+    const result = await reviewComments(run, '/wt', 33);
+    // then
+    expect(result.map((c) => [c.threadId, c.resolved])).toEqual([
+      [null, false],
+      [null, false],
     ]);
   });
 
@@ -291,6 +373,46 @@ describe('reviewComments', () => {
     const result = reviewComments(run, '/wt', 33);
     // then
     await expect(result).rejects.toThrow('listing review comments: offline');
+  });
+
+  test('rejects with the gh error when the thread lookup fails', async () => {
+    // given
+    const run = runner({ code: 1, stdout: '', stderr: 'rate limited' });
+    // when
+    const result = reviewComments(run, '/wt', 33);
+    // then
+    await expect(result).rejects.toThrow('listing review threads: rate limited');
+  });
+});
+
+describe('resolveThread', () => {
+  test('resolves the thread in the worktree', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve(ok('')));
+    // when
+    await resolveThread(run, '/wt', 'PRRT_101');
+    // then
+    expect(run).toHaveBeenCalledWith(
+      'gh',
+      [
+        'api',
+        'graphql',
+        '-f',
+        'id=PRRT_101',
+        '-f',
+        expect.stringContaining('resolveReviewThread(input: { threadId: $id })'),
+      ],
+      '/wt',
+    );
+  });
+
+  test('rejects with the gh error', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'not found' }));
+    // when
+    const result = resolveThread(run, '/wt', 'PRRT_101');
+    // then
+    await expect(result).rejects.toThrow('resolving thread: not found');
   });
 });
 
