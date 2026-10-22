@@ -12,12 +12,14 @@ describe('preflight', () => {
     const untrusted = await mkdtemp(join(tmpdir(), 'maple-live-untrusted-'));
     const jiraEnv = expandHome(process.env.MAPLE_JIRA_ENV ?? '~/.config/jira/env');
     const claudeJson = expandHome(process.env.MAPLE_CLAUDE_JSON ?? '~/.claude.json');
+    const claudeSettings = expandHome(process.env.MAPLE_CLAUDE_SETTINGS ?? '~/.claude/settings.json');
     const trusted = expandHome('~/Documents/code/maple');
     // when
     const problems = await runPreflight(
       defaultRunner,
       jiraEnv,
       claudeJson,
+      claudeSettings,
       [trusted, untrusted],
       createLogger(() => undefined),
     ).finally(() => rm(untrusted, { recursive: true, force: true }));

@@ -11,6 +11,7 @@ const missingEnv = join(dir, 'missing');
 writeFileSync(presentEnv, '');
 const claudeJson = join(dir, 'claude.json');
 writeFileSync(claudeJson, '{}');
+const noSettings = join(dir, 'no-settings.json');
 
 function fakeRunner(codes: Record<string, number>): Runner {
   return (cmd, args) => Promise.resolve({ code: codes[`${cmd} ${args.join(' ')}`] ?? 0, stdout: '', stderr: '' });
@@ -70,7 +71,7 @@ describe('runPreflight', () => {
     // given
     const run = fakeRunner(codes);
     // when
-    const problems = await runPreflight(run, envPath, claudeJson, []);
+    const problems = await runPreflight(run, envPath, claudeJson, noSettings, []);
     // then
     expect(problems).toEqual(expected);
   });
@@ -79,7 +80,7 @@ describe('runPreflight', () => {
     // given
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     // when
-    await runPreflight(fakeRunner({ 'claude --version': 127 }), missingEnv, claudeJson, [], logger);
+    await runPreflight(fakeRunner({ 'claude --version': 127 }), missingEnv, claudeJson, noSettings, [], logger);
     // then
     expect(logger.warn.mock.calls).toEqual([
       ['preflight', 'problem', { tool: 'claude', message: 'claude is not on PATH' }],
@@ -91,7 +92,7 @@ describe('runPreflight', () => {
     // given
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     // when
-    await runPreflight(fakeRunner({}), presentEnv, claudeJson, [], logger);
+    await runPreflight(fakeRunner({}), presentEnv, claudeJson, noSettings, [], logger);
     // then
     expect(logger.info).toHaveBeenCalledWith('preflight', 'passed');
     expect(logger.warn).not.toHaveBeenCalled();
@@ -156,7 +157,7 @@ describe('runPreflight claude trust', () => {
       writeFileSync(path, contents);
     }
     // when
-    const problems = await runPreflight(fakeRunner({}), presentEnv, path, plannerDirs);
+    const problems = await runPreflight(fakeRunner({}), presentEnv, path, noSettings, plannerDirs);
     // then
     expect(problems).toEqual(untrustedDirs.map((d) => ({ tool: 'claude-trust', message: message(d) })));
   });
@@ -166,7 +167,7 @@ describe('runPreflight claude trust', () => {
     const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-json-')), 'claude.json');
     mkdirSync(path);
     // when
-    const problems = await runPreflight(fakeRunner({}), presentEnv, path, [trusted, untrusted]);
+    const problems = await runPreflight(fakeRunner({}), presentEnv, path, noSettings, [trusted, untrusted]);
     // then
     expect(problems).toEqual([trusted, untrusted].map((d) => ({ tool: 'claude-trust', message: message(d) })));
   });
@@ -177,12 +178,161 @@ describe('runPreflight claude trust', () => {
     const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-json-')), 'claude.json');
     writeFileSync(path, contents);
     // when
-    await runPreflight(fakeRunner({}), presentEnv, path, [untrusted], logger);
+    await runPreflight(fakeRunner({}), presentEnv, path, noSettings, [untrusted], logger);
     // then
     expect(logger.warn.mock.calls).toEqual([
       ['preflight', 'problem', { tool: 'claude-trust', message: message(untrusted) }],
     ]);
     expect(logger.info).not.toHaveBeenCalled();
+  });
+});
+
+describe('runPreflight claude sandbox', () => {
+  const hardened = { sandbox: { enabled: true, allowUnsandboxedCommands: false } };
+  const escape = (path: string): PreflightProblem => ({
+    tool: 'claude-sandbox',
+    message: `sandbox escape hatch is on: set sandbox.allowUnsandboxedCommands to false in ${path}`,
+  });
+  const missingTool = (tool: string): PreflightProblem => ({
+    tool: 'claude-sandbox',
+    message: `${tool} is not on PATH, so the Claude sandbox cannot start`,
+  });
+
+  test.each<{
+    name: string;
+    contents: string | null;
+    codes: Record<string, number>;
+    expected: (path: string) => PreflightProblem[];
+  }>([
+    {
+      name: 'no problems when the sandbox is off',
+      contents: JSON.stringify({ sandbox: { enabled: false } }),
+      codes: { 'socat --version': 127, 'bwrap --version': 127 },
+      expected: () => [],
+    },
+    {
+      name: 'no problems when there is no sandbox block',
+      contents: JSON.stringify({ env: { TOKEN: 'secret' } }),
+      codes: { 'socat --version': 127 },
+      expected: () => [],
+    },
+    {
+      name: 'no problems when the sandbox is hardened',
+      contents: JSON.stringify(hardened),
+      codes: {},
+      expected: () => [],
+    },
+    {
+      name: 'the escape hatch when allowUnsandboxedCommands is missing',
+      contents: JSON.stringify({ sandbox: { enabled: true } }),
+      codes: {},
+      expected: (path) => [escape(path)],
+    },
+    {
+      name: 'the escape hatch when allowUnsandboxedCommands is true',
+      contents: JSON.stringify({ sandbox: { enabled: true, allowUnsandboxedCommands: true } }),
+      codes: {},
+      expected: (path) => [escape(path)],
+    },
+    {
+      name: 'no problems when sandbox is not an object',
+      contents: JSON.stringify({ sandbox: true }),
+      codes: { 'socat --version': 127 },
+      expected: () => [],
+    },
+    {
+      name: 'no problems when enabled is truthy but not true',
+      contents: JSON.stringify({ sandbox: { enabled: 'true' } }),
+      codes: { 'socat --version': 127 },
+      expected: () => [],
+    },
+    {
+      name: 'the escape hatch when allowUnsandboxedCommands is falsy but not false',
+      contents: JSON.stringify({ sandbox: { enabled: true, allowUnsandboxedCommands: 'false' } }),
+      codes: {},
+      expected: (path) => [escape(path)],
+    },
+    {
+      name: 'missing socat',
+      contents: JSON.stringify(hardened),
+      codes: { 'socat --version': 127 },
+      expected: () => [missingTool('socat')],
+    },
+    {
+      name: 'missing bwrap',
+      contents: JSON.stringify(hardened),
+      codes: { 'bwrap --version': 127 },
+      expected: () => [missingTool('bwrap')],
+    },
+    {
+      name: 'only a missing tool, not a failing one',
+      contents: JSON.stringify(hardened),
+      codes: { 'socat --version': 1 },
+      expected: () => [],
+    },
+    {
+      name: 'every sandbox problem',
+      contents: JSON.stringify({ sandbox: { enabled: true } }),
+      codes: { 'socat --version': 127, 'bwrap --version': 127 },
+      expected: (path) => [escape(path), missingTool('socat'), missingTool('bwrap')],
+    },
+    {
+      name: 'no problems when the file is missing',
+      contents: null,
+      codes: { 'socat --version': 127 },
+      expected: () => [],
+    },
+    {
+      name: 'no problems when the file is not JSON',
+      contents: '{',
+      codes: { 'socat --version': 127 },
+      expected: () => [],
+    },
+    {
+      name: 'no problems when the file is JSON null',
+      contents: 'null',
+      codes: { 'socat --version': 127 },
+      expected: () => [],
+    },
+  ])('reports $name', async ({ contents, codes, expected }) => {
+    // given
+    const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-settings-')), 'settings.json');
+    if (contents !== null) {
+      writeFileSync(path, contents);
+    }
+    // when
+    const problems = await runPreflight(fakeRunner(codes), presentEnv, claudeJson, path, []);
+    // then
+    expect(problems).toEqual(expected(path));
+  });
+
+  test('reports no problems when the file is a directory', async () => {
+    // given
+    const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-settings-')), 'settings.json');
+    mkdirSync(path);
+    // when
+    const problems = await runPreflight(fakeRunner({ 'socat --version': 127 }), presentEnv, claudeJson, path, []);
+    // then
+    expect(problems).toEqual([]);
+  });
+
+  test('logs no settings values besides the sandbox keys it checks', async () => {
+    // given
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-settings-')), 'settings.json');
+    writeFileSync(
+      path,
+      JSON.stringify({ env: { JIRA_TOKEN: 'secret-token' }, sandbox: { enabled: true, network: 'secret-host' } }),
+    );
+    // when
+    await runPreflight(fakeRunner({ 'bwrap --version': 127 }), presentEnv, claudeJson, path, [], logger);
+    // then
+    const logged = JSON.stringify([logger.info.mock.calls, logger.warn.mock.calls, logger.error.mock.calls]);
+    expect(logged).not.toContain('secret');
+    expect(logger.warn.mock.calls).toEqual([
+      ['preflight', 'problem', escape(path)],
+      ['preflight', 'problem', missingTool('bwrap')],
+    ]);
   });
 });
 

@@ -10,6 +10,7 @@ export function registerPreflight(): void {
       defaultRunner,
       process.env.MAPLE_JIRA_ENV ?? join(homedir(), '.config', 'jira', 'env'),
       process.env.MAPLE_CLAUDE_JSON ?? join(homedir(), '.claude.json'),
+      process.env.MAPLE_CLAUDE_SETTINGS ?? join(homedir(), '.claude', 'settings.json'),
       (await projects()).map((p) => p.plannerDir),
     ),
   );
