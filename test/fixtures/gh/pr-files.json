@@ -1,0 +1,114 @@
+[
+  [
+    {
+      "sha": "555c9ba3c56f59384b4c060b68b28e87643b8c84",
+      "filename": ".github/workflows/ci.yml",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 0,
+      "changes": 8,
+      "blob_url": "https://github.com/tahardi/maple/blob/ae0bc6923d818555a7f86d0d0864e3b13ae2face/.github%2Fworkflows%2Fci.yml",
+      "raw_url": "https://github.com/tahardi/maple/raw/ae0bc6923d818555a7f86d0d0864e3b13ae2face/.github%2Fworkflows%2Fci.yml",
+      "contents_url": "https://api.github.com/repos/tahardi/maple/contents/.github%2Fworkflows%2Fci.yml?ref=ae0bc6923d818555a7f86d0d0864e3b13ae2face",
+      "patch": "@@ -86,3 +86,11 @@ jobs:\n \n       - name: Run Check\n         run: xvfb-run -a make test-e2e\n+\n+      - name: Upload Test Results\n+        if: always()\n+        uses: actions/upload-artifact@v4\n+        with:\n+          name: e2e-test-results\n+          path: test-results/\n+          retention-days: 7"
+    },
+    {
+      "sha": "369dbab65ec9286c2f1285f92f659e62858ede8e",
+      "filename": "README.md",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 0,
+      "changes": 9,
+      "blob_url": "https://github.com/tahardi/maple/blob/ae0bc6923d818555a7f86d0d0864e3b13ae2face/README.md",
+      "raw_url": "https://github.com/tahardi/maple/raw/ae0bc6923d818555a7f86d0d0864e3b13ae2face/README.md",
+      "contents_url": "https://api.github.com/repos/tahardi/maple/contents/README.md?ref=ae0bc6923d818555a7f86d0d0864e3b13ae2face",
+      "patch": "@@ -35,6 +35,15 @@ Only one Maple runs per config dir: opening a second one, from the launcher or `\n \n It uses your real Jira projects, so give every made-up test card the `test-card` label and a `[TEST]` summary prefix.\n \n+## Tests\n+\n+- **Unit** (`make test-unit`): Vitest tests next to the code in `src/`. They mock the outside world: recorded Jira and GitHub JSON in `test/fixtures/`, a fake `node-pty`, and git repos built in a temp dir. Fast and free; `make pre-pr` runs them.\n+- **Socket** (`make test-socket`): the few unit tests that open Unix sockets for Claude's hooks. They are kept apart because the Claude sandbox blocks sockets.\n+- **E2E** (`test/e2e/`, `make test-e2e`): builds Maple and drives the real Electron window with Playwright. Everything outside Maple is fake: a local Jira server serving the recorded JSON, a stub `claude` that echoes its arguments, and a temp config dir. They check that the main process, IPC, and renderer work together. They need a display and tmux.\n+- **Live** (`test/live/`, `make test-live`): call Maple's Jira, GitHub, preflight, and session code against the real Jira, `gh`, and `claude`, using your credentials. They check that the outside world still matches the fixtures and fakes the other tests rely on. They cost money and can break when real data changes.\n+\n+CI runs unit, socket, and e2e on every PR. Live tests run only by hand. The Claude sandbox can run only `make pre-pr`.\n+\n ## Config\n \n Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `~` expands to your home directory."
+    },
+    {
+      "sha": "3b1497c81a9b7734b6560792b9ca2477ecb3719a",
+      "filename": "playwright.config.ts",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 2,
+      "changes": 6,
+      "blob_url": "https://github.com/tahardi/maple/blob/ae0bc6923d818555a7f86d0d0864e3b13ae2face/playwright.config.ts",
+      "raw_url": "https://github.com/tahardi/maple/raw/ae0bc6923d818555a7f86d0d0864e3b13ae2face/playwright.config.ts",
+      "contents_url": "https://api.github.com/repos/tahardi/maple/contents/playwright.config.ts?ref=ae0bc6923d818555a7f86d0d0864e3b13ae2face",
+      "patch": "@@ -1,8 +1,10 @@\n import { defineConfig } from '@playwright/test';\n \n export default defineConfig({\n-  testDir: 'e2e',\n+  testDir: 'test/e2e',\n   timeout: 60_000,\n   workers: 1,\n-  reporter: 'list',\n+  retries: process.env.CI ? 2 : 0,\n+  reporter: process.env.CI ? [['list'], ['github']] : 'list',\n+  use: { trace: 'retain-on-failure', screenshot: 'only-on-failure' },\n });"
+    },
+    {
+      "sha": "b3115afe6c42696cc1c1e98cb844f395e3fcd05f",
+      "filename": "test/e2e/fixtures/bin/claude",
+      "status": "renamed",
+      "additions": 0,
+      "deletions": 0,
+      "changes": 0,
+      "blob_url": "https://github.com/tahardi/maple/blob/ae0bc6923d818555a7f86d0d0864e3b13ae2face/test%2Fe2e%2Ffixtures%2Fbin%2Fclaude",
+      "raw_url": "https://github.com/tahardi/maple/raw/ae0bc6923d818555a7f86d0d0864e3b13ae2face/test%2Fe2e%2Ffixtures%2Fbin%2Fclaude",
+      "contents_url": "https://api.github.com/repos/tahardi/maple/contents/test%2Fe2e%2Ffixtures%2Fbin%2Fclaude?ref=ae0bc6923d818555a7f86d0d0864e3b13ae2face",
+      "previous_filename": "e2e/fixtures/bin/claude"
+    },
+    {
+      "sha": "fa9f1f73f7ce85de4856dbc940b5a02df991e782",
+      "filename": "test/e2e/fixtures/config/config.json",
+      "status": "renamed",
+      "additions": 0,
+      "deletions": 0,
+      "changes": 0,
+      "blob_url": "https://github.com/tahardi/maple/blob/ae0bc6923d818555a7f86d0d0864e3b13ae2face/test%2Fe2e%2Ffixtures%2Fconfig%2Fconfig.json",
+      "raw_url": "https://github.com/tahardi/maple/raw/ae0bc6923d818555a7f86d0d0864e3b13ae2face/test%2Fe2e%2Ffixtures%2Fconfig%2Fconfig.json",
+      "contents_url": "https://api.github.com/repos/tahardi/maple/contents/test%2Fe2e%2Ffixtures%2Fconfig%2Fconfig.json?ref=ae0bc6923d818555a7f86d0d0864e3b13ae2face",
+      "previous_filename": "e2e/fixtures/config/config.json"
+    },
+    {
+      "sha": "48ae4dea70fe058549dc523dffc52ca77f2f0ef9",
+      "filename": "test/e2e/fixtures/jira.env",
+      "status": "renamed",
+      "additions": 0,
+      "deletions": 0,
+      "changes": 0,
+      "blob_url": "https://github.com/tahardi/maple/blob/ae0bc6923d818555a7f86d0d0864e3b13ae2face/test%2Fe2e%2Ffixtures%2Fjira.env",
+      "raw_url": "https://github.com/tahardi/maple/raw/ae0bc6923d818555a7f86d0d0864e3b13ae2face/test%2Fe2e%2Ffixtures%2Fjira.env",
+      "contents_url": "https://api.github.com/repos/tahardi/maple/contents/test%2Fe2e%2Ffixtures%2Fjira.env?ref=ae0bc6923d818555a7f86d0d0864e3b13ae2face",
+      "previous_filename": "e2e/fixtures/jira.env"
+    },
+    {
+      "sha": "4eeae1d8e5098351bfc8b56ff18765e8dbec6ad6",
+      "filename": "test/e2e/fixtures/jiraServer.ts",
+      "status": "renamed",
+      "additions": 10,
+      "deletions": 3,
+      "changes": 13,
+      "blob_url": "https://github.com/tahardi/maple/blob/ae0bc6923d818555a7f86d0d0864e3b13ae2face/test%2Fe2e%2Ffixtures%2FjiraServer.ts",
+      "raw_url": "https://github.com/tahardi/maple/raw/ae0bc6923d818555a7f86d0d0864e3b13ae2face/test%2Fe2e%2Ffixtures%2FjiraServer.ts",
+      "contents_url": "https://api.github.com/repos/tahardi/maple/contents/test%2Fe2e%2Ffixtures%2FjiraServer.ts?ref=ae0bc6923d818555a7f86d0d0864e3b13ae2face",
+      "patch": "@@ -2,19 +2,25 @@ import { readFile } from 'node:fs/promises';\n import { createServer } from 'node:http';\n import { join } from 'node:path';\n \n-const fixtures = join(import.meta.dirname, '../../test/fixtures/jira');\n+const fixtures = join(import.meta.dirname, '../../fixtures/jira');\n \n const routes: readonly { pattern: RegExp; file: string }[] = [\n   { pattern: /^\\/rest\\/agile\\/1\\.0\\/board\\/\\d+\\/sprint\\?state=active$/, file: 'board-sprint-active.json' },\n   { pattern: /^\\/rest\\/api\\/3\\/search\\/jql\\?/, file: 'sprint-issues.json' },\n   { pattern: /^\\/rest\\/api\\/3\\/issue\\/[A-Z]+-\\d+\\?/, file: 'issue.json' },\n ];\n \n-export type JiraServer = { url: string; close: () => Promise<void> };\n+export type JiraServer = { url: string; requests: readonly string[]; close: () => Promise<void> };\n \n-export async function startJiraServer(): Promise<JiraServer> {\n+export async function startJiraServer(down = false): Promise<JiraServer> {\n+  const requests: string[] = [];\n   const server = createServer((req, res) => {\n+    requests.push(`${new Date().toISOString()} ${req.method ?? ''} ${req.url ?? ''}`);\n     const route = routes.find((r) => r.pattern.test(req.url ?? ''));\n+    if (down) {\n+      res.writeHead(503).end();\n+      return;\n+    }\n     if (!route) {\n       res.writeHead(404).end();\n       return;\n@@ -32,6 +38,7 @@ export async function startJiraServer(): Promise<JiraServer> {\n   }\n   return {\n     url: `http://127.0.0.1:${String(address.port)}`,\n+    requests,\n     close: () =>\n       new Promise((resolve) => {\n         server.close(() => {",
+      "previous_filename": "e2e/fixtures/jiraServer.ts"
+    },
+    {
+      "sha": "83673f1bd4b3a3023d21b0f5a1d13fb282bd3ce9",
+      "filename": "test/e2e/smoke.spec.ts",
+      "status": "renamed",
+      "additions": 72,
+      "deletions": 4,
+      "changes": 76,
+      "blob_url": "https://github.com/tahardi/maple/blob/ae0bc6923d818555a7f86d0d0864e3b13ae2face/test%2Fe2e%2Fsmoke.spec.ts",
+      "raw_url": "https://github.com/tahardi/maple/raw/ae0bc6923d818555a7f86d0d0864e3b13ae2face/test%2Fe2e%2Fsmoke.spec.ts",
+      "contents_url": "https://api.github.com/repos/tahardi/maple/contents/test%2Fe2e%2Fsmoke.spec.ts?ref=ae0bc6923d818555a7f86d0d0864e3b13ae2face",
+      "patch": "@@ -1,5 +1,14 @@\n import { execFileSync } from 'node:child_process';\n-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';\n+import {\n+  appendFileSync,\n+  copyFileSync,\n+  existsSync,\n+  mkdirSync,\n+  mkdtempSync,\n+  readFileSync,\n+  rmSync,\n+  writeFileSync,\n+} from 'node:fs';\n import { tmpdir } from 'node:os';\n import { delimiter, join } from 'node:path';\n import { _electron, expect, test, type ElectronApplication } from '@playwright/test';\n@@ -8,8 +17,8 @@ import { startJiraServer } from './fixtures/jiraServer';\n const fixtures = join(import.meta.dirname, 'fixtures');\n const cardKey = 'HALO-13';\n \n-async function sandbox() {\n-  const jira = await startJiraServer();\n+async function sandbox(jiraDown = false) {\n+  const jira = await startJiraServer(jiraDown);\n   const root = mkdtempSync(join(tmpdir(), 'maple-e2e-'));\n   const configDir = join(root, 'config');\n   const plannerDir = join(root, 'planner');\n@@ -37,18 +46,60 @@ async function sandbox() {\n     TMUX_TMPDIR: root,\n   };\n   const tmux = (...args: string[]) => execFileSync('tmux', ['-L', 'maple', ...args], { env }).toString();\n-  const launch = () => _electron.launch({ args: ['out/main/index.js'], env });\n+  const eventsLog = test.info().outputPath('events.log');\n+  const events = (line: string) => {\n+    appendFileSync(eventsLog, `${new Date().toISOString()} ${line}\\n`);\n+  };\n+  const launch = async () => {\n+    events('launch');\n+    const app = await _electron.launch({ args: ['--disable-gpu', 'out/main/index.js'], env });\n+    await app.context().tracing.start({ screenshots: true, snapshots: true });\n+    app.process().stderr?.on('data', (chunk: Buffer) => {\n+      events(`stderr ${chunk.toString().trim()}`);\n+    });\n+    app.on('window', (page) => {\n+      events(`window ${page.url()}`);\n+      page.on('load', () => {\n+        events('page load');\n+      });\n+      page.on('crash', () => {\n+        events('page crash');\n+      });\n+      page.on('close', () => {\n+        events('page close');\n+      });\n+      page.on('console', (msg) => {\n+        events(`console ${msg.type()} ${msg.text()}`);\n+      });\n+      page.on('pageerror', (err) => {\n+        events(`pageerror ${err.message}`);\n+      });\n+    });\n+    return app;\n+  };\n   const crash = async (app: ElectronApplication) => {\n     const exited = new Promise((resolve) => app.process().once('exit', resolve));\n     app.process().kill('SIGKILL');\n     await exited;\n   };\n   const cleanup = async (app: ElectronApplication) => {\n+    for (const [i, page] of app.windows().entries()) {\n+      await page.screenshot({ path: test.info().outputPath(`window-${String(i)}.png`) }).catch(() => undefined);\n+    }\n+    await app\n+      .context()\n+      .tracing.stop({ path: test.info().outputPath('app-trace.zip') })\n+      .catch(() => undefined);\n     const closed = app.waitForEvent('close');\n     app.process().kill('SIGKILL');\n     tmux('kill-server');\n     await closed;\n     await jira.close();\n+    const log = join(configDir, 'logs', 'main.log');\n+    if (existsSync(log)) {\n+      copyFileSync(log, test.info().outputPath('main.log'));\n+    }\n+    writeFileSync(test.info().outputPath('jira-requests.log'), jira.requests.join('\\n'));\n     rmSync(root, { recursive: true, force: true });\n   };\n   return { tmux, launch, crash, cleanup };\n@@ -90,6 +141,23 @@ test.describe('smoke', () => {\n     }\n   });\n \n+  test('shows Jira unreachable on Home when Jira is down', async () => {\n+    // given\n+    const { launch, cleanup } = await sandbox(true);\n+    const app = await launch();\n+\n+    try {\n+      // when\n+      const page = await app.firstWindow();\n+\n+      // then\n+      await expect(page.getByText('Jira unreachable', { exact: true })).toBeVisible();\n+      await expect(page.getByRole('heading', { name: 'To Do', exact: true })).toHaveCount(0);\n+    } finally {\n+      await cleanup(app);\n+    }\n+  });\n+\n   test('a card session survives a crash and the relaunched tab reattaches to it', async () => {\n     // given\n     const { tmux, launch, crash, cleanup } = await sandbox();",
+      "previous_filename": "e2e/smoke.spec.ts"
+    },
+    {
+      "sha": "4dbda29239de83be276c8eaad2e30368b18ec77e",
+      "filename": "tsconfig.node.json",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "changes": 2,
+      "blob_url": "https://github.com/tahardi/maple/blob/ae0bc6923d818555a7f86d0d0864e3b13ae2face/tsconfig.node.json",
+      "raw_url": "https://github.com/tahardi/maple/raw/ae0bc6923d818555a7f86d0d0864e3b13ae2face/tsconfig.node.json",
+      "contents_url": "https://api.github.com/repos/tahardi/maple/contents/tsconfig.node.json?ref=ae0bc6923d818555a7f86d0d0864e3b13ae2face",
+      "patch": "@@ -18,7 +18,7 @@\n     \"electron.vite.config.ts\",\n     \"vitest.config.ts\",\n     \"playwright.config.ts\",\n-    \"e2e/**/*\",\n+    \"test/e2e/**/*\",\n     \"src/main/**/*\",\n     \"src/preload/**/*\",\n     \"src/shared/**/*\","
+    }
+  ]
+]

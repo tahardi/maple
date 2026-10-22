@@ -123,6 +123,10 @@ export async function mergeBase(worktree: string): Promise<string> {
   return (await git(worktree, ['merge-base', 'origin/main', 'HEAD'])).trim();
 }
 
+export async function changedSince(worktree: string, commit: string): Promise<string[]> {
+  return splitZ(await git(worktree, ['diff', '--name-only', '-z', commit]));
+}
+
 export async function changes(worktree: string): Promise<ChangeSet> {
   const base = await mergeBase(worktree);
   const [nameStatus, numstat, untracked] = await Promise.all([

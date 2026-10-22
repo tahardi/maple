@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import {
   changes,
+  changedSince,
   currentBranch,
   findWorktree,
   listFiles,
@@ -86,6 +87,40 @@ describe('git', () => {
     ]);
     expect(set.added).toBe(7);
     expect(set.removed).toBe(2);
+  });
+
+  test('changedSince lists the files that differ from a commit', async () => {
+    // given
+    writeFileSync(join(worktree, 'keep.txt'), 'a\nB\nc\n');
+    git(worktree, 'commit', '-am', 'pushed');
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worktree, encoding: 'utf8' }).trim();
+    writeFileSync(join(worktree, 'old.txt'), 'r1\n');
+    // when
+    const paths = await changedSince(worktree, head);
+    // then
+    expect(paths).toEqual(['old.txt']);
+  });
+
+  test('changedSince lists committed and staged files that are newer than the commit', async () => {
+    // given
+    const pushed = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worktree, encoding: 'utf8' }).trim();
+    writeFileSync(join(worktree, 'keep.txt'), 'a\nB\nc\n');
+    git(worktree, 'commit', '-am', 'not pushed');
+    writeFileSync(join(worktree, 'old.txt'), 'r1\n');
+    git(worktree, 'add', 'old.txt');
+    // when
+    const paths = await changedSince(worktree, pushed);
+    // then
+    expect(paths).toEqual(['keep.txt', 'old.txt']);
+  });
+
+  test('changedSince rejects for a commit the repo does not have', async () => {
+    // given
+    const missing = '0123456789abcdef0123456789abcdef01234567';
+    // when
+    const result = changedSince(worktree, missing);
+    // then
+    await expect(result).rejects.toThrow(`running git diff --name-only -z ${missing}`);
   });
 
   test.each([

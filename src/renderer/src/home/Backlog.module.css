@@ -28,9 +28,19 @@
 }
 
 .card {
+  padding: 2px 0;
+}
+
+.button {
   display: flex;
   gap: 8px;
-  padding: 2px 0;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
 }
 
 .card[data-highlighted='true'] {
