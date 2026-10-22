@@ -112,6 +112,30 @@ describe('HomeTab', () => {
     expect(await screen.findByText('Backlog (1)')).toBeInTheDocument();
   });
 
+  test('Refine counts open needs-refinement cards in the sprint and backlog', async () => {
+    // given
+    const labels = ['needs-refinement'];
+    const sprint = {
+      ...SPRINT,
+      cards: [
+        card('DIG-41', 'To Do', { labels }),
+        card('DIG-42', 'Done', { labels }),
+        card('DIG-43', 'In Review', { labels }),
+      ],
+    };
+    const groups = [{ epic: null, cards: [card('DIG-50', 'To Do', { labels }), card('DIG-51', 'To Do')] }];
+    fakeMaple({
+      jira: {
+        sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }),
+        backlog: () => Promise.resolve({ data: groups, error: null, fetchedAt: null }),
+      },
+    });
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    expect(await screen.findByRole('button', { name: 'Refine (3)' })).toBeInTheDocument();
+  });
+
   test('a backlog error shows nothing extra', async () => {
     // given
     const backlog = vi.fn(() => Promise.resolve({ data: null, error: 'fetching backlog: timed out', fetchedAt: null }));

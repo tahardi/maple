@@ -51,6 +51,9 @@ export function HomeTab({ projectKey }: Props) {
   const backlogToDo = backlogCards.filter((c) => c.status === 'To Do');
   const accepting = backlogToDo.filter((c) => suggested.includes(c.key));
   const toAccept = accepting.map((c) => c.key);
+  const refineCount = [...(sprint?.data?.cards ?? []), ...backlogCards].filter(
+    (c) => c.status !== 'Done' && c.labels.includes('needs-refinement'),
+  ).length;
   const toDo = sprint?.data?.cards.filter((c) => c.status === 'To Do') ?? [];
   const selected = toDo.map((c) => c.key).filter((key) => picked.includes(key));
   const openKeys = new Set(tabs.filter((t) => t.projectKey === projectKey).flatMap((t) => t.cardKey ?? []));
@@ -186,6 +189,7 @@ export function HomeTab({ projectKey }: Props) {
         onBatch={onBatch}
         selected={selected}
         readyCount={ready.length}
+        refineCount={refineCount}
         onSelectReady={() => {
           setPicked(ready.every((key) => selected.includes(key)) ? [] : [...new Set([...selected, ...ready])]);
         }}

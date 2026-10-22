@@ -1,4 +1,4 @@
-import { suggestPrompt } from '@shared/prompts';
+import { refinePrompt, suggestPrompt } from '@shared/prompts';
 import { useEffect, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import styles from './PlannerPane.module.css';
@@ -8,6 +8,7 @@ type Props = {
   onBatch: (keys: string[]) => void;
   selected: readonly string[];
   readyCount: number;
+  refineCount: number;
   onSelectReady: () => void;
   onStart: () => void;
   onClear: () => void;
@@ -22,6 +23,7 @@ export function PlannerPane({
   onBatch,
   selected,
   readyCount,
+  refineCount,
   onSelectReady,
   onStart,
   onClear,
@@ -63,11 +65,21 @@ export function PlannerPane({
     window.maple.session.sendPrompt(tabId, suggestPrompt(projectKey));
   };
 
+  const refine = () => {
+    if (tabId === null) {
+      return;
+    }
+    window.maple.session.sendPrompt(tabId, refinePrompt(projectKey));
+  };
+
   return (
     <div className={styles.planner}>
       <div className={styles.bar}>
         <button onClick={suggest} disabled={tabId === null}>
           Suggest next batch
+        </button>
+        <button onClick={refine} disabled={tabId === null || refineCount === 0}>
+          {`Refine (${String(refineCount)})`}
         </button>
         <button onClick={onSelectReady} disabled={readyCount === 0}>{`Select ready (${String(readyCount)})`}</button>
         {selected.length > 0 && (
