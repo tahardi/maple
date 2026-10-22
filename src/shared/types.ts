@@ -51,8 +51,19 @@ export type HookEvent = {
   event: 'Stop' | 'Notification' | 'UserPromptSubmit';
   notificationType: string | null;
 };
-export type ReviewComment = { path: string; line: number; author: string; body: string };
-export type ChecksSummary = { passed: number; failed: number; pending: number; total: number };
+export type ReviewComment = {
+  id: number;
+  replyTo: number | null;
+  startLine: number | null;
+  path: string;
+  line: number;
+  author: string;
+  body: string;
+  threadId: string | null;
+  resolved: boolean;
+};
+export type CheckRun = { name: string; bucket: 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel'; link: string };
+export type ChecksSummary = { passed: number; failed: number; pending: number; total: number; runs: CheckRun[] };
 export type PrInfo = {
   number: number;
   url: string;
@@ -80,7 +91,7 @@ export type LineMark =
   | { kind: 'chg'; line: number; oldText: string | null }
   | { kind: 'del'; afterLine: number; oldText: string };
 export type PreflightProblem = {
-  tool: 'claude' | 'gh' | 'git' | 'tmux' | 'gh-auth' | 'jira-env' | 'claude-trust';
+  tool: 'claude' | 'gh' | 'git' | 'tmux' | 'gh-auth' | 'jira-env' | 'claude-trust' | 'claude-sandbox';
   message: string;
 };
 export type CloseResult = { closed: boolean; needsConfirm: boolean };

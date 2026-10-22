@@ -90,3 +90,8 @@
 .R {
   color: var(--link);
 }
+
+.commented {
+  margin-left: auto;
+  font-size: 11px;
+}

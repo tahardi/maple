@@ -21,7 +21,7 @@ const pr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
-  checks: { passed: 3, failed: 0, pending: 0, total: 3 },
+  checks: { passed: 3, failed: 0, pending: 0, total: 3, runs: [] },
 };
 
 function actions(overrides: { pr?: PrInfo | null; dot?: Dot; worktreeExists?: boolean } = {}) {
@@ -77,7 +77,7 @@ describe('cardActions', () => {
     { name: 'the PR is merged', overrides: { pr: { ...pr, state: 'MERGED' as const } }, title: 'No open PR' },
     {
       name: 'checks are failing',
-      overrides: { pr: { ...pr, checks: { passed: 2, failed: 1, pending: 0, total: 3 } } },
+      overrides: { pr: { ...pr, checks: { passed: 2, failed: 1, pending: 0, total: 3, runs: [] } } },
       title: 'Checks are failing',
     },
   ])('Approve is disabled when $name', ({ overrides, title }) => {
@@ -131,7 +131,7 @@ describe('cardActions', () => {
 
   test('Approve is enabled while checks are only pending', () => {
     // given
-    const { list } = actions({ pr: { ...pr, checks: { passed: 1, failed: 0, pending: 2, total: 3 } } });
+    const { list } = actions({ pr: { ...pr, checks: { passed: 1, failed: 0, pending: 2, total: 3, runs: [] } } });
     // when
     const approve = list.find((a) => a.label === 'Approve');
     // then

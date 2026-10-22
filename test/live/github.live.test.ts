@@ -19,7 +19,10 @@ describe('github', () => {
     expect(pr?.deviations).toContain('eslint-comments');
     expect(pr?.needsTaylor).toContain('CLAUDE.md');
     expect(pr?.checks.total).toBeGreaterThan(0);
-    expect(pr?.checks).toEqual({ passed: pr?.checks.total, failed: 0, pending: 0, total: pr?.checks.total });
+    expect(pr?.checks.passed).toBe(pr?.checks.total);
+    expect(pr?.checks.failed).toBe(0);
+    expect(pr?.checks.pending).toBe(0);
+    expect(pr?.checks.runs.every((r) => r.bucket === 'pass' || r.bucket === 'skipping')).toBe(true);
   });
 
   test('returns null for a branch with no PR', async () => {

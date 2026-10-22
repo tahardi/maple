@@ -68,6 +68,7 @@ Maple is a personal proof of concept and is under active development. Expect bre
 Maple runs Claude sessions with permissions skipped and holds a Jira token, so it treats Jira text, PR bodies, file contents, and terminal output as untrusted:
 
 - The renderer is sandboxed and isolated, has a strict Content-Security-Policy, and may not navigate away from the app. Links open in the browser, and only `http` and `https` links.
+- The renderer gets clipboard access only. Every other permission, such as notifications, camera, or location, is denied.
 - Untrusted text renders as text. A lint rule rejects `innerHTML` and `dangerouslySetInnerHTML`.
 - The main process checks every IPC argument, reads files only inside a tab's worktree, and never returns the Jira token.
 - `git`, `gh`, and `claude` run with argument arrays, never through a shell.

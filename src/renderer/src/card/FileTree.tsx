@@ -11,6 +11,7 @@ type Props = {
   changedCount: number;
   viewed?: ReadonlySet<string>;
   onToggleViewed?: (path: string) => void;
+  commented?: ReadonlySet<string>;
 };
 
 export function FileTree({
@@ -22,6 +23,7 @@ export function FileTree({
   changedCount,
   viewed,
   onToggleViewed,
+  commented,
 }: Props) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 
@@ -51,6 +53,11 @@ export function FileTree({
         }}
       >
         <span className={node.dir ? styles.dir : undefined}>{node.name}</span>
+        {commented?.has(node.path) && (
+          <span className={styles.commented} role="img" aria-label="Has review comments" title="Has review comments">
+            💬
+          </span>
+        )}
         {node.status && (
           <span className={styles.marks}>
             <span className={`${styles.badge} ${styles[node.status]}`}>{node.status}</span>
