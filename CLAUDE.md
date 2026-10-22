@@ -60,3 +60,4 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
   `make test-live` costs money and is Taylor's to run.
 - Hand-test visible changes with `make try` in the card's worktree, never by restarting the real Maple - it has its own sessions, so closing it is safe.
 - Made-up cards for hand testing go in the real Jira project with the `test-card` label and a `[TEST]` summary prefix; move them to `Done` when finished - so they never pass for real work.
+- Sessions create the made-up cards a hand test needs, assigned to Taylor and in the active sprint - Taylor's sprint view hides unassigned cards.
