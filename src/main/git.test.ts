@@ -1,5 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
@@ -70,11 +79,11 @@ describe('git', () => {
     // then
     expect(set.base).toBe(await mergeBase(worktree));
     expect([...set.files].sort((a, b) => a.path.localeCompare(b.path))).toEqual([
-      { path: 'del.txt', status: 'D', oldPath: null },
-      { path: 'keep.txt', status: 'M', oldPath: null },
-      { path: 'new.txt', status: 'A', oldPath: null },
-      { path: 'renamed.txt', status: 'R', oldPath: 'old.txt' },
-      { path: 'untracked.txt', status: 'A', oldPath: null },
+      { path: 'del.txt', status: 'D', oldPath: null, stamp: null },
+      { path: 'keep.txt', status: 'M', oldPath: null, stamp: expect.any(String) as string },
+      { path: 'new.txt', status: 'A', oldPath: null, stamp: expect.any(String) as string },
+      { path: 'renamed.txt', status: 'R', oldPath: 'old.txt', stamp: expect.any(String) as string },
+      { path: 'untracked.txt', status: 'A', oldPath: null, stamp: expect.any(String) as string },
     ]);
     expect(set.added).toBe(7);
     expect(set.removed).toBe(2);
@@ -123,8 +132,24 @@ describe('git', () => {
     // when
     const set = await changes(worktree);
     // then
-    expect(set.files).toEqual([{ path: 'link', status: 'A', oldPath: null }]);
+    expect(set.files).toEqual([{ path: 'link', status: 'A', oldPath: null, stamp: expect.any(String) as string }]);
     expect(set.added).toBe(0);
+  });
+
+  test('changes gives a file a new stamp when it is rewritten', async () => {
+    // given
+    writeFileSync(join(worktree, 'keep.txt'), 'a\nB\nc\n');
+    writeFileSync(join(worktree, 'untracked.txt'), 'u1\n');
+    const before = await changes(worktree);
+    const later = new Date(Date.now() + 60_000);
+    // when
+    writeFileSync(join(worktree, 'keep.txt'), 'a\nB\nc\n');
+    utimesSync(join(worktree, 'keep.txt'), later, later);
+    const after = await changes(worktree);
+    // then
+    const stampOf = (set: typeof before, path: string) => set.files.find((file) => file.path === path)?.stamp;
+    expect(stampOf(after, 'keep.txt')).not.toBe(stampOf(before, 'keep.txt'));
+    expect(stampOf(after, 'untracked.txt')).toBe(stampOf(before, 'untracked.txt'));
   });
 
   test('readFilePair returns text, deleted, binary, and too large pairs', async () => {

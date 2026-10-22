@@ -38,9 +38,11 @@ function countLines(data: Buffer): number {
   return data.at(-1) === 0x0a ? newlines : newlines + 1;
 }
 
-function parseNameStatus(output: string): FileChange[] {
+type Unstamped = Omit<FileChange, 'stamp'>;
+
+function parseNameStatus(output: string): Unstamped[] {
   const parts = splitZ(output);
-  const files: FileChange[] = [];
+  const files: Unstamped[] = [];
   for (let i = 0; i < parts.length; i++) {
     const code = parts[i].charAt(0);
     if (code === 'R' || code === 'C') {
@@ -71,6 +73,18 @@ function sumNumstat(output: string): { added: number; removed: number } {
 async function readOrNull(path: string): Promise<Buffer | null> {
   try {
     return await readFile(path);
+  } catch (err) {
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+      return null;
+    }
+    throw err;
+  }
+}
+
+async function stampOrNull(path: string): Promise<string | null> {
+  try {
+    const info = await lstat(path);
+    return `${String(info.size)}:${String(info.mtimeMs)}`;
   } catch (err) {
     if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
       return null;
@@ -129,12 +143,19 @@ export async function changes(worktree: string): Promise<ChangeSet> {
     }),
   );
   const { added, removed } = sumNumstat(numstat);
+  const unstamped: Unstamped[] = [
+    ...parseNameStatus(nameStatus),
+    ...untrackedPaths.map((path): Unstamped => ({ path, status: 'A', oldPath: null })),
+  ];
+  const files = await Promise.all(
+    unstamped.map(async (file): Promise<FileChange> => ({
+      ...file,
+      stamp: file.status === 'D' ? null : await stampOrNull(join(worktree, file.path)),
+    })),
+  );
   return {
     base,
-    files: [
-      ...parseNameStatus(nameStatus),
-      ...untrackedPaths.map((path): FileChange => ({ path, status: 'A', oldPath: null })),
-    ],
+    files,
     added: added + untrackedLines.reduce((sum, n) => sum + n, 0),
     removed,
   };

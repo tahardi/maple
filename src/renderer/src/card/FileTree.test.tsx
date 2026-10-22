@@ -6,12 +6,20 @@ import { FileTree } from './FileTree';
 
 const paths = ['README.md', 'src/a.ts', 'src/b.ts', 'src/c.ts'];
 const changes = [
-  { path: 'src/a.ts', status: 'A' as const, oldPath: null },
-  { path: 'src/b.ts', status: 'M' as const, oldPath: null },
-  { path: 'src/gone.ts', status: 'D' as const, oldPath: null },
+  { path: 'src/a.ts', status: 'A' as const, oldPath: null, stamp: '1:1' },
+  { path: 'src/b.ts', status: 'M' as const, oldPath: null, stamp: '1:1' },
+  { path: 'src/gone.ts', status: 'D' as const, oldPath: null, stamp: null },
 ];
 
-function Harness({ onSelect }: { onSelect: (path: string) => void }) {
+function Harness({
+  onSelect,
+  viewed = new Set(),
+  onToggleViewed = vi.fn(),
+}: {
+  onSelect: (path: string) => void;
+  viewed?: ReadonlySet<string>;
+  onToggleViewed?: (path: string) => void;
+}) {
   const [changedOnly, setChangedOnly] = useState(false);
   return (
     <FileTree
@@ -21,6 +29,8 @@ function Harness({ onSelect }: { onSelect: (path: string) => void }) {
       changedOnly={changedOnly}
       onToggle={setChangedOnly}
       changedCount={changes.length}
+      viewed={viewed}
+      onToggleViewed={onToggleViewed}
     />
   );
 }
@@ -104,5 +114,39 @@ describe('FileTree', () => {
     // then
     expect(badges).toEqual([1, 1, 1]);
     expect(screen.getByText('c.ts').parentElement).toHaveTextContent(/^c\.ts$/);
+  });
+
+  test('changed files have a Viewed checkbox that does not open the file', async () => {
+    // given
+    const onSelect = vi.fn();
+    const onToggleViewed = vi.fn();
+    render(<Harness onSelect={onSelect} viewed={new Set(['src/a.ts'])} onToggleViewed={onToggleViewed} />);
+    // when
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Viewed src/b.ts' }));
+    // then
+    expect(onToggleViewed).toHaveBeenCalledWith('src/b.ts');
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByRole('checkbox', { name: 'Viewed src/a.ts' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Viewed src/b.ts' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Viewed src/gone.ts' })).toBeInTheDocument();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+  });
+
+  test('rows have no Viewed checkbox without a toggle handler', () => {
+    // given
+    const nodes = buildTree(paths, changes, false);
+    // when
+    render(
+      <FileTree
+        nodes={nodes}
+        selected={null}
+        onSelect={vi.fn()}
+        changedOnly={false}
+        onToggle={vi.fn()}
+        changedCount={changes.length}
+      />,
+    );
+    // then
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   });
 });

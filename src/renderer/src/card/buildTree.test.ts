@@ -2,8 +2,8 @@ import type { FileChange } from '@shared/types';
 import { buildTree, type TreeNode } from './buildTree';
 
 const changes: FileChange[] = [
-  { path: 'src/b.ts', status: 'M', oldPath: null },
-  { path: 'src/old.ts', status: 'D', oldPath: null },
+  { path: 'src/b.ts', status: 'M', oldPath: null, stamp: '1:1' },
+  { path: 'src/old.ts', status: 'D', oldPath: null, stamp: null },
 ];
 const paths = ['README.md', 'src/a.ts', 'src/b.ts', 'src/lib/c.ts'];
 
@@ -56,14 +56,14 @@ describe('buildTree', () => {
     {
       name: 'a renamed file at the root',
       paths: ['new.ts'],
-      changes: [{ path: 'new.ts', status: 'R' as const, oldPath: 'old.ts' }],
+      changes: [{ path: 'new.ts', status: 'R' as const, oldPath: 'old.ts', stamp: '1:1' }],
       changedOnly: true,
       expected: [file('new.ts', 'R')],
     },
     {
       name: 'a deeply nested changed file',
       paths: ['a/b/c/d.ts', 'a/e.ts'],
-      changes: [{ path: 'a/b/c/d.ts', status: 'A' as const, oldPath: null }],
+      changes: [{ path: 'a/b/c/d.ts', status: 'A' as const, oldPath: null, stamp: '1:1' }],
       changedOnly: true,
       expected: [dir('a', [dir('a/b', [dir('a/b/c', [file('a/b/c/d.ts', 'A')])])])],
     },

@@ -59,6 +59,17 @@
   content: '▸ ';
 }
 
+.marks {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.marks input {
+  margin: 0;
+  cursor: pointer;
+}
+
 .badge {
   font-weight: 700;
   padding: 0 4px;
