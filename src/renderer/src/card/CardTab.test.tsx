@@ -120,6 +120,50 @@ describe('CardTab', () => {
     expect(screen.queryByText('Waiting for worktree…')).not.toBeInTheDocument();
   });
 
+  test('shows Closed instead of Merged when the card has the wont-do label', async () => {
+    // given
+    const card: Card = {
+      key: 'MPL-20',
+      summary: 'File Tree',
+      status: 'Done',
+      points: 3,
+      labels: ['wont-do'],
+      blockedBy: [],
+      descriptionMd: '',
+      url: 'https://example.atlassian.net/browse/MPL-20',
+    };
+    const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card] };
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    expect(await screen.findAllByText('Closed, worktree removed')).toHaveLength(2);
+    expect(within(screen.getByTestId('claude-slot')).getByText('Closed')).toBeInTheDocument();
+    expect(screen.queryByText('Merged')).not.toBeInTheDocument();
+  });
+
+  test('shows the waiting text for a wont-do card that is not Done', async () => {
+    // given
+    const card: Card = {
+      key: 'MPL-20',
+      summary: 'File Tree',
+      status: 'In Review',
+      points: 3,
+      labels: ['wont-do'],
+      blockedBy: [],
+      descriptionMd: '',
+      url: 'https://example.atlassian.net/browse/MPL-20',
+    };
+    const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card] };
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    await screen.findByText('MPL-20 File Tree');
+    // then
+    expect(screen.getAllByText('Waiting for worktree…')).toHaveLength(2);
+    expect(screen.queryByText('Closed, worktree removed')).not.toBeInTheDocument();
+  });
+
   test.each(['To Do', 'In Progress', 'In Review'] as const)(
     'shows the waiting text without a worktree when the card is %s',
     async (status) => {
@@ -524,6 +568,37 @@ describe('CardTab', () => {
     // then
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(approve.mock.calls).toEqual(approved ? [['t1']] : []);
+  });
+
+  test('Close opens a dialog that warns before closing the card', async () => {
+    // given
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Close' }));
+    // then
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Close MPL-20?');
+    expect(dialog).toHaveTextContent('This cannot be undone.');
+  });
+
+  test.each([
+    { name: 'Close card sends the close command', button: 'Close card', sent: [['t1', '/card MPL-20 close']] },
+    { name: 'Cancel sends nothing', button: 'Cancel', sent: [] },
+  ])('the close dialog: $name', async ({ button, sent }) => {
+    // given
+    const sendPrompt = vi.fn();
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) },
+      session: { sendPrompt },
+    });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Close' }));
+    // when
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: button }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(sendPrompt.mock.calls).toEqual(sent);
   });
 
   test('a failed Approve anyway shows its error', async () => {

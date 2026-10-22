@@ -1,9 +1,9 @@
 import styles from './MergedNotice.module.css';
 
-export function MergedNotice({ onClose }: { onClose: () => void }) {
+export function MergedNotice({ label, onClose }: { label: string; onClose: () => void }) {
   return (
     <div className={styles.notice}>
-      <span>Merged</span>
+      <span>{label}</span>
       <button onClick={onClose}>Close tab</button>
     </div>
   );

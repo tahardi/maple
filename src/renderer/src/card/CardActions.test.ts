@@ -29,6 +29,7 @@ const pr: PrInfo = {
 function actions(overrides: { pr?: PrInfo | null; dot?: Dot; worktreeExists?: boolean } = {}) {
   const send = vi.fn();
   const approve = vi.fn();
+  const close = vi.fn();
   const list = cardActions({
     config,
     cardKey: 'DIG-44',
@@ -37,18 +38,19 @@ function actions(overrides: { pr?: PrInfo | null; dot?: Dot; worktreeExists?: bo
     worktreeExists: overrides.worktreeExists ?? true,
     send,
     approve,
+    close,
   });
-  return { list, send, approve };
+  return { list, send, approve, close };
 }
 
 describe('cardActions', () => {
-  test('gives one button per config action, then Approve', () => {
+  test('gives one button per config action, then Approve and Close', () => {
     // given
     const { list } = actions();
     // when
     const labels = list.map((a) => a.label);
     // then
-    expect(labels).toEqual(['Address review', 'Merge main', 'Approve']);
+    expect(labels).toEqual(['Address review', 'Merge main', 'Approve', 'Close']);
     expect(list.every((a) => !a.disabled)).toBe(true);
   });
 
@@ -73,6 +75,49 @@ describe('cardActions', () => {
     expect(approve).toHaveBeenCalledOnce();
   });
 
+  test('Close calls close', () => {
+    // given
+    const { list, close } = actions();
+    // when
+    list.find((a) => a.label === 'Close')?.onClick();
+    // then
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    { name: 'the agent is working', overrides: { dot: 'working' as const }, title: 'Agent is working' },
+    { name: 'the PR is merged', overrides: { pr: { ...pr, state: 'MERGED' as const } }, title: 'PR is merged' },
+    {
+      name: 'the agent is working on a merged PR',
+      overrides: { dot: 'working' as const, pr: { ...pr, state: 'MERGED' as const } },
+      title: 'Agent is working',
+    },
+  ])('Close is disabled when $name', ({ overrides, title }) => {
+    // given
+    const { list } = actions(overrides);
+    // when
+    const close = list.find((a) => a.label === 'Close');
+    // then
+    expect(close).toMatchObject({ disabled: true, title });
+  });
+
+  test.each([
+    { name: 'there is no PR', overrides: { pr: null } },
+    { name: 'the PR is open', overrides: { pr } },
+    { name: 'the PR is closed', overrides: { pr: { ...pr, state: 'CLOSED' as const } } },
+    {
+      name: 'checks are failing',
+      overrides: { pr: { ...pr, checks: { passed: 2, failed: 1, pending: 0, total: 3, runs: [] } } },
+    },
+  ])('Close is enabled when $name', ({ overrides }) => {
+    // given
+    const { list } = actions(overrides);
+    // when
+    const close = list.find((a) => a.label === 'Close');
+    // then
+    expect(close?.disabled).toBeUndefined();
+  });
+
   test.each([
     { name: 'the agent is working', overrides: { dot: 'working' as const }, title: 'Agent is working' },
     { name: 'there is no PR', overrides: { pr: null }, title: 'No open PR' },
@@ -89,7 +134,7 @@ describe('cardActions', () => {
     const approve = list.find((a) => a.label === 'Approve');
     // then
     expect(approve).toMatchObject({ disabled: true, title });
-    expect(list.filter((a) => a.disabled)).toHaveLength(1);
+    expect(list.filter((a) => a.disabled && a.label !== 'Close')).toHaveLength(1);
   });
 
   test('every button is disabled without a worktree', () => {
@@ -98,7 +143,7 @@ describe('cardActions', () => {
     // when
     const states = list.map((a) => ({ disabled: a.disabled, title: a.title }));
     // then
-    expect(states).toEqual(Array(3).fill({ disabled: true, title: 'No worktree' }));
+    expect(states).toEqual(Array(4).fill({ disabled: true, title: 'No worktree' }));
   });
 
   test.each([
@@ -115,6 +160,7 @@ describe('cardActions', () => {
       worktreeExists: true,
       send,
       approve: vi.fn(),
+      close: vi.fn(),
     });
     // when
     list[0].onClick();
@@ -156,7 +202,7 @@ describe('cardActions', () => {
     expect(approve?.title).toBe(title);
   });
 
-  test('a config with no actions gives only Approve', () => {
+  test('a config with no actions gives only Approve and Close', () => {
     // given
     const list = cardActions({
       config: { ...config, actions: [] },
@@ -166,10 +212,11 @@ describe('cardActions', () => {
       worktreeExists: true,
       send: vi.fn(),
       approve: vi.fn(),
+      close: vi.fn(),
     });
     // when
     const labels = list.map((a) => a.label);
     // then
-    expect(labels).toEqual(['Approve']);
+    expect(labels).toEqual(['Approve', 'Close']);
   });
 });
