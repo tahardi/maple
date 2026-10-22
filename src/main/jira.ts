@@ -194,7 +194,8 @@ export class JiraClient {
       headers: { ...init.headers, Authorization: `Basic ${auth}`, Accept: 'application/json' },
     });
     if (!res.ok) {
-      throw new Error(`Jira returned ${String(res.status)}`);
+      const details = jiraErrors(await res.text().catch(() => ''));
+      throw new Error(`Jira returned ${String(res.status)}${details === '' ? '' : `: ${details}`}`);
     }
     return res.status === 204 ? null : res.json();
   }
@@ -217,6 +218,26 @@ export class JiraClient {
       url: `${this.creds.site}/browse/${issue.key}`,
     };
   }
+}
+
+const errorBodySchema = z.object({
+  errorMessages: z.array(z.string()).default([]),
+  errors: z.record(z.string(), z.string()).default({}),
+});
+
+function jiraErrors(body: string): string {
+  let json: unknown;
+  try {
+    json = JSON.parse(body);
+  } catch {
+    return '';
+  }
+  const parsed = errorBodySchema.safeParse(json);
+  if (!parsed.success) {
+    return '';
+  }
+  const fields = Object.entries(parsed.data.errors).map(([field, message]) => `${field}: ${message}`);
+  return [...parsed.data.errorMessages, ...fields].join('; ');
 }
 
 function errorMessage(err: unknown): string {

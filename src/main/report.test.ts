@@ -31,9 +31,25 @@ describe('logTail', () => {
       want: 'a [redacted]\nb [redacted]\nc [redacted]\nd key=[redacted]',
     },
     { name: 'ignores an empty secret', text: 'a b\n', lines: 10, secrets: [''], want: 'a b' },
-  ])('$name', ({ text, lines, secrets, want }) => {
+    {
+      name: 'drops the oldest whole lines to stay under the character cap',
+      text: 'aaaa\nbbbb\ncccc\n',
+      lines: 10,
+      secrets: [],
+      maxChars: 9,
+      want: 'bbbb\ncccc',
+    },
+    {
+      name: 'keeps the newest line cut to the cap when it alone is too long',
+      text: 'old\n0123456789\n',
+      lines: 10,
+      secrets: [],
+      maxChars: 4,
+      want: '6789',
+    },
+  ])('$name', ({ text, lines, secrets, maxChars, want }) => {
     // when
-    const got = logTail(text, lines, secrets);
+    const got = logTail(text, lines, secrets, maxChars);
     // then
     expect(got).toBe(want);
   });
