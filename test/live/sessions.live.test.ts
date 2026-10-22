@@ -70,6 +70,7 @@ describe('SessionManager with a real claude', () => {
       hasTranscript,
       tmuxConf: await writeTmuxConf(dir),
       endTmux,
+      sessionEnv: {},
       logger: silent,
     });
     sessions = manager;

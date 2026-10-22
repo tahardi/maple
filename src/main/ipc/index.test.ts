@@ -42,6 +42,7 @@ describe('registerIpc', () => {
     hasTranscript: vi.fn(),
     tmuxConf: '',
     endTmux: vi.fn(),
+    sessionEnv: {},
   });
   const status = new StatusEngine({
     sessions,

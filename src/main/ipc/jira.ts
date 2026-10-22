@@ -109,5 +109,5 @@ async function reportIssue(report: Report, creds: JiraCreds) {
 
 async function recentLog(creds: JiraCreds): Promise<string> {
   const text = await readFile(join(logsDir(), 'main.log'), 'utf8').catch(() => '');
-  return logTail(text, 200, [creds.token, creds.email]) || '(no log found)';
+  return logTail(text, 200, [creds.token, creds.email], 20_000) || '(no log found)';
 }

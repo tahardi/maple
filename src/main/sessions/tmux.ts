@@ -8,6 +8,9 @@ const CONF = [
   'unbind C-b',
   'set -g escape-time 0',
   "set -ga terminal-overrides ',xterm-256color:smcup@:rmcup@'",
+  'set -ga update-environment JIRA_SITE',
+  'set -ga update-environment JIRA_EMAIL',
+  'set -ga update-environment JIRA_TOKEN',
 ];
 
 export function tmuxArgs(

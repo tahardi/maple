@@ -9,7 +9,7 @@ export type AdfDoc = { version: 1; type: 'doc'; content: AdfBlock[] };
 
 const TOKEN_SHAPES = /\b(?:gh[po]_[A-Za-z0-9]+|github_pat_\w+|sk-ant-[\w-]+)/g;
 
-export function logTail(text: string, lines: number, secrets: readonly string[]): string {
+export function logTail(text: string, lines: number, secrets: readonly string[], maxChars = Infinity): string {
   const given = secrets.filter((s) => s !== '');
   const encoded = given.flatMap((a) =>
     given.filter((b) => b !== a).map((b) => Buffer.from(`${a}:${b}`).toString('base64')),
@@ -18,7 +18,19 @@ export function logTail(text: string, lines: number, secrets: readonly string[])
   for (const secret of [...encoded, ...given]) {
     tail = tail.replaceAll(secret, '[redacted]');
   }
-  return tail.replace(TOKEN_SHAPES, '[redacted]');
+  return capChars(tail.replace(TOKEN_SHAPES, '[redacted]'), maxChars);
+}
+
+function capChars(text: string, maxChars: number): string {
+  if (text.length <= maxChars) {
+    return text;
+  }
+  const cut = text.slice(-maxChars);
+  if (text[text.length - maxChars - 1] === '\n') {
+    return cut;
+  }
+  const lineStart = cut.indexOf('\n') + 1;
+  return lineStart > 0 && lineStart < cut.length ? cut.slice(lineStart) : cut;
 }
 
 export function reportDescription(description: string, log: string | null): AdfDoc {

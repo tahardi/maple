@@ -24,6 +24,7 @@ export type SessionDeps = {
   hasTranscript: (sessionId: string) => boolean;
   tmuxConf: string;
   endTmux: (name: string | null) => void;
+  sessionEnv: Record<string, string>;
   logger?: Logger;
 };
 
@@ -255,7 +256,7 @@ export class SessionManager extends EventEmitter<Events> {
       cols: 120,
       rows: 40,
       cwd: project.plannerDir,
-      env: { ...parentEnv(), TERM: 'xterm-256color' },
+      env: { ...parentEnv(), ...this.deps.sessionEnv, TERM: 'xterm-256color' },
     });
     session.pty = pty;
     session.alive = true;

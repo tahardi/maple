@@ -235,6 +235,29 @@ describe('JiraClient', () => {
   });
 
   test.each([
+    {
+      name: 'field errors',
+      body: '{"errorMessages":[],"errors":{"description":"The entered text is too long."}}',
+      want: 'creating issue: Jira returned 400: description: The entered text is too long.',
+    },
+    {
+      name: 'error messages',
+      body: '{"errorMessages":["Issue type is required."],"errors":{}}',
+      want: 'creating issue: Jira returned 400: Issue type is required.',
+    },
+    { name: 'a body that is not JSON', body: '<html>', want: 'creating issue: Jira returned 400' },
+  ])('createIssue includes Jira $name in the error', async ({ body, want }) => {
+    // given
+    const fetchFn = vi.fn<typeof fetch>(() => Promise.resolve(new Response(body, { status: 400 })));
+    const client = new JiraClient(creds, fetchFn);
+    const doc = { version: 1, type: 'doc', content: [] };
+    // when
+    const got = client.createIssue({ projectKey: 'MPL', summary: 'x', description: doc, parentKey: null, labels: [] });
+    // then
+    await expect(got).rejects.toThrow(new Error(want));
+  });
+
+  test.each([
     { name: 'with a parent', parentKey: 'MPL-70', labels: [], parent: { key: 'MPL-70' } },
     { name: 'without a parent', parentKey: null, labels: ['needs-refinement'], parent: undefined },
   ])('createIssue posts the issue and returns its key and url $name', async ({ parentKey, labels, parent }) => {
