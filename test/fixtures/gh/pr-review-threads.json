@@ -1,0 +1,26 @@
+[
+  {
+    "data": {
+      "repository": {
+        "pullRequest": {
+          "reviewThreads": {
+            "nodes": [{ "id": "PRRT_101", "isResolved": true, "comments": { "nodes": [{ "databaseId": 101 }] } }],
+            "pageInfo": { "hasNextPage": true, "endCursor": "c1" }
+          }
+        }
+      }
+    }
+  },
+  {
+    "data": {
+      "repository": {
+        "pullRequest": {
+          "reviewThreads": {
+            "nodes": [{ "id": "PRRT_103", "isResolved": false, "comments": { "nodes": [{ "databaseId": 103 }] } }],
+            "pageInfo": { "hasNextPage": false, "endCursor": "c2" }
+          }
+        }
+      }
+    }
+  }
+]

@@ -15,10 +15,12 @@ function Harness({
   onSelect,
   viewed = new Set(),
   onToggleViewed = vi.fn(),
+  commented,
 }: {
   onSelect: (path: string) => void;
   viewed?: ReadonlySet<string>;
   onToggleViewed?: (path: string) => void;
+  commented?: ReadonlySet<string>;
 }) {
   const [changedOnly, setChangedOnly] = useState(false);
   return (
@@ -31,6 +33,7 @@ function Harness({
       changedCount={changes.length}
       viewed={viewed}
       onToggleViewed={onToggleViewed}
+      commented={commented}
     />
   );
 }
@@ -114,6 +117,19 @@ describe('FileTree', () => {
     // then
     expect(badges).toEqual([1, 1, 1]);
     expect(screen.getByText('c.ts').parentElement).toHaveTextContent(/^c\.ts$/);
+  });
+
+  test('marks only the files with review comments', () => {
+    // given
+    const commented = new Set(['src/b.ts', 'README.md']);
+    // when
+    render(<Harness onSelect={vi.fn()} commented={commented} />);
+    // then
+    const marks = screen.getAllByRole('img', { name: /^Has review comments$/ });
+    expect(marks.map((mark) => mark.closest('li')?.textContent)).toEqual([
+      expect.stringMatching(/^b\.ts/),
+      expect.stringMatching(/^README\.md/),
+    ]);
   });
 
   test('changed files have a Viewed checkbox that does not open the file', async () => {
