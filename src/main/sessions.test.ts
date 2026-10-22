@@ -351,6 +351,48 @@ describe('SessionManager', () => {
   });
 
   test.each([
+    { name: 'Esc', key: '\x1b' },
+    { name: 'Ctrl+C', key: '\x03' },
+  ])('write of $name emits interrupt', ({ key }) => {
+    // given
+    const { manager } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    const interrupt = vi.fn();
+    manager.on('interrupt', interrupt);
+    // when
+    manager.write(tab.id, key);
+    // then
+    expect(interrupt).toHaveBeenCalledWith(tab.id);
+  });
+
+  test('other keystrokes do not emit interrupt', () => {
+    // given
+    const { manager } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    const interrupt = vi.fn();
+    manager.on('interrupt', interrupt);
+    // when
+    manager.write(tab.id, 'a');
+    manager.write(tab.id, '\x1b[A');
+    manager.write(tab.id, '\x1ba');
+    // then
+    expect(interrupt).not.toHaveBeenCalled();
+  });
+
+  test('Esc after the session exits does not emit interrupt', () => {
+    // given
+    const { manager, ptys } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    ptys[0].emitExit(1);
+    const interrupt = vi.fn();
+    manager.on('interrupt', interrupt);
+    // when
+    manager.write(tab.id, '\x1b');
+    // then
+    expect(interrupt).not.toHaveBeenCalled();
+  });
+
+  test.each([
     {
       name: 'write',
       call: (m: SessionManager) => {

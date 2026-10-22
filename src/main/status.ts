@@ -14,8 +14,21 @@ export type StatusDeps = {
 type Events = { status: [status: TabStatus, prev: Dot] };
 
 const RESUME_FAIL_MS = 5000;
+const LOOKUP_TIMEOUT_MS = 15_000;
 
 type Tracked = { status: TabStatus; seq: number; resumedAt: number | null };
+
+function timeout<T>(lookup: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const expired = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`timing out after ${String(LOOKUP_TIMEOUT_MS / 1000)}s`));
+    }, LOOKUP_TIMEOUT_MS);
+  });
+  return Promise.race([lookup, expired]).finally(() => {
+    clearTimeout(timer);
+  });
+}
 
 export class StatusEngine extends EventEmitter<Events> {
   private readonly tabs = new Map<string, Tracked>();
@@ -42,12 +55,22 @@ export class StatusEngine extends EventEmitter<Events> {
       const tracked = this.tabs.get(tabId);
       if (tracked) {
         const { resumedAt } = tracked;
+        const prev = tracked.status.dot;
         const resumeFailed = exitCode !== 0 && resumedAt !== null && Date.now() - resumedAt < RESUME_FAIL_MS;
-        tracked.status = { ...tracked.status, sessionAlive: false, exitCode, resumeFailed };
+        const dot = prev === 'working' ? 'idle' : prev;
+        tracked.status = { ...tracked.status, dot, sessionAlive: false, exitCode, resumeFailed };
+        if (dot !== prev) {
+          this.log.info('dot', 'changed', { tabId, from: prev, to: dot, input: 'exit' });
+        }
         if (resumeFailed) {
           this.log.warn('session', 'resume failed', { tabId, code: exitCode });
         }
-        this.emitStatus(tabId, tracked.status.dot);
+        this.emitStatus(tabId, prev);
+      }
+    });
+    sessions.on('interrupt', (tabId) => {
+      if (this.tabs.get(tabId)?.status.dot === 'working') {
+        void this.stop(tabId);
       }
     });
     sessions.on('changed', (tabs) => {
@@ -90,10 +113,10 @@ export class StatusEngine extends EventEmitter<Events> {
     let input: DotInput | null;
     try {
       const [card, pr] = await Promise.all([
-        this.deps.getCard(tab.cardKey).catch((err: unknown) => this.fail('jira', 'getCard', err)),
+        timeout(this.deps.getCard(tab.cardKey)).catch((err: unknown) => this.fail('jira', 'getCard', err)),
         worktreePath === null
           ? null
-          : this.deps.prFor(worktreePath).catch((err: unknown) => this.fail('gh', 'prFor', err)),
+          : timeout(this.deps.prFor(worktreePath)).catch((err: unknown) => this.fail('gh', 'prFor', err)),
       ]);
       input = { type: 'stop', kind: 'card', cardStatus: card.status, pr };
     } catch {
@@ -113,7 +136,7 @@ export class StatusEngine extends EventEmitter<Events> {
     }
     let card: Card;
     try {
-      card = await this.deps.getCard(tab.cardKey).catch((err: unknown) => this.fail('jira', 'getCard', err));
+      card = await timeout(this.deps.getCard(tab.cardKey)).catch((err: unknown) => this.fail('jira', 'getCard', err));
     } catch {
       return;
     }

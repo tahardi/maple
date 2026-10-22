@@ -286,6 +286,128 @@ describe('StatusEngine', () => {
     });
   });
 
+  test.each([
+    { name: 'getCard', scope: 'jira', getCard: () => new Promise<Card>(() => undefined), prFor: undefined },
+    { name: 'prFor', scope: 'gh', getCard: undefined, prFor: () => new Promise<PrInfo | null>(() => undefined) },
+  ])(
+    'a Stop lookup that never settles gives up and waits after 15 seconds when $name hangs',
+    async ({ name, scope, getCard, prFor }) => {
+      // given
+      vi.useFakeTimers();
+      const { sessions, engine, logger } = setup({ getCard, prFor });
+      sessions.emit('spawn', 't1', true);
+      // when
+      engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+      await vi.advanceTimersByTimeAsync(15_000);
+      // then
+      expect(engine.statuses()[0]?.dot).toBe('waiting');
+      expect(logger.warn).toHaveBeenCalledWith(scope, 'failed', { operation: name, error: 'timing out after 15s' });
+    },
+  );
+
+  test('a Stop lookup that never settles keeps the tab working until 15 seconds pass', async () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, engine } = setup({ getCard: () => new Promise<Card>(() => undefined) });
+    sessions.emit('spawn', 't1', true);
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    await vi.advanceTimersByTimeAsync(14_999);
+    // then
+    expect(engine.statuses()[0]?.dot).toBe('working');
+  });
+
+  test('a prompt during a Stop lookup that never settles keeps the tab working', async () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, engine } = setup({ getCard: () => new Promise<Card>(() => undefined) });
+    sessions.emit('spawn', 't1', true);
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    // when
+    engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    await vi.advanceTimersByTimeAsync(15_000);
+    // then
+    expect(engine.statuses()[0]?.dot).toBe('working');
+  });
+
+  test('a Stop lookup that settles before 15 seconds leaves no timer behind', async () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, engine } = setup();
+    sessions.emit('spawn', 't1', true);
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    await vi.advanceTimersByTimeAsync(0);
+    // then
+    expect(engine.statuses()[0]?.dot).toBe('ready');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  test('a spawn lookup that never settles gives up after 15 seconds and stays idle', async () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, engine, logger } = setup({ getCard: () => new Promise<Card>(() => undefined) });
+    // when
+    sessions.emit('spawn', 't1', false);
+    await vi.advanceTimersByTimeAsync(15_000);
+    // then
+    expect(engine.statuses()[0]?.dot).toBe('idle');
+    expect(logger.warn).toHaveBeenCalledWith('jira', 'failed', {
+      operation: 'getCard',
+      error: 'timing out after 15s',
+    });
+  });
+
+  test('an interrupt on a working card tab looks up the card like a Stop', async () => {
+    // given
+    const { sessions, engine, getCard } = setup();
+    sessions.emit('spawn', 't1', true);
+    // when
+    sessions.emit('interrupt', 't1');
+    // then
+    await vi.waitFor(() => {
+      expect(engine.statuses()[0]?.dot).toBe('ready');
+    });
+    expect(getCard).toHaveBeenCalledWith('DIG-44');
+  });
+
+  test('an interrupt on a working planner tab moves it to idle without a lookup', () => {
+    // given
+    const planner: TabState = { ...cardTab, kind: 'planner', cardKey: null, worktreePath: null };
+    const { sessions, engine, getCard } = setup({ tab: planner });
+    sessions.emit('spawn', 't1', true);
+    // when
+    sessions.emit('interrupt', 't1');
+    // then
+    expect(engine.statuses()[0]?.dot).toBe('idle');
+    expect(getCard).not.toHaveBeenCalled();
+  });
+
+  test('an interrupt on an unknown tab changes nothing', () => {
+    // given
+    const { sessions, engine, emitted, getCard } = setup({ tab: null });
+    // when
+    sessions.emit('interrupt', 'nope');
+    // then
+    expect(emitted).toEqual([]);
+    expect(engine.statuses()).toEqual([]);
+    expect(getCard).not.toHaveBeenCalled();
+  });
+
+  test('an interrupt on a tab that is not working changes nothing', async () => {
+    // given
+    const { sessions, engine, emitted, getCard } = setup();
+    sessions.emit('spawn', 't1', false);
+    getCard.mockClear();
+    // when
+    sessions.emit('interrupt', 't1');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // then
+    expect(getCard).not.toHaveBeenCalled();
+    expect(emitted.map((s) => s.dot)).toEqual(['idle']);
+    expect(engine.statuses()[0]?.dot).toBe('idle');
+  });
+
   test('a prompt during the Stop fetch wins', async () => {
     // given
     const { sessions, engine, emitted } = setup();
@@ -359,6 +481,40 @@ describe('StatusEngine', () => {
     sessions.emit('exit', 't1', 2);
     // then
     expect(emitted.at(-1)).toEqual({ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 2, resumeFailed: false });
+  });
+
+  test('an exit of a working tab marks the session dead and idle in one update', () => {
+    // given
+    const { sessions, engine } = setup();
+    sessions.emit('spawn', 't1', true);
+    const listener = vi.fn();
+    engine.on('status', listener);
+    // when
+    sessions.emit('exit', 't1', 2);
+    // then
+    expect(listener.mock.calls).toEqual([
+      [{ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 2, resumeFailed: false }, 'working'],
+    ]);
+  });
+
+  test('an exit of a ready tab stays ready', async () => {
+    // given
+    const { sessions, engine, emitted } = setup();
+    sessions.emit('spawn', 't1', true);
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe('ready');
+    });
+    // when
+    sessions.emit('exit', 't1', 0);
+    // then
+    expect(emitted.at(-1)).toEqual({
+      tabId: 't1',
+      dot: 'ready',
+      sessionAlive: false,
+      exitCode: 0,
+      resumeFailed: false,
+    });
   });
 
   test.each([
@@ -594,6 +750,21 @@ describe('StatusEngine', () => {
     sessions.emit('exit', 't1', 1);
     // then
     expect(logger.warn).toHaveBeenCalledWith('session', 'resume failed', { tabId: 't1', code: 1 });
+  });
+
+  test('logs an exit that moves a working tab to idle', () => {
+    // given
+    const { sessions, logger } = setup();
+    sessions.emit('spawn', 't1', true);
+    // when
+    sessions.emit('exit', 't1', 2);
+    // then
+    expect(logger.info).toHaveBeenCalledWith('dot', 'changed', {
+      tabId: 't1',
+      from: 'working',
+      to: 'idle',
+      input: 'exit',
+    });
   });
 
   test('logs a respawn that changes the dot', () => {
