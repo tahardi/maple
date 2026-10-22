@@ -1,4 +1,4 @@
-import type { VaultNote } from '@shared/types';
+import type { VaultNote } from '@shared/types/files';
 import { useCallback, useEffect, useState } from 'react';
 
 type Listing = { notes: VaultNote[]; written: string[] };

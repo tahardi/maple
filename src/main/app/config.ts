@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Fetched, MapleConfig } from '@shared/types';
+import type { Fetched } from '@shared/types/app';
+import type { MapleConfig } from '@shared/types/config';
 import { z } from 'zod';
 import { appLogger, type Logger } from './log';
 

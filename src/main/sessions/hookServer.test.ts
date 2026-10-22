@@ -3,7 +3,7 @@ import { connect } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { HookEvent } from '@shared/types';
+import type { HookEvent } from '@shared/types/tabs';
 import { hookSocketPath, startHookServer } from './hookServer';
 
 function sendLines(socketPath: string, text: string): Promise<void> {

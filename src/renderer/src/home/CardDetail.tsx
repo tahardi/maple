@@ -1,4 +1,5 @@
-import type { Card, TabState } from '@shared/types';
+import type { Card } from '@shared/types/jira';
+import type { TabState } from '@shared/types/tabs';
 import { MarkdownText } from '../shell/MarkdownText';
 import styles from './CardDetail.module.css';
 

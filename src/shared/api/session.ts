@@ -1,5 +1,5 @@
 import type { ChannelKind } from '../ipc';
-import type { Unsubscribe } from '../types';
+import type { Unsubscribe } from '../types/app';
 
 export type SessionApi = {
   write(tabId: string, data: string): void;

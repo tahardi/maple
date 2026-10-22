@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { LineMark } from './types';
+import type { LineMark } from './types/files';
 import { lineMarks } from './diffMarks';
 
 describe('lineMarks', () => {

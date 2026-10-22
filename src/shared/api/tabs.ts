@@ -1,5 +1,6 @@
 import type { ChannelKind } from '../ipc';
-import type { CloseResult, SessionCost, TabState, TabStatus, Unsubscribe } from '../types';
+import type { CloseResult, SessionCost, TabState, TabStatus } from '../types/tabs';
+import type { Unsubscribe } from '../types/app';
 
 export type TabsApi = {
   list(): Promise<TabState[]>;

@@ -1,4 +1,7 @@
-import type { Draft, Fetched, MapleConfig, PreflightProblem, TabState, TabStatus, Unsubscribe } from '@shared/types';
+import type { Draft } from '@shared/types/files';
+import type { Fetched, PreflightProblem, Unsubscribe } from '@shared/types/app';
+import type { MapleConfig } from '@shared/types/config';
+import type { TabState, TabStatus } from '@shared/types/tabs';
 import { create } from 'zustand';
 
 type MapleState = {

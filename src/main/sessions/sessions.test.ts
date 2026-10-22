@@ -1,6 +1,7 @@
 import type { IPty, spawn } from 'node-pty';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { MapleConfig, TabState } from '@shared/types';
+import type { MapleConfig } from '@shared/types/config';
+import type { TabState } from '@shared/types/tabs';
 import { findWorktree } from '@main/git/git';
 import { SessionManager } from './sessions';
 import { tmuxArgs } from './tmux';

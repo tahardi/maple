@@ -1,4 +1,4 @@
-import type { ReviewComment } from '@shared/types';
+import type { ReviewComment } from '@shared/types/github';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';

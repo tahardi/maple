@@ -1,4 +1,4 @@
-import type { JiraStatus, Sprint } from '@shared/types';
+import type { JiraStatus, Sprint } from '@shared/types/jira';
 import styles from './Board.module.css';
 import { CardTile } from './CardTile';
 

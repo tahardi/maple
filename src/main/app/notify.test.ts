@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { Dot, TabState } from '@shared/types';
+import type { Dot, TabState } from '@shared/types/tabs';
 import { notifyTab, shouldNotify } from './notify';
 
 const { notifications } = vi.hoisted(() => ({

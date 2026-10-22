@@ -1,4 +1,4 @@
-import type { FileChange, FileStatus } from '@shared/types';
+import type { FileChange, FileStatus } from '@shared/types/files';
 
 export type TreeNode = { name: string; path: string; dir: boolean; status: FileStatus | null; children: TreeNode[] };
 

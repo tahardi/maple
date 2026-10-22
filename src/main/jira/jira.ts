@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { BacklogGroup, Blocker, Card, Filed, Sprint } from '@shared/types';
+import type { BacklogGroup, Blocker, Card, Filed, Sprint } from '@shared/types/jira';
 import { adfToMarkdown } from './adf';
 
 export type JiraCreds = { site: string; email: string; token: string };

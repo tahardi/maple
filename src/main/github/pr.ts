@@ -1,6 +1,6 @@
 import { hunkLines } from '@shared/hunkLines';
 import { parsePrBody } from '@shared/prBody';
-import type { ChecksSummary, PrInfo } from '@shared/types';
+import type { ChecksSummary, PrInfo } from '@shared/types/github';
 import { z } from 'zod';
 import type { Runner } from '@main/app/preflight';
 

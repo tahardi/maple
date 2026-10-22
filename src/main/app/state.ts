@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { TabState } from '@shared/types';
+import type { TabState } from '@shared/types/tabs';
 import { z } from 'zod';
 import { configDir } from './config';
 

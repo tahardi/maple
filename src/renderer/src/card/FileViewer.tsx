@@ -1,6 +1,7 @@
 import { DiffEditor, Editor, useMonaco } from '@monaco-editor/react';
 import { lineMarks } from '@shared/diffMarks';
-import type { DiffLines, Draft, FilePair, ReviewComment } from '@shared/types';
+import type { DiffLines, Draft, FilePair } from '@shared/types/files';
+import type { ReviewComment } from '@shared/types/github';
 import type { editor } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';

@@ -1,4 +1,4 @@
-import type { LineMark } from '@shared/types';
+import type { LineMark } from '@shared/types/files';
 import { type DecorationSpec, toDecorations } from './inFileDecorations';
 
 describe('toDecorations', () => {

@@ -1,4 +1,5 @@
-import type { DiffLines, FilePair, ReviewComment } from '@shared/types';
+import type { DiffLines, FilePair } from '@shared/types/files';
+import type { ReviewComment } from '@shared/types/github';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';

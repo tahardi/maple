@@ -1,5 +1,7 @@
 import type { ChannelKind } from '../ipc';
-import type { DiffLines, Fetched, PrInfo, ReviewComment } from '../types';
+import type { DiffLines } from '../types/files';
+import type { Fetched } from '../types/app';
+import type { PrInfo, ReviewComment } from '../types/github';
 
 export type PrApi = {
   get(tabId: string): Promise<Fetched<PrInfo>>;

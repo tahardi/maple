@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { ProjectConfig, Sprint } from '@shared/types';
+import type { ProjectConfig } from '@shared/types/config';
+import type { Sprint } from '@shared/types/jira';
 import { SprintCache } from './sprintCache';
 
 const project: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };

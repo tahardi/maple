@@ -1,5 +1,7 @@
 import type { MapleApi } from '@shared/ipc';
-import type { Fetched, MapleConfig, SessionCost } from '@shared/types';
+import type { Fetched } from '@shared/types/app';
+import type { MapleConfig } from '@shared/types/config';
+import type { SessionCost } from '@shared/types/tabs';
 import { vi } from 'vitest';
 
 type FakeOverrides = { [A in keyof MapleApi]?: Partial<MapleApi[A]> };

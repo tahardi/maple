@@ -1,4 +1,6 @@
-import type { FileChange, ReviewComment, TabState, VaultNote } from '@shared/types';
+import type { FileChange, VaultNote } from '@shared/types/files';
+import type { ReviewComment } from '@shared/types/github';
+import type { TabState } from '@shared/types/tabs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { ConfirmDialog } from '../shell/ConfirmDialog';

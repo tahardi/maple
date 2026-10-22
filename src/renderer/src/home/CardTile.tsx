@@ -1,4 +1,4 @@
-import type { Card } from '@shared/types';
+import type { Card } from '@shared/types/jira';
 import styles from './CardTile.module.css';
 
 type Props = {

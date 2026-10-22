@@ -1,5 +1,7 @@
 import { fillAction } from '@shared/prompts';
-import type { Dot, MapleConfig, PrInfo } from '@shared/types';
+import type { Dot } from '@shared/types/tabs';
+import type { MapleConfig } from '@shared/types/config';
+import type { PrInfo } from '@shared/types/github';
 import type { PaneAction } from '../claude/ClaudePane';
 
 type CardActionsInput = {

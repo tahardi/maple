@@ -1,4 +1,4 @@
-import type { TabState } from '@shared/types';
+import type { TabState } from '@shared/types/tabs';
 import { SUGGEST_PROMPT } from '@shared/prompts';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

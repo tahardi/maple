@@ -1,4 +1,4 @@
-import type { ReviewComment } from '@shared/types';
+import type { ReviewComment } from '@shared/types/github';
 
 export type Thread = {
   id: number;

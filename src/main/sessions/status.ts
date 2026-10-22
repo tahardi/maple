@@ -1,6 +1,8 @@
 import { EventEmitter } from 'node:events';
 import { nextDot, type DotInput } from '@shared/dots';
-import type { Card, Dot, HookEvent, PrInfo, TabStatus } from '@shared/types';
+import type { Card } from '@shared/types/jira';
+import type { Dot, HookEvent, TabStatus } from '@shared/types/tabs';
+import type { PrInfo } from '@shared/types/github';
 import { appLogger, type Logger } from '@main/app/log';
 import type { SessionManager } from './sessions';
 

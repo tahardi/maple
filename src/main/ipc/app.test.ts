@@ -1,6 +1,6 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { TabState, TabStatus } from '@shared/types';
+import type { TabState, TabStatus } from '@shared/types/tabs';
 import type { SessionManager } from '@main/sessions/sessions';
 import type { StatusEngine } from '@main/sessions/status';
 import type { Terminals } from '@main/sessions/terminals';

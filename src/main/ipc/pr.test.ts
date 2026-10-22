@@ -1,6 +1,6 @@
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { PrInfo } from '@shared/types';
+import type { PrInfo } from '@shared/types/github';
 import type { SessionManager } from '@main/sessions/sessions';
 import type { StatusEngine } from '@main/sessions/status';
 import type { Terminals } from '@main/sessions/terminals';

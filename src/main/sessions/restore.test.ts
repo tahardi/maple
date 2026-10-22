@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { TabState } from '@shared/types';
+import type { TabState } from '@shared/types/tabs';
 import { restoreTabs } from './restore';
 import type { SessionManager } from './sessions';
 import type { SavedState } from '@main/app/state';

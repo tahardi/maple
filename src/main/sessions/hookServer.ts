@@ -1,7 +1,7 @@
 import { chmod, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
-import type { HookEvent } from '@shared/types';
+import type { HookEvent } from '@shared/types/tabs';
 import { z } from 'zod';
 import { configDir } from '@main/app/config';
 import { appLogger, type Logger } from '@main/app/log';

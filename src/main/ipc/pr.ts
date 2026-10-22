@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
-import type { DiffLines, Fetched, PrInfo, ReviewComment } from '@shared/types';
+import type { DiffLines } from '@shared/types/files';
+import type { Fetched } from '@shared/types/app';
+import type { PrInfo, ReviewComment } from '@shared/types/github';
 import { changedSince, currentBranch } from '@main/git/git';
 import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@main/github/comments';
 import { commentOnPr, diffLines, headCommit, prForBranch } from '@main/github/pr';

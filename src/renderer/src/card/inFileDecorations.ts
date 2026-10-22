@@ -1,4 +1,4 @@
-import type { LineMark } from '@shared/types';
+import type { LineMark } from '@shared/types/files';
 
 export type DecorationSpec = {
   startLine: number;

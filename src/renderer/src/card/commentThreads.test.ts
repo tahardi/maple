@@ -1,4 +1,4 @@
-import type { ReviewComment } from '@shared/types';
+import type { ReviewComment } from '@shared/types/github';
 import { toThreads } from './commentThreads';
 
 const comment = (fields: Partial<ReviewComment> & Pick<ReviewComment, 'id'>): ReviewComment => ({

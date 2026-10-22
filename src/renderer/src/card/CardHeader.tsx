@@ -1,4 +1,7 @@
-import type { Card, ChangeSet, PrInfo, SessionCost } from '@shared/types';
+import type { Card } from '@shared/types/jira';
+import type { ChangeSet } from '@shared/types/files';
+import type { PrInfo } from '@shared/types/github';
+import type { SessionCost } from '@shared/types/tabs';
 import styles from './CardHeader.module.css';
 
 type Props = {

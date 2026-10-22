@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { HookEvent } from '@shared/types';
+import type { HookEvent } from '@shared/types/tabs';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { startHookServer } from '../../src/main/sessions/hookServer';
 import { writeHooksFile } from '../../src/main/sessions/hooksFile';

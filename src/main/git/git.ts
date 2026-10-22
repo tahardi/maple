@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { lstat, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import type { ChangeSet, FileChange, FilePair, SearchHit } from '@shared/types';
+import type { ChangeSet, FileChange, FilePair, SearchHit } from '@shared/types/files';
 import { matchWorktree } from '@shared/worktree';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/app/paths';
 

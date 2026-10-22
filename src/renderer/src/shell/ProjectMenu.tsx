@@ -1,4 +1,4 @@
-import type { ProjectConfig } from '@shared/types';
+import type { ProjectConfig } from '@shared/types/config';
 import { projectCounts } from '@shared/dots';
 import { useMaple } from '../store';
 import styles from './ProjectMenu.module.css';
