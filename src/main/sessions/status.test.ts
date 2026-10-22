@@ -94,22 +94,105 @@ describe('StatusEngine', () => {
     expect(prFor).not.toHaveBeenCalled();
   });
 
-  test.each(['To Do', 'In Progress', 'In Review'] as const)(
-    'an unprompted spawn of a card in %s stays idle',
-    async (status) => {
+  test.each([
+    { status: 'To Do', name: 'no PR', tab: cardTab, pr: null, want: 'waiting', prCalls: 0 },
+    { status: 'In Progress', name: 'no PR', tab: cardTab, pr: null, want: 'waiting', prCalls: 0 },
+    { status: 'In Review', name: 'an open PR', tab: cardTab, pr: openPr, want: 'ready', prCalls: 1 },
+    { status: 'In Review', name: 'no PR', tab: cardTab, pr: null, want: 'waiting', prCalls: 1 },
+    {
+      status: 'In Review',
+      name: 'a failed check',
+      tab: cardTab,
+      pr: { ...openPr, checks: { ...openPr.checks, failed: 1 } },
+      want: 'waiting',
+      prCalls: 1,
+    },
+    {
+      status: 'In Review',
+      name: 'no worktree',
+      tab: { ...cardTab, worktreePath: null },
+      pr: openPr,
+      want: 'waiting',
+      prCalls: 0,
+    },
+    { status: 'Done', name: 'an open PR', tab: cardTab, pr: openPr, want: 'merged', prCalls: 0 },
+  ] as const)(
+    'a resumed spawn of a $status card with $name restores $want',
+    async ({ status, tab, pr, want, prCalls }) => {
       // given
-      const { sessions, engine, emitted, getCard } = setup({ getCard: () => Promise.resolve({ ...card, status }) });
+      const { sessions, emitted, prFor } = setup({
+        tab,
+        getCard: () => Promise.resolve({ ...card, status }),
+        prFor: () => Promise.resolve(pr),
+      });
       // when
-      sessions.emit('spawn', 't1', false);
+      sessions.emit('spawn', 't1', false, true);
       // then
       await vi.waitFor(() => {
-        expect(getCard).toHaveBeenCalledWith('DIG-44');
+        expect(emitted.at(-1)?.dot).toBe(want);
       });
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      expect(emitted.map((s) => s.dot)).toEqual(['idle']);
-      expect(engine.statuses()[0]?.dot).toBe('idle');
+      expect(prFor).toHaveBeenCalledTimes(prCalls);
     },
   );
+
+  test('a resumed spawn reads the worktree after the card lookup', async () => {
+    // given
+    const { sessions, emitted, prFor } = setup();
+    sessions.get.mockReturnValueOnce({ ...cardTab, worktreePath: null });
+    // when
+    sessions.emit('spawn', 't1', false, true);
+    // then
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe('ready');
+    });
+    expect(prFor).toHaveBeenCalledWith('/wts/dig-44');
+  });
+
+  test('a fresh unprompted spawn of a card that is not Done stays idle', async () => {
+    // given
+    const { sessions, engine, emitted, getCard } = setup({
+      getCard: () => Promise.resolve({ ...card, status: 'In Progress' }),
+    });
+    // when
+    sessions.emit('spawn', 't1', false, false);
+    // then
+    await vi.waitFor(() => {
+      expect(getCard).toHaveBeenCalledWith('DIG-44');
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(emitted.map((s) => s.dot)).toEqual(['idle']);
+    expect(engine.statuses()[0]?.dot).toBe('idle');
+  });
+
+  test('a restored dot reports no change to notifications', async () => {
+    // given
+    const { sessions, engine } = setup({ getCard: () => Promise.resolve({ ...card, status: 'In Progress' }) });
+    const events: [string, string][] = [];
+    engine.on('status', (s, prev) => {
+      events.push([s.dot, prev]);
+    });
+    // when
+    sessions.emit('spawn', 't1', false, true);
+    // then
+    await vi.waitFor(() => {
+      expect(events.at(-1)).toEqual(['waiting', 'waiting']);
+    });
+  });
+
+  test('a failed PR lookup during a resumed spawn stays idle and warns', async () => {
+    // given
+    const error = new Error('fetching pr: down');
+    const { sessions, engine, emitted, logger } = setup({ prFor: () => Promise.reject(error) });
+    // when
+    sessions.emit('spawn', 't1', false, true);
+    // then
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', { operation: 'prFor', error: error.message });
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(emitted.map((s) => s.dot)).toEqual(['idle']);
+    expect(engine.statuses()[0]?.dot).toBe('idle');
+  });
 
   test('a prompted spawn does not look up the card', async () => {
     // given
@@ -166,6 +249,8 @@ describe('StatusEngine', () => {
         to: 'merged',
         input: 'spawn',
         cardStatus: 'Done',
+        pr: null,
+        failedChecks: null,
       });
     });
   });
@@ -358,6 +443,40 @@ describe('StatusEngine', () => {
       operation: 'getCard',
       error: 'timing out after 15s',
     });
+  });
+
+  test('a resumed spawn PR lookup that never settles gives up after 15 seconds and stays idle', async () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, engine, logger } = setup({ prFor: () => new Promise<PrInfo | null>(() => undefined) });
+    // when
+    sessions.emit('spawn', 't1', false, true);
+    await vi.advanceTimersByTimeAsync(15_000);
+    // then
+    expect(engine.statuses()[0]?.dot).toBe('idle');
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'prFor',
+      error: 'timing out after 15s',
+    });
+  });
+
+  test('a prompt during the resumed spawn PR lookup wins', async () => {
+    // given
+    let resolvePr: (pr: PrInfo | null) => void = () => undefined;
+    const pending = new Promise<PrInfo | null>((resolve) => {
+      resolvePr = resolve;
+    });
+    const { sessions, engine, emitted, prFor } = setup({ prFor: () => pending });
+    sessions.emit('spawn', 't1', false, true);
+    await vi.waitFor(() => {
+      expect(prFor).toHaveBeenCalled();
+    });
+    // when
+    engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    resolvePr(openPr);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // then
+    expect(emitted.map((s) => s.dot)).toEqual(['idle', 'working']);
   });
 
   test('an interrupt on a working card tab looks up the card like a Stop', async () => {
