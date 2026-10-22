@@ -6,6 +6,7 @@ import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { FileViewer } from './FileViewer';
 import { PR_DESCRIPTION } from '@renderer/card/prDescription';
+import { CARD_DESCRIPTION } from '@renderer/card/cardDescription';
 
 vi.mock('./monacoSetup', () => ({}));
 
@@ -208,7 +209,10 @@ describe('FileViewer', () => {
     vi.unstubAllGlobals();
   });
 
-  test('renders the PR description as Markdown', () => {
+  test.each([
+    { name: 'PR description', path: PR_DESCRIPTION, prBody: '## Summary\n\nHello', cardBody: undefined },
+    { name: 'Card description', path: CARD_DESCRIPTION, prBody: null, cardBody: '## Summary\n\nShip it' },
+  ])('renders the $name as Markdown', ({ name, path, prBody, cardBody }) => {
     // given
     const readFile = vi.fn();
     const onChanged = vi.fn();
@@ -217,11 +221,12 @@ describe('FileViewer', () => {
     render(
       <FileViewer
         tabId="t1"
-        openFiles={[PR_DESCRIPTION]}
-        activeFile={PR_DESCRIPTION}
+        openFiles={[path]}
+        activeFile={path}
         onActivate={vi.fn()}
         onCloseFile={vi.fn()}
-        prBody={'## Summary\n\nHello'}
+        prBody={prBody}
+        cardBody={cardBody}
         line={null}
         canComment={false}
         prFetchedAt={null}
@@ -229,10 +234,64 @@ describe('FileViewer', () => {
     );
     // then
     expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'PR description' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'In file' })).not.toBeInTheDocument();
     expect(readFile).not.toHaveBeenCalled();
     expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'PR description', path: PR_DESCRIPTION },
+    { name: 'Card description', path: CARD_DESCRIPTION },
+  ])('closes the $name from its tab', async ({ name, path }) => {
+    // given
+    const onCloseFile = vi.fn();
+    fakeMaple();
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={[path]}
+        activeFile={path}
+        onActivate={vi.fn()}
+        onCloseFile={onCloseFile}
+        prBody="Hello"
+        cardBody="Ship it"
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+      />,
+    );
+    // when
+    await userEvent.click(screen.getByRole('button', { name: `Close ${name}` }));
+    // then
+    expect(onCloseFile).toHaveBeenCalledWith(path);
+  });
+
+  test('shows each description with its own body', () => {
+    // given
+    fakeMaple();
+    const props = {
+      tabId: 't1',
+      openFiles: [PR_DESCRIPTION, CARD_DESCRIPTION],
+      onActivate: vi.fn(),
+      onCloseFile: vi.fn(),
+      prBody: '## From the PR',
+      cardBody: '## From the card',
+      line: null,
+      canComment: false,
+      prFetchedAt: null,
+    };
+    const { rerender } = render(<FileViewer {...props} activeFile={PR_DESCRIPTION} />);
+    // when
+    rerender(<FileViewer {...props} activeFile={CARD_DESCRIPTION} />);
+    // then
+    expect(screen.getByRole('heading', { name: 'From the card' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'From the PR' })).not.toBeInTheDocument();
+    // when
+    rerender(<FileViewer {...props} activeFile={PR_DESCRIPTION} />);
+    // then
+    expect(screen.getByRole('heading', { name: 'From the PR' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'From the card' })).not.toBeInTheDocument();
   });
 
   test('renders a vault note as Markdown', async () => {

@@ -14,6 +14,7 @@ import { toDecorations } from './inFileDecorations';
 import { LineComment } from '@renderer/card/comments/LineComment';
 import './monacoSetup';
 import { PR_DESCRIPTION } from '@renderer/card/prDescription';
+import { CARD_DESCRIPTION } from '@renderer/card/cardDescription';
 import { useThreadZones } from '@renderer/card/comments/useThreadZones';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
 import styles from './viewer.module.css';
@@ -25,6 +26,7 @@ type Props = {
   onActivate: (path: string) => void;
   onCloseFile: (path: string) => void;
   prBody: string | null;
+  cardBody?: string;
   line: number | null;
   canComment: boolean;
   prFetchedAt: string | null;
@@ -71,6 +73,9 @@ function baseName(path: string): string {
   if (path === PR_DESCRIPTION) {
     return 'PR description';
   }
+  if (path === CARD_DESCRIPTION) {
+    return 'Card description';
+  }
   const bare = path.startsWith(VAULT_PREFIX) ? path.slice(VAULT_PREFIX.length) : path;
   return bare.split('/').at(-1) ?? bare;
 }
@@ -82,6 +87,7 @@ export function FileViewer({
   onActivate,
   onCloseFile,
   prBody,
+  cardBody,
   line,
   canComment,
   prFetchedAt,
@@ -107,9 +113,16 @@ export function FileViewer({
   const [diff, setDiff] = useState<DiffLines>(NO_DIFF);
   const [picked, setPicked] = useState<{ editor: editor.ICodeEditor; lines: Lines } | null>(null);
 
-  const showsDescription = activeFile === PR_DESCRIPTION;
+  const showsDescription = activeFile === PR_DESCRIPTION || activeFile === CARD_DESCRIPTION;
   const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
-  const markdown = showsDescription ? (prBody ?? '') : note !== null && note.path === activeFile ? note.text : null;
+  const markdown =
+    activeFile === PR_DESCRIPTION
+      ? (prBody ?? '')
+      : activeFile === CARD_DESCRIPTION
+        ? (cardBody ?? '')
+        : note !== null && note.path === activeFile
+          ? note.text
+          : null;
 
   useEffect(() => {
     if (activeFile === null || !activeFile.startsWith(VAULT_PREFIX)) {
@@ -127,7 +140,12 @@ export function FileViewer({
   }, [activeFile]);
 
   useEffect(() => {
-    if (activeFile === null || activeFile === PR_DESCRIPTION || activeFile.startsWith(VAULT_PREFIX)) {
+    if (
+      activeFile === null ||
+      activeFile === PR_DESCRIPTION ||
+      activeFile === CARD_DESCRIPTION ||
+      activeFile.startsWith(VAULT_PREFIX)
+    ) {
       return;
     }
     let live = true;
@@ -454,7 +472,7 @@ export function FileViewer({
             >
               {label(path)}
               <button
-                aria-label={`Close ${path === PR_DESCRIPTION ? baseName(path) : path}`}
+                aria-label={`Close ${path === PR_DESCRIPTION || path === CARD_DESCRIPTION ? baseName(path) : path}`}
                 className={styles.close}
                 onClick={(e) => {
                   e.stopPropagation();
