@@ -397,7 +397,8 @@ describe('ClaudePane', () => {
     { name: 'up in the alternate buffer', buffer: 'alternate', mode: 'vt200', deltaY: -100, report: '\x1b[<64;11;3M' },
     { name: 'down in the alternate buffer', buffer: 'alternate', mode: 'any', deltaY: 100, report: '\x1b[<65;11;3M' },
     { name: 'no mouse tracking', buffer: 'alternate', mode: 'none', deltaY: 100, report: null },
-    { name: 'the normal buffer', buffer: 'normal', mode: 'vt200', deltaY: 100, report: null },
+    { name: 'the normal buffer', buffer: 'normal', mode: 'vt200', deltaY: 100, report: '\x1b[<65;11;3M' },
+    { name: 'the normal buffer without mouse tracking', buffer: 'normal', mode: 'none', deltaY: 100, report: null },
     { name: 'a sideways scroll', buffer: 'alternate', mode: 'vt200', deltaY: 0, report: null },
   ])('repeats wheel events while the app tracks the mouse: $name', async ({ buffer, mode, deltaY, report }) => {
     // given

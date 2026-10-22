@@ -50,7 +50,7 @@ function loadWebgl(term: Terminal): void {
 
 function wheelReports(term: Terminal, host: HTMLElement, lines: () => number, write: (data: string) => void) {
   return (e: WheelEvent): boolean => {
-    if (term.buffer.active.type !== 'alternate' || term.modes.mouseTrackingMode === 'none' || e.deltaY === 0) {
+    if (term.modes.mouseTrackingMode === 'none' || e.deltaY === 0) {
       return true;
     }
     const rect = host.getBoundingClientRect();
