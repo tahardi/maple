@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { parsePrBody } from './prBody';
+import { dropImpact, impactItems, parsePrBody } from './prBody';
 
 describe('parsePrBody', () => {
   test.each([
@@ -45,5 +45,84 @@ describe('parsePrBody', () => {
     const result = parsePrBody(input);
     // then
     expect(result).toEqual(expected);
+  });
+});
+
+describe('impactItems', () => {
+  test.each([
+    { name: 'one bullet per line', section: '- MPL-1: a\n- MPL-2: b', expected: ['- MPL-1: a', '- MPL-2: b'] },
+    {
+      name: 'an indented continuation line',
+      section: '- MPL-1: a\n  more about a\n- MPL-2: b',
+      expected: ['- MPL-1: a\n  more about a', '- MPL-2: b'],
+    },
+    {
+      name: 'prose, blank lines, and nested bullets',
+      section: 'Intro\n\n- MPL-1: a\n  - detail\n\n- MPL-2: b',
+      expected: ['- MPL-1: a\n  - detail', '- MPL-2: b'],
+    },
+    { name: 'None', section: 'None', expected: [] },
+    { name: 'null', section: null, expected: [] },
+  ])('splits $name', ({ section, expected }) => {
+    // given
+    const input = section;
+    // when
+    const result = impactItems(input);
+    // then
+    expect(result).toEqual(expected);
+  });
+});
+
+describe('dropImpact', () => {
+  test.each([
+    {
+      name: 'the middle of three bullets',
+      body: '## Needs Taylor\nNone\n\n## Card impacts\n- MPL-1: a\n- MPL-2: b\n  more about b\n- MPL-3: c\n\n## Tests\n- one\n',
+      item: '- MPL-2: b\n  more about b',
+      expected: '## Needs Taylor\nNone\n\n## Card impacts\n- MPL-1: a\n- MPL-3: c\n\n## Tests\n- one\n',
+    },
+    {
+      name: 'the only bullet',
+      body: '## Card impacts\n- MPL-1: a\n\n## Tests\n- one\n',
+      item: '- MPL-1: a',
+      expected: '## Card impacts\nNone\n\n## Tests\n- one\n',
+    },
+    {
+      name: 'the last bullet of a body without a trailing newline',
+      body: '## Card impacts\n- MPL-1: a\n- MPL-2: b',
+      item: '- MPL-2: b',
+      expected: '## Card impacts\n- MPL-1: a',
+    },
+    {
+      name: 'only the first of two identical bullets',
+      body: '## Card impacts\n- MPL-1: a\n- MPL-1: a\n',
+      item: '- MPL-1: a',
+      expected: '## Card impacts\n- MPL-1: a\n',
+    },
+    {
+      name: 'a bullet with Windows line endings',
+      body: '## Card impacts\r\n- MPL-1: a\r\n- MPL-2: b\r\n\r\n## Tests\r\n- one\r\n',
+      item: '- MPL-1: a',
+      expected: '## Card impacts\r\n- MPL-2: b\r\n\r\n## Tests\r\n- one\r\n',
+    },
+  ])('drops $name', ({ body, item, expected }) => {
+    // given
+    const input = body;
+    // when
+    const result = dropImpact(input, item);
+    // then
+    expect(result).toBe(expected);
+  });
+
+  test.each([
+    { name: 'the item is not in the section', body: '## Card impacts\n- MPL-1: a\n\n## Tests\n- MPL-99: x\n' },
+    { name: 'there is no section', body: '## Tests\n- MPL-99: x\n' },
+  ])('throws when $name', ({ body }) => {
+    // given
+    const input = body;
+    // when
+    const drop = () => dropImpact(input, '- MPL-99: x');
+    // then
+    expect(drop).toThrow('finding card impact: - MPL-99: x');
   });
 });

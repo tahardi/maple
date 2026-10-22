@@ -105,6 +105,7 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       comment: vi.fn(() => Promise.resolve()),
       comments: vi.fn(() => Promise.resolve([])),
       diffLines: vi.fn(() => Promise.resolve({ ranges: {}, unpushed: [] })),
+      dropImpact: vi.fn(() => Promise.resolve()),
       ...overrides.pr,
     },
     app: {

@@ -7,6 +7,7 @@ export type PrApi = {
   comment(tabId: string, path: string, line: number, body: string): Promise<void>;
   comments(tabId: string): Promise<ReviewComment[]>;
   diffLines(tabId: string): Promise<DiffLines>;
+  dropImpact(tabId: string, item: string): Promise<void>;
 };
 
 export const PR_CHANNELS = {
@@ -15,4 +16,5 @@ export const PR_CHANNELS = {
   comment: 'invoke',
   comments: 'invoke',
   diffLines: 'invoke',
+  dropImpact: 'invoke',
 } as const satisfies { [M in keyof PrApi]: ChannelKind };

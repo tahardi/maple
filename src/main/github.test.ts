@@ -1,7 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { commentOnLine, commentOnPr, diffLines, headCommit, prForBranch, reviewComments } from './github';
+import {
+  commentOnLine,
+  commentOnPr,
+  diffLines,
+  editPrBody,
+  headCommit,
+  prBody,
+  prForBranch,
+  reviewComments,
+} from './github';
 import type { Runner } from './preflight';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../test/fixtures/gh', name), 'utf8');
@@ -126,6 +135,47 @@ describe('commentOnPr', () => {
     const result = commentOnPr(run, '/wt', 33, 'LGTM');
     // then
     await expect(result).rejects.toThrow('commenting on PR: closed');
+  });
+});
+
+describe('prBody', () => {
+  test('reads the body with gh pr view', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve(ok('## Card impacts\n- MPL-1: a\n\n')));
+    // when
+    const body = await prBody(run, '/wt', 33);
+    // then
+    expect(run).toHaveBeenCalledWith('gh', ['pr', 'view', '33', '--json', 'body', '--jq', '.body'], '/wt');
+    expect(body).toBe('## Card impacts\n- MPL-1: a\n');
+  });
+
+  test('rejects when gh pr view fails', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'not found' }));
+    // when
+    const result = prBody(run, '/wt', 33);
+    // then
+    await expect(result).rejects.toThrow('reading PR body: not found');
+  });
+});
+
+describe('editPrBody', () => {
+  test('runs gh pr edit with the new body', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve(ok('')));
+    // when
+    await editPrBody(run, '/wt', 33, '## Card impacts\nNone');
+    // then
+    expect(run).toHaveBeenCalledWith('gh', ['pr', 'edit', '33', '--body', '## Card impacts\nNone'], '/wt');
+  });
+
+  test('rejects when gh pr edit fails', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'closed' }));
+    // when
+    const result = editPrBody(run, '/wt', 33, 'x');
+    // then
+    await expect(result).rejects.toThrow('editing PR body: closed');
   });
 });
 

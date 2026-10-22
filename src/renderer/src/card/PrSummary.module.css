@@ -32,3 +32,22 @@
 .none {
   margin: 0;
 }
+
+.impact {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.impact > :first-child {
+  flex: 1;
+}
+
+.drop {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 2px 8px;
+  cursor: pointer;
+}

@@ -1,8 +1,18 @@
 import { z } from 'zod';
+import { dropImpact } from '@shared/prBody';
 import { APPROVE_COMMENT, cardPrompt } from '@shared/prompts';
 import type { DiffLines, Fetched, PrInfo, ReviewComment } from '@shared/types';
 import { changedSince, currentBranch } from '../git';
-import { commentOnLine, commentOnPr, diffLines, headCommit, prForBranch, reviewComments } from '../github';
+import {
+  commentOnLine,
+  commentOnPr,
+  diffLines,
+  editPrBody,
+  headCommit,
+  prBody,
+  prForBranch,
+  reviewComments,
+} from '../github';
 import { appLogger, type Logger } from '../log';
 import { defaultRunner } from '../preflight';
 import type { IpcDeps } from './index';
@@ -50,6 +60,27 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
         error: err instanceof Error ? err.message : String(err),
       });
       throw new Error(`approving PR: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
+  handle('pr:dropImpact', z.tuple([tabIdArg, z.string().min(1).max(10_000)]), async (tabId, item): Promise<void> => {
+    try {
+      const worktree = deps.worktreeFor(tabId);
+      if (worktree === null) {
+        throw new Error('tab has no card worktree');
+      }
+      const pr = await lookup(worktree);
+      if (pr?.state !== 'OPEN') {
+        throw new Error('branch has no open PR');
+      }
+      const body = await prBody(defaultRunner, worktree, pr.number);
+      await editPrBody(defaultRunner, worktree, pr.number, dropImpact(body, item));
+    } catch (err) {
+      logger.warn('gh', 'failed', {
+        operation: 'pr:dropImpact',
+        tabId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw new Error(`dropping card impact: ${err instanceof Error ? err.message : String(err)}`);
     }
   });
   handle(

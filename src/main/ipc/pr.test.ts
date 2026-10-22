@@ -16,6 +16,8 @@ const {
   reviewComments,
   diffLines,
   headCommit,
+  prBody,
+  editPrBody,
   defaultRunner,
   currentBranch,
   changedSince,
@@ -27,6 +29,8 @@ const {
   reviewComments: vi.fn(),
   diffLines: vi.fn(),
   headCommit: vi.fn(),
+  prBody: vi.fn(),
+  editPrBody: vi.fn(),
   defaultRunner: vi.fn(),
   currentBranch: vi.fn(),
   changedSince: vi.fn(),
@@ -34,7 +38,16 @@ const {
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 vi.mock('../git', () => ({ currentBranch, changedSince }));
-vi.mock('../github', () => ({ prForBranch, commentOnPr, commentOnLine, reviewComments, diffLines, headCommit }));
+vi.mock('../github', () => ({
+  prForBranch,
+  commentOnPr,
+  commentOnLine,
+  reviewComments,
+  diffLines,
+  headCommit,
+  prBody,
+  editPrBody,
+}));
 vi.mock('../preflight', () => ({ defaultRunner }));
 
 const event = {} as IpcMainInvokeEvent;
@@ -240,6 +253,33 @@ describe('registerPr', () => {
     expect(sendPrompt).not.toHaveBeenCalled();
   });
 
+  test('dropImpact rewrites the body without the item', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    prBody.mockResolvedValue('## Card impacts\n- MPL-15: rename foo to bar\n- MPL-16: drop baz\n');
+    editPrBody.mockResolvedValue(undefined);
+    const dropImpact = register('pr:dropImpact', '/wt');
+    // when
+    await dropImpact('t1', '- MPL-15: rename foo to bar');
+    // then
+    expect(prBody).toHaveBeenCalledWith(defaultRunner, '/wt', 33);
+    expect(editPrBody).toHaveBeenCalledWith(defaultRunner, '/wt', 33, '## Card impacts\n- MPL-16: drop baz\n');
+  });
+
+  test.each([
+    { name: 'there is no PR', found: null },
+    { name: 'the PR is merged', found: { ...pr, state: 'MERGED' as const } },
+  ])('dropImpact rejects when the branch has no open PR because $name', async ({ found }) => {
+    // given
+    prForBranch.mockResolvedValue(found);
+    const dropImpact = register('pr:dropImpact', '/wt');
+    // when
+    const result = dropImpact('t1', '- MPL-15: rename foo to bar');
+    // then
+    await expect(result).rejects.toThrow('dropping card impact: branch has no open PR');
+    expect(editPrBody).not.toHaveBeenCalled();
+  });
+
   test('comment posts the line comment on the open PR', async () => {
     // given
     prForBranch.mockResolvedValue(pr);
@@ -426,6 +466,55 @@ describe('registerPr', () => {
       operation: 'pr:get',
       tabId: 't1',
       error: 'listing PRs: offline',
+    });
+  });
+
+  test('dropImpact rejects when the tab has no worktree', async () => {
+    // given
+    const dropImpact = register('pr:dropImpact', null);
+    // when
+    const result = dropImpact('t1', '- MPL-15: rename foo to bar');
+    // then
+    await expect(result).rejects.toThrow('dropping card impact: tab has no card worktree');
+    expect(prForBranch).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    {
+      name: 'reading the body fails',
+      body: () => Promise.reject(new Error('reading PR body: offline')),
+      want: 'dropping card impact: reading PR body: offline',
+    },
+    {
+      name: 'the item is not in the body',
+      body: () => Promise.resolve('## Card impacts\n- MPL-16: drop baz\n'),
+      want: 'dropping card impact: finding card impact: - MPL-15: rename foo to bar',
+    },
+  ])('dropImpact rejects and edits nothing when $name', async ({ body, want }) => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    prBody.mockImplementation(body);
+    const dropImpact = register('pr:dropImpact', '/wt');
+    // when
+    const result = dropImpact('t1', '- MPL-15: rename foo to bar');
+    // then
+    await expect(result).rejects.toThrow(want);
+    expect(editPrBody).not.toHaveBeenCalled();
+  });
+
+  test('logs a failed dropImpact at warn', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    prBody.mockResolvedValue('## Card impacts\n- MPL-15: rename foo to bar\n');
+    editPrBody.mockRejectedValue(new Error('editing PR body: offline'));
+    const dropImpact = register('pr:dropImpact', '/wt');
+    // when
+    await dropImpact('t1', '- MPL-15: rename foo to bar').catch(() => undefined);
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:dropImpact',
+      tabId: 't1',
+      error: 'editing PR body: offline',
     });
   });
 

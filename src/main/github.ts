@@ -93,6 +93,25 @@ export async function commentOnPr(run: Runner, worktree: string, num: number, bo
   }
 }
 
+export async function prBody(run: Runner, worktree: string, num: number): Promise<string> {
+  const { code, stdout, stderr } = await run(
+    'gh',
+    ['pr', 'view', String(num), '--json', 'body', '--jq', '.body'],
+    worktree,
+  );
+  if (code !== 0) {
+    throw new Error(`reading PR body: ${stderr}`);
+  }
+  return stdout.replace(/\n$/, '');
+}
+
+export async function editPrBody(run: Runner, worktree: string, num: number, body: string): Promise<void> {
+  const { code, stderr } = await run('gh', ['pr', 'edit', String(num), '--body', body], worktree);
+  if (code !== 0) {
+    throw new Error(`editing PR body: ${stderr}`);
+  }
+}
+
 export async function headCommit(run: Runner, worktree: string, num: number): Promise<string> {
   const { code, stdout, stderr } = await run(
     'gh',

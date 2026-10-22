@@ -210,6 +210,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           )}
           {pr && (
             <PrSummary
+              tabId={tab.id}
               pr={pr}
               onOpenDescription={() => {
                 openFile(PR_DESCRIPTION);
