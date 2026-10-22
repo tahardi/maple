@@ -1029,6 +1029,72 @@ describe('FileViewer', () => {
     expect(screen.queryByRole('heading', { name: /^Comment on / })).not.toBeInTheDocument();
   });
 
+  test('Comment puts the cursor in the new comment box', async () => {
+    // given
+    monaco.zones.addZone.mockImplementationOnce((zone) => {
+      document.body.appendChild(zone.domNode);
+      onTestFinished(() => {
+        zone.domNode.remove();
+      });
+      return 'z1';
+    });
+    renderViewer(changed, undefined, true);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    // when
+    await userEvent.click(button);
+    // then
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    expect(within(zone.domNode).getByRole('textbox')).toHaveFocus();
+  });
+
+  test('leaves the cursor where it is when the file reloads under an open form', async () => {
+    // given
+    let changedCb: () => void = () => undefined;
+    const readFile = vi.fn(() => Promise.resolve<FilePair>({ ...changed }));
+    fakeMaple({
+      repo: {
+        readFile,
+        onChanged: (_tabId, cb) => {
+          changedCb = cb;
+          return () => undefined;
+        },
+      },
+      pr: { diffLines: () => Promise.resolve({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }) },
+    });
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment
+        prFetchedAt={null}
+      />,
+    );
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    await userEvent.click(button);
+    const [zone] = monaco.zones.addZone.mock.calls[0];
+    const box = within(zone.domNode).getByRole('textbox');
+    const focus = vi.spyOn(box, 'focus');
+    // when
+    changedCb();
+    // then
+    await vi.waitFor(() => {
+      expect(readFile).toHaveBeenCalledTimes(2);
+    });
+    await act(() => Promise.resolve());
+    expect(focus).not.toHaveBeenCalled();
+  });
+
   test('Cancel removes the new comment zone without posting', async () => {
     // given
     renderViewer(changed, undefined, true);

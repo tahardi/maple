@@ -299,13 +299,19 @@ export function FileViewer({
 
   const zones = useLineZones(plain, threads);
 
+  const textPath = text?.path ?? null;
+
   const formItems = useMemo(
     () =>
-      commentable && commenting !== null && commenting.path === text.path ? [{ id: 'new', line: commenting.end }] : [],
-    [commentable, commenting, text],
+      commentable && commenting !== null && commenting.path === textPath ? [{ id: 'new', line: commenting.end }] : [],
+    [commentable, commenting, textPath],
   );
 
   const forms = useLineZones(plain, formItems);
+
+  useEffect(() => {
+    forms.at(0)?.node.querySelector('textarea')?.focus();
+  }, [forms]);
 
   const language = useMemo(() => {
     if (activeFile === null || monaco === null) {
