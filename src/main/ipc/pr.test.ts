@@ -48,7 +48,7 @@ const pr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
-  checks: { passed: 1, failed: 0, pending: 0, total: 1 },
+  checks: { passed: 1, failed: 0, pending: 0, total: 1, runs: [] },
 };
 
 function register(

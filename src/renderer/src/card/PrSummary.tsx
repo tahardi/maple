@@ -1,6 +1,14 @@
-import type { ChecksSummary, Fetched, PrInfo } from '@shared/types';
+import type { CheckRun, ChecksSummary, Fetched, PrInfo } from '@shared/types';
 import { MarkdownText } from '../shell/MarkdownText';
 import styles from './PrSummary.module.css';
+
+const runSymbols: Record<CheckRun['bucket'], string> = {
+  pass: '✓',
+  skipping: '–',
+  fail: '✗',
+  cancel: '✗',
+  pending: '●',
+};
 
 function checksText({ passed, failed, pending, total }: ChecksSummary): string {
   if (failed > 0) {
@@ -32,6 +40,18 @@ export function PrSummary({ pr, onOpenDescription }: { pr: Fetched<PrInfo>; onOp
             Full description
           </button>
           <div className={styles.checks}>{checksText(info.checks)}</div>
+          {info.checks.runs.length > 0 && (
+            <ul className={styles.runs}>
+              {info.checks.runs.map((run) => (
+                <li key={`${run.name} ${run.link}`}>
+                  {runSymbols[run.bucket]}{' '}
+                  <a href={run.link} target="_blank" rel="noreferrer">
+                    {run.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
           {sections.map((s) => (
             <div key={s.title}>
               <h4>{s.title}</h4>

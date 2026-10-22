@@ -1,4 +1,4 @@
-import type { ChecksSummary, Fetched, PrInfo } from '@shared/types';
+import type { CheckRun, ChecksSummary, Fetched, PrInfo } from '@shared/types';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PrSummary } from './PrSummary';
@@ -12,7 +12,7 @@ const info: PrInfo = {
   needsTaylor: '- Try it on device',
   cardImpacts: '- MPL-21: rename foo to bar',
   body: '',
-  checks: { passed: 5, failed: 0, pending: 0, total: 5 },
+  checks: { passed: 5, failed: 0, pending: 0, total: 5, runs: [] },
 };
 
 const fetched = (data: PrInfo | null, error: string | null = null): Fetched<PrInfo> => ({
@@ -73,11 +73,11 @@ describe('PrSummary', () => {
   });
 
   test.each<{ checks: ChecksSummary; text: string }>([
-    { checks: { passed: 5, failed: 0, pending: 0, total: 5 }, text: '✓ 5/5' },
-    { checks: { passed: 4, failed: 1, pending: 0, total: 5 }, text: '✗ 1 failing' },
-    { checks: { passed: 3, failed: 0, pending: 2, total: 5 }, text: '● 2 pending' },
-    { checks: { passed: 2, failed: 1, pending: 2, total: 5 }, text: '✗ 1 failing' },
-    { checks: { passed: 0, failed: 0, pending: 0, total: 0 }, text: '✓ 0/0' },
+    { checks: { passed: 5, failed: 0, pending: 0, total: 5, runs: [] }, text: '✓ 5/5' },
+    { checks: { passed: 4, failed: 1, pending: 0, total: 5, runs: [] }, text: '✗ 1 failing' },
+    { checks: { passed: 3, failed: 0, pending: 2, total: 5, runs: [] }, text: '● 2 pending' },
+    { checks: { passed: 2, failed: 1, pending: 2, total: 5, runs: [] }, text: '✗ 1 failing' },
+    { checks: { passed: 0, failed: 0, pending: 0, total: 0, runs: [] }, text: '✓ 0/0' },
   ])('shows checks as $text', ({ checks, text }) => {
     // given
     const pr = fetched({ ...info, checks });
@@ -85,6 +85,60 @@ describe('PrSummary', () => {
     render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
     // then
     expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  test.each<{ bucket: CheckRun['bucket']; symbol: string }>([
+    { bucket: 'pass', symbol: '✓' },
+    { bucket: 'skipping', symbol: '–' },
+    { bucket: 'fail', symbol: '✗' },
+    { bucket: 'cancel', symbol: '✗' },
+    { bucket: 'pending', symbol: '●' },
+  ])('links a $bucket check run to its log with $symbol', ({ bucket, symbol }) => {
+    // given
+    const link = 'https://github.com/tahardi/maple/actions/runs/1/job/2';
+    const pr = fetched({ ...info, checks: { ...info.checks, runs: [{ name: 'lint', bucket, link }] } });
+    // when
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    // then
+    const anchor = screen.getByRole('link', { name: 'lint' });
+    expect(anchor).toHaveAttribute('href', link);
+    expect(anchor).toHaveAttribute('target', '_blank');
+    expect(anchor).toHaveAttribute('rel', 'noreferrer');
+    expect(anchor.closest('li')?.textContent).toBe(`${symbol} lint`);
+  });
+
+  test('lists check runs in gh order', () => {
+    // given
+    const jobs = 'https://github.com/tahardi/maple/actions/runs/1/job';
+    const runs: CheckRun[] = [
+      { name: 'unit-test', bucket: 'fail', link: `${jobs}/1` },
+      { name: 'e2e', bucket: 'pending', link: `${jobs}/2` },
+      { name: 'format', bucket: 'pass', link: `${jobs}/3` },
+    ];
+    const pr = fetched({ ...info, checks: { ...info.checks, runs } });
+    // when
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    // then
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      '✗ unit-test',
+      '● e2e',
+      '✓ format',
+      'Try it on device',
+      'MPL-21: rename foo to bar',
+    ]);
+  });
+
+  test('shows no check list without check runs', () => {
+    // given
+    const pr = fetched({ ...info, checks: { ...info.checks, runs: [] } });
+    // when
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    // then
+    expect(screen.getAllByRole('list')).toHaveLength(2);
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'Try it on device',
+      'MPL-21: rename foo to bar',
+    ]);
   });
 
   test('keeps the last data when GitHub is unreachable', () => {

@@ -33,7 +33,7 @@ const pr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
-  checks: { passed: 0, failed: 0, pending: 0, total: 0 },
+  checks: { passed: 0, failed: 0, pending: 0, total: 0, runs: [] },
 };
 
 describe('CardHeader', () => {

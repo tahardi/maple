@@ -1,1 +1,27 @@
-[{ "bucket": "pass" }, { "bucket": "pass" }, { "bucket": "pass" }, { "bucket": "skipping" }, { "bucket": "pending" }]
+[
+  {
+    "name": "format",
+    "bucket": "pass",
+    "link": "https://github.com/tahardi/maple/actions/runs/18620000001/job/53090000001"
+  },
+  {
+    "name": "lint",
+    "bucket": "pass",
+    "link": "https://github.com/tahardi/maple/actions/runs/18620000001/job/53090000002"
+  },
+  {
+    "name": "typecheck",
+    "bucket": "pass",
+    "link": "https://github.com/tahardi/maple/actions/runs/18620000001/job/53090000003"
+  },
+  {
+    "name": "unit-test",
+    "bucket": "skipping",
+    "link": "https://github.com/tahardi/maple/actions/runs/18620000001/job/53090000004"
+  },
+  {
+    "name": "e2e",
+    "bucket": "pending",
+    "link": "https://github.com/tahardi/maple/actions/runs/18620000001/job/53090000005"
+  }
+]

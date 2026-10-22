@@ -52,7 +52,8 @@ export type HookEvent = {
   notificationType: string | null;
 };
 export type ReviewComment = { path: string; line: number; author: string; body: string };
-export type ChecksSummary = { passed: number; failed: number; pending: number; total: number };
+export type CheckRun = { name: string; bucket: 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel'; link: string };
+export type ChecksSummary = { passed: number; failed: number; pending: number; total: number; runs: CheckRun[] };
 export type PrInfo = {
   number: number;
   url: string;
