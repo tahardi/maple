@@ -125,6 +125,26 @@ describe('Inbox', () => {
     expect(activate).toHaveBeenLastCalledWith(null);
   });
 
+  test('clicking a vault row selects its project and activates the vault tab', async () => {
+    // given
+    const selectProject = vi.fn();
+    const activate = vi.fn();
+    useMaple.setState({
+      selectProject,
+      activate,
+      tabs: [...useMaple.getState().tabs, tab('v1', 'DIG', 'vault', null)],
+      statuses: { ...useMaple.getState().statuses, v1: status('v1', 'waiting') },
+      since: { ...useMaple.getState().since, v1: minutesAgo(1) },
+    });
+    render(<Inbox />);
+    await userEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: /^Vault/ }));
+    // then
+    expect(selectProject).toHaveBeenCalledWith('DIG');
+    expect(activate).toHaveBeenLastCalledWith('v1');
+  });
+
   test('a visited tab leaves the inbox until its dot changes again', async () => {
     // given
     render(<Inbox />);

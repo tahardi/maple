@@ -2,6 +2,7 @@ import { inboxItems, type InboxItem } from '@shared/inbox';
 import { useState } from 'react';
 import { useMaple } from '../store';
 import styles from './Inbox.module.css';
+import { tabLabel } from './tabLabel';
 
 function pointsLabel(points: number | null): string {
   return points === null ? '–' : `${String(points)} pts`;
@@ -37,7 +38,7 @@ export function Inbox() {
   const go = (item: InboxItem) => {
     setOpen(false);
     selectProject(item.projectKey);
-    activate(item.kind === 'card' ? item.tabId : null);
+    activate(item.kind === 'planner' ? null : item.tabId);
   };
 
   return (
@@ -61,7 +62,7 @@ export function Inbox() {
                         go(item);
                       }}
                     >
-                      {[item.cardKey ?? 'Planner', projectName(item.projectKey), item.dot].join(' · ')}
+                      {[tabLabel(item), projectName(item.projectKey), item.dot].join(' · ')}
                     </button>
                   </li>
                 ))}

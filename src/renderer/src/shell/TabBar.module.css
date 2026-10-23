@@ -39,6 +39,11 @@
   color: var(--text-muted);
 }
 
+.error {
+  padding: 0 14px;
+  color: var(--danger);
+}
+
 .active {
   background: var(--bg);
   color: var(--text-strong);

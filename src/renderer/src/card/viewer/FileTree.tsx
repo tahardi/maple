@@ -12,6 +12,7 @@ type Props = {
   viewed?: ReadonlySet<string>;
   onToggleViewed?: (path: string) => void;
   commented?: ReadonlySet<string>;
+  collapsedByDefault?: boolean;
 };
 
 export function FileTree({
@@ -24,11 +25,13 @@ export function FileTree({
   viewed,
   onToggleViewed,
   commented,
+  collapsedByDefault = false,
 }: Props) {
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [flipped, setFlipped] = useState<ReadonlySet<string>>(new Set());
+  const collapsed = (path: string) => collapsedByDefault !== flipped.has(path);
 
   const flip = (path: string) => {
-    setCollapsed((dirs) => {
+    setFlipped((dirs) => {
       const next = new Set(dirs);
       if (!next.delete(path)) {
         next.add(path);
@@ -43,7 +46,7 @@ export function FileTree({
         key={node.path}
         className={node.path === selected ? `${styles.row} ${styles.selected}` : styles.row}
         style={{ paddingLeft: 8 + depth * 12 }}
-        aria-expanded={node.dir ? !collapsed.has(node.path) : undefined}
+        aria-expanded={node.dir ? !collapsed(node.path) : undefined}
         onClick={() => {
           if (node.dir) {
             flip(node.path);
@@ -77,7 +80,7 @@ export function FileTree({
           </span>
         )}
       </li>,
-      ...(collapsed.has(node.path) ? [] : rows(node.children, depth + 1)),
+      ...(collapsed(node.path) ? [] : rows(node.children, depth + 1)),
     ]);
 
   return (

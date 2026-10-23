@@ -1,5 +1,4 @@
 import { closePrompt } from '@shared/prompts';
-import type { FileChange, VaultNote } from '@shared/types/files';
 import type { ReviewComment } from '@shared/types/github';
 import type { TabState } from '@shared/types/tabs';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,6 +22,7 @@ import { useColumns } from './useColumns';
 import { useQuickOpenKeys, type QuickOpenMode } from '@renderer/card/viewer/useQuickOpenKeys';
 import { namedNotes } from '@renderer/card/vault/namedNotes';
 import { useVault } from '@renderer/card/vault/useVault';
+import { writtenNotes } from '@renderer/card/vault/writtenNotes';
 import { useViewed } from '@renderer/card/viewer/useViewed';
 import { VAULT_PREFIX, VaultSwitch, type TreeView } from '@renderer/card/vault/VaultSwitch';
 
@@ -32,13 +32,6 @@ const CLOSED = 'Closed, worktree removed';
 const CLOSE_WARNING =
   'Claude closes the PR without merging, deletes the branch and worktree, and moves the card to Done with the ' +
   'wont-do label. This cannot be undone.';
-
-function writtenNotes(notes: readonly VaultNote[], written: readonly string[]): FileChange[] {
-  const paths = new Set(written);
-  return notes
-    .filter((note) => paths.has(note.path))
-    .map((note) => ({ path: note.path, status: 'M', oldPath: null, stamp: null }));
-}
 
 function branchName(worktreePath: string | null, cardKey: string): string | null {
   const name = worktreePath?.split('/').filter(Boolean).at(-1);
