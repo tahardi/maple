@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { cardPrompt, fillAction, refinePrompt, suggestPrompt } from './prompts';
+import { cardPrompt, closePrompt, fillAction, refinePrompt, suggestPrompt } from './prompts';
 
 describe('cardPrompt', () => {
   test('builds the card command', () => {
@@ -9,6 +9,17 @@ describe('cardPrompt', () => {
     const prompt = cardPrompt(key);
     // then
     expect(prompt).toBe('/card DIG-44');
+  });
+});
+
+describe('closePrompt', () => {
+  test('builds the close command', () => {
+    // given
+    const key = 'DIG-44';
+    // when
+    const prompt = closePrompt(key);
+    // then
+    expect(prompt).toBe('/card DIG-44 close');
   });
 });
 
