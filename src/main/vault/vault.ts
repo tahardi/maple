@@ -1,4 +1,4 @@
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { VaultNote } from '@shared/types/files';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/app/paths';
@@ -25,18 +25,27 @@ export async function listNotes(vaultDir: string): Promise<VaultNote[]> {
   return (await walk(vaultDir, '')).sort((a, b) => a.path.localeCompare(b.path));
 }
 
-export async function readNote(vaultDir: string, path: string): Promise<string> {
+async function notePath(vaultDir: string, path: string, verb: 'reading' | 'writing'): Promise<string> {
   const root = await realpath(vaultDir);
   const full = await realOrSelf(resolve(root, path));
   if (!isInside(root, full)) {
-    throw new Error('reading note: path is outside the vault');
+    throw new Error(`${verb} note: path is outside the vault`);
   }
   if (!full.endsWith('.md')) {
-    throw new Error('reading note: path is not a Markdown file');
+    throw new Error(`${verb} note: path is not a Markdown file`);
   }
+  return full;
+}
+
+export async function readNote(vaultDir: string, path: string): Promise<string> {
+  const full = await notePath(vaultDir, path, 'reading');
   const info = await stat(full);
   if (info.size > MAX_BYTES) {
     throw new Error('reading note: file is too large');
   }
   return readFile(full, 'utf8');
+}
+
+export async function writeNote(vaultDir: string, path: string, text: string): Promise<void> {
+  await writeFile(await notePath(vaultDir, path, 'writing'), text);
 }

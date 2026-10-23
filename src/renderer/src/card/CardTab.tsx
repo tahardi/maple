@@ -16,6 +16,7 @@ import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
 import { QuickOpen } from '@renderer/card/viewer/QuickOpen';
 import { PR_DESCRIPTION } from './prDescription';
+import { CARD_DESCRIPTION } from './cardDescription';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
@@ -60,6 +61,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [confirmApprove, setConfirmApprove] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
+  const [cardOpened, setCardOpened] = useState(false);
   const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
   const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
   const [vaultChangedOnly, setVaultChangedOnly] = useState(true);
@@ -150,6 +152,12 @@ export function CardTab({ tab }: { tab: TabState }) {
     setActiveFile((active) => active ?? PR_DESCRIPTION);
   }
 
+  if (!cardOpened && card !== null && pr !== null && pr.data === null) {
+    setCardOpened(true);
+    setOpenFiles((files) => [CARD_DESCRIPTION, ...files]);
+    setActiveFile((active) => active ?? CARD_DESCRIPTION);
+  }
+
   const closeFile = (path: string) => {
     const rest = openFiles.filter((file) => file !== path);
     setOpenFiles(rest);
@@ -225,6 +233,16 @@ export function CardTab({ tab }: { tab: TabState }) {
               commented={commented}
             />
           )}
+          {card !== null && (
+            <button
+              className={styles.cardDescription}
+              onClick={() => {
+                openFile(CARD_DESCRIPTION);
+              }}
+            >
+              Card description
+            </button>
+          )}
           {pr && (
             <PrSummary
               pr={pr}
@@ -247,6 +265,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 onActivate={activateFile}
                 onCloseFile={closeFile}
                 prBody={pr?.data?.body ?? null}
+                cardBody={card?.descriptionMd}
                 canComment={pr?.data?.state === 'OPEN'}
                 prFetchedAt={pr?.fetchedAt ?? null}
                 onComments={showComments}

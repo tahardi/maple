@@ -23,6 +23,9 @@ export function registerTabs(
   handle('tabs:openPlanner', z.tuple([projectKeyArg]), (projectKey) =>
     logged('tabs:openPlanner', [projectKey], () => sessions.openPlanner(projectKey, null)),
   );
+  handle('tabs:openVault', z.tuple([projectKeyArg]), (projectKey) =>
+    logged('tabs:openVault', [projectKey], () => sessions.openVault(projectKey, null)),
+  );
   handle('tabs:close', z.tuple([tabIdArg, z.boolean()]), (tabId, force): CloseResult => {
     const working = status.statuses().some((s) => s.tabId === tabId && s.dot === 'working');
     if (working && !force) {

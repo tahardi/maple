@@ -92,6 +92,17 @@ export class SessionManager extends EventEmitter<Events> {
     return existing ?? this.open(projectKey, 'planner', null, resumeId, null, tabId);
   }
 
+  openVault(projectKey: string, resumeId: string | null, tabId: string | null = null): TabState {
+    const existing = this.list().find((tab) => tab.kind === 'vault' && tab.projectKey === projectKey);
+    if (existing) {
+      return existing;
+    }
+    if (this.deps.config().vaultDir === null) {
+      throw new Error('opening vault: no vaultDir in config');
+    }
+    return this.open(projectKey, 'vault', null, resumeId, null, tabId);
+  }
+
   resume(tabId: string): void {
     const session = this.require(tabId);
     this.launch(session, { resume: true, prompt: null });
@@ -240,9 +251,14 @@ export class SessionManager extends EventEmitter<Events> {
     if (resume && !resumable) {
       this.log.warn('session', 'no transcript, starting fresh', { tabId: tab.id, sessionId: tab.sessionId });
     }
-    const project = this.deps.config().projects.find((p) => p.jiraKey === tab.projectKey);
+    const config = this.deps.config();
+    const project = config.projects.find((p) => p.jiraKey === tab.projectKey);
     if (!project) {
       throw new Error(`starting session: unknown project ${tab.projectKey}`);
+    }
+    const cwd = tab.kind === 'vault' ? config.vaultDir : project.plannerDir;
+    if (cwd === null) {
+      throw new Error('starting session: no vaultDir in config');
     }
     const args = ['--dangerously-skip-permissions', '--settings', this.deps.hooksFile];
     args.push(resumable ? '--resume' : '--session-id', tab.sessionId);
@@ -250,12 +266,12 @@ export class SessionManager extends EventEmitter<Events> {
       args.push(prompt);
     }
     const env = { MAPLE_TAB_ID: tab.id, MAPLE_SOCKET: this.deps.socketPath };
-    const command = tmuxArgs(tmuxName(tab.id), this.deps.tmuxConf, project.plannerDir, env, ['claude', ...args]);
+    const command = tmuxArgs(tmuxName(tab.id), this.deps.tmuxConf, cwd, env, ['claude', ...args]);
     const pty = this.deps.spawn('tmux', command, {
       name: 'xterm-256color',
       cols: 120,
       rows: 40,
-      cwd: project.plannerDir,
+      cwd,
       env: { ...parentEnv(), ...this.deps.sessionEnv, TERM: 'xterm-256color' },
     });
     session.pty = pty;
@@ -264,7 +280,7 @@ export class SessionManager extends EventEmitter<Events> {
       tabId: tab.id,
       cardKey: tab.cardKey,
       sessionId: tab.sessionId,
-      cwd: project.plannerDir,
+      cwd,
       args,
       resumed: resumable,
     });

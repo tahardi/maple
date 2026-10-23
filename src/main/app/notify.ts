@@ -13,7 +13,7 @@ export function shouldNotify(
 }
 
 export function notifyTab(window: () => BrowserWindow | null, tab: TabState, projectName: string): void {
-  const who = tab.cardKey ?? `${projectName} planner`;
+  const who = tab.cardKey ?? `${projectName} ${tab.kind}`;
   const notification = new Notification({ title: `${who} needs you`, body: projectName });
   notification.on('click', () => {
     const win = window();
