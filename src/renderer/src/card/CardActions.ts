@@ -12,6 +12,7 @@ type CardActionsInput = {
   worktreeExists: boolean;
   send: (text: string) => void;
   approve: () => void;
+  close: () => void;
 };
 
 function approveBlocker({ dot, pr }: CardActionsInput): string | null {
@@ -24,8 +25,15 @@ function approveBlocker({ dot, pr }: CardActionsInput): string | null {
   return pr.checks.failed > 0 ? 'Checks are failing' : null;
 }
 
+function closeBlocker({ dot, pr }: CardActionsInput): string | null {
+  if (dot === 'working') {
+    return 'Agent is working';
+  }
+  return pr?.state === 'MERGED' ? 'PR is merged' : null;
+}
+
 export function cardActions(input: CardActionsInput): PaneAction[] {
-  const { config, cardKey, pr, worktreeExists, send, approve } = input;
+  const { config, cardKey, pr, worktreeExists, send, approve, close } = input;
   const disable = (title: string | null) =>
     !worktreeExists ? { disabled: true, title: 'No worktree' } : title === null ? {} : { disabled: true, title };
   return [
@@ -37,5 +45,6 @@ export function cardActions(input: CardActionsInput): PaneAction[] {
       ...disable(null),
     })),
     { label: 'Approve', onClick: approve, ...disable(approveBlocker(input)) },
+    { label: 'Close', onClick: close, ...disable(closeBlocker(input)) },
   ];
 }

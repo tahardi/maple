@@ -2,6 +2,10 @@ export function cardPrompt(key: string): string {
   return `/card ${key}`;
 }
 
+export function closePrompt(key: string): string {
+  return `/card ${key} close`;
+}
+
 export function refinePrompt(projectKey: string): string {
   return `/refine ${projectKey}`;
 }

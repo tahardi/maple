@@ -1,3 +1,4 @@
+import { closePrompt } from '@shared/prompts';
 import type { ReviewComment } from '@shared/types/github';
 import type { TabState } from '@shared/types/tabs';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -26,6 +27,10 @@ import { VAULT_PREFIX, VaultSwitch, type TreeView } from '@renderer/card/vault/V
 
 const WAITING = 'Waiting for worktree…';
 const MERGED = 'Merged, worktree removed';
+const CLOSED = 'Closed, worktree removed';
+const CLOSE_WARNING =
+  'Claude closes the PR without merging, deletes the branch and worktree, and moves the card to Done with the ' +
+  'wont-do label. This cannot be undone.';
 
 function branchName(worktreePath: string | null, cardKey: string): string | null {
   const name = worktreePath?.split('/').filter(Boolean).at(-1);
@@ -47,6 +52,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [confirmApprove, setConfirmApprove] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
   const [cardOpened, setCardOpened] = useState(false);
   const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
@@ -64,7 +70,8 @@ export function CardTab({ tab }: { tab: TabState }) {
   const unviewed = changed.length - viewed.size;
   const worktreeExists = tab.worktreePath !== null;
   useQuickOpenKeys(active && worktreeExists ? setQuickOpen : null);
-  const placeholder = card?.status === 'Done' ? MERGED : WAITING;
+  const wontDo = card?.labels.includes('wont-do') ?? false;
+  const placeholder = card?.status === 'Done' ? (wontDo ? CLOSED : MERGED) : WAITING;
   const hasVault = (config?.vaultDir ?? null) !== null;
   const view = viewOverride ?? (worktreeExists ? 'worktree' : 'vault');
   const showsVault = hasVault && view === 'vault';
@@ -95,6 +102,9 @@ export function CardTab({ tab }: { tab: TabState }) {
             } else {
               approvePr();
             }
+          },
+          close: () => {
+            setConfirmClose(true);
           },
         });
 
@@ -269,7 +279,9 @@ export function CardTab({ tab }: { tab: TabState }) {
         </div>
         <div className={styles.divider} onPointerDown={drag('right')} />
         <div className={styles.right} style={{ width: `${String(columns.right)}%` }} data-testid="claude-slot">
-          {card?.status === 'Done' && !worktreeExists && <MergedNotice onClose={() => void closeTab(tab.id, false)} />}
+          {card?.status === 'Done' && !worktreeExists && (
+            <MergedNotice label={wontDo ? 'Closed' : 'Merged'} onClose={() => void closeTab(tab.id, false)} />
+          )}
           {approveError !== null && (
             <div className={styles.approveError} role="alert">
               {approveError}
@@ -289,6 +301,20 @@ export function CardTab({ tab }: { tab: TabState }) {
           }}
           onCancel={() => {
             setConfirmApprove(false);
+          }}
+        />
+      )}
+      {confirmClose && (
+        <ConfirmDialog
+          title={`Close ${cardKey}?`}
+          body={CLOSE_WARNING}
+          confirmLabel="Close card"
+          onConfirm={() => {
+            setConfirmClose(false);
+            window.maple.session.sendPrompt(tab.id, closePrompt(cardKey));
+          }}
+          onCancel={() => {
+            setConfirmClose(false);
           }}
         />
       )}
