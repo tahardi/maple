@@ -34,6 +34,7 @@ export function VaultTab({ tab }: { tab: TabState }) {
     <div className={styles.tab} data-testid="vault-tab">
       <div className={styles.left}>
         <FileTree
+          key={changedOnly ? 'changed' : 'all'}
           nodes={buildTree(
             vault.notes.map((note) => note.path),
             recent,
@@ -44,6 +45,7 @@ export function VaultTab({ tab }: { tab: TabState }) {
           changedOnly={changedOnly}
           onToggle={setChangedOnly}
           changedCount={recent.length}
+          collapsedByDefault={!changedOnly}
         />
       </div>
       <div className={styles.middle}>

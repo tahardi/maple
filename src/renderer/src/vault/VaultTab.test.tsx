@@ -51,14 +51,16 @@ function fakeVault() {
 }
 
 describe('VaultTab', () => {
-  test('shows every vault note in the tree', async () => {
+  test('shows the top level of the vault with folders closed', async () => {
     // given
     const { written } = fakeVault();
     // when
     render(<VaultTab tab={vaultTab} />);
     // then
-    expect(await screen.findByText('Spike.md')).toBeInTheDocument();
+    expect(await screen.findByText('Projects')).toBeInTheDocument();
+    expect(screen.getByText('Projects').parentElement).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText('Inbox.md')).toBeInTheDocument();
+    expect(screen.queryByText('Spike.md')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'All files', pressed: true })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Changed (1)', pressed: false })).toBeInTheDocument();
     expect(written).toHaveBeenCalledWith('v1');
@@ -68,20 +70,34 @@ describe('VaultTab', () => {
     // given
     fakeVault();
     render(<VaultTab tab={vaultTab} />);
-    await screen.findByText('Spike.md');
+    await screen.findByText('Projects');
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Changed (1)' }));
     // then
     expect(screen.getByText('Inbox.md')).toBeInTheDocument();
-    expect(screen.queryByText('Spike.md')).not.toBeInTheDocument();
+    expect(screen.queryByText('Projects')).not.toBeInTheDocument();
+  });
+
+  test('the Changed toggle shows written notes inside folders without opening them', async () => {
+    // given
+    const { written } = fakeVault();
+    written.mockResolvedValue(['Projects/Maple/Spike.md']);
+    render(<VaultTab tab={vaultTab} />);
+    await screen.findByText('Projects');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Changed (1)' }));
+    // then
+    expect(screen.getByText('Spike.md')).toBeInTheDocument();
   });
 
   test('clicking a note opens it as Markdown', async () => {
     // given
     const { read } = fakeVault();
     render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Projects'));
+    await userEvent.click(screen.getByText('Maple'));
     // when
-    await userEvent.click(await screen.findByText('Spike.md'));
+    await userEvent.click(screen.getByText('Spike.md'));
     // then
     expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
     expect(read).toHaveBeenCalledWith('Projects/Maple/Spike.md');
@@ -110,7 +126,9 @@ describe('VaultTab', () => {
     // given
     fakeVault();
     render(<VaultTab tab={vaultTab} />);
-    await userEvent.click(await screen.findByText('Spike.md'));
+    await userEvent.click(await screen.findByText('Projects'));
+    await userEvent.click(screen.getByText('Maple'));
+    await userEvent.click(screen.getByText('Spike.md'));
     await userEvent.click(screen.getByText('Inbox.md'));
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Close vault:Inbox.md' }));

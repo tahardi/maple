@@ -109,6 +109,29 @@ describe('FileTree', () => {
     expect(screen.queryByText('gone.ts')).not.toBeInTheDocument();
   });
 
+  test('with folders closed by default shows only the top level until a folder is opened', async () => {
+    // given
+    render(
+      <FileTree
+        nodes={buildTree(['README.md', 'src/lib/a.ts'], [], false)}
+        selected={null}
+        onSelect={vi.fn()}
+        changedOnly={false}
+        onToggle={vi.fn()}
+        changedCount={0}
+        collapsedByDefault
+      />,
+    );
+    expect(screen.getByText('src').parentElement).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('lib')).not.toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByText('src'));
+    // then
+    expect(screen.getByText('lib').parentElement).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('a.ts')).not.toBeInTheDocument();
+    expect(screen.getByText('README.md')).toBeInTheDocument();
+  });
+
   test('shows a badge for each changed file only', () => {
     // given
     render(<Harness onSelect={vi.fn()} />);
