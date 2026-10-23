@@ -56,6 +56,16 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
           worktreePath: null,
         }),
       ),
+      openVault: vi.fn((projectKey: string) =>
+        Promise.resolve({
+          id: `vault-${projectKey}`,
+          projectKey,
+          kind: 'vault' as const,
+          cardKey: null,
+          sessionId: `s-vault-${projectKey}`,
+          worktreePath: null,
+        }),
+      ),
       close: vi.fn(() => Promise.resolve({ closed: true, needsConfirm: false })),
       resume: vi.fn(() => Promise.resolve()),
       startFresh: vi.fn(() => Promise.resolve()),
@@ -99,6 +109,8 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       list: vi.fn(() => Promise.resolve([])),
       read: vi.fn(() => Promise.resolve('')),
       written: vi.fn(() => Promise.resolve([])),
+      write: vi.fn(() => Promise.resolve()),
+      onChanged: vi.fn(unsubscribe),
       ...overrides.vault,
     },
     pr: {

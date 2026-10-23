@@ -31,6 +31,8 @@ const config: MapleConfig = {
   actions: [],
 };
 
+const vaultConfig: MapleConfig = { ...config, vaultDir: '/tmp/vault' };
+
 function fakeSpawn(ptys: FakePty[]): typeof spawn {
   return vi.fn<typeof spawn>((_file, args, options) => {
     let onData: (data: string) => void = () => undefined;
@@ -74,7 +76,11 @@ function fakeSpawn(ptys: FakePty[]): typeof spawn {
 
 const JIRA_ENV = { JIRA_SITE: 'https://x.atlassian.net', JIRA_EMAIL: 'me@example.com', JIRA_TOKEN: 'tok-1' };
 
-function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: string) => boolean = () => true) {
+function setup(
+  closedSessions: Record<string, string> = {},
+  hasTranscript: (id: string) => boolean = () => true,
+  cfg: MapleConfig = config,
+) {
   const ptys: FakePty[] = [];
   let n = 0;
   const save = vi.fn<(tabs: TabState[], closed: Record<string, string>) => Promise<void>>(() => Promise.resolve());
@@ -83,7 +89,7 @@ function setup(closedSessions: Record<string, string> = {}, hasTranscript: (id: 
   const endTmux = vi.fn<(name: string | null) => void>();
   const manager = new SessionManager({
     spawn: spawnFn,
-    config: () => config,
+    config: () => cfg,
     hooksFile: '/tmp/maple/hooksFile.json',
     socketPath: '/tmp/maple.sock',
     save,
@@ -557,6 +563,101 @@ describe('SessionManager', () => {
     expect(spawnFn).toHaveBeenCalledTimes(2);
   });
 
+  test('openVault starts a session in the vault dir', () => {
+    // given
+    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    // when
+    const tab = manager.openVault('DIG', null);
+    // then
+    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--session-id', tab.sessionId], '/tmp/vault'));
+    expect(ptys[0].options.cwd).toBe('/tmp/vault');
+    expect(tab).toMatchObject({ kind: 'vault', cardKey: null, projectKey: 'DIG' });
+  });
+
+  test('openVault with a resume id resumes it in the vault dir', () => {
+    // given
+    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    // when
+    const tab = manager.openVault('DIG', 'vault-session');
+    // then
+    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--resume', 'vault-session'], '/tmp/vault'));
+    expect(ptys[0].options.cwd).toBe('/tmp/vault');
+  });
+
+  test('openVault returns the open vault tab of the project', () => {
+    // given
+    const { manager, spawnFn } = setup({}, () => true, vaultConfig);
+    const first = manager.openVault('DIG', null);
+    // when
+    const again = manager.openVault('DIG', null);
+    const halo = manager.openVault('HALO', null);
+    // then
+    expect(again.id).toBe(first.id);
+    expect(halo.id).not.toBe(first.id);
+    expect(spawnFn).toHaveBeenCalledTimes(2);
+  });
+
+  test('openVault without a vaultDir throws and spawns nothing', () => {
+    // given
+    const { manager, spawnFn, save } = setup();
+    // when
+    const open = () => manager.openVault('DIG', null);
+    // then
+    expect(open).toThrow('opening vault: no vaultDir in config');
+    expect(spawnFn).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test('openVault and openPlanner keep separate tabs in one project', () => {
+    // given
+    const { manager } = setup({}, () => true, vaultConfig);
+    const planner = manager.openPlanner('DIG', null);
+    const vault = manager.openVault('DIG', null);
+    // when
+    const plannerAgain = manager.openPlanner('DIG', null);
+    const vaultAgain = manager.openVault('DIG', null);
+    // then
+    expect(plannerAgain.id).toBe(planner.id);
+    expect(vaultAgain.id).toBe(vault.id);
+    expect(vault.id).not.toBe(planner.id);
+  });
+
+  test('startFresh on a vault tab spawns a new session in the vault dir without a prompt', () => {
+    // given
+    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    const tab = manager.openVault('DIG', null);
+    // when
+    manager.startFresh(tab.id);
+    // then
+    const sessionId = manager.get(tab.id)?.sessionId ?? '';
+    expect(ptys[1].args).toEqual(wrapped(tab.id, [...base, '--session-id', sessionId], '/tmp/vault'));
+    expect(ptys[1].options.cwd).toBe('/tmp/vault');
+  });
+
+  test('resume on a vault tab throws once the vaultDir is gone', () => {
+    // given
+    const cfg: MapleConfig = { ...vaultConfig };
+    const { manager } = setup({}, () => true, cfg);
+    const tab = manager.openVault('DIG', null);
+    cfg.vaultDir = null;
+    // when
+    const resume = () => {
+      manager.resume(tab.id);
+    };
+    // then
+    expect(resume).toThrow('starting session: no vaultDir in config');
+  });
+
+  test('close on a vault tab saves no closed session', () => {
+    // given
+    const { manager, save } = setup({}, () => true, vaultConfig);
+    const tab = manager.openVault('DIG', null);
+    // when
+    manager.close(tab.id);
+    // then
+    expect(save).toHaveBeenLastCalledWith([], {});
+  });
+
   test('startCard for an unknown project throws', () => {
     // given
     const { manager } = setup();
@@ -606,10 +707,13 @@ describe('SessionManager', () => {
     expect(manager.isAlive(tab.id)).toBe(true);
   });
 
-  test('card output never emits batch', () => {
+  test.each([
+    { kind: 'card', open: (m: SessionManager) => m.startCard('DIG', 'DIG-44') },
+    { kind: 'vault', open: (m: SessionManager) => m.openVault('DIG', null) },
+  ])('$kind output never emits batch', ({ open }) => {
     // given
-    const { manager, ptys } = setup();
-    manager.startCard('DIG', 'DIG-44');
+    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    open(manager);
     const batch = vi.fn();
     manager.on('batch', batch);
     // when

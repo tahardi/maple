@@ -51,6 +51,17 @@ describe('state', () => {
     expect(result).toEqual({ state: savedState, warning: null });
   });
 
+  test('round-trips a vault tab', async () => {
+    // given
+    const vaultTab = { ...savedState.tabs[0], kind: 'vault' as const, cardKey: null, worktreePath: null };
+    const state = { ...savedState, tabs: [vaultTab] };
+    await saveState(state, dir);
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state, warning: null });
+  });
+
   test('defaults closedSessions when missing', async () => {
     // given
     const withoutClosed = { ...savedState, closedSessions: undefined };

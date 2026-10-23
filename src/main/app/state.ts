@@ -19,7 +19,7 @@ const stateSchema = z.object({
     z.object({
       id: z.string(),
       projectKey: z.string(),
-      kind: z.enum(['planner', 'card']),
+      kind: z.enum(['planner', 'card', 'vault']),
       cardKey: z.string().nullable(),
       sessionId: z.string(),
       worktreePath: z.string().nullable(),

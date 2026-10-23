@@ -1,9 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { MAX_BYTES } from '@main/app/paths';
-import { listNotes, readNote } from './vault';
+import { listNotes, readNote, writeNote } from './vault';
 
 describe('vault', () => {
   let root = '';
@@ -78,5 +78,55 @@ describe('vault', () => {
     const text = readNote(vault, path);
     // then
     await expect(text).rejects.toThrow(error);
+  });
+
+  test('writeNote overwrites the note text', async () => {
+    // given
+    const path = 'Projects/Maple/Spike.md';
+    // when
+    await writeNote(vault, path, '## New\n');
+    // then
+    expect(await readNote(vault, path)).toBe('## New\n');
+  });
+
+  test.each([
+    { name: 'a parent path', path: '../outside.md', error: 'writing note: path is outside the vault' },
+    { name: 'an absolute path', path: '/etc/passwd.md', error: 'writing note: path is outside the vault' },
+    {
+      name: 'a symlink pointing out',
+      path: 'link.md',
+      link: true,
+      error: 'writing note: path is outside the vault',
+    },
+    { name: 'a non-Markdown file', path: 'image.png', error: 'writing note: path is not a Markdown file' },
+  ])('writeNote rejects $name', async ({ path, link, error }) => {
+    // given
+    if (link) {
+      symlinkSync(join(root, 'outside.md'), join(vault, path));
+    }
+    // when
+    const written = writeNote(vault, path, 'overwritten');
+    // then
+    await expect(written).rejects.toThrow(error);
+    expect(readFileSync(join(root, 'outside.md'), 'utf8')).toBe('secret');
+    expect(readFileSync(join(vault, 'image.png'), 'utf8')).toBe('png');
+  });
+
+  test('writeNote creates a note that does not exist yet', async () => {
+    // given
+    const path = 'New.md';
+    // when
+    await writeNote(vault, path, '# New\n');
+    // then
+    expect(readFileSync(join(vault, path), 'utf8')).toBe('# New\n');
+  });
+
+  test('writeNote rejects a note in a missing folder', async () => {
+    // given
+    const path = 'Missing/New.md';
+    // when
+    const written = writeNote(vault, path, '# New\n');
+    // then
+    await expect(written).rejects.toThrow('ENOENT');
   });
 });
