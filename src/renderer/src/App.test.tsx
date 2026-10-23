@@ -191,6 +191,49 @@ describe('App', () => {
     expect(screen.getByTestId('home')).not.toBeVisible();
   });
 
+  test('shows the active vault tab', async () => {
+    // given
+    fakeMaple({
+      tabs: {
+        list: () =>
+          Promise.resolve([
+            { id: 'v1', projectKey: 'BEAR', kind: 'vault', cardKey: null, sessionId: 's1', worktreePath: null },
+          ]),
+      },
+    });
+    render(<App />);
+    await screen.findByTestId('home');
+    // when
+    act(() => {
+      useMaple.getState().activate('v1');
+    });
+    // then
+    expect(await screen.findByTestId('vault-tab')).toBeVisible();
+    expect(screen.getByTestId('home')).not.toBeVisible();
+  });
+
+  test('keeps Home mounted while a vault tab is active', async () => {
+    // given
+    fakeMaple({
+      tabs: {
+        list: () =>
+          Promise.resolve([
+            { id: 'v1', projectKey: 'BEAR', kind: 'vault', cardKey: null, sessionId: 's1', worktreePath: null },
+          ]),
+      },
+    });
+    render(<App />);
+    await screen.findByTestId('home');
+    // when
+    act(() => {
+      useMaple.getState().activate('v1');
+    });
+    // then
+    expect(await screen.findByTestId('vault-tab')).toBeVisible();
+    expect(screen.getByTestId('home')).toBeInTheDocument();
+    expect(screen.getByTestId('home')).not.toBeVisible();
+  });
+
   test('does not mount Home for projects never visited', async () => {
     // given
     const sprint = vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null }));

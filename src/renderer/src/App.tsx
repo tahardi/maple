@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import styles from './App.module.css';
 import { CardTab } from './card/CardTab';
 import { HomeTab } from './home/HomeTab';
+import { VaultTab } from './vault/VaultTab';
 import { Banner } from './shell/Banner';
 import { QuitGuard } from './shell/QuitGuard';
 import { TabBar } from './shell/TabBar';
@@ -28,7 +29,8 @@ export function App() {
   }, [init]);
 
   const cardTabs = tabs.filter((t) => t.kind === 'card');
-  const cardActive = cardTabs.some((t) => t.id === activeTabId);
+  const vaultTabs = tabs.filter((t) => t.kind === 'vault');
+  const tabActive = [...cardTabs, ...vaultTabs].some((t) => t.id === activeTabId);
 
   const messages = [
     ...problems.map((p) => p.message),
@@ -45,8 +47,13 @@ export function App() {
           <CardTab tab={tab} />
         </div>
       ))}
+      {vaultTabs.map((tab) => (
+        <div key={tab.id} className={styles.slot} hidden={tab.id !== activeTabId}>
+          <VaultTab tab={tab} />
+        </div>
+      ))}
       {visited.map((key) => (
-        <div key={key} className={styles.slot} hidden={key !== projectKey || cardActive}>
+        <div key={key} className={styles.slot} hidden={key !== projectKey || tabActive}>
           <HomeTab projectKey={key} />
         </div>
       ))}

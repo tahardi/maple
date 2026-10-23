@@ -14,6 +14,8 @@ const tab = (id: string, projectKey: string, kind: TabState['kind'], cardKey: st
   worktreePath: null,
 });
 
+const VAULT_CONFIG = { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } };
+
 describe('TabBar', () => {
   beforeEach(() => {
     fakeMaple();
@@ -42,6 +44,114 @@ describe('TabBar', () => {
     expect(inbox.compareDocumentPosition(screen.getByRole('combobox', { name: 'Project' }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+  });
+
+  test('shows a Vault tab after Home when the vault is configured', () => {
+    // given
+    useMaple.setState({ config: VAULT_CONFIG });
+    render(<TabBar />);
+    // when
+    const labels = screen.getAllByRole('tab').map((t) => t.textContent);
+    // then
+    expect(labels).toEqual(['Home', 'Vault', 'BEAR-1', 'BEAR-2']);
+  });
+
+  test('clicking Vault opens the project vault tab and activates it', async () => {
+    // given
+    const activate = vi.fn();
+    const openVault = vi.fn(() => Promise.resolve(tab('vault-BEAR', 'BEAR', 'vault', null)));
+    fakeMaple({ tabs: { openVault } });
+    useMaple.setState({ config: VAULT_CONFIG, activate });
+    render(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('tab', { name: 'Vault' }));
+    // then
+    expect(openVault).toHaveBeenCalledWith('BEAR');
+    expect(activate).toHaveBeenCalledWith('vault-BEAR');
+  });
+
+  test('clicking Vault activates an open vault tab without opening another', async () => {
+    // given
+    const activate = vi.fn();
+    const openVault = vi.fn();
+    fakeMaple({ tabs: { openVault } });
+    useMaple.setState({
+      config: VAULT_CONFIG,
+      activate,
+      tabs: [...useMaple.getState().tabs, tab('v1', 'BEAR', 'vault', null), tab('v2', 'DIG', 'vault', null)],
+    });
+    render(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('tab', { name: 'Vault' }));
+    // then
+    expect(activate).toHaveBeenCalledWith('v1');
+    expect(openVault).not.toHaveBeenCalled();
+  });
+
+  test('an open vault tab shows its dot and a close button', async () => {
+    // given
+    const close = vi.fn(() => Promise.resolve({ closed: true, needsConfirm: false }));
+    fakeMaple({ tabs: { close } });
+    useMaple.setState({
+      config: VAULT_CONFIG,
+      activeTabId: 'v1',
+      tabs: [...useMaple.getState().tabs, tab('v1', 'BEAR', 'vault', null)],
+      statuses: { v1: { tabId: 'v1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false } },
+    });
+    render(<TabBar />);
+    const vault = screen.getByRole('tab', { name: 'Vault' });
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close Vault' }));
+    // then
+    expect(vault.querySelector('[data-dot]')).toHaveAttribute('data-dot', 'working');
+    expect(vault).toHaveAttribute('aria-selected', 'true');
+    expect(close).toHaveBeenCalledWith('v1', false);
+  });
+
+  test('confirming close of a working vault tab names it Vault', async () => {
+    // given
+    fakeMaple({ tabs: { close: () => Promise.resolve({ closed: false, needsConfirm: true }) } });
+    useMaple.setState({ config: VAULT_CONFIG, tabs: [...useMaple.getState().tabs, tab('v1', 'BEAR', 'vault', null)] });
+    render(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close Vault' }));
+    // then
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Vault is still working. Close anyway?');
+  });
+
+  test('clicking Vault again clears the failure', async () => {
+    // given
+    const openVault = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('opening vault: no vaultDir in config'))
+      .mockResolvedValueOnce(tab('vault-BEAR', 'BEAR', 'vault', null));
+    fakeMaple({ tabs: { openVault } });
+    useMaple.setState({ config: VAULT_CONFIG, activate: vi.fn() });
+    render(<TabBar />);
+    await userEvent.click(screen.getByRole('tab', { name: 'Vault' }));
+    await screen.findByRole('alert');
+    // when
+    await userEvent.click(screen.getByRole('tab', { name: 'Vault' }));
+    // then
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('shows why the vault tab failed to open', async () => {
+    // given
+    const activate = vi.fn();
+    const openVault = vi.fn(() =>
+      Promise.reject(
+        new Error("Error invoking remote method 'tabs:openVault': Error: opening vault: no vaultDir in config"),
+      ),
+    );
+    fakeMaple({ tabs: { openVault } });
+    useMaple.setState({ config: VAULT_CONFIG, activate });
+    render(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('tab', { name: 'Vault' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^opening vault: no vaultDir in config$/);
+    expect(activate).not.toHaveBeenCalled();
   });
 
   test.each([
