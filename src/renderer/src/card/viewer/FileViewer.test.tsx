@@ -376,6 +376,67 @@ describe('FileViewer', () => {
     expect(read).toHaveBeenCalledTimes(2);
   });
 
+  test('re-reads the open vault note when the vault changes', async () => {
+    // given
+    const changed: { value: () => void } = { value: () => undefined };
+    const read = vi.fn(() => Promise.resolve('## First'));
+    fakeMaple({
+      vault: {
+        read,
+        onChanged: (cb) => {
+          changed.value = cb;
+          return vi.fn();
+        },
+      },
+    });
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['vault:Spike.md']}
+        activeFile="vault:Spike.md"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+      />,
+    );
+    await screen.findByRole('heading', { name: 'First' });
+    read.mockResolvedValue('## Second');
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await screen.findByRole('heading', { name: 'Second' })).toBeInTheDocument();
+    expect(read).toHaveBeenLastCalledWith('Spike.md');
+  });
+
+  test('listens for vault changes only while a vault note is active', async () => {
+    // given
+    const stop = vi.fn();
+    const onChanged = vi.fn(() => stop);
+    fakeMaple({ vault: { read: () => Promise.resolve('## First'), onChanged } });
+    const props = {
+      tabId: 't1',
+      openFiles: ['vault:Spike.md', 'README.md'],
+      onActivate: vi.fn(),
+      onCloseFile: vi.fn(),
+      prBody: null,
+      line: null,
+      canComment: false,
+      prFetchedAt: null,
+    };
+    const { rerender } = render(<FileViewer {...props} activeFile="vault:Spike.md" />);
+    await screen.findByRole('heading', { name: 'First' });
+    // when
+    rerender(<FileViewer {...props} activeFile="README.md" />);
+    // then
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
   test('renders an editor in file mode by default', async () => {
     // given
     // when

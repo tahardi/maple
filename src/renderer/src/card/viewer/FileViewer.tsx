@@ -129,13 +129,18 @@ export function FileViewer({
       return;
     }
     let live = true;
-    void window.maple.vault.read(activeFile.slice(VAULT_PREFIX.length)).then((text) => {
-      if (live) {
-        setNote({ path: activeFile, text });
-      }
-    });
+    const load = () => {
+      void window.maple.vault.read(activeFile.slice(VAULT_PREFIX.length)).then((text) => {
+        if (live) {
+          setNote({ path: activeFile, text });
+        }
+      });
+    };
+    load();
+    const unsubscribe = window.maple.vault.onChanged(load);
     return () => {
       live = false;
+      unsubscribe();
     };
   }, [activeFile]);
 

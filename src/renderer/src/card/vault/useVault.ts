@@ -12,6 +12,9 @@ export function useVault(tabId: string, enabled: boolean): Listing & { refresh: 
       return;
     }
     let live = true;
+    const unsubscribe = window.maple.vault.onChanged(() => {
+      setVersion((v) => v + 1);
+    });
     void Promise.all([window.maple.vault.list(), window.maple.vault.written(tabId)]).then(([notes, written]) => {
       if (live) {
         setListing({ notes, written });
@@ -19,6 +22,7 @@ export function useVault(tabId: string, enabled: boolean): Listing & { refresh: 
     });
     return () => {
       live = false;
+      unsubscribe();
     };
   }, [tabId, enabled, version]);
 
