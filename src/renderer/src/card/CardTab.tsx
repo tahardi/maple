@@ -20,6 +20,7 @@ import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
 import { useQuickOpenKeys, type QuickOpenMode } from '@renderer/card/viewer/useQuickOpenKeys';
+import { namedNotes } from '@renderer/card/vault/namedNotes';
 import { useVault } from '@renderer/card/vault/useVault';
 import { writtenNotes } from '@renderer/card/vault/writtenNotes';
 import { useViewed } from '@renderer/card/viewer/useViewed';
@@ -76,7 +77,13 @@ export function CardTab({ tab }: { tab: TabState }) {
   const view = viewOverride ?? (worktreeExists ? 'worktree' : 'vault');
   const showsVault = hasVault && view === 'vault';
   const vault = useVault(tab.id, showsVault);
-  const recent = writtenNotes(vault.notes, vault.written);
+  const recent = writtenNotes(vault.notes, [
+    ...vault.written,
+    ...namedNotes(
+      card?.descriptionMd ?? '',
+      vault.notes.map((note) => note.path),
+    ),
+  ]);
   const approvePr = () => {
     setApproveError(null);
     window.maple.pr.approve(tab.id).catch((err: unknown) => {
@@ -192,7 +199,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         cost={cost}
       />
       <div ref={body} className={styles.body}>
-        <div className={styles.left} style={{ width: columns.left }}>
+        <div className={styles.left} style={{ width: columns.left }} data-testid="tree-slot">
           {hasVault && <VaultSwitch view={view} onChange={setViewOverride} onRefresh={vault.refresh} />}
           {showsVault ? (
             <FileTree
