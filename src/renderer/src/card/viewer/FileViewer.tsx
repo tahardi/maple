@@ -97,6 +97,7 @@ export function FileViewer({
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
   const [note, setNote] = useState<{ path: string; text: string } | null>(null);
+  const [editing, setEditing] = useState<Record<string, boolean>>({});
   const [plain, setPlain] = useState<editor.ICodeEditor | null>(null);
   const scrollTarget = useRef<editor.ICodeEditor | null>(null);
   const [target, setTarget] = useState<editor.ICodeEditor | null>(null);
@@ -123,6 +124,10 @@ export function FileViewer({
         : note !== null && note.path === activeFile
           ? note.text
           : null;
+
+  const shownNote = showsNote && note !== null && note.path === activeFile ? note : null;
+  const noteDraft = shownNote !== null && Object.hasOwn(drafts, shownNote.path) ? drafts[shownNote.path] : null;
+  const editsNote = shownNote !== null && (editing[shownNote.path] ?? noteDraft !== null);
 
   useEffect(() => {
     if (activeFile === null || !activeFile.startsWith(VAULT_PREFIX)) {
@@ -208,7 +213,6 @@ export function FileViewer({
   const sideBySide = changed && mode === 'side-by-side';
   const draft = text === null ? null : Object.hasOwn(drafts, text.path) ? drafts[text.path] : null;
   const edited = draft?.text ?? text?.current ?? null;
-  const stale = text !== null && draft !== null && draft.disk !== text.current;
   const commentable = canComment && text !== null && text.current !== null && !sideBySide && plain !== null;
   const ranges = text !== null && Object.hasOwn(diff.ranges, text.path) ? diff.ranges[text.path] : [];
   const shownSelection = plain?.getSelection() ?? null;
@@ -350,28 +354,61 @@ export function FileViewer({
     setDraft(tabId, text.path, next === text.current ? null : { text: next, disk: text.current });
   };
 
-  const save = (e: KeyboardEvent) => {
-    if (!e.ctrlKey || e.key.toLowerCase() !== 's') {
+  const keepEditing = (path: string) => {
+    setEditing((now) => ({ ...now, [path]: true }));
+  };
+
+  const editNote = (value: string | undefined) => {
+    if (shownNote === null) {
       return;
+    }
+    keepEditing(shownNote.path);
+    const next = value ?? '';
+    setDraft(tabId, shownNote.path, next === shownNote.text ? null : { text: next, disk: shownNote.text });
+  };
+
+  const isSave = (e: KeyboardEvent) => {
+    if (!e.ctrlKey || e.key.toLowerCase() !== 's') {
+      return false;
     }
     e.preventDefault();
-    if (text === null || draft === null) {
-      return;
-    }
+    return true;
+  };
+
+  const persist = (path: string, write: Promise<void>, saved: () => void) => {
     setSaveError(null);
-    window.maple.repo.writeFile(tabId, text.path, draft.text).then(
+    write.then(
       () => {
-        setPair({ ...text, current: draft.text });
-        setDraft(tabId, text.path, null);
+        saved();
+        setDraft(tabId, path, null);
       },
       (err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
         setSaveError({
-          path: text.path,
+          path,
           message: message.replace(/^Error invoking remote method '[^']+': Error: /, ''),
         });
       },
     );
+  };
+
+  const save = (e: KeyboardEvent) => {
+    if (!isSave(e) || text === null || draft === null) {
+      return;
+    }
+    persist(text.path, window.maple.repo.writeFile(tabId, text.path, draft.text), () => {
+      setPair({ ...text, current: draft.text });
+    });
+  };
+
+  const saveNote = (e: KeyboardEvent) => {
+    if (!isSave(e) || shownNote === null || noteDraft === null) {
+      return;
+    }
+    persist(shownNote.path, window.maple.vault.write(shownNote.path.slice(VAULT_PREFIX.length), noteDraft.text), () => {
+      setNote({ ...shownNote, text: noteDraft.text });
+      keepEditing(shownNote.path);
+    });
   };
 
   const label = (path: string) => (Object.hasOwn(drafts, path) ? `● ${baseName(path)}` : baseName(path));
@@ -381,7 +418,57 @@ export function FileViewer({
     saveMode(next);
   };
 
+  const notices = (path: string, mine: Draft | null, disk: string | null) => (
+    <>
+      {saveError?.path === path && (
+        <div className={styles.notice} role="alert">
+          {`Saving failed: ${saveError.message}`}
+        </div>
+      )}
+      {mine !== null && mine.disk !== disk && (
+        <div className={styles.notice}>
+          File changed on disk
+          <button
+            onClick={() => {
+              if (path.startsWith(VAULT_PREFIX)) {
+                keepEditing(path);
+              }
+              setDraft(tabId, path, null);
+            }}
+          >
+            Reload
+          </button>
+          <button
+            onClick={() => {
+              setDraft(tabId, path, { text: mine.text, disk });
+            }}
+          >
+            Keep mine
+          </button>
+        </div>
+      )}
+    </>
+  );
+
   const body = () => {
+    if (editsNote) {
+      return (
+        <>
+          {notices(shownNote.path, noteDraft, shownNote.text)}
+          <div className={styles.editor} onKeyDown={saveNote}>
+            <Editor
+              value={noteDraft?.text ?? shownNote.text}
+              language="markdown"
+              theme="vs-dark"
+              height="100%"
+              options={{ ...OPTIONS, readOnly: false, domReadOnly: false }}
+              onChange={editNote}
+              onMount={setPlain}
+            />
+          </div>
+        </>
+      );
+    }
     if (showsDescription || showsNote) {
       return (
         markdown !== null && (
@@ -422,30 +509,7 @@ export function FileViewer({
     return (
       <>
         {shown.current === null && <div className={styles.notice}>Deleted in this branch</div>}
-        {saveError?.path === shown.path && (
-          <div className={styles.notice} role="alert">
-            {`Saving failed: ${saveError.message}`}
-          </div>
-        )}
-        {stale && (
-          <div className={styles.notice}>
-            File changed on disk
-            <button
-              onClick={() => {
-                setDraft(tabId, shown.path, null);
-              }}
-            >
-              Reload
-            </button>
-            <button
-              onClick={() => {
-                setDraft(tabId, shown.path, { text: draft.text, disk: shown.current });
-              }}
-            >
-              Keep mine
-            </button>
-          </div>
-        )}
+        {notices(shown.path, draft, shown.current)}
         {commentable &&
           blocked !== null &&
           refused?.path === shown.path &&
@@ -504,6 +568,17 @@ export function FileViewer({
             </div>
           ))}
         </div>
+        {shownNote !== null && (
+          <div className={styles.toggle}>
+            <button
+              onClick={() => {
+                setEditing({ ...editing, [shownNote.path]: !editsNote });
+              }}
+            >
+              {editsNote ? 'Preview' : 'Edit'}
+            </button>
+          </div>
+        )}
         {!showsDescription && !showsNote && (
           <div className={styles.toggle}>
             <button

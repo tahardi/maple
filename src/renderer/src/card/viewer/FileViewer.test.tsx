@@ -1,3 +1,4 @@
+import type { MapleApi } from '@shared/ipc';
 import type { DiffLines, FilePair } from '@shared/types/files';
 import type { ReviewComment } from '@shared/types/github';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
@@ -202,6 +203,30 @@ function renderViewer(
     prFetchedAt: null,
   };
   return { maple, props, ...render(<FileViewer {...props} />) };
+}
+
+function renderNote(vault: Partial<MapleApi['vault']> = {}) {
+  const maple = fakeMaple({ vault: { read: vi.fn(() => Promise.resolve('## Findings\n')), ...vault } });
+  render(
+    <FileViewer
+      tabId="t1"
+      openFiles={['vault:Spike.md']}
+      activeFile="vault:Spike.md"
+      onActivate={vi.fn()}
+      onCloseFile={vi.fn()}
+      prBody={null}
+      line={null}
+      canComment={false}
+      prFetchedAt={null}
+    />,
+  );
+  return maple;
+}
+
+async function editNote() {
+  await screen.findByRole('heading', { name: 'Findings' });
+  await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+  return screen.findByTestId('editor');
 }
 
 describe('FileViewer', () => {
@@ -435,6 +460,198 @@ describe('FileViewer', () => {
     // then
     expect(onChanged).toHaveBeenCalledTimes(1);
     expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  test('Edit shows the note in an editor and Preview shows it rendered', async () => {
+    // given
+    renderNote();
+    // when
+    const editor = await editNote();
+    // then
+    expect(editor).toHaveAttribute('data-value', '## Findings\n');
+    expect(editor).toHaveAttribute('data-language', 'markdown');
+    expect(editor).toHaveAttribute('data-readonly', 'false');
+    expect(screen.queryByRole('heading', { name: 'Findings' })).not.toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    // then
+    expect(screen.getByRole('heading', { name: 'Findings' })).toBeInTheDocument();
+    expect(screen.queryByTestId('editor')).not.toBeInTheDocument();
+  });
+
+  test('typing in a note marks its file tab unsaved', async () => {
+    // given
+    renderNote();
+    await editNote();
+    // when
+    act(() => {
+      monaco.change.value('## Results\n');
+    });
+    // then
+    expect(screen.getByRole('tab', { name: '● Spike.md' })).toBeInTheDocument();
+    expect(useMaple.getState().drafts.t1['vault:Spike.md']).toEqual({ text: '## Results\n', disk: '## Findings\n' });
+  });
+
+  test('Ctrl+S saves a note with vault.write and clears the draft', async () => {
+    // given
+    const write = vi.fn(() => Promise.resolve());
+    renderNote({ write });
+    const editor = await editNote();
+    act(() => {
+      monaco.change.value('## Results\n');
+    });
+    // when
+    fireEvent.keyDown(editor, { key: 's', ctrlKey: true });
+    // then
+    await vi.waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Spike.md' })).toBeInTheDocument();
+    });
+    expect(write).toHaveBeenCalledWith('Spike.md', '## Results\n');
+    expect(screen.getByTestId('editor')).toHaveAttribute('data-value', '## Results\n');
+  });
+
+  test('a failed note save shows the error', async () => {
+    // given
+    const write = vi.fn(() =>
+      Promise.reject(
+        new Error("Error invoking remote method 'vault:write': Error: writing note: path is outside the vault"),
+      ),
+    );
+    renderNote({ write });
+    const editor = await editNote();
+    act(() => {
+      monaco.change.value('## Results\n');
+    });
+    // when
+    fireEvent.keyDown(editor, { key: 's', ctrlKey: true });
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Saving failed: writing note: path is outside the vault',
+    );
+    expect(screen.getByRole('tab', { name: '● Spike.md' })).toBeInTheDocument();
+  });
+
+  test('a note changed on disk under a draft offers Reload and Keep mine', async () => {
+    // given
+    const changed: { value: () => void } = { value: () => undefined };
+    const read = vi.fn(() => Promise.resolve('## Findings\n'));
+    renderNote({
+      read,
+      onChanged: (cb) => {
+        changed.value = cb;
+        return vi.fn();
+      },
+    });
+    await editNote();
+    act(() => {
+      monaco.change.value('## Mine\n');
+    });
+    read.mockResolvedValue('## Theirs\n');
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await screen.findByText('File changed on disk')).toBeInTheDocument();
+    expect(screen.getByTestId('editor')).toHaveAttribute('data-value', '## Mine\n');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Keep mine' }));
+    // then
+    expect(screen.queryByText('File changed on disk')).not.toBeInTheDocument();
+    expect(useMaple.getState().drafts.t1['vault:Spike.md']).toEqual({ text: '## Mine\n', disk: '## Theirs\n' });
+    // when
+    read.mockResolvedValue('## Newer\n');
+    act(() => {
+      changed.value();
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Reload' }));
+    // then
+    expect(screen.getByTestId('editor')).toHaveAttribute('data-value', '## Newer\n');
+    expect(screen.getByRole('tab', { name: 'Spike.md' })).toBeInTheDocument();
+  });
+
+  test('a note with a draft opens in Edit mode', async () => {
+    // given
+    useMaple.getState().setDraft('t1', 'vault:Spike.md', { text: '## Mine\n', disk: '## Findings\n' });
+    // when
+    renderNote();
+    // then
+    expect(await screen.findByTestId('editor')).toHaveAttribute('data-value', '## Mine\n');
+    expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
+  });
+
+  test.each([
+    {
+      name: 'saving',
+      clear: async () => {
+        fireEvent.keyDown(screen.getByTestId('editor'), { key: 's', ctrlKey: true });
+        await screen.findByRole('tab', { name: 'Spike.md' });
+      },
+    },
+    {
+      name: 'typing back to the note text',
+      clear: () => {
+        act(() => {
+          monaco.change.value('## Findings\n');
+        });
+        return Promise.resolve();
+      },
+    },
+    {
+      name: 'reloading',
+      clear: () => userEvent.click(screen.getByRole('button', { name: 'Reload' })),
+    },
+  ])('a note opened with a draft stays in Edit mode after $name', async ({ clear }) => {
+    // given
+    useMaple.getState().setDraft('t1', 'vault:Spike.md', { text: '## Mine\n', disk: '## Older\n' });
+    renderNote();
+    await screen.findByTestId('editor');
+    // when
+    await clear();
+    // then
+    expect(screen.getByTestId('editor')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
+  });
+
+  test('Ctrl+S on a note without a draft does not write it', async () => {
+    // given
+    const write = vi.fn(() => Promise.resolve());
+    renderNote({ write });
+    const editor = await editNote();
+    // when
+    const handled = !fireEvent.keyDown(editor, { key: 's', ctrlKey: true });
+    // then
+    expect(handled).toBe(true);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  test('a note in a folder saves to its path inside the vault', async () => {
+    // given
+    const write = vi.fn(() => Promise.resolve());
+    fakeMaple({ vault: { read: () => Promise.resolve('## Findings\n'), write } });
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['vault:Projects/Spike.md']}
+        activeFile="vault:Projects/Spike.md"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+      />,
+    );
+    const editor = await editNote();
+    act(() => {
+      monaco.change.value('## Results\n');
+    });
+    // when
+    fireEvent.keyDown(editor, { key: 's', ctrlKey: true });
+    // then
+    await vi.waitFor(() => {
+      expect(write).toHaveBeenCalledWith('Projects/Spike.md', '## Results\n');
+    });
   });
 
   test('renders an editor in file mode by default', async () => {
