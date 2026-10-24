@@ -943,6 +943,48 @@ describe('CardTab', () => {
     expect(screen.queryByText('Deleted.md')).not.toBeInTheDocument();
   });
 
+  test('notes the card names are marked changed with the notes the session wrote', async () => {
+    // given
+    const now = new Date().toISOString();
+    fakeVault(
+      [
+        { path: 'Claude.md', modifiedAt: now },
+        { path: 'Projects/Maple/Spike.md', modifiedAt: now },
+        { path: 'Taylor.md', modifiedAt: now },
+      ],
+      ['Claude.md'],
+      [
+        card('MPL-20', 'In Progress', {
+          descriptionMd: 'Output: `Projects/Maple/Spike.md` and `Projects/Maple/Missing.md`',
+        }),
+      ],
+    );
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    const tree = within(screen.getByTestId('tree-slot'));
+    expect(await tree.findByRole('button', { name: 'Changed (2)' })).toBeInTheDocument();
+    expect(tree.getByText('Claude.md').parentElement).toHaveTextContent('M');
+    expect(tree.getByText('Spike.md').parentElement).toHaveTextContent('M');
+    expect(tree.queryByText('Taylor.md')).not.toBeInTheDocument();
+    expect(tree.queryByText('Missing.md')).not.toBeInTheDocument();
+  });
+
+  test('a note the session wrote and the card names is counted once', async () => {
+    // given
+    fakeVault(
+      [{ path: 'Spike.md', modifiedAt: new Date().toISOString() }],
+      ['Spike.md'],
+      [card('MPL-20', 'In Progress', { descriptionMd: 'Output: `Spike.md`' })],
+    );
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    const tree = within(screen.getByTestId('tree-slot'));
+    expect(await tree.findByRole('button', { name: 'Changed (1)' })).toBeInTheDocument();
+    expect(tree.getAllByText('Spike.md')).toHaveLength(1);
+  });
+
   test('choosing Worktree on a tab without a worktree shows the waiting text', async () => {
     // given
     fakeVault([{ path: 'Inbox.md', modifiedAt: new Date().toISOString() }]);
