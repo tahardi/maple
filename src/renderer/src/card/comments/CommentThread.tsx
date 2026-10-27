@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MarkdownText } from '@renderer/shell/MarkdownText';
+import { CommentEditor } from './CommentEditor';
 import styles from './CommentThread.module.css';
 import type { Thread } from './commentThreads';
 
@@ -20,6 +21,7 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
+  const [posts, setPosts] = useState(0);
 
   const send = (request: Promise<void>, onDone: () => void) => {
     setBusy(true);
@@ -41,6 +43,7 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
   const post = () => {
     send(window.maple.pr.reply(tabId, thread.id, text), () => {
       setText('');
+      setPosts(posts + 1);
     });
   };
 
@@ -73,15 +76,7 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
         ))}
       {open && (
         <div className={styles.reply}>
-          <textarea
-            aria-label="Reply"
-            placeholder="Reply"
-            className={styles.text}
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-            }}
-          />
+          <CommentEditor key={posts} label="Reply" value={text} onChange={setText} />
           {error !== null && (
             <div className={styles.error} role="alert">
               {error}

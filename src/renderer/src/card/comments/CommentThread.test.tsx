@@ -66,6 +66,33 @@ describe('CommentThread', () => {
     expect(screen.getByRole('textbox', { name: 'Reply' })).toHaveValue('');
   });
 
+  test('previews the reply before posting', async () => {
+    // given
+    const reply = vi.fn(() => Promise.resolve());
+    fakeMaple({ pr: { reply } });
+    render(<CommentThread tabId="t1" thread={thread} onPosted={vi.fn()} />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Reply' }), '**thanks**');
+    // when
+    await userEvent.click(screen.getByRole('tab', { name: 'Preview' }));
+    // then
+    expect(screen.getByText('thanks').tagName).toBe('STRONG');
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    expect(reply).toHaveBeenCalledWith('t1', 101, '**thanks**');
+  });
+
+  test('returns to Write after posting from Preview', async () => {
+    // given
+    fakeMaple({ pr: { reply: vi.fn(() => Promise.resolve()) } });
+    render(<CommentThread tabId="t1" thread={thread} onPosted={vi.fn()} />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Reply' }), 'thanks');
+    await userEvent.click(screen.getByRole('tab', { name: 'Preview' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    // then
+    expect(screen.getByRole('tab', { name: 'Write' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('textbox', { name: 'Reply' })).toHaveValue('');
+  });
+
   test.each([
     { name: 'empty', text: '' },
     { name: 'blank', text: '   ' },
