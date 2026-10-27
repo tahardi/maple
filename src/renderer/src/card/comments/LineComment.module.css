@@ -17,17 +17,6 @@
   color: var(--text-strong);
 }
 
-.text {
-  min-height: 60px;
-  resize: vertical;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 6px;
-  font: inherit;
-}
-
 .error {
   color: var(--danger);
 }
