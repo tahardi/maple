@@ -6,6 +6,7 @@ import { spawn } from 'node-pty';
 import { configDir, loadConfig } from '@main/app/config';
 import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
+import { preferX11OnLinux } from '@main/app/displayPlatform';
 import { writeHooksFile } from '@main/sessions/hooksFile';
 import { currentBranch, findWorktree } from '@main/git/git';
 import { prForBranch } from '@main/github/pr';
@@ -176,6 +177,8 @@ async function start(): Promise<() => number> {
   checkNotifications(await enabled());
   return () => saved.zoom;
 }
+
+preferX11OnLinux(app.commandLine, process.platform);
 
 if (claimInstance(app)) {
   app.on('second-instance', () => {
