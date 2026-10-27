@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CommentEditor } from './CommentEditor';
 import styles from './LineComment.module.css';
 
 type Props = {
@@ -29,13 +30,7 @@ export function LineComment({ tabId, path, startLine, line, onDone }: Props) {
       <h3
         className={styles.heading}
       >{`Comment on ${path}:${startLine === null ? '' : `${String(startLine)}-`}${String(line)}`}</h3>
-      <textarea
-        className={styles.text}
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-        }}
-      />
+      <CommentEditor label="Comment" value={text} onChange={setText} />
       {error !== null && (
         <div className={styles.error} role="alert">
           {error}
