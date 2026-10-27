@@ -21,6 +21,15 @@
   cursor: pointer;
 }
 
+.strip input {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 0 6px;
+  width: 12ch;
+}
+
 .strip button[aria-pressed='true'] {
   background: var(--bg);
 }
