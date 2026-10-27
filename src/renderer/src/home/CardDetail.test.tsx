@@ -1,6 +1,6 @@
 import type { Card } from '@shared/types/jira';
 import type { TabState } from '@shared/types/tabs';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { card } from '../testing/sprintFixture';
 import { CardDetail } from './CardDetail';
@@ -56,6 +56,15 @@ describe('CardDetail', () => {
     const link = screen.getByRole('link', { name: 'Open in Jira' });
     expect(link).toHaveAttribute('href', 'https://example.atlassian.net/browse/DIG-41');
     expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  test('shows the epic lozenge', () => {
+    // given
+    renderDetail(card('DIG-41', 'To Do', { epic: { key: 'DIG-2', summary: 'Search', color: 'green' } }), null);
+    // when
+    const lozenge = within(screen.getByRole('complementary')).getByText('Search');
+    // then
+    expect(lozenge).toHaveAttribute('data-color', 'green');
   });
 
   test('a card without blockers, points, or labels shows none', () => {

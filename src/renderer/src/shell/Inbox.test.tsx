@@ -28,6 +28,7 @@ const card = (key: string, points: number | null): Card => ({
   points,
   labels: [],
   blockedBy: [],
+  epic: null,
   descriptionMd: '',
   url: `https://jira/${key}`,
 });

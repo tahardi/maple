@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
 import type { BacklogGroup, Blocker, Card, Filed, Sprint } from '@shared/types/jira';
+import { appLogger, type Logger } from '@main/app/log';
 import { adfToMarkdown } from './adf';
 
 export type JiraCreds = { site: string; email: string; token: string };
@@ -39,6 +40,11 @@ const issueSchema = z.object({
 
 const sprintsSchema = z.object({
   values: z.array(z.object({ id: z.number(), name: z.string(), startDate: z.string(), endDate: z.string() })),
+});
+
+const epicsSchema = z.object({
+  values: z.array(z.object({ key: z.string(), issueColor: z.object({ key: z.string() }).optional() })),
+  isLast: z.boolean(),
 });
 
 const createdSchema = z.object({ key: z.string() });
@@ -82,6 +88,7 @@ export class JiraClient {
   constructor(
     private readonly creds: JiraCreds,
     private readonly fetchFn: typeof fetch = fetch,
+    private readonly logger: Logger = appLogger,
   ) {}
 
   async activeSprint(boardId: number): Promise<Sprint | null> {
@@ -93,30 +100,36 @@ export class JiraClient {
       if (!sprint) {
         return null;
       }
-      const issues = await this.search(`sprint=${String(sprint.id)} ORDER BY Rank`);
-      const cards = issues.map((issue) => this.toCard(issue));
+      const [issues, colors] = await Promise.all([
+        this.search(`sprint=${String(sprint.id)} ORDER BY Rank`),
+        this.colorsOrEmpty(boardId),
+      ]);
+      const cards = issues.map((issue) => this.toCard(issue, colors));
       return { id: sprint.id, name: sprint.name, startDate: sprint.startDate, endDate: sprint.endDate, cards };
     } catch (err) {
       throw new Error(`fetching sprint: ${errorMessage(err)}`, { cause: err });
     }
   }
 
-  async backlog(projectKey: string): Promise<BacklogGroup[]> {
+  async backlog(projectKey: string, boardId: number): Promise<BacklogGroup[]> {
     try {
-      const issues = await this.search(
-        `project = ${projectKey} AND (sprint is EMPTY OR sprint not in openSprints()) AND statusCategory != Done ` +
-          'AND issuetype != Epic ORDER BY Rank',
-      );
+      const [issues, colors] = await Promise.all([
+        this.search(
+          `project = ${projectKey} AND (sprint is EMPTY OR sprint not in openSprints()) AND statusCategory != Done ` +
+            'AND issuetype != Epic ORDER BY Rank',
+        ),
+        this.colorsOrEmpty(boardId),
+      ]);
       const epics = new Map<string, BacklogGroup>();
       const noEpic: BacklogGroup = { epic: null, cards: [] };
       for (const issue of issues) {
-        const { parent } = issue.fields;
+        const card = this.toCard(issue, colors);
         let group = noEpic;
-        if (parent) {
-          group = epics.get(parent.key) ?? { epic: { key: parent.key, summary: parent.fields.summary }, cards: [] };
-          epics.set(parent.key, group);
+        if (card.epic) {
+          group = epics.get(card.epic.key) ?? { epic: card.epic, cards: [] };
+          epics.set(card.epic.key, group);
         }
-        group.cards.push(this.toCard(issue));
+        group.cards.push(card);
       }
       return [...epics.values(), ...(noEpic.cards.length > 0 ? [noEpic] : [])];
     } catch (err) {
@@ -126,7 +139,7 @@ export class JiraClient {
 
   async getCard(key: string): Promise<Card> {
     try {
-      return this.toCard(issueSchema.parse(await this.get(`/rest/api/3/issue/${key}?fields=${FIELDS}`)));
+      return this.toCard(issueSchema.parse(await this.get(`/rest/api/3/issue/${key}?fields=${FIELDS}`)), new Map());
     } catch (err) {
       throw new Error(`fetching card: ${errorMessage(err)}`, { cause: err });
     }
@@ -172,6 +185,36 @@ export class JiraClient {
     return issues;
   }
 
+  private async epicColors(boardId: number): Promise<Map<string, string>> {
+    const colors = new Map<string, string>();
+    try {
+      let startAt = 0;
+      let page: z.infer<typeof epicsSchema>;
+      do {
+        const query = new URLSearchParams({ startAt: String(startAt), maxResults: '50' });
+        page = epicsSchema.parse(await this.get(`/rest/agile/1.0/board/${String(boardId)}/epic?${query.toString()}`));
+        startAt += page.values.length;
+        for (const epic of page.values) {
+          if (epic.issueColor) {
+            colors.set(epic.key, epic.issueColor.key);
+          }
+        }
+      } while (!page.isLast && page.values.length > 0);
+    } catch (err) {
+      throw new Error(`fetching epics: ${errorMessage(err)}`, { cause: err });
+    }
+    return colors;
+  }
+
+  private async colorsOrEmpty(boardId: number): Promise<Map<string, string>> {
+    try {
+      return await this.epicColors(boardId);
+    } catch (err) {
+      this.logger.warn('jira', 'failed', { operation: 'epicColors', boardId, error: errorMessage(err) });
+      return new Map();
+    }
+  }
+
   private get(path: string): Promise<unknown> {
     return this.send(path, {});
   }
@@ -200,7 +243,7 @@ export class JiraClient {
     return res.status === 204 ? null : res.json();
   }
 
-  private toCard(issue: z.infer<typeof issueSchema>): Card {
+  private toCard(issue: z.infer<typeof issueSchema>, colors: ReadonlyMap<string, string>): Card {
     const { fields } = issue;
     const blockedBy: Blocker[] = fields.issuelinks.flatMap((link) =>
       link.type.name === 'Blocks' && link.inwardIssue
@@ -214,6 +257,13 @@ export class JiraClient {
       points: fields.customfield_10016 ?? null,
       labels: fields.labels,
       blockedBy,
+      epic: fields.parent
+        ? {
+            key: fields.parent.key,
+            summary: fields.parent.fields.summary,
+            color: colors.get(fields.parent.key) ?? null,
+          }
+        : null,
       descriptionMd: adfToMarkdown(fields.description),
       url: `${this.creds.site}/browse/${issue.key}`,
     };

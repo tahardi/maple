@@ -130,6 +130,7 @@ describe('CardTab', () => {
       points: 3,
       labels: [],
       blockedBy: [],
+      epic: null,
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/MPL-20',
     };
@@ -152,6 +153,7 @@ describe('CardTab', () => {
       points: 3,
       labels: ['wont-do'],
       blockedBy: [],
+      epic: null,
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/MPL-20',
     };
@@ -174,6 +176,7 @@ describe('CardTab', () => {
       points: 3,
       labels: ['wont-do'],
       blockedBy: [],
+      epic: null,
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/MPL-20',
     };
@@ -198,6 +201,7 @@ describe('CardTab', () => {
         points: 3,
         labels: [],
         blockedBy: [],
+        epic: null,
         descriptionMd: '',
         url: 'https://example.atlassian.net/browse/MPL-20',
       };
@@ -221,6 +225,7 @@ describe('CardTab', () => {
       points: 3,
       labels: [],
       blockedBy: [],
+      epic: null,
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/MPL-20',
     };
@@ -552,6 +557,7 @@ describe('CardTab', () => {
       points: 3,
       labels: [],
       blockedBy: [],
+      epic: null,
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/MPL-20',
     };
@@ -575,6 +581,7 @@ describe('CardTab', () => {
       points: 3,
       labels: [],
       blockedBy: [],
+      epic: null,
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/MPL-20',
     };

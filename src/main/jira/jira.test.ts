@@ -26,6 +26,12 @@ function fakeFetch(routes: Record<string, string>): typeof fetch {
 const activeRoutes = {
   '/rest/agile/1.0/board/7/sprint': fixture('board-sprint-active.json'),
   '/rest/api/3/search/jql': fixture('sprint-issues.json'),
+  '/rest/agile/1.0/board/7/epic': fixture('board-epics.json'),
+};
+
+const backlogRoutes = {
+  '/rest/api/3/search/jql': fixture('backlog-issues.json'),
+  '/rest/agile/1.0/board/7/epic': fixture('board-epics.json'),
 };
 
 describe('JiraClient', () => {
@@ -95,6 +101,153 @@ describe('JiraClient', () => {
     expect(got?.cards.map((c) => c.key)).toEqual(['HALO-11', 'HALO-19', 'HALO-13']);
   });
 
+  test("activeSprint attaches each card's epic with its board color", async () => {
+    // given
+    const client = new JiraClient(
+      creds,
+      fakeFetch({ ...activeRoutes, '/rest/api/3/search/jql': fixture('backlog-issues.json') }),
+    );
+    // when
+    const got = await client.activeSprint(7);
+    // then
+    const search = { key: 'HALO-2', summary: 'Search', color: 'purple' };
+    expect(got?.cards.map((c) => ({ key: c.key, epic: c.epic }))).toEqual([
+      { key: 'HALO-19', epic: null },
+      { key: 'HALO-11', epic: search },
+      { key: 'HALO-13', epic: search },
+    ]);
+  });
+
+  test('activeSprint follows startAt until the last epic page', async () => {
+    // given
+    const all = JSON.parse(fixture('board-epics.json')) as { values: unknown[] };
+    const pages = [
+      { startAt: 0, isLast: false, values: all.values.slice(0, 1) },
+      { startAt: 1, isLast: true, values: all.values.slice(1) },
+    ];
+    const fetchFn = vi.fn<typeof fetch>((input) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.pathname.endsWith('/epic')) {
+        return Promise.resolve(
+          new Response(JSON.stringify(url.searchParams.get('startAt') === '1' ? pages[1] : pages[0])),
+        );
+      }
+      const body = url.pathname.endsWith('/sprint')
+        ? fixture('board-sprint-active.json')
+        : fixture('backlog-issues.json');
+      return Promise.resolve(new Response(body));
+    });
+    const client = new JiraClient(creds, fetchFn);
+    // when
+    const got = await client.activeSprint(7);
+    // then
+    expect(got?.cards.find((c) => c.key === 'HALO-11')?.epic?.color).toBe('purple');
+  });
+
+  test.each([
+    {
+      name: 'gives each epic its own color',
+      edit: (epics: { key: string; issueColor?: { key: string } }[]) => {
+        epics[0].issueColor = { key: 'green' };
+        epics[1].issueColor = { key: 'blue' };
+      },
+      want: 'blue',
+    },
+    {
+      name: 'keeps other colors when one epic has none',
+      edit: (epics: { key: string; issueColor?: { key: string } }[]) => {
+        delete epics[0].issueColor;
+      },
+      want: 'purple',
+    },
+  ])('activeSprint $name', async ({ edit, want }) => {
+    // given
+    const epics = JSON.parse(fixture('board-epics.json')) as {
+      values: { key: string; issueColor?: { key: string } }[];
+    };
+    edit(epics.values);
+    const client = new JiraClient(
+      creds,
+      fakeFetch({
+        ...activeRoutes,
+        '/rest/api/3/search/jql': fixture('backlog-issues.json'),
+        '/rest/agile/1.0/board/7/epic': JSON.stringify(epics),
+      }),
+    );
+    // when
+    const got = await client.activeSprint(7);
+    // then
+    expect(got?.cards.find((c) => c.key === 'HALO-11')?.epic?.color).toBe(want);
+  });
+
+  test.each([
+    {
+      name: 'stops on an empty page that is not marked last',
+      pages: new Map([['0', { startAt: 0, isLast: false, values: [] }]]),
+      want: null,
+    },
+    {
+      name: 'advances past epics repeated across pages',
+      pages: new Map([
+        ['0', { startAt: 0, isLast: false, values: [{ key: 'HALO-1', issueColor: { key: 'green' } }] }],
+        ['1', { startAt: 1, isLast: false, values: [{ key: 'HALO-1', issueColor: { key: 'green' } }] }],
+        ['2', { startAt: 2, isLast: true, values: [{ key: 'HALO-2', issueColor: { key: 'purple' } }] }],
+      ]),
+      want: 'purple',
+    },
+  ])('activeSprint $name when paging epics', async ({ pages, want }) => {
+    // given
+    let epicCalls = 0;
+    const fetchFn = vi.fn<typeof fetch>((input) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.pathname.endsWith('/epic')) {
+        epicCalls += 1;
+        const page = pages.get(url.searchParams.get('startAt') ?? '');
+        if (epicCalls > pages.size || page === undefined) {
+          return Promise.resolve(new Response('', { status: 500 }));
+        }
+        return Promise.resolve(new Response(JSON.stringify(page)));
+      }
+      const body = url.pathname.endsWith('/sprint')
+        ? fixture('board-sprint-active.json')
+        : fixture('backlog-issues.json');
+      return Promise.resolve(new Response(body));
+    });
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const client = new JiraClient(creds, fetchFn, logger);
+    // when
+    const got = await client.activeSprint(7);
+    // then
+    expect(got?.cards.find((c) => c.key === 'HALO-11')?.epic?.color).toBe(want);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  test('activeSprint keeps the epic name without color and warns when the epic fetch fails', async () => {
+    // given
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const client = new JiraClient(
+      creds,
+      fakeFetch({
+        '/rest/agile/1.0/board/7/sprint': fixture('board-sprint-active.json'),
+        '/rest/api/3/search/jql': fixture('backlog-issues.json'),
+      }),
+      logger,
+    );
+    // when
+    const got = await client.activeSprint(7);
+    // then
+    expect(got?.cards.find((c) => c.key === 'HALO-11')?.epic).toEqual({
+      key: 'HALO-2',
+      summary: 'Search',
+      color: null,
+    });
+    expect(logger.warn).toHaveBeenCalledWith('jira', 'failed', {
+      operation: 'epicColors',
+      boardId: 7,
+      error: 'fetching epics: Jira returned 404',
+    });
+  });
+
   test('activeSprint returns null when no sprint is active', async () => {
     // given
     const client = new JiraClient(creds, fakeFetch({ '/rest/agile/1.0/board/7/sprint': fixture('sprint-none.json') }));
@@ -106,30 +259,32 @@ describe('JiraClient', () => {
 
   test('backlog groups unfinished cards outside open sprints by epic', async () => {
     // given
-    const client = new JiraClient(creds, fakeFetch({ '/rest/api/3/search/jql': fixture('backlog-issues.json') }));
+    const client = new JiraClient(creds, fakeFetch(backlogRoutes));
     // when
-    const got = await client.backlog('HALO');
+    const got = await client.backlog('HALO', 7);
     // then
     expect(got.map((g) => ({ epic: g.epic, cards: g.cards.map((c) => c.key) }))).toEqual([
-      { epic: { key: 'HALO-2', summary: 'Search' }, cards: ['HALO-11', 'HALO-13'] },
+      { epic: { key: 'HALO-2', summary: 'Search', color: 'purple' }, cards: ['HALO-11', 'HALO-13'] },
       { epic: null, cards: ['HALO-19'] },
     ]);
   });
 
   test('backlog asks for cards outside open sprints that are not done or epics', async () => {
     // given
-    const fetchFn = fakeFetch({ '/rest/api/3/search/jql': fixture('backlog-issues.json') });
+    const fetchFn = fakeFetch(backlogRoutes);
     const client = new JiraClient(creds, fetchFn);
     // when
-    await client.backlog('HALO');
+    await client.backlog('HALO', 7);
     // then
-    const input = vi.mocked(fetchFn).mock.calls[0]?.[0] ?? '';
-    const url = new URL(input instanceof Request ? input.url : input.toString());
-    expect(url.searchParams.get('jql')).toBe(
+    const url = vi
+      .mocked(fetchFn)
+      .mock.calls.map(([input]) => new URL(input instanceof Request ? input.url : input.toString()))
+      .find((u) => u.pathname === '/rest/api/3/search/jql');
+    expect(url?.searchParams.get('jql')).toBe(
       'project = HALO AND (sprint is EMPTY OR sprint not in openSprints()) AND statusCategory != Done ' +
         'AND issuetype != Epic ORDER BY Rank',
     );
-    expect(url.searchParams.get('fields')?.split(',')).toContain('parent');
+    expect(url?.searchParams.get('fields')?.split(',')).toContain('parent');
   });
 
   test('getCard returns the card with its blockers', async () => {

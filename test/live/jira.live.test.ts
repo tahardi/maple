@@ -34,7 +34,7 @@ describe('jira', () => {
     // given
     const client = new JiraClient(await creds());
     // when
-    const groups = await client.backlog('MPL');
+    const groups = await client.backlog('MPL', 9);
     // then
     expect(groups.length).toBeGreaterThan(0);
     for (const c of groups.flatMap((g) => g.cards)) {

@@ -30,6 +30,16 @@ const palette = [
   ['--diff-chg-bg', 'rgba(212, 177, 6, 0.15)'],
   ['--diff-del', '#e5534b'],
   ['--overlay', 'rgb(0 0 0 / 60%)'],
+  ['--epic-purple', '#b8acf6'],
+  ['--epic-blue', '#85b8ff'],
+  ['--epic-green', '#7ee2b8'],
+  ['--epic-teal', '#9dd9ee'],
+  ['--epic-yellow', '#f5cd47'],
+  ['--epic-orange', '#fec195'],
+  ['--epic-red', '#fd9891'],
+  ['--epic-magenta', '#f797d2'],
+  ['--epic-lime', '#b3df72'],
+  ['--epic-grey', '#9fadbc'],
 ];
 
 describe('theme', () => {

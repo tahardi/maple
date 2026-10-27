@@ -1,4 +1,5 @@
 import type { BacklogGroup } from '@shared/types/jira';
+import { EpicLozenge } from './EpicLozenge';
 import styles from './Backlog.module.css';
 
 type Props = { groups: readonly BacklogGroup[]; highlighted?: readonly string[]; onSelect: (key: string) => void };
@@ -12,7 +13,15 @@ export function Backlog({ groups, highlighted = [], onSelect }: Props) {
       {groups.length === 0 && <p className={styles.empty}>Nothing in the backlog</p>}
       {groups.map((group) => (
         <section key={group.epic?.key ?? ''} className={styles.group}>
-          <h3>{group.epic ? `${group.epic.key} ${group.epic.summary}` : 'No epic'}</h3>
+          <h3>
+            {group.epic ? (
+              <>
+                {group.epic.key} <EpicLozenge epic={group.epic} />
+              </>
+            ) : (
+              'No epic'
+            )}
+          </h3>
           <ul>
             {group.cards.map((card) => (
               <li

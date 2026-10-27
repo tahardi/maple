@@ -37,4 +37,17 @@ describe('CardTile', () => {
     expect(screen.getByRole('checkbox', { name: 'Select DIG-44' })).toHaveProperty('checked', checked);
     expect(tile.dataset.highlighted).toBe(highlighted);
   });
+
+  test.each([
+    { name: 'a card with an epic', epic: { key: 'DIG-2', summary: 'Search', color: 'green' }, want: 'green' },
+    { name: 'a card without an epic', epic: null, want: null },
+  ])('$name shows the epic lozenge', ({ epic, want }) => {
+    // given
+    render(<CardTile card={card('DIG-44', 'To Do', { epic })} selected={false} onSelect={vi.fn()} onToggle={null} />);
+    // when
+    const lozenge = screen.getByRole('button', { name: /^DIG-44/ }).querySelector('[data-color]');
+    // then
+    expect(lozenge?.getAttribute('data-color') ?? null).toBe(want);
+    expect(lozenge?.textContent ?? null).toBe(epic?.summary ?? null);
+  });
 });

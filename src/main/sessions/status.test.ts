@@ -22,6 +22,7 @@ const card: Card = {
   points: 1,
   labels: [],
   blockedBy: [],
+  epic: null,
   descriptionMd: '',
   url: 'https://example.atlassian.net/browse/DIG-44',
 };

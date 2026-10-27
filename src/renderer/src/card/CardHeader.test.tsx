@@ -12,6 +12,7 @@ const card: Card = {
   points: 3,
   labels: [],
   blockedBy: [],
+  epic: null,
   descriptionMd: '',
   url: 'https://example.atlassian.net/browse/MPL-20',
 };
