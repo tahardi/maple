@@ -1,0 +1,147 @@
+{
+  "maxResults": 50,
+  "startAt": 0,
+  "isLast": true,
+  "values": [
+    {
+      "id": 10001,
+      "key": "HALO-1",
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/epic/10001",
+      "name": "Foundation",
+      "summary": "Foundation",
+      "color": {
+        "key": "color_7"
+      },
+      "issueColor": {
+        "key": "purple"
+      },
+      "done": false
+    },
+    {
+      "id": 10002,
+      "key": "HALO-2",
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/epic/10002",
+      "name": "Search",
+      "summary": "Search",
+      "color": {
+        "key": "color_7"
+      },
+      "issueColor": {
+        "key": "purple"
+      },
+      "done": false
+    },
+    {
+      "id": 10003,
+      "key": "HALO-3",
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/epic/10003",
+      "name": "Summaries",
+      "summary": "Summaries",
+      "color": {
+        "key": "color_7"
+      },
+      "issueColor": {
+        "key": "purple"
+      },
+      "done": false
+    },
+    {
+      "id": 10004,
+      "key": "HALO-4",
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/epic/10004",
+      "name": "Ingest",
+      "summary": "Ingest",
+      "color": {
+        "key": "color_7"
+      },
+      "issueColor": {
+        "key": "purple"
+      },
+      "done": false
+    },
+    {
+      "id": 10005,
+      "key": "HALO-5",
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/epic/10005",
+      "name": "Storage",
+      "summary": "Storage",
+      "color": {
+        "key": "color_7"
+      },
+      "issueColor": {
+        "key": "purple"
+      },
+      "done": false
+    },
+    {
+      "id": 10006,
+      "key": "HALO-6",
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/epic/10006",
+      "name": "Auth",
+      "summary": "Auth",
+      "color": {
+        "key": "color_7"
+      },
+      "issueColor": {
+        "key": "purple"
+      },
+      "done": false
+    },
+    {
+      "id": 10007,
+      "key": "HALO-7",
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/epic/10007",
+      "name": "Sharing",
+      "summary": "Sharing",
+      "color": {
+        "key": "color_7"
+      },
+      "issueColor": {
+        "key": "purple"
+      },
+      "done": false
+    },
+    {
+      "id": 10008,
+      "key": "HALO-8",
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/epic/10008",
+      "name": "Notifications",
+      "summary": "Notifications",
+      "color": {
+        "key": "color_7"
+      },
+      "issueColor": {
+        "key": "purple"
+      },
+      "done": false
+    },
+    {
+      "id": 10009,
+      "key": "HALO-9",
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/epic/10009",
+      "name": "Settings",
+      "summary": "Settings",
+      "color": {
+        "key": "color_7"
+      },
+      "issueColor": {
+        "key": "purple"
+      },
+      "done": false
+    },
+    {
+      "id": 10010,
+      "key": "HALO-10",
+      "self": "https://taylorantoniohardin.atlassian.net/rest/agile/1.0/epic/10010",
+      "name": "Release",
+      "summary": "Release",
+      "color": {
+        "key": "color_7"
+      },
+      "issueColor": {
+        "key": "purple"
+      },
+      "done": false
+    }
+  ]
+}

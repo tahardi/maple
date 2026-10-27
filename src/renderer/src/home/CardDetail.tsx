@@ -1,6 +1,7 @@
 import type { Card } from '@shared/types/jira';
 import type { TabState } from '@shared/types/tabs';
 import { MarkdownText } from '../shell/MarkdownText';
+import { EpicLozenge } from './EpicLozenge';
 import styles from './CardDetail.module.css';
 
 type Props = {
@@ -38,6 +39,7 @@ export function CardDetail(props: Props) {
         <button onClick={onClose}>Close</button>
       </div>
       <div className={styles.meta}>
+        {card.epic && <EpicLozenge epic={card.epic} />}
         <span>{card.status}</span>
         {card.points !== null && <span>{`${String(card.points)} pts`}</span>}
         {card.labels.map((label) => (

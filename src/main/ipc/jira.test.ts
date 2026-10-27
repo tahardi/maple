@@ -54,6 +54,9 @@ function jiraFetch(issuesStatus: () => number): typeof fetch {
     if (url.pathname.endsWith('/sprint')) {
       return Promise.resolve(new Response(fixture('board-sprint-active.json')));
     }
+    if (url.pathname.endsWith('/epic')) {
+      return Promise.resolve(new Response(fixture('board-epics.json')));
+    }
     const status = issuesStatus();
     return Promise.resolve(new Response(status === 200 ? fixture('sprint-issues.json') : '', { status }));
   });
@@ -114,13 +117,17 @@ describe('registerJira', () => {
     vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
     vi.stubGlobal(
       'fetch',
-      vi.fn<typeof fetch>(() => Promise.resolve(new Response(fixture('backlog-issues.json')))),
+      vi.fn<typeof fetch>((input) => {
+        const url = new URL(input instanceof Request ? input.url : input.toString());
+        const name = url.pathname === '/rest/agile/1.0/board/7/epic' ? 'board-epics.json' : 'backlog-issues.json';
+        return Promise.resolve(new Response(fixture(name)));
+      }),
     );
     registerJira(deps, logger);
     // when
     const got = await handler('jira:backlog')({} as IpcMainInvokeEvent, 'HALO');
     // then
-    expect(got).toMatchObject({ data: [{ epic: { key: 'HALO-2' } }, { epic: null }], error: null });
+    expect(got).toMatchObject({ data: [{ epic: { key: 'HALO-2', color: 'purple' } }, { epic: null }], error: null });
   });
 
   test('reads creds once at startup', async () => {

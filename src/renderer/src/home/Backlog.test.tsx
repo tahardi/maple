@@ -1,11 +1,14 @@
 import type { BacklogGroup } from '@shared/types/jira';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { card } from '../testing/sprintFixture';
 import { Backlog } from './Backlog';
 
 const GROUPS: BacklogGroup[] = [
-  { epic: { key: 'HALO-2', summary: 'Search' }, cards: [card('HALO-11', 'To Do'), card('HALO-13', 'To Do')] },
+  {
+    epic: { key: 'HALO-2', summary: 'Search', color: 'purple' },
+    cards: [card('HALO-11', 'To Do'), card('HALO-13', 'To Do')],
+  },
   { epic: null, cards: [card('HALO-19', 'To Do', { points: null })] },
 ];
 
@@ -18,6 +21,15 @@ describe('Backlog', () => {
     // then
     expect(screen.getByText('Backlog (3)')).toBeInTheDocument();
     expect(headings.map((h) => h.textContent)).toEqual(['HALO-2 Search', 'No epic']);
+  });
+
+  test('colors each epic heading', () => {
+    // given
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} />);
+    // when
+    const heading = screen.getByRole('heading', { level: 3, name: /^HALO-2/, hidden: true });
+    // then
+    expect(within(heading).getByText('Search')).toHaveAttribute('data-color', 'purple');
   });
 
   test('each card shows key, summary, and points', () => {

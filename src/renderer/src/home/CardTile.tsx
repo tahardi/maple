@@ -1,4 +1,5 @@
 import type { Card } from '@shared/types/jira';
+import { EpicLozenge } from './EpicLozenge';
 import styles from './CardTile.module.css';
 
 type Props = {
@@ -24,6 +25,7 @@ export function CardTile({ card, selected, onSelect, onToggle }: Props) {
       <span className={styles.key}>{card.key}</span>
       <span>{card.summary}</span>
       <span className={styles.meta}>
+        {card.epic && <EpicLozenge epic={card.epic} />}
         {card.points !== null && <span>{`${String(card.points)} pts`}</span>}
         {card.labels.map((label) => (
           <span key={label} className={styles.label}>

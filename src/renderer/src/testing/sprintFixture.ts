@@ -8,6 +8,7 @@ export function card(key: string, status: Card['status'], extra: Partial<Card> =
     points: 3,
     labels: ['parallelizable'],
     blockedBy: [],
+    epic: null,
     descriptionMd: `**Goal:** do ${key}`,
     url: `https://example.atlassian.net/browse/${key}`,
     ...extra,

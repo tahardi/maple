@@ -1,0 +1,61 @@
+.lozenge {
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.lozenge[data-color='purple'] {
+  color: var(--epic-purple);
+  background: color-mix(in srgb, var(--epic-purple) 20%, transparent);
+}
+
+.lozenge[data-color='blue'] {
+  color: var(--epic-blue);
+  background: color-mix(in srgb, var(--epic-blue) 20%, transparent);
+}
+
+.lozenge[data-color='green'] {
+  color: var(--epic-green);
+  background: color-mix(in srgb, var(--epic-green) 20%, transparent);
+}
+
+.lozenge[data-color='teal'] {
+  color: var(--epic-teal);
+  background: color-mix(in srgb, var(--epic-teal) 20%, transparent);
+}
+
+.lozenge[data-color='yellow'] {
+  color: var(--epic-yellow);
+  background: color-mix(in srgb, var(--epic-yellow) 20%, transparent);
+}
+
+.lozenge[data-color='orange'] {
+  color: var(--epic-orange);
+  background: color-mix(in srgb, var(--epic-orange) 20%, transparent);
+}
+
+.lozenge[data-color='red'] {
+  color: var(--epic-red);
+  background: color-mix(in srgb, var(--epic-red) 20%, transparent);
+}
+
+.lozenge[data-color='magenta'] {
+  color: var(--epic-magenta);
+  background: color-mix(in srgb, var(--epic-magenta) 20%, transparent);
+}
+
+.lozenge[data-color='lime'] {
+  color: var(--epic-lime);
+  background: color-mix(in srgb, var(--epic-lime) 20%, transparent);
+}
+
+.lozenge[data-color='grey'] {
+  color: var(--epic-grey);
+  background: color-mix(in srgb, var(--epic-grey) 20%, transparent);
+}

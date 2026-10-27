@@ -22,10 +22,10 @@ const reportArg = z.object({
 export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
   const ready = readCreds(jiraEnvPath()).then(
     (creds) => {
-      const client = new JiraClient(creds);
+      const client = new JiraClient(creds, fetch, logger);
       const caches: Caches = {
         sprint: new SprintCache((p: ProjectConfig) => client.activeSprint(p.jiraBoardId)),
-        backlog: new SprintCache((p: ProjectConfig) => client.backlog(p.jiraKey)),
+        backlog: new SprintCache((p: ProjectConfig) => client.backlog(p.jiraKey, p.jiraBoardId)),
       };
       return { caches, client, creds, error: null };
     },

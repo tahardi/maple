@@ -99,7 +99,7 @@ describe('HomeTab', () => {
 
   test('shows the backlog under the board', async () => {
     // given
-    const groups = [{ epic: { key: 'DIG-2', summary: 'Search' }, cards: [card('DIG-50', 'To Do')] }];
+    const groups = [{ epic: { key: 'DIG-2', summary: 'Search', color: 'purple' }, cards: [card('DIG-50', 'To Do')] }];
     fakeMaple({
       jira: {
         sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }),

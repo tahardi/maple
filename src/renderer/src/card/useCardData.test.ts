@@ -126,6 +126,7 @@ describe('useCardData', () => {
       points: 1,
       labels: [],
       blockedBy: [],
+      epic: null,
       descriptionMd: '',
       url: 'https://example.atlassian.net/browse/BEAR-1',
     };
