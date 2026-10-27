@@ -14,9 +14,10 @@ function views() {
 }
 
 function strip() {
-  return screen
-    .getAllByRole('button', { name: /^\d+$/ })
-    .map((b) => ({ name: b.textContent, pressed: b.getAttribute('aria-pressed') }));
+  return Array.from(document.querySelectorAll('button[aria-pressed]')).map((b) => ({
+    name: b.textContent,
+    pressed: b.getAttribute('aria-pressed'),
+  }));
 }
 
 describe('TerminalPane', () => {
@@ -121,5 +122,101 @@ describe('TerminalPane', () => {
     // then
     expect(views().map((v) => v.id)).toEqual(['tab-1', 'tab-1:3']);
     expect(strip().map((b) => b.name)).toEqual(['1', '3']);
+  });
+
+  test.each([
+    { name: 'Enter saves the name', text: 'server', key: '{Enter}', want: ['1', 'server'] },
+    { name: 'Escape keeps the old label', text: 'server', key: '{Escape}', want: ['1', '2'] },
+    { name: 'Enter on a blank name shows the number', text: '   ', key: '{Enter}', want: ['1', '2'] },
+    { name: 'blur saves the name', text: 'logs', key: 'blur', want: ['1', 'logs'] },
+    { name: 'Enter trims spaces around the name', text: '  server  ', key: '{Enter}', want: ['1', 'server'] },
+  ])('double-click then $name', async ({ text, key, want }) => {
+    // given
+    fakeMaple();
+    render(<TerminalPane tabId="tab-1" />);
+    await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
+    await userEvent.dblClick(screen.getByRole('button', { name: '2' }));
+    const input = screen.getByRole('textbox', { name: 'Terminal name' });
+    await userEvent.clear(input);
+    await userEvent.type(input, text);
+    // when
+    if (key === 'blur') {
+      await userEvent.click(screen.getByRole('button', { name: '1' }));
+    } else {
+      await userEvent.keyboard(key);
+    }
+    // then
+    expect(strip().map((b) => b.name)).toEqual(want);
+    expect(screen.queryByRole('textbox', { name: 'Terminal name' })).not.toBeInTheDocument();
+  });
+
+  test('a renamed terminal keeps its name when shown and its close button uses it', async () => {
+    // given
+    const close = vi.fn(() => Promise.resolve());
+    fakeMaple({ terminal: { close } });
+    render(<TerminalPane tabId="tab-1" />);
+    await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
+    await userEvent.dblClick(screen.getByRole('button', { name: '2' }));
+    const input = screen.getByRole('textbox', { name: 'Terminal name' });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'server{Enter}');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: '1' }));
+    await userEvent.click(screen.getByRole('button', { name: 'server' }));
+    // then
+    expect(
+      views()
+        .filter((v) => !v.hidden)
+        .map((v) => v.id),
+    ).toEqual(['tab-1:2']);
+    await userEvent.click(screen.getByRole('button', { name: 'Close terminal server' }));
+    expect(close).toHaveBeenCalledWith('tab-1:2');
+  });
+
+  test('double-click selects the current label for editing', async () => {
+    // given
+    fakeMaple();
+    render(<TerminalPane tabId="tab-1" />);
+    // when
+    await userEvent.dblClick(screen.getByRole('button', { name: '1' }));
+    // then
+    const input = screen.getByRole('textbox', { name: 'Terminal name' });
+    expect(input).toHaveValue('1');
+    expect(input).toHaveFocus();
+    expect(input).toHaveProperty('selectionStart', 0);
+    expect(input).toHaveProperty('selectionEnd', 1);
+  });
+
+  test('a renamed terminal starts its next edit from its name', async () => {
+    // given
+    fakeMaple();
+    render(<TerminalPane tabId="tab-1" />);
+    await userEvent.dblClick(screen.getByRole('button', { name: '1' }));
+    const input = screen.getByRole('textbox', { name: 'Terminal name' });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'server{Enter}');
+    // when
+    await userEvent.dblClick(screen.getByRole('button', { name: 'server' }));
+    // then
+    expect(screen.getByRole('textbox', { name: 'Terminal name' })).toHaveValue('server');
+    await userEvent.keyboard('{Escape}');
+    expect(strip().map((b) => b.name)).toEqual(['server']);
+  });
+
+  test('blur saves a rename that follows a cancelled one', async () => {
+    // given
+    fakeMaple();
+    render(<TerminalPane tabId="tab-1" />);
+    await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
+    await userEvent.dblClick(screen.getByRole('button', { name: '2' }));
+    await userEvent.keyboard('{Escape}');
+    await userEvent.dblClick(screen.getByRole('button', { name: '2' }));
+    const input = screen.getByRole('textbox', { name: 'Terminal name' });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'logs');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: '1' }));
+    // then
+    expect(strip().map((b) => b.name)).toEqual(['1', 'logs']);
   });
 });
