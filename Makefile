@@ -30,7 +30,7 @@ typecheck: node_modules/.package-lock.json
 
 .PHONY: run
 run: node_modules/.package-lock.json
-	@npm run dev
+	@npm run dev -- -- --ozone-platform=x11
 
 try_config_dir := $(CURDIR)/.maple-try
 
@@ -40,7 +40,7 @@ try: node_modules/.package-lock.json
 	@cp $(HOME)/.config/maple/config.json $(try_config_dir)/config.json
 	@MAPLE_CONFIG_DIR=$(try_config_dir) \
 	    TMUX_TMPDIR=$(try_config_dir) \
-	    npm run dev
+	    npm run dev -- -- --ozone-platform=x11
 
 .PHONY: test-all
 test-all: test-unit test-socket test-live test-e2e
@@ -87,7 +87,7 @@ install: package
 	    '[Desktop Entry]' \
 	    'Type=Application' \
 	    'Name=Maple' \
-	    'Exec=$(login_shell) -ic "exec $(app_dir)/maple"' \
+	    'Exec=$(login_shell) -ic "exec $(app_dir)/maple --ozone-platform=x11"' \
 	    'Icon=$(HOME)/.local/share/icons/maple.png' \
 	    'Terminal=false' \
 	    'Categories=Development;' \
