@@ -36,17 +36,6 @@
   padding: 6px 10px 8px;
 }
 
-.text {
-  min-height: 40px;
-  resize: vertical;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 6px;
-  font: inherit;
-}
-
 .error {
   color: var(--danger);
 }

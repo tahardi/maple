@@ -1,7 +1,16 @@
 import { render, screen } from '@testing-library/react';
 import { MarkdownText } from './MarkdownText';
+import { highlightCode } from './highlightCode';
+
+vi.mock('./highlightCode', () => ({
+  highlightCode: vi.fn(() => Promise.resolve('<span class="mtk6">const</span> a = 1')),
+}));
 
 describe('MarkdownText', () => {
+  beforeEach(() => {
+    vi.mocked(highlightCode).mockClear();
+  });
+
   test.each([
     { name: 'a bullet list', text: '- one\n- two', role: 'listitem', count: 2 },
     { name: 'a heading', text: '## Steps', role: 'heading', count: 1 },
@@ -41,5 +50,27 @@ describe('MarkdownText', () => {
     expect(container.querySelector('img')).toBeNull();
     expect(container).toHaveTextContent('before');
     expect(container).toHaveTextContent('after');
+  });
+
+  test('highlights a fenced block that names its language', async () => {
+    // given
+    const text = '```ts\nconst a = 1\n```';
+    // when
+    const { container } = render(<MarkdownText text={text} />);
+    // then
+    await vi.waitFor(() => {
+      expect(highlightCode).toHaveBeenCalledWith('const a = 1', 'ts');
+    });
+    await vi.waitFor(() => expect(container.querySelector('.mtk6')).toHaveTextContent('const'));
+  });
+
+  test('leaves a fenced block without a language plain', () => {
+    // given
+    const text = '```\nconst a = 1\n```';
+    // when
+    render(<MarkdownText text={text} />);
+    // then
+    expect(highlightCode).not.toHaveBeenCalled();
+    expect(screen.getByText('const a = 1')).toBeInTheDocument();
   });
 });
