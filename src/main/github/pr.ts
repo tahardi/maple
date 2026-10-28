@@ -26,6 +26,8 @@ const filesSchema = z.array(z.array(z.object({ filename: z.string(), patch: z.st
 
 const pendingExitCode = 8;
 
+const SELF_APPROVAL = 'Can not approve your own pull request';
+
 async function checksFor(run: Runner, worktree: string, num: number): Promise<ChecksSummary> {
   const { code, stdout, stderr } = await run(
     'gh',
@@ -103,4 +105,36 @@ export async function diffLines(
       .flat()
       .map((f) => [f.filename, hunkLines(f.patch ?? '')]),
   );
+}
+
+export async function approveAndMerge(run: Runner, num: number, headSha: string): Promise<void> {
+  const current = await headCommit(run, '', num).catch((err: unknown) => {
+    throw new Error(`approving PR: ${err instanceof Error ? err.message : String(err)}`);
+  });
+  if (current !== headSha) {
+    throw new Error('approving PR: the PR changed after the diff loaded; review it again');
+  }
+
+  const review = await run(
+    'gh',
+    [
+      'api',
+      '--method',
+      'POST',
+      `repos/{owner}/{repo}/pulls/${String(num)}/reviews`,
+      '-f',
+      'event=APPROVE',
+      '-f',
+      `commit_id=${headSha}`,
+    ],
+    '',
+  );
+  if (review.code !== 0 && !`${review.stdout}${review.stderr}`.includes(SELF_APPROVAL)) {
+    throw new Error(`approving PR: reviewing: ${review.stderr}`);
+  }
+
+  const merge = await run('gh', ['pr', 'merge', String(num), '--squash', '--match-head-commit', headSha], '');
+  if (merge.code !== 0) {
+    throw new Error(`approving PR: merging: ${merge.stderr}`);
+  }
 }

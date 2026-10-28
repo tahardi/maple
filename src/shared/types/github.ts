@@ -1,3 +1,5 @@
+import type { FileChange } from './files';
+
 export type ReviewComment = {
   id: number;
   replyTo: number | null;
@@ -21,4 +23,13 @@ export type PrInfo = {
   cardImpacts: string | null;
   body: string;
   checks: ChecksSummary;
+};
+export type FindingSeverity = 'high' | 'medium' | 'low';
+export type SecurityFinding = { id: string; severity: FindingSeverity; summary: string; url: string };
+export type Review = {
+  number: number;
+  headSha: string;
+  baseSha: string;
+  files: FileChange[];
+  findings: SecurityFinding[];
 };

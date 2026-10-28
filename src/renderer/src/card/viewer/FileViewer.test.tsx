@@ -1,6 +1,6 @@
 import type { MapleApi } from '@shared/ipc';
 import type { DiffLines, FilePair } from '@shared/types/files';
-import type { ReviewComment } from '@shared/types/github';
+import type { Review, ReviewComment } from '@shared/types/github';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';
@@ -1100,6 +1100,66 @@ describe('FileViewer', () => {
     renderViewer(pair);
     // then
     expect(await screen.findByTestId(testId)).toHaveAttribute('data-readonly', want);
+  });
+
+  test('reads a file from GitHub at the review commits and shows it read-only', async () => {
+    // given
+    const pinned: Review = {
+      number: 7,
+      headSha: 'a'.repeat(40),
+      baseSha: 'c'.repeat(40),
+      files: [{ path: 'src/a.ts', status: 'R', oldPath: 'src/old.ts', stamp: 'f'.repeat(40) }],
+      findings: [],
+    };
+    const prRead = vi.fn(() => Promise.resolve(changed));
+    const repoRead = vi.fn(() => Promise.resolve(changed));
+    fakeMaple({ repo: { readFile: repoRead }, pr: { readFile: prRead } });
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+        review={pinned}
+      />,
+    );
+    // then
+    const editor = await screen.findByTestId('editor');
+    expect(prRead).toHaveBeenCalledWith('t1', 'src/a.ts', 'src/old.ts', pinned.baseSha, pinned.headSha);
+    expect(repoRead).not.toHaveBeenCalled();
+    expect(editor).toHaveAttribute('data-readonly', 'true');
+    expect(editor).toHaveAttribute('data-value', 'new\n');
+  });
+
+  test('shows why a file from GitHub could not be read', async () => {
+    // given
+    const pinned: Review = { number: 7, headSha: 'a'.repeat(40), baseSha: 'c'.repeat(40), files: [], findings: [] };
+    fakeMaple({
+      pr: { readFile: vi.fn(() => Promise.reject(new Error("Error invoking remote method 'pr:readFile': Error: x"))) },
+    });
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFile={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+        review={pinned}
+      />,
+    );
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^Reading the file from GitHub failed: x$/);
   });
 
   test('typing marks the file tab dirty and Ctrl+S saves it', async () => {

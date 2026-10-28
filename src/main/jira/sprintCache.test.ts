@@ -3,7 +3,13 @@ import type { ProjectConfig } from '@shared/types/config';
 import type { Sprint } from '@shared/types/jira';
 import { SprintCache } from './sprintCache';
 
-const project: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
+const project: ProjectConfig = {
+  name: 'Halo',
+  jiraKey: 'HALO',
+  jiraBoardId: 7,
+  plannerDir: '/tmp/halo',
+  repo: 'tahardi/halo',
+};
 const sprint: Sprint = { id: 6, name: 'HALO Sprint 1', startDate: '2026-10-12', endDate: '2026-10-26', cards: [] };
 
 describe('SprintCache', () => {

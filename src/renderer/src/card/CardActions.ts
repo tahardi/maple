@@ -1,13 +1,14 @@
 import { fillAction } from '@shared/prompts';
 import type { Dot } from '@shared/types/tabs';
 import type { MapleConfig } from '@shared/types/config';
-import type { PrInfo } from '@shared/types/github';
+import type { PrInfo, Review } from '@shared/types/github';
 import type { PaneAction } from '../claude/ClaudePane';
 
 type CardActionsInput = {
   config: MapleConfig;
   cardKey: string;
   pr: PrInfo | null;
+  review: Review | null;
   dot: Dot;
   worktreeExists: boolean;
   send: (text: string) => void;
@@ -15,14 +16,17 @@ type CardActionsInput = {
   close: () => void;
 };
 
-function approveBlocker({ dot, pr }: CardActionsInput): string | null {
+function approveBlocker({ dot, pr, review }: CardActionsInput): string | null {
   if (dot === 'working') {
     return 'Agent is working';
   }
   if (pr?.state !== 'OPEN') {
     return 'No open PR';
   }
-  return pr.checks.failed > 0 ? 'Checks are failing' : null;
+  if (pr.checks.failed > 0) {
+    return 'Checks are failing';
+  }
+  return review === null ? 'Review not loaded' : null;
 }
 
 function closeBlocker({ dot, pr }: CardActionsInput): string | null {

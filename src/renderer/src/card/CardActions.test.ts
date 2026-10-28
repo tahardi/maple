@@ -1,6 +1,6 @@
 import type { Dot } from '@shared/types/tabs';
 import type { MapleConfig } from '@shared/types/config';
-import type { PrInfo } from '@shared/types/github';
+import type { PrInfo, Review } from '@shared/types/github';
 import { cardActions } from './CardActions';
 
 const config: MapleConfig = {
@@ -26,7 +26,9 @@ const pr: PrInfo = {
   checks: { passed: 3, failed: 0, pending: 0, total: 3, runs: [] },
 };
 
-function actions(overrides: { pr?: PrInfo | null; dot?: Dot; worktreeExists?: boolean } = {}) {
+const review: Review = { number: 7, headSha: 'a'.repeat(40), baseSha: 'b'.repeat(40), files: [], findings: [] };
+
+function actions(overrides: { pr?: PrInfo | null; review?: Review | null; dot?: Dot; worktreeExists?: boolean } = {}) {
   const send = vi.fn();
   const approve = vi.fn();
   const close = vi.fn();
@@ -34,6 +36,7 @@ function actions(overrides: { pr?: PrInfo | null; dot?: Dot; worktreeExists?: bo
     config,
     cardKey: 'DIG-44',
     pr: overrides.pr === undefined ? pr : overrides.pr,
+    review: overrides.review === undefined ? review : overrides.review,
     dot: overrides.dot ?? 'ready',
     worktreeExists: overrides.worktreeExists ?? true,
     send,
@@ -127,6 +130,7 @@ describe('cardActions', () => {
       overrides: { pr: { ...pr, checks: { passed: 2, failed: 1, pending: 0, total: 3, runs: [] } } },
       title: 'Checks are failing',
     },
+    { name: 'the review is not loaded', overrides: { review: null }, title: 'Review not loaded' },
   ])('Approve is disabled when $name', ({ overrides, title }) => {
     // given
     const { list } = actions(overrides);
@@ -156,6 +160,7 @@ describe('cardActions', () => {
       config: { ...config, actions: [{ label: 'Review', prompt: 'Review PR {pr} for {key}' }] },
       cardKey: 'DIG-44',
       pr: withPr,
+      review,
       dot: 'ready',
       worktreeExists: true,
       send,
@@ -202,12 +207,23 @@ describe('cardActions', () => {
     expect(approve?.title).toBe(title);
   });
 
+  test('failing checks show before a missing review', () => {
+    // given
+    const failing = { ...pr, checks: { passed: 2, failed: 1, pending: 0, total: 3, runs: [] } };
+    const { list } = actions({ pr: failing, review: null });
+    // when
+    const approve = list.find((a) => a.label === 'Approve');
+    // then
+    expect(approve?.title).toBe('Checks are failing');
+  });
+
   test('a config with no actions gives only Approve and Close', () => {
     // given
     const list = cardActions({
       config: { ...config, actions: [] },
       cardKey: 'DIG-44',
       pr,
+      review,
       dot: 'ready',
       worktreeExists: true,
       send: vi.fn(),

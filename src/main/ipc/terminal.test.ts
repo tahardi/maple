@@ -27,7 +27,13 @@ const tab: TabState = {
   worktreePath: null,
 };
 
-const project: ProjectConfig = { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig' };
+const project: ProjectConfig = {
+  name: 'Dig Days',
+  jiraKey: 'DIG',
+  jiraBoardId: 1,
+  plannerDir: '/tmp/dig',
+  repo: 'tahardi/dig-days',
+};
 
 function setup(tabs: TabState[] = [tab]) {
   const sessions = { get: vi.fn((tabId: string) => tabs.find((t) => t.id === tabId) ?? null) };

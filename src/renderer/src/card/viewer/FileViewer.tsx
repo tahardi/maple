@@ -1,7 +1,7 @@
 import { DiffEditor, Editor, useMonaco } from '@monaco-editor/react';
 import { lineMarks } from '@shared/diffMarks';
 import type { DiffLines, Draft, FilePair } from '@shared/types/files';
-import type { ReviewComment } from '@shared/types/github';
+import type { Review, ReviewComment } from '@shared/types/github';
 import type { editor } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
@@ -31,6 +31,7 @@ type Props = {
   canComment: boolean;
   prFetchedAt: string | null;
   onComments?: (comments: readonly ReviewComment[]) => void;
+  review?: Review | null;
 };
 
 type Mode = 'in-file' | 'side-by-side';
@@ -92,10 +93,12 @@ export function FileViewer({
   canComment,
   prFetchedAt,
   onComments,
+  review = null,
 }: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
+  const [readError, setReadError] = useState<{ path: string; message: string } | null>(null);
   const [note, setNote] = useState<{ path: string; text: string } | null>(null);
   const [editing, setEditing] = useState<Record<string, boolean>>({});
   const [plain, setPlain] = useState<editor.ICodeEditor | null>(null);
@@ -114,6 +117,9 @@ export function FileViewer({
   const [diff, setDiff] = useState<DiffLines>(NO_DIFF);
   const [picked, setPicked] = useState<{ editor: editor.ICodeEditor; lines: Lines } | null>(null);
 
+  const headSha = review?.headSha ?? null;
+  const baseSha = review?.baseSha ?? null;
+  const reviewOldPath = review?.files.find((f) => f.path === activeFile)?.oldPath ?? null;
   const showsDescription = activeFile === PR_DESCRIPTION || activeFile === CARD_DESCRIPTION;
   const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
   const markdown =
@@ -159,6 +165,28 @@ export function FileViewer({
       return;
     }
     let live = true;
+    if (headSha !== null && baseSha !== null) {
+      window.maple.pr.readFile(tabId, activeFile, reviewOldPath, baseSha, headSha).then(
+        (next) => {
+          if (live) {
+            setReadError(null);
+            setPair(next);
+          }
+        },
+        (err: unknown) => {
+          if (live) {
+            const message = err instanceof Error ? err.message : String(err);
+            setReadError({
+              path: activeFile,
+              message: message.replace(/^Error invoking remote method '[^']+': Error: /, ''),
+            });
+          }
+        },
+      );
+      return () => {
+        live = false;
+      };
+    }
     const load = (keep: boolean) => {
       const top = keep ? (scrollTarget.current?.getScrollTop() ?? null) : null;
       void window.maple.repo.readFile(tabId, activeFile).then((next) => {
@@ -176,7 +204,7 @@ export function FileViewer({
       live = false;
       unsubscribe();
     };
-  }, [tabId, activeFile]);
+  }, [tabId, activeFile, headSha, baseSha, reviewOldPath]);
 
   useEffect(() => {
     if (keepScroll.current !== null) {
@@ -211,7 +239,7 @@ export function FileViewer({
   const text = shown?.kind === 'text' ? shown : null;
   const changed = text !== null && text.current !== null && text.base !== text.current;
   const sideBySide = changed && mode === 'side-by-side';
-  const draft = text === null ? null : Object.hasOwn(drafts, text.path) ? drafts[text.path] : null;
+  const draft = text === null || review !== null ? null : Object.hasOwn(drafts, text.path) ? drafts[text.path] : null;
   const edited = draft?.text ?? text?.current ?? null;
   const commentable = canComment && text !== null && text.current !== null && !sideBySide && plain !== null;
   const ranges = text !== null && Object.hasOwn(diff.ranges, text.path) ? diff.ranges[text.path] : [];
@@ -479,7 +507,11 @@ export function FileViewer({
       );
     }
     if (shown === null) {
-      return null;
+      return readError?.path === activeFile ? (
+        <div className={styles.notice} role="alert">
+          {`Reading the file from GitHub failed: ${readError.message}`}
+        </div>
+      ) : null;
     }
     if (shown.kind === 'binary') {
       return <div className={styles.message}>Binary file, not shown</div>;
@@ -506,6 +538,7 @@ export function FileViewer({
         />
       );
     }
+    const locked = shown.current === null || review !== null;
     return (
       <>
         {shown.current === null && <div className={styles.notice}>Deleted in this branch</div>}
@@ -525,7 +558,7 @@ export function FileViewer({
             language={language}
             theme="vs-dark"
             height="100%"
-            options={{ ...OPTIONS, readOnly: shown.current === null, domReadOnly: shown.current === null }}
+            options={{ ...OPTIONS, readOnly: locked, domReadOnly: locked }}
             onChange={edit}
             onMount={(mounted) => {
               setPlain(mounted);

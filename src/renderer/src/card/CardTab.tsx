@@ -40,7 +40,7 @@ function branchName(worktreePath: string | null, cardKey: string): string | null
 }
 
 export function CardTab({ tab }: { tab: TabState }) {
-  const { changes, files, pr, card, cost } = useCardData(tab);
+  const { changes, files, pr, review, card, cost } = useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
@@ -53,6 +53,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [confirmApprove, setConfirmApprove] = useState(false);
+  const [confirmFindings, setConfirmFindings] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
   const [cardOpened, setCardOpened] = useState(false);
@@ -62,7 +63,8 @@ export function CardTab({ tab }: { tab: TabState }) {
   const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
-  const changed = changes?.files ?? [];
+  const pinned = review?.data ?? null;
+  const changed = pinned?.files ?? changes?.files ?? [];
   const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed);
   const [commented, setCommented] = useState<ReadonlySet<string>>(new Set());
   const showComments = useCallback((comments: readonly ReviewComment[]) => {
@@ -84,12 +86,25 @@ export function CardTab({ tab }: { tab: TabState }) {
       vault.notes.map((note) => note.path),
     ),
   ]);
+  const highFindings = pinned?.findings.filter((f) => f.severity === 'high').length ?? 0;
   const approvePr = () => {
+    if (pinned === null) {
+      return;
+    }
     setApproveError(null);
-    window.maple.pr.approve(tab.id).catch((err: unknown) => {
+    window.maple.pr.approve(tab.id, pinned.headSha).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       setApproveError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
     });
+  };
+  const findingNoun = highFindings === 1 ? 'finding' : 'findings';
+  const findingsWarning = `${String(highFindings)} open high-severity ${findingNoun}. Approve anyway?`;
+  const confirmViewed = () => {
+    if (unviewed > 0) {
+      setConfirmApprove(true);
+    } else {
+      approvePr();
+    }
   };
   const actions =
     config === null
@@ -98,16 +113,17 @@ export function CardTab({ tab }: { tab: TabState }) {
           config,
           cardKey,
           pr: pr?.data ?? null,
+          review: pinned,
           dot,
           worktreeExists,
           send: (text) => {
             window.maple.session.sendPrompt(tab.id, text);
           },
           approve: () => {
-            if (unviewed > 0) {
-              setConfirmApprove(true);
+            if (highFindings > 0) {
+              setConfirmFindings(true);
             } else {
-              approvePr();
+              confirmViewed();
             }
           },
           close: () => {
@@ -246,6 +262,8 @@ export function CardTab({ tab }: { tab: TabState }) {
           {pr && (
             <PrSummary
               pr={pr}
+              findings={pinned?.findings ?? []}
+              headSha={pinned?.headSha ?? null}
               onOpenDescription={() => {
                 openFile(PR_DESCRIPTION);
               }}
@@ -270,6 +288,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 prFetchedAt={pr?.fetchedAt ?? null}
                 onComments={showComments}
                 line={line}
+                review={pinned}
               />
             )}
           </div>
@@ -297,6 +316,20 @@ export function CardTab({ tab }: { tab: TabState }) {
           <ClaudePane tabId={tab.id} actions={actions} />
         </div>
       </div>
+      {confirmFindings && (
+        <ConfirmDialog
+          title="Open security findings"
+          body={findingsWarning}
+          confirmLabel="Approve anyway"
+          onConfirm={() => {
+            setConfirmFindings(false);
+            confirmViewed();
+          }}
+          onCancel={() => {
+            setConfirmFindings(false);
+          }}
+        />
+      )}
       {confirmApprove && (
         <ConfirmDialog
           title="Unviewed files"
