@@ -1,3 +1,5 @@
+import type { Fetched } from '@shared/types/app';
+import type { Review } from '@shared/types/github';
 import type { SessionCost, TabState } from '@shared/types/tabs';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useMaple } from '../store';
@@ -174,5 +176,23 @@ describe('useCardData', () => {
     });
     // then
     expect(result.current.files).toEqual(['a.go']);
+  });
+
+  test('loads the review with the PR', async () => {
+    // given
+    const want: Fetched<Review> = {
+      data: { number: 7, headSha: 'a'.repeat(40), baseSha: 'b'.repeat(40), files: [], findings: [] },
+      error: null,
+      fetchedAt: '2026-10-28T12:00:00.000Z',
+    };
+    const review = vi.fn<(tabId: string) => Promise<Fetched<Review>>>(() => Promise.resolve(want));
+    fakeMaple({ pr: { review } });
+    // when
+    const { result } = renderHook(() => useCardData(tab));
+    // then
+    await waitFor(() => {
+      expect(result.current.review).toEqual(want);
+    });
+    expect(review).toHaveBeenCalledWith('t1');
   });
 });

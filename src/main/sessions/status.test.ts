@@ -42,7 +42,7 @@ const openPr: PrInfo = {
 type Overrides = {
   tab?: TabState | null;
   getCard?: () => Promise<Card>;
-  prFor?: (worktree: string) => Promise<PrInfo | null>;
+  prFor?: (worktree: string, projectKey: string) => Promise<PrInfo | null>;
 };
 
 function setup(overrides: Overrides = {}) {
@@ -146,7 +146,7 @@ describe('StatusEngine', () => {
     await vi.waitFor(() => {
       expect(emitted.at(-1)?.dot).toBe('ready');
     });
-    expect(prFor).toHaveBeenCalledWith('/wts/dig-44');
+    expect(prFor).toHaveBeenCalledWith('/wts/dig-44', 'DIG');
   });
 
   test('a fresh unprompted spawn of a card that is not Done stays idle', async () => {
@@ -694,7 +694,7 @@ describe('StatusEngine', () => {
       expect(emitted.at(-1)?.dot).toBe('ready');
     });
     expect(getCard).toHaveBeenCalledWith('DIG-44');
-    expect(prFor).toHaveBeenCalledWith('/wts/dig-44');
+    expect(prFor).toHaveBeenCalledWith('/wts/dig-44', 'DIG');
   });
 
   test.each([

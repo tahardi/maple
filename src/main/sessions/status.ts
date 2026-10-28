@@ -9,7 +9,7 @@ import type { SessionManager } from './sessions';
 export type StatusDeps = {
   sessions: SessionManager;
   getCard: (key: string) => Promise<Card>;
-  prFor: (worktree: string) => Promise<PrInfo | null>;
+  prFor: (worktree: string, projectKey: string) => Promise<PrInfo | null>;
   logger?: Logger;
 };
 
@@ -118,7 +118,9 @@ export class StatusEngine extends EventEmitter<Events> {
         timeout(this.deps.getCard(tab.cardKey)).catch((err: unknown) => this.fail('jira', 'getCard', err)),
         worktreePath === null
           ? null
-          : timeout(this.deps.prFor(worktreePath)).catch((err: unknown) => this.fail('gh', 'prFor', err)),
+          : timeout(this.deps.prFor(worktreePath, tab.projectKey)).catch((err: unknown) =>
+              this.fail('gh', 'prFor', err),
+            ),
       ]);
       input = { type: 'stop', kind: 'card', cardStatus: card.status, pr };
     } catch {
@@ -144,7 +146,9 @@ export class StatusEngine extends EventEmitter<Events> {
       const worktreePath = this.deps.sessions.get(tabId)?.worktreePath ?? null;
       const pr =
         card.status === 'In Review' && worktreePath !== null
-          ? await timeout(this.deps.prFor(worktreePath)).catch((err: unknown) => this.fail('gh', 'prFor', err))
+          ? await timeout(this.deps.prFor(worktreePath, tab.projectKey)).catch((err: unknown) =>
+              this.fail('gh', 'prFor', err),
+            )
           : null;
       input = { type: 'stop', kind: 'card', cardStatus: card.status, pr };
     } catch {

@@ -1,5 +1,6 @@
 import type { Card } from '@shared/types/jira';
-import type { PrInfo } from '@shared/types/github';
+import type { Fetched } from '@shared/types/app';
+import type { PrInfo, Review, SecurityFinding } from '@shared/types/github';
 import type { TabState } from '@shared/types/tabs';
 import type { VaultNote } from '@shared/types/files';
 import type { PaneAction } from '../claude/ClaudePane';
@@ -51,6 +52,18 @@ const pr: PrInfo = {
   body: '',
   checks: { passed: 4, failed: 0, pending: 0, total: 4, runs: [] },
 };
+
+const head = 'a'.repeat(40);
+
+function reviewOf(paths: readonly string[], findings: SecurityFinding[] = []): () => Promise<Fetched<Review>> {
+  const files = paths.map((path) => ({ path, status: 'M' as const, oldPath: null, stamp: 'f'.repeat(40) }));
+  return () =>
+    Promise.resolve({
+      data: { number: 13, headSha: head, baseSha: 'c'.repeat(40), files, findings },
+      error: null,
+      fetchedAt: null,
+    });
+}
 
 function fakeRepo(withPr: boolean, cards: readonly Card[] = []) {
   fakeMaple({
@@ -524,7 +537,7 @@ describe('CardTab', () => {
     const approve = vi.fn(() => Promise.resolve());
     fakeMaple({
       session: { sendPrompt },
-      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), approve },
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review: reviewOf([]), approve },
     });
     const config = {
       worktreesDir: '',
@@ -541,7 +554,7 @@ describe('CardTab', () => {
     await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
     // then
     expect(sendPrompt).toHaveBeenCalledWith('t1', 'Sync MPL-20');
-    expect(approve).toHaveBeenCalledWith('t1');
+    expect(approve).toHaveBeenCalledWith('t1', head);
   });
 
   test.each([
@@ -604,7 +617,9 @@ describe('CardTab', () => {
       .fn<() => Promise<void>>()
       .mockRejectedValueOnce(new Error('approving PR: offline'))
       .mockResolvedValueOnce(undefined);
-    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), approve } });
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review: reviewOf([]), approve },
+    });
     render(<CardTab tab={tab} />);
     const slot = within(screen.getByTestId('claude-slot'));
     // when
@@ -629,6 +644,7 @@ describe('CardTab', () => {
     fakeMaple({
       pr: {
         get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
+        review: reviewOf([]),
         approve: vi.fn<() => Promise<void>>().mockRejectedValue(reason),
       },
     });
@@ -642,7 +658,8 @@ describe('CardTab', () => {
 
   function fakeApprove(
     paths: readonly string[] = ['src/a.ts'],
-    approve = vi.fn<(tabId: string) => Promise<void>>(() => Promise.resolve()),
+    approve = vi.fn<(tabId: string, headSha: string) => Promise<void>>(() => Promise.resolve()),
+    findings: SecurityFinding[] = [],
   ) {
     fakeMaple({
       repo: {
@@ -655,7 +672,11 @@ describe('CardTab', () => {
           }),
         listFiles: () => Promise.resolve(['README.md', ...paths]),
       },
-      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), approve },
+      pr: {
+        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
+        review: reviewOf(paths, findings),
+        approve,
+      },
     });
     return approve;
   }
@@ -689,7 +710,7 @@ describe('CardTab', () => {
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: button }));
     // then
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(approve.mock.calls).toEqual(approved ? [['t1']] : []);
+    expect(approve.mock.calls).toEqual(approved ? [['t1', head]] : []);
   });
 
   test('Close opens a dialog that warns before closing the card', async () => {
@@ -727,7 +748,7 @@ describe('CardTab', () => {
     // given
     fakeApprove(
       ['src/a.ts'],
-      vi.fn<(tabId: string) => Promise<void>>().mockRejectedValue(new Error('approving PR: offline')),
+      vi.fn<(tabId: string, headSha: string) => Promise<void>>().mockRejectedValue(new Error('approving PR: offline')),
     );
     render(<CardTab tab={tab} />);
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
@@ -749,7 +770,90 @@ describe('CardTab', () => {
     await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
     // then
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(approve).toHaveBeenCalledWith('t1');
+    expect(approve).toHaveBeenCalledWith('t1', head);
+  });
+
+  test('with a review, the tree lists the review files instead of the worktree changes', async () => {
+    // given
+    fakeApprove(['src/a.ts']);
+    window.maple.pr.review = reviewOf(['src/b.ts']);
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByRole('checkbox', { name: 'Viewed src/b.ts' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Viewed src/a.ts' })).not.toBeInTheDocument();
+  });
+
+  test('shows the reviewed commit and findings in the PR summary', async () => {
+    // given
+    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
+    fakeApprove([], undefined, [finding]);
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Token logged' })).toBeInTheDocument();
+  });
+
+  test.each([
+    { name: 'Approve anyway approves', button: 'Approve anyway', approved: true },
+    { name: 'Cancel does not approve', button: 'Cancel', approved: false },
+  ])('an open high finding asks first: $name', async ({ button, approved }) => {
+    // given
+    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
+    const approve = fakeApprove([], undefined, [finding]);
+    render(<CardTab tab={tab} />);
+    await screen.findByText('Reviewing aaaaaaa');
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    // then
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Open security findings');
+    expect(dialog).toHaveTextContent('1 open high-severity finding. Approve anyway?');
+    // when
+    await userEvent.click(within(dialog).getByRole('button', { name: button }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(approve.mock.calls).toEqual(approved ? [['t1', head]] : []);
+  });
+
+  test('after the findings dialog, unviewed files still ask before approving', async () => {
+    // given
+    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
+    const approve = fakeApprove(['src/a.ts'], undefined, [finding]);
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    // when
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' }));
+    // then
+    expect(screen.getByRole('dialog')).toHaveTextContent('1 changed file not viewed. Approve anyway?');
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  test('medium and low findings do not ask before approving', async () => {
+    // given
+    const finding: SecurityFinding = { id: 'F2', severity: 'medium', summary: 'Wide scope', url: 'https://x/2' };
+    const approve = fakeApprove([], undefined, [finding]);
+    render(<CardTab tab={tab} />);
+    await screen.findByText('Reviewing aaaaaaa');
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(approve).toHaveBeenCalledWith('t1', head);
+  });
+
+  test('an open PR without a loaded review disables Approve', async () => {
+    // given
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' });
+    await vi.waitFor(() => {
+      expect(approve).toHaveAttribute('title', 'Review not loaded');
+    });
   });
 
   test('a working tab disables Approve', async () => {

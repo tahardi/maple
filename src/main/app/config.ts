@@ -17,7 +17,16 @@ const configSchema = z
     vaultDir: z.string().optional(),
     notifications: z.boolean().default(true),
     projects: z.array(
-      z.object({ name: z.string(), jiraKey: z.string(), jiraBoardId: z.number(), plannerDir: z.string() }),
+      z.object({
+        name: z.string(),
+        jiraKey: z.string(),
+        jiraBoardId: z.number(),
+        plannerDir: z.string(),
+        repo: z
+          .string()
+          .regex(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*$/)
+          .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..')),
+      }),
     ),
     actions: z.array(z.object({ label: z.string(), prompt: z.string() })).default(defaultActions),
   })

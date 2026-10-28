@@ -1,4 +1,4 @@
-import type { CheckRun, ChecksSummary, PrInfo } from '@shared/types/github';
+import type { CheckRun, ChecksSummary, PrInfo, SecurityFinding } from '@shared/types/github';
 import type { Fetched } from '@shared/types/app';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -27,7 +27,7 @@ describe('PrSummary', () => {
     // given
     const pr = fetched(info);
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
     // then
     expect(screen.getByRole('link', { name: 'PR #33 [MPL-20] File Tree and PR Summary' })).toHaveAttribute(
       'href',
@@ -43,7 +43,7 @@ describe('PrSummary', () => {
   test('opens the full description', async () => {
     // given
     const onOpenDescription = vi.fn();
-    render(<PrSummary pr={fetched(info)} onOpenDescription={onOpenDescription} />);
+    render(<PrSummary pr={fetched(info)} onOpenDescription={onOpenDescription} findings={[]} headSha={null} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Full description' }));
     // then
@@ -54,7 +54,7 @@ describe('PrSummary', () => {
     // given
     const pr = fetched({ ...info, needsTaylor: '- run `make run`\n- check the board', cardImpacts: null });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
     // then
     const items = screen.getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual(['run make run', 'check the board']);
@@ -66,7 +66,7 @@ describe('PrSummary', () => {
     // given
     const pr = fetched({ ...info, deviations: null, needsTaylor: null, cardImpacts: null });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
     // then
     const headings = screen.getAllByRole('heading').map((h) => h.textContent);
     expect(headings).toEqual(['Deviations from the card', 'Needs Taylor', 'Card impacts']);
@@ -83,7 +83,7 @@ describe('PrSummary', () => {
     // given
     const pr = fetched({ ...info, checks });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
     // then
     expect(screen.getByText(text)).toBeInTheDocument();
   });
@@ -99,7 +99,7 @@ describe('PrSummary', () => {
     const link = 'https://github.com/tahardi/maple/actions/runs/1/job/2';
     const pr = fetched({ ...info, checks: { ...info.checks, runs: [{ name: 'lint', bucket, link }] } });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
     // then
     const anchor = screen.getByRole('link', { name: 'lint' });
     expect(anchor).toHaveAttribute('href', link);
@@ -118,7 +118,7 @@ describe('PrSummary', () => {
     ];
     const pr = fetched({ ...info, checks: { ...info.checks, runs } });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
     // then
     expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
       '✗ unit-test',
@@ -133,7 +133,7 @@ describe('PrSummary', () => {
     // given
     const pr = fetched({ ...info, checks: { ...info.checks, runs: [] } });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
     // then
     expect(screen.getAllByRole('list')).toHaveLength(2);
     expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
@@ -146,7 +146,7 @@ describe('PrSummary', () => {
     // given
     const pr = fetched(info, 'listing PRs: network down');
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} />);
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
     // then
     expect(screen.getByText('GitHub unreachable')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /PR #33/ })).toBeInTheDocument();
@@ -159,11 +159,47 @@ describe('PrSummary', () => {
     // given
     const input = pr;
     // when
-    render(<PrSummary pr={input} onOpenDescription={vi.fn()} />);
+    render(<PrSummary pr={input} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
     // then
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Full description' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading')).not.toBeInTheDocument();
     expect(screen.queryByText('GitHub unreachable') !== null).toBe(unreachable);
+  });
+
+  test('lists open security findings as text', () => {
+    // given
+    const findings: SecurityFinding[] = [
+      { id: 'F1', severity: 'high', summary: '<img src=x onerror=alert(1)>', url: 'https://github.com/x/1' },
+      { id: 'F2', severity: 'low', summary: 'Wide permissions', url: 'https://github.com/x/2' },
+    ];
+    // when
+    const { container } = render(
+      <PrSummary pr={fetched(info)} onOpenDescription={vi.fn()} findings={findings} headSha={null} />,
+    );
+    // then
+    expect(screen.getByRole('heading', { name: 'Security findings' })).toBeInTheDocument();
+    expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByText('high')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Wide permissions' })).toHaveAttribute('href', 'https://github.com/x/2');
+  });
+
+  test('shows no findings section when there are none', () => {
+    // given
+    const pr = fetched(info);
+    // when
+    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    // then
+    expect(screen.queryByRole('heading', { name: 'Security findings' })).toBeNull();
+  });
+
+  test('shows the reviewed commit', () => {
+    // given
+    const headSha = '0123456789abcdef0123456789abcdef01234567';
+    // when
+    render(<PrSummary pr={fetched(info)} onOpenDescription={vi.fn()} findings={[]} headSha={headSha} />);
+    // then
+    expect(screen.getByText('Reviewing 0123456')).toBeInTheDocument();
   });
 });

@@ -1,16 +1,15 @@
 import { describe, expect, test } from 'vitest';
-import { expandHome } from '../../src/main/app/config';
+import { ghRunner } from '../../src/main/github/ghRunner';
 import { prForBranch } from '../../src/main/github/pr';
-import { defaultRunner } from '../../src/main/app/preflight';
 
-const repo = expandHome('~/Documents/code/maple');
+const run = ghRunner('tahardi/maple');
 
 describe('github', () => {
   test('finds the merged PR for a known branch', async () => {
     // given
     const branch = 'mpl-7-typescript-standards';
     // when
-    const pr = await prForBranch(defaultRunner, repo, branch);
+    const pr = await prForBranch(run, '', branch);
     // then
     expect(pr?.state).toBe('MERGED');
     expect(pr?.number).toBeGreaterThan(0);
@@ -29,7 +28,7 @@ describe('github', () => {
     // given
     const branch = 'maple-live-test-no-such-branch';
     // when
-    const pr = await prForBranch(defaultRunner, repo, branch);
+    const pr = await prForBranch(run, '', branch);
     // then
     expect(pr).toBeNull();
   });

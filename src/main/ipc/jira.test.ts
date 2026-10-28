@@ -16,7 +16,13 @@ const { handle } = vi.hoisted(() => ({ handle: vi.fn<(channel: string, handler: 
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 
-const project: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
+const project: ProjectConfig = {
+  name: 'Halo',
+  jiraKey: 'HALO',
+  jiraBoardId: 7,
+  plannerDir: '/tmp/halo',
+  repo: 'tahardi/halo',
+};
 
 const sessions = {} as SessionManager;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };

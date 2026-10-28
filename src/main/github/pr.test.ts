@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { commentOnPr, diffLines, headCommit, prForBranch } from './pr';
+import { approveAndMerge, commentOnPr, diffLines, headCommit, prForBranch } from './pr';
 import type { Runner } from '@main/app/preflight';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');
@@ -176,6 +176,8 @@ describe('diffLines', () => {
         [141, 163],
       ],
       'tsconfig.node.json': [[18, 24]],
+      'src/main/github/new.ts': [[1, 1]],
+      'e2e/old.ts': [],
     });
   });
 
@@ -220,5 +222,41 @@ describe('headCommit', () => {
     const result = headCommit(run, '/wt', 33);
     // then
     await expect(result).rejects.toThrow('reading PR head: no pull requests found');
+  });
+});
+
+describe('approveAndMerge', () => {
+  const sha = 'a'.repeat(40);
+  const review = `api --method POST repos/{owner}/{repo}/pulls/33/reviews -f event=APPROVE -f commit_id=${sha}`;
+  const merge = `pr merge 33 --squash --match-head-commit ${sha}`;
+
+  function runner(answers: Record<string, Reply>) {
+    return vi.fn<Runner>((_cmd, args) => Promise.resolve(answers[args.join(' ')] ?? ok('')));
+  }
+
+  test('merges the pinned commit without a review when GitHub refuses self-approval', async () => {
+    // given
+    const run = runner({
+      'pr view 33 --json headRefOid --jq .headRefOid': ok(`${sha}\n`),
+      [review]: {
+        code: 1,
+        stdout: '{"message":"Unprocessable Entity","errors":["Can not approve your own pull request"]}',
+        stderr: 'gh: Unprocessable Entity (HTTP 422)',
+      },
+    });
+    // when
+    await approveAndMerge(run, 33, sha);
+    // then
+    expect(run).toHaveBeenCalledWith('gh', merge.split(' '), '');
+  });
+
+  test('reports a failed head read', async () => {
+    // given
+    const run = runner({ 'pr view 33 --json headRefOid --jq .headRefOid': { code: 1, stdout: '', stderr: 'offline' } });
+    // when
+    const result = approveAndMerge(run, 33, sha);
+    // then
+    await expect(result).rejects.toThrow(/^approving PR: reading PR head: offline$/);
+    expect(run).toHaveBeenCalledTimes(1);
   });
 });

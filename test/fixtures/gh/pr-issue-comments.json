@@ -1,0 +1,49 @@
+[
+  [
+    {
+      "id": 2001,
+      "html_url": "https://github.com/tahardi/maple/pull/33#issuecomment-2001",
+      "user": {
+        "login": "xena-dev[bot]"
+      },
+      "created_at": "2026-10-25T10:00:00Z",
+      "body": "<!-- xena-security-finding severity=medium id=F2 -->\n\nShell command built from branch name\n\nDetails here."
+    },
+    {
+      "id": 2002,
+      "html_url": "https://github.com/tahardi/maple/pull/33#issuecomment-2002",
+      "user": {
+        "login": "xena-dev[bot]"
+      },
+      "created_at": "2026-10-25T10:01:00Z",
+      "body": "<!-- xena-security-finding severity=high id=F1 -->\nToken written to the log file\n\nThe new logger prints the token."
+    },
+    {
+      "id": 2003,
+      "html_url": "https://github.com/tahardi/maple/pull/33#issuecomment-2003",
+      "user": {
+        "login": "tahardi"
+      },
+      "created_at": "2026-10-25T11:00:00Z",
+      "body": "Fine for now, the branch names come from Jira keys.\nxena-accept F2"
+    },
+    {
+      "id": 2004,
+      "html_url": "https://github.com/tahardi/maple/pull/33#issuecomment-2004",
+      "user": {
+        "login": "xena-dev[bot]"
+      },
+      "created_at": "2026-10-25T11:05:00Z",
+      "body": "Accepting my own finding.\nxena-accept F1"
+    },
+    {
+      "id": 2005,
+      "html_url": "https://github.com/tahardi/maple/pull/33#issuecomment-2005",
+      "user": {
+        "login": "tahardi"
+      },
+      "created_at": "2026-10-25T11:10:00Z",
+      "body": "Thanks, looking now."
+    }
+  ]
+]
