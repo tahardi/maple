@@ -208,7 +208,7 @@ describe('headCommit', () => {
 describe('approveAndMerge', () => {
   const sha = 'a'.repeat(40);
   const viewPin = 'pr view 33 --json headRefOid,headRefName,baseRefName';
-  const viewRepo = 'repo view --json defaultBranchRef --jq .defaultBranchRef.name';
+  const viewRepo = 'api repos/{owner}/{repo} --jq .default_branch';
   const review = `api --method POST repos/{owner}/{repo}/pulls/33/reviews -f event=APPROVE -f commit_id=${sha}`;
   const merge = `pr merge 33 --squash --match-head-commit ${sha}`;
   const pin = (head = sha, branch = 'dig-44-trail-map', target = 'main') =>
@@ -228,6 +228,15 @@ describe('approveAndMerge', () => {
     await approveAndMerge(run, 33, sha, 'DIG-44');
     // then
     expect(run.mock.calls.map(([, args]) => args.join(' '))).toEqual([viewPin, viewRepo, review, merge]);
+  });
+
+  test('merges a PR that targets the default branch GitHub reports', async () => {
+    // given
+    const run = runner({ [viewPin]: pin(sha, 'dig-44-trail-map', 'trunk'), [viewRepo]: ok('trunk\n') });
+    // when
+    await approveAndMerge(run, 33, sha, 'DIG-44');
+    // then
+    expect(run).toHaveBeenCalledWith('gh', merge.split(' '), '');
   });
 
   test('merges the pinned commit without a review when GitHub refuses self-approval', async () => {

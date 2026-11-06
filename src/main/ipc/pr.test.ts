@@ -145,7 +145,7 @@ function approver(
 }
 
 const viewPin = 'pr view 33 --json headRefOid,headRefName,baseRefName';
-const viewRepo = 'repo view --json defaultBranchRef --jq .defaultBranchRef.name';
+const viewRepo = 'api repos/{owner}/{repo} --jq .default_branch';
 const pinned = (sha: string) =>
   ok(JSON.stringify({ headRefOid: sha, headRefName: 'dig-44-trail', baseRefName: 'main' }));
 const postReview = `api --method POST repos/{owner}/{repo}/pulls/33/reviews -f event=APPROVE -f commit_id=${head}`;

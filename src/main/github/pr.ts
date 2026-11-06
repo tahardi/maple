@@ -123,11 +123,7 @@ export async function approveAndMerge(run: Runner, num: number, headSha: string,
     ),
   );
   const defaultBranch = (
-    await ghOut(
-      run,
-      ['repo', 'view', '--json', 'defaultBranchRef', '--jq', '.defaultBranchRef.name'],
-      'reading default branch',
-    )
+    await ghOut(run, ['api', 'repos/{owner}/{repo}', '--jq', '.default_branch'], 'reading default branch')
   ).trim();
   if (pinned.headRefOid !== headSha) {
     throw new Error('approving PR: the PR changed after the diff loaded; review it again');
