@@ -218,6 +218,7 @@ function renderNote(vault: Partial<MapleApi['vault']> = {}) {
       line={null}
       canComment={false}
       prFetchedAt={null}
+      noteChanges
     />,
   );
   return maple;
@@ -546,12 +547,12 @@ describe('FileViewer', () => {
       tabId: 't1',
       openFiles: ['vault:Spike.md', 'vault:Other.md'],
       onActivate: vi.fn(),
-      onCloseFile: vi.fn(),
       onCloseFiles: vi.fn(),
       prBody: null,
       line: null,
       canComment: false,
       prFetchedAt: null,
+      noteChanges: true,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="vault:Spike.md" />);
     await screen.findByTestId('editor');
@@ -621,14 +622,54 @@ describe('FileViewer', () => {
     });
   });
 
-  test('shows the note when its saved copy cannot be read', async () => {
+  test('shows the note and says why Changes is off when its saved copy cannot be read', async () => {
     // given
-    const before = vi.fn(() => Promise.reject(new Error('reading snapshot: failed')));
+    const message = 'reading snapshot: note is too large to compare (over 2 MB)';
+    const before = vi.fn(() =>
+      Promise.reject(new Error(`Error invoking remote method 'vault:before': Error: ${message}`)),
+    );
     // when
     renderNote({ before });
     // then
     expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Changes' })).toBeDisabled();
+    const button = screen.getByRole('button', { name: 'Changes' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', message);
+  });
+
+  test('says why a note cannot be shown', async () => {
+    // given
+    const read = vi.fn(() =>
+      Promise.reject(new Error("Error invoking remote method 'vault:read': Error: reading note: file is too large")),
+    );
+    // when
+    renderNote({ read });
+    // then
+    expect(await screen.findByText(/reading note: file is too large/)).toBeInTheDocument();
+  });
+
+  test('Edit turns Changes off, so Preview shows the formatted note', async () => {
+    // given
+    renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
+    await screen.findByTestId('editor');
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    // then
+    expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('Changes is off and disabled while editing', async () => {
+    // given
+    renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
+    await screen.findByTestId('editor');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    // then
+    const button = screen.getByRole('button', { name: 'Changes' });
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+    expect(button).toBeDisabled();
   });
 
   test('Changes is disabled when the session saved no copy of the note', async () => {
@@ -640,7 +681,7 @@ describe('FileViewer', () => {
     // then
     const button = await screen.findByRole('button', { name: 'Changes' });
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', 'The session has not changed this note');
+    expect(button).toHaveAttribute('title', 'No saved copy of this note from this session');
   });
 
   test('re-reads the saved copy when the vault changes', async () => {

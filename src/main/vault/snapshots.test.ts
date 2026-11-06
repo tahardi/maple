@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { MAX_BYTES } from '@main/app/paths';
 import { readSnapshot, removeSnapshots, snapshotDir } from './snapshots';
 
 describe('snapshots', () => {
@@ -57,6 +58,16 @@ describe('snapshots', () => {
     const got = readSnapshot(sessionId, path);
     // then
     await expect(got).rejects.toThrow('reading snapshot: path is outside the snapshots');
+  });
+
+  test('readSnapshot rejects a copy over the size limit', async () => {
+    // given
+    await mkdir(join(dir, 'snapshots', 's1'), { recursive: true });
+    await writeFile(join(dir, 'snapshots', 's1', 'big.md'), 'x'.repeat(MAX_BYTES + 1));
+    // when
+    const got = readSnapshot('s1', 'big.md');
+    // then
+    await expect(got).rejects.toThrow('reading snapshot: note is too large to compare (over 2 MB)');
   });
 
   test('readSnapshot rejects when the copy cannot be read', async () => {

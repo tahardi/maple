@@ -1,7 +1,7 @@
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, rm, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { configDir } from '@main/app/config';
-import { isInside } from '@main/app/paths';
+import { isInside, MAX_BYTES } from '@main/app/paths';
 
 export function snapshotDir(sessionId: string): string {
   return join(configDir(), 'snapshots', sessionId);
@@ -14,6 +14,9 @@ export async function readSnapshot(sessionId: string, path: string): Promise<str
     throw new Error('reading snapshot: path is outside the snapshots');
   }
   try {
+    if ((await stat(full)).size > MAX_BYTES) {
+      throw new Error('reading snapshot: note is too large to compare (over 2 MB)');
+    }
     return await readFile(full, 'utf8');
   } catch (err) {
     if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {

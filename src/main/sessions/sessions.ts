@@ -280,8 +280,8 @@ export class SessionManager extends EventEmitter<Events> {
     const env = {
       MAPLE_TAB_ID: tab.id,
       MAPLE_SOCKET: this.deps.socketPath,
-      MAPLE_SNAPSHOT_DIR: join(this.deps.snapshotRoot, tab.sessionId),
-      ...(config.vaultDir === null ? {} : { MAPLE_VAULT_DIR: config.vaultDir }),
+      ...(tab.kind === 'card' && { MAPLE_SNAPSHOT_DIR: join(this.deps.snapshotRoot, tab.sessionId) }),
+      ...(tab.kind === 'card' && config.vaultDir !== null && { MAPLE_VAULT_DIR: config.vaultDir }),
     };
     const command = tmuxArgs(tmuxName(tab.id), this.deps.tmuxConf, cwd, env, ['claude', ...args]);
     const pty = this.deps.spawn('tmux', command, {
