@@ -547,6 +547,20 @@ describe('CardTab', () => {
     expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
   });
 
+  test('opening quick open closes the file tab menu', async () => {
+    // given
+    fakeRepo(false);
+    useMaple.setState({ activeTabId: 't1' });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'README.md' }));
+    // when
+    await userEvent.keyboard('{Control>}p{/Control}');
+    // then
+    expect(screen.getByRole('dialog', { name: 'Quick open' })).toBeInTheDocument();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
   test('Close All on a file tab clears the selection', async () => {
     // given
     fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });

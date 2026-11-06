@@ -17,6 +17,10 @@ function renderMenu(only = false) {
 }
 
 describe('FileTabMenu', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   test.each([
     { label: 'Close', handler: 'onClose' },
     { label: 'Close Others', handler: 'onCloseOthers' },
@@ -65,7 +69,7 @@ describe('FileTabMenu', () => {
     props.unmount();
     // when
     fireEvent.keyDown(document, { key: 'Escape' });
-    fireEvent.mouseDown(document.body);
+    fireEvent.pointerDown(document.body);
     // then
     expect(props.onDismiss).not.toHaveBeenCalled();
   });
@@ -74,16 +78,34 @@ describe('FileTabMenu', () => {
     // given
     const props = renderMenu();
     // when
-    fireEvent.mouseDown(document.body);
+    fireEvent.pointerDown(document.body);
     // then
     expect(props.onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  test('focus moving outside the menu dismisses it', () => {
+    // given
+    const props = renderMenu();
+    // when
+    fireEvent.focusIn(document.body);
+    // then
+    expect(props.onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  test('focus moving inside the menu does not dismiss it', () => {
+    // given
+    const props = renderMenu();
+    // when
+    fireEvent.focusIn(screen.getByRole('menuitem', { name: 'Close' }));
+    // then
+    expect(props.onDismiss).not.toHaveBeenCalled();
   });
 
   test('a click inside the menu does not dismiss it', () => {
     // given
     const props = renderMenu();
     // when
-    fireEvent.mouseDown(screen.getByRole('menuitem', { name: 'Close' }));
+    fireEvent.pointerDown(screen.getByRole('menuitem', { name: 'Close' }));
     // then
     expect(props.onDismiss).not.toHaveBeenCalled();
   });
@@ -96,5 +118,29 @@ describe('FileTabMenu', () => {
     // then
     expect(menu.style.left).toBe('40px');
     expect(menu.style.top).toBe('60px');
+  });
+
+  test.each([
+    { name: 'right', x: 1000, y: 60, left: '884px', top: '60px' },
+    { name: 'bottom', x: 40, y: 700, left: '40px', top: '678px' },
+    { name: 'corner', x: 1000, y: 700, left: '884px', top: '678px' },
+  ])('stays inside the window at the $name edge', ({ x, y, left, top }) => {
+    // given
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 140, height: 90 } as DOMRect);
+    // when
+    render(
+      <FileTabMenu
+        x={x}
+        y={y}
+        only={false}
+        onClose={vi.fn()}
+        onCloseOthers={vi.fn()}
+        onCloseAll={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    // then
+    expect(screen.getByRole('menu').style.left).toBe(left);
+    expect(screen.getByRole('menu').style.top).toBe(top);
   });
 });

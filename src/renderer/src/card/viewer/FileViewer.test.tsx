@@ -807,7 +807,7 @@ describe('FileViewer', () => {
     {
       name: 'a click outside',
       dismiss: () => {
-        fireEvent.mouseDown(document.body);
+        fireEvent.pointerDown(document.body);
       },
     },
   ])('$name removes the file tab menu without closing a tab', async ({ dismiss }) => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styles from './FileTabMenu.module.css';
 
 type Props = {
@@ -13,6 +13,14 @@ type Props = {
 
 export function FileTabMenu({ x, y, only, onClose, onCloseOthers, onCloseAll, onDismiss }: Props) {
   const menu = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useLayoutEffect(() => {
+    const box = menu.current?.getBoundingClientRect();
+    if (box !== undefined) {
+      setSize({ width: box.width, height: box.height });
+    }
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -20,21 +28,26 @@ export function FileTabMenu({ x, y, only, onClose, onCloseOthers, onCloseAll, on
         onDismiss();
       }
     };
-    const onMouseDown = (e: MouseEvent) => {
+    const onOutside = (e: Event) => {
       if (e.target instanceof Node && !menu.current?.contains(e.target)) {
         onDismiss();
       }
     };
     document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('pointerdown', onOutside);
+    document.addEventListener('focusin', onOutside);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('pointerdown', onOutside);
+      document.removeEventListener('focusin', onOutside);
     };
   }, [onDismiss]);
 
+  const left = Math.max(0, Math.min(x, window.innerWidth - size.width));
+  const top = Math.max(0, Math.min(y, window.innerHeight - size.height));
+
   return (
-    <div ref={menu} role="menu" className={styles.menu} style={{ left: x, top: y }}>
+    <div ref={menu} role="menu" className={styles.menu} style={{ left, top }}>
       <button role="menuitem" onClick={onClose}>
         Close
       </button>
