@@ -6,6 +6,7 @@ import { ClaudePane } from '../claude/ClaudePane';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
 import { buildTree } from '@renderer/card/viewer/buildTree';
+import { closeFiles } from '@renderer/card/viewer/closeFiles';
 import { cardActions } from './CardActions';
 import { CardHeader } from './CardHeader';
 import styles from './CardTab.module.css';
@@ -158,11 +159,11 @@ export function CardTab({ tab }: { tab: TabState }) {
     setActiveFile((active) => active ?? CARD_DESCRIPTION);
   }
 
-  const closeFile = (path: string) => {
-    const rest = openFiles.filter((file) => file !== path);
-    setOpenFiles(rest);
-    if (path === activeFile) {
-      activateFile(rest.at(-1) ?? null);
+  const closeTabs = (paths: readonly string[]) => {
+    const next = closeFiles(openFiles, activeFile, paths);
+    setOpenFiles(next.openFiles);
+    if (next.activeFile !== activeFile) {
+      activateFile(next.activeFile);
     }
   };
 
@@ -263,7 +264,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 openFiles={openFiles}
                 activeFile={activeFile}
                 onActivate={activateFile}
-                onCloseFile={closeFile}
+                onCloseFiles={closeTabs}
                 prBody={pr?.data?.body ?? null}
                 cardBody={card?.descriptionMd}
                 canComment={pr?.data?.state === 'OPEN'}

@@ -3,7 +3,7 @@ import type { PrInfo } from '@shared/types/github';
 import type { TabState } from '@shared/types/tabs';
 import type { VaultNote } from '@shared/types/files';
 import type { PaneAction } from '../claude/ClaudePane';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { useEffect } from 'react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
@@ -516,6 +516,49 @@ describe('CardTab', () => {
     // then
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     expect(screen.getByText('README.md').closest('li')?.className).not.toMatch(/selected/);
+  });
+
+  test('Close Others on a file tab keeps only that file open and active', async () => {
+    // given
+    fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    await userEvent.click(screen.getByText('a.ts'));
+    await userEvent.click(screen.getByText('b.ts'));
+    // when
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close Others' }));
+    // then
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['a.ts']);
+    expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  test('Close Others on the active file tab keeps it active', async () => {
+    // given
+    fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    await userEvent.click(screen.getByText('a.ts'));
+    // when
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close Others' }));
+    // then
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['a.ts']);
+    expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  test('Close All on a file tab clears the selection', async () => {
+    // given
+    fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    await userEvent.click(screen.getByText('a.ts'));
+    // when
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close All' }));
+    // then
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByText('a.ts').closest('li')?.className).not.toMatch(/selected/);
   });
 
   test('shows the config actions and Approve in the Claude pane', async () => {
