@@ -17,6 +17,7 @@ import { PR_DESCRIPTION } from '@renderer/card/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/cardDescription';
 import { useLineZones } from '@renderer/card/comments/useLineZones';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
+import { NoteOverview } from './overview/NoteOverview';
 import styles from './viewer.module.css';
 
 type Props = {
@@ -97,6 +98,7 @@ export function FileViewer({
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
   const [note, setNote] = useState<{ path: string; text: string } | null>(null);
+  const [noteScroller, setNoteScroller] = useState<HTMLDivElement | null>(null);
   const [editing, setEditing] = useState<Record<string, boolean>>({});
   const [plain, setPlain] = useState<editor.ICodeEditor | null>(null);
   const scrollTarget = useRef<editor.ICodeEditor | null>(null);
@@ -467,6 +469,16 @@ export function FileViewer({
             />
           </div>
         </>
+      );
+    }
+    if (showsNote && markdown !== null) {
+      return (
+        <div className={styles.noteView}>
+          <div ref={setNoteScroller} className={styles.description}>
+            <MarkdownText text={markdown} />
+          </div>
+          <NoteOverview text={markdown} scroller={noteScroller} />
+        </div>
       );
     }
     if (showsDescription || showsNote) {

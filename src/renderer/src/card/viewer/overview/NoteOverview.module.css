@@ -1,0 +1,29 @@
+.strip {
+  position: relative;
+  flex-shrink: 0;
+  width: 72px;
+  overflow: hidden;
+  cursor: default;
+  background: var(--bg);
+}
+
+.page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  padding: 12px;
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.slider {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--minimap-slider);
+}
+
+.strip:hover .slider {
+  background: var(--minimap-slider-hover);
+}
