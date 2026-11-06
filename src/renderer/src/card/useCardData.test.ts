@@ -5,6 +5,15 @@ import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';
 import { useCardData } from './useCardData';
 
+type RejectionListener = (reason: unknown, promise: unknown) => void;
+
+declare const process: {
+  listeners(event: 'unhandledRejection'): RejectionListener[];
+  removeAllListeners(event: 'unhandledRejection'): void;
+  on(event: 'unhandledRejection', listener: RejectionListener): void;
+  off(event: 'unhandledRejection', listener: RejectionListener): void;
+};
+
 const tab: TabState = {
   id: 't1',
   projectKey: 'BEAR',
@@ -71,6 +80,34 @@ describe('useCardData', () => {
       expect(result.current.cost).toEqual(want);
     });
     expect(info).not.toHaveBeenCalled();
+    expect(result.current.repo).toBeNull();
+  });
+
+  test('leaves the repo info empty when the changes fail', async () => {
+    // given
+    const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(() =>
+      Promise.resolve({ name: 'bearclave', branch: 'bear-1-thing' }),
+    );
+    const failure = new Error('running git merge-base: no origin/main');
+    const changes = vi.fn(() => Promise.reject(failure));
+    fakeMaple({ repo: { changes, info } });
+    const rejected = vi.fn();
+    const listeners = process.listeners('unhandledRejection');
+    process.removeAllListeners('unhandledRejection');
+    process.on('unhandledRejection', rejected);
+    onTestFinished(() => {
+      process.off('unhandledRejection', rejected);
+      listeners.forEach((listener) => {
+        process.on('unhandledRejection', listener);
+      });
+    });
+    // when
+    const { result } = renderHook(() => useCardData(tab));
+    // then
+    await waitFor(() => {
+      expect(rejected).toHaveBeenCalledWith(failure, expect.anything());
+    });
+    expect(info).toHaveBeenCalledWith('t1');
     expect(result.current.repo).toBeNull();
   });
 
