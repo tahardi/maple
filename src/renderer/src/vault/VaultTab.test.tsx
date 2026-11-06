@@ -53,6 +53,19 @@ function fakeVault() {
 }
 
 describe('VaultTab', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      vi.fn(function ResizeObserver() {
+        return { observe: vi.fn(), disconnect: vi.fn() };
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   test('shows the top level of the vault with folders closed', async () => {
     // given
     fakeVault();

@@ -30,6 +30,8 @@ const palette = [
   ['--diff-chg-bg', 'rgba(212, 177, 6, 0.15)'],
   ['--diff-del', '#e5534b'],
   ['--overlay', 'rgb(0 0 0 / 60%)'],
+  ['--minimap-slider', 'rgba(121, 121, 121, 0.2)'],
+  ['--minimap-slider-hover', 'rgba(121, 121, 121, 0.35)'],
   ['--epic-purple', '#b8acf6'],
   ['--epic-blue', '#85b8ff'],
   ['--epic-green', '#7ee2b8'],

@@ -121,6 +121,16 @@ describe('CardTab', () => {
     useMaple.setState(useMaple.getInitialState(), true);
     useMaple.setState({ config: FAKE_CONFIG });
     localStorage.clear();
+    vi.stubGlobal(
+      'ResizeObserver',
+      vi.fn(function ResizeObserver() {
+        return { observe: vi.fn(), disconnect: vi.fn() };
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   test('shows the waiting text in the tree and viewer without a worktree', async () => {

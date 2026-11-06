@@ -323,6 +323,93 @@ describe('FileViewer', () => {
     expect(onCloseFiles).toHaveBeenCalledWith([path]);
   });
 
+  test('shows an overview strip beside a formatted vault note', async () => {
+    // given
+    renderNote();
+    // when
+    await screen.findByRole('heading', { name: 'Findings' });
+    // then
+    expect(screen.getByTestId('note-overview')).toBeInTheDocument();
+  });
+
+  test('shows no overview strip while editing a note', async () => {
+    // given
+    renderNote();
+    // when
+    await editNote();
+    // then
+    expect(screen.queryByTestId('note-overview')).not.toBeInTheDocument();
+  });
+
+  test('brings the overview strip back after editing', async () => {
+    // given
+    renderNote();
+    await editNote();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    // then
+    expect(await screen.findByTestId('note-overview')).toBeInTheDocument();
+  });
+
+  test('shows no overview strip while a note loads', async () => {
+    // given
+    const read = vi.fn(() => new Promise<string>(() => undefined));
+    // when
+    renderNote({ read });
+    await act(() => Promise.resolve());
+    // then
+    expect(read).toHaveBeenCalled();
+    expect(screen.queryByTestId('note-overview')).not.toBeInTheDocument();
+  });
+
+  test('keeps the overview strip when another note opens', async () => {
+    // given
+    fakeMaple({ vault: { read: vi.fn((path: string) => Promise.resolve(`## ${path}\n`)) } });
+    const props = {
+      tabId: 't1',
+      openFiles: ['vault:One.md', 'vault:Two.md'],
+      onActivate: vi.fn(),
+      onCloseFiles: vi.fn(),
+      prBody: null,
+      line: null,
+      canComment: false,
+      prFetchedAt: null,
+    };
+    const { rerender } = render(<FileViewer {...props} activeFile="vault:One.md" />);
+    await screen.findByRole('heading', { name: 'One.md' });
+    // when
+    rerender(<FileViewer {...props} activeFile="vault:Two.md" />);
+    await screen.findByRole('heading', { name: 'Two.md' });
+    // then
+    expect(screen.getByTestId('note-overview')).toHaveTextContent('Two.md');
+  });
+
+  test.each([
+    { name: 'Card description', path: CARD_DESCRIPTION, prBody: null, cardBody: '## Summary' },
+    { name: 'PR description', path: PR_DESCRIPTION, prBody: '## Summary', cardBody: undefined },
+  ])('shows no overview strip on the $name', ({ path, prBody, cardBody }) => {
+    // given
+    fakeMaple();
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={[path]}
+        activeFile={path}
+        onActivate={vi.fn()}
+        onCloseFiles={vi.fn()}
+        prBody={prBody}
+        cardBody={cardBody}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+      />,
+    );
+    // then
+    expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+    expect(screen.queryByTestId('note-overview')).not.toBeInTheDocument();
+  });
+
   test('shows each description with its own body', () => {
     // given
     fakeMaple();

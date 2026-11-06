@@ -17,6 +17,7 @@ import { PR_DESCRIPTION } from '@renderer/card/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/cardDescription';
 import { useLineZones } from '@renderer/card/comments/useLineZones';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
+import { NoteOverview } from './overview/NoteOverview';
 import { FileTabMenu } from './FileTabMenu';
 import styles from './viewer.module.css';
 
@@ -110,6 +111,7 @@ export function FileViewer({
   const [pair, setPair] = useState<FilePair | null>(null);
   const [readError, setReadError] = useState<{ path: string; message: string } | null>(null);
   const [note, setNote] = useState<{ path: string; text: string } | null>(null);
+  const [noteScroller, setNoteScroller] = useState<HTMLDivElement | null>(null);
   const [before, setBefore] = useState<{ path: string; text: string | null; error: string | null } | null>(null);
   const [editing, setEditing] = useState<Record<string, boolean>>({});
   const [changes, setChanges] = useState<Record<string, boolean>>({});
@@ -564,6 +566,16 @@ export function FileViewer({
       return (
         <div className={styles.notice} role="alert">
           {`Reading the note failed: ${readError.message}`}
+        </div>
+      );
+    }
+    if (showsNote && markdown !== null) {
+      return (
+        <div className={styles.noteView}>
+          <div ref={setNoteScroller} className={styles.description}>
+            <MarkdownText text={markdown} />
+          </div>
+          <NoteOverview text={markdown} scroller={noteScroller} />
         </div>
       );
     }

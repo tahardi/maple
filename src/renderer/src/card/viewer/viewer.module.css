@@ -82,6 +82,12 @@
   padding: 12px;
 }
 
+.noteView {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
 .message,
 .notice {
   padding: 12px;
