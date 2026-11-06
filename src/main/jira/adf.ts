@@ -16,6 +16,7 @@ type AdfNode = z.infer<typeof nodeSchema>;
 type AdfMark = z.infer<typeof markSchema>;
 
 const INLINE_PARENTS = new Set(['paragraph', 'heading', 'codeBlock']);
+const SAFE_LANGUAGE = /^[\w+#.-]+$/;
 
 export function adfToMarkdown(doc: unknown): string {
   const parsed = nodeSchema.safeParse(doc);
@@ -34,7 +35,7 @@ function render(node: AdfNode): string {
     case 'heading':
       return `${'#'.repeat(numberAttr(node, 'level', 1))} ${inline(children)}`;
     case 'codeBlock':
-      return `\`\`\`${stringAttr(node, 'language')}\n${inline(children)}\n\`\`\``;
+      return codeBlock(inline(children), stringAttr(node, 'language'));
     case 'bulletList':
       return children.map((item) => listItem(item, '- ')).join('\n');
     case 'orderedList': {
@@ -54,6 +55,13 @@ function render(node: AdfNode): string {
       }
       return stringAttr(node, 'text') || stringAttr(node, 'url');
   }
+}
+
+function codeBlock(code: string, language: string): string {
+  const longest = (code.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
+  const fence = '`'.repeat(Math.max(3, longest + 1));
+  const label = SAFE_LANGUAGE.test(language) ? language : '';
+  return `${fence}${label}\n${code}\n${fence}`;
 }
 
 function inline(nodes: AdfNode[]): string {
