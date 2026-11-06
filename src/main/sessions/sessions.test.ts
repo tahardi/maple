@@ -608,6 +608,17 @@ describe('SessionManager', () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  test('openCard that fails to launch leaves no tab behind', () => {
+    // given
+    const { manager } = setup();
+    // when
+    const open = () => manager.openCard('NOPE', 'NOPE-1', null);
+    // then
+    expect(open).toThrow('starting session: unknown project NOPE');
+    expect(open).toThrow('starting session: unknown project NOPE');
+    expect(manager.list()).toEqual([]);
+  });
+
   test('openVault and openPlanner keep separate tabs in one project', () => {
     // given
     const { manager } = setup({}, () => true, vaultConfig);

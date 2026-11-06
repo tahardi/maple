@@ -32,6 +32,7 @@ export function registerConfig(deps: IpcDeps): void {
   const reload = async () => {
     cached = loadConfig();
     const result = await cached;
+    await deps.configLoaded(result.data);
     send(deps.window(), 'config:changed', result);
     return result;
   };

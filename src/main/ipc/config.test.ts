@@ -71,6 +71,7 @@ function deps(window: () => BrowserWindow | null = () => null) {
     warnings: () => [],
     setNotifications: vi.fn(() => Promise.resolve()),
     setZoom: vi.fn(() => Promise.resolve()),
+    configLoaded: vi.fn(() => Promise.resolve()),
     setLastProject: vi.fn(() => Promise.resolve()),
     lastProject: () => Promise.resolve(null),
   };
@@ -109,6 +110,22 @@ describe('registerConfig', () => {
     expect(reloaded).toEqual(second);
     expect(after).toEqual(second);
     expect(sendToWindow).toHaveBeenCalledWith('config:changed', second);
+  });
+
+  test('reload hands the new config to the app before notifying the window', async () => {
+    // given
+    const reloadedConfig = loaded([halo]);
+    loadConfig.mockReset().mockResolvedValueOnce(first).mockResolvedValueOnce(reloadedConfig);
+    const { win, sendToWindow } = fakeWindow(false);
+    const given = deps(() => win);
+    registerConfig(given);
+    // when
+    await handler('config:reload')(event);
+    // then
+    expect(given.configLoaded).toHaveBeenCalledWith(reloadedConfig.data);
+    const [handedOver] = given.configLoaded.mock.invocationCallOrder;
+    const [notified] = sendToWindow.mock.invocationCallOrder;
+    expect(handedOver).toBeLessThan(notified);
   });
 
   test.each([

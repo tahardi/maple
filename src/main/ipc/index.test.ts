@@ -60,6 +60,7 @@ describe('registerIpc', () => {
     warnings: () => [],
     setNotifications: vi.fn(),
     setZoom: vi.fn(),
+    configLoaded: () => Promise.resolve(),
     setLastProject: vi.fn(() => Promise.resolve()),
     lastProject: () => Promise.resolve(null),
   };
