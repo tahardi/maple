@@ -105,6 +105,7 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
     repo: {
       changes: vi.fn(() => Promise.resolve(null)),
       listFiles: vi.fn(() => Promise.resolve([])),
+      info: vi.fn(() => Promise.resolve(null)),
       readFile: vi.fn((_tabId: string, path: string) => Promise.resolve({ kind: 'binary' as const, path })),
       writeFile: vi.fn(() => Promise.resolve()),
       search: vi.fn(() => Promise.resolve([])),

@@ -1,5 +1,5 @@
 import type { Card } from '@shared/types/jira';
-import type { ChangeSet } from '@shared/types/files';
+import type { ChangeSet, RepoInfo } from '@shared/types/files';
 import type { Fetched } from '@shared/types/app';
 import type { PrInfo, Review } from '@shared/types/github';
 import type { SessionCost, TabState } from '@shared/types/tabs';
@@ -9,6 +9,7 @@ import { useMaple } from '../store';
 type CardData = {
   changes: ChangeSet | null;
   files: string[];
+  repo: RepoInfo | null;
   pr: Fetched<PrInfo> | null;
   review: Fetched<Review> | null;
   card: Card | null;
@@ -21,6 +22,7 @@ export function useCardData(tab: TabState): CardData {
   const [data, setData] = useState<CardData>({
     changes: null,
     files: [],
+    repo: null,
     pr: null,
     review: null,
     card: null,
@@ -33,16 +35,25 @@ export function useCardData(tab: TabState): CardData {
   const load = useCallback(async (): Promise<void> => {
     const { maple } = window;
     const seq = ++latest.current;
-    const [changes, files, pr, review, sprint, cost] = await Promise.all([
+    const [changes, files, repo, pr, review, sprint, cost] = await Promise.all([
       worktreePath === null ? null : maple.repo.changes(id),
       worktreePath === null ? [] : maple.repo.listFiles(id),
+      worktreePath === null ? null : maple.repo.info(id),
       maple.pr.get(id),
       maple.pr.review(id),
       maple.jira.sprint(projectKey),
       maple.tabs.cost(id),
     ]);
     if (seq === latest.current) {
-      setData({ changes, files, pr, review, card: sprint.data?.cards.find((c) => c.key === cardKey) ?? null, cost });
+      setData({
+        changes,
+        files,
+        repo,
+        pr,
+        review,
+        card: sprint.data?.cards.find((c) => c.key === cardKey) ?? null,
+        cost,
+      });
     }
   }, [id, projectKey, cardKey, worktreePath]);
 
