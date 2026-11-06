@@ -70,6 +70,7 @@ function setup() {
       setActiveTab,
       setNotifications: () => Promise.resolve(),
       setZoom: () => Promise.resolve(),
+      configLoaded: () => Promise.resolve(),
       setLastProject: () => Promise.resolve(),
       lastProject: () => Promise.resolve(null),
       warnings: () => [],

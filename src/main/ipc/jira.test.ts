@@ -21,7 +21,13 @@ const { handle, removeSnapshots, sessionOf } = vi.hoisted(() => ({
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 vi.mock('@main/vault/snapshots', () => ({ removeSnapshots }));
 
-const project: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
+const project: ProjectConfig = {
+  name: 'Halo',
+  jiraKey: 'HALO',
+  jiraBoardId: 7,
+  plannerDir: '/tmp/halo',
+  repo: 'tahardi/halo',
+};
 
 const sessions = { sessionOf } as unknown as SessionManager;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -37,6 +43,7 @@ const deps = {
   warnings: () => [],
   setNotifications: () => Promise.resolve(),
   setZoom: () => Promise.resolve(),
+  configLoaded: () => Promise.resolve(),
   setLastProject: () => Promise.resolve(),
   lastProject: () => Promise.resolve(null),
 };

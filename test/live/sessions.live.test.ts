@@ -57,7 +57,15 @@ describe('SessionManager with a real claude', () => {
       vaultDir: null,
       notifications: false,
       actions: [],
-      projects: [{ name: 'Maple', jiraKey: 'MPL', jiraBoardId: 9, plannerDir: expandHome('~/Documents/code/maple') }],
+      projects: [
+        {
+          name: 'Maple',
+          jiraKey: 'MPL',
+          jiraBoardId: 9,
+          plannerDir: expandHome('~/Documents/code/maple'),
+          repo: 'tahardi/maple',
+        },
+      ],
     };
     const manager = new SessionManager({
       spawn,

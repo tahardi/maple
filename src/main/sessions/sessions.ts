@@ -240,7 +240,12 @@ export class SessionManager extends EventEmitter<Events> {
     };
     const session: Session = { tab, pty: null, alive: false, backlog: '', line: '', stopWatch: () => undefined };
     this.sessions.set(tab.id, session);
-    this.launch(session, { resume: resumeId !== null, prompt });
+    try {
+      this.launch(session, { resume: resumeId !== null, prompt });
+    } catch (err) {
+      this.sessions.delete(tab.id);
+      throw err;
+    }
     this.changed();
     if (cardKey !== null) {
       this.trackWorktree(session, cardKey);

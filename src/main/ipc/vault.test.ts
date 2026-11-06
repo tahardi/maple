@@ -52,6 +52,7 @@ function register(vaultDir: () => Promise<string | null>) {
       warnings: () => [],
       setNotifications: () => Promise.resolve(),
       setZoom: () => Promise.resolve(),
+      configLoaded: () => Promise.resolve(),
       setLastProject: () => Promise.resolve(),
       lastProject: () => Promise.resolve(null),
     },

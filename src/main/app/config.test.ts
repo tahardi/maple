@@ -8,8 +8,14 @@ const validConfig = {
   worktreesDir: '~/Documents/code/wts',
   notifications: true,
   projects: [
-    { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 2, plannerDir: '~/Documents/code/dig-days' },
-    { name: 'Bearclave', jiraKey: 'BEAR', jiraBoardId: 5, plannerDir: '~/Documents/code' },
+    {
+      name: 'Dig Days',
+      jiraKey: 'DIG',
+      jiraBoardId: 2,
+      plannerDir: '~/Documents/code/dig-days',
+      repo: 'tahardi/dig-days',
+    },
+    { name: 'Bearclave', jiraKey: 'BEAR', jiraBoardId: 5, plannerDir: '~/Documents/code', repo: 'tahardi/bearclave' },
   ],
   actions: [
     { label: 'Address review', prompt: '/card {key}' },
@@ -140,6 +146,34 @@ describe('loadConfig', () => {
     // then
     expect(result.data).toBeNull();
     expect(result.error).toMatch(error);
+  });
+
+  test('accepts a repo with dots and underscores', async () => {
+    // given
+    const config = { ...validConfig, projects: [{ ...validConfig.projects[0], repo: 'my_org/site.github.io' }] };
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data?.projects[0]?.repo).toBe('my_org/site.github.io');
+  });
+
+  test.each([
+    { repo: 'dig-days', want: 'must be owner/name' },
+    { repo: '-x/y', want: 'must be owner/name' },
+    { repo: 'a/b/c', want: 'must be owner/name' },
+    { repo: '../..', want: 'must be owner/name' },
+    { repo: './x', want: 'must be owner/name' },
+    { repo: undefined, want: 'Invalid input: expected string, received undefined' },
+  ])('rejects repo $repo', async ({ repo, want }) => {
+    // given
+    const config = { ...validConfig, projects: [{ ...validConfig.projects[0], repo }] };
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data).toBeNull();
+    expect(result.error).toBe(`reading config: projects.0.repo: ${want}`);
   });
 
   test('reports a missing file', async () => {

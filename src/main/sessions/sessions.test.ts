@@ -25,8 +25,8 @@ const config: MapleConfig = {
   vaultDir: null,
   notifications: true,
   projects: [
-    { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig-days' },
-    { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 2, plannerDir: '/tmp/halo' },
+    { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig-days', repo: 'tahardi/dig-days' },
+    { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 2, plannerDir: '/tmp/halo', repo: 'tahardi/halo' },
   ],
   actions: [],
 };
@@ -635,6 +635,17 @@ describe('SessionManager', () => {
     expect(open).toThrow('opening vault: no vaultDir in config');
     expect(spawnFn).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
+  });
+
+  test('openCard that fails to launch leaves no tab behind', () => {
+    // given
+    const { manager } = setup();
+    // when
+    const open = () => manager.openCard('NOPE', 'NOPE-1', null);
+    // then
+    expect(open).toThrow('starting session: unknown project NOPE');
+    expect(open).toThrow('starting session: unknown project NOPE');
+    expect(manager.list()).toEqual([]);
   });
 
   test('openVault and openPlanner keep separate tabs in one project', () => {
