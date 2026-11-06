@@ -98,6 +98,7 @@ async function start(): Promise<() => number> {
     },
     hooksFile,
     socketPath,
+    snapshotRoot: join(configDir(), 'snapshots'),
     save: (tabs, closedSessions) => persist({ tabs, closedSessions }),
     closedSessions: state.closedSessions,
     uuid: randomUUID,

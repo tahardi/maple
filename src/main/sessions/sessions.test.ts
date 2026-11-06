@@ -92,6 +92,7 @@ function setup(
     config: () => cfg,
     hooksFile: '/tmp/maple/hooksFile.json',
     socketPath: '/tmp/maple.sock',
+    snapshotRoot: '/tmp/maple/snapshots',
     save,
     closedSessions,
     uuid: () => `uuid-${String(++n)}`,
@@ -116,8 +117,15 @@ function resumed(manager: SessionManager, tab: TabState): TabState {
 
 const base = ['--dangerously-skip-permissions', '--settings', '/tmp/maple/hooksFile.json'];
 
-function wrapped(tabId: string, claude: string[], cwd = '/tmp/dig-days'): string[] {
-  const env = { MAPLE_TAB_ID: tabId, MAPLE_SOCKET: '/tmp/maple.sock' };
+function wrapped(tabId: string, claude: string[], cwd = '/tmp/dig-days', vaultDir: string | null = null): string[] {
+  const flag = claude.includes('--resume') ? '--resume' : '--session-id';
+  const sessionId = claude[claude.indexOf(flag) + 1];
+  const env = {
+    MAPLE_TAB_ID: tabId,
+    MAPLE_SOCKET: '/tmp/maple.sock',
+    MAPLE_SNAPSHOT_DIR: `/tmp/maple/snapshots/${sessionId}`,
+    ...(vaultDir === null ? {} : { MAPLE_VAULT_DIR: vaultDir }),
+  };
   return tmuxArgs(`maple-${tabId}`, '/tmp/maple/tmux.conf', cwd, env, ['claude', ...claude]);
 }
 
@@ -144,6 +152,17 @@ describe('SessionManager', () => {
     expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--session-id', tab.sessionId, '/card DIG-44']));
     expect(ptys[0].options).toMatchObject({ cwd: '/tmp/dig-days', cols: 120, rows: 40 });
     expect(ptys[0].options.env).toMatchObject({ TERM: 'xterm-256color' });
+  });
+
+  test('gives the session its snapshot dir and the vault dir', () => {
+    // given
+    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    // when
+    const tab = manager.openPlanner('DIG', null);
+    // then
+    const args = ptys[0].args.join(' ');
+    expect(args).toContain(`MAPLE_SNAPSHOT_DIR=/tmp/maple/snapshots/${tab.sessionId}`);
+    expect(args).toContain('MAPLE_VAULT_DIR=/tmp/vault');
   });
 
   test('drops CLAUDE_CODE_CHILD_SESSION so claude writes a transcript', () => {
@@ -569,7 +588,7 @@ describe('SessionManager', () => {
     // when
     const tab = manager.openVault('DIG', null);
     // then
-    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--session-id', tab.sessionId], '/tmp/vault'));
+    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--session-id', tab.sessionId], '/tmp/vault', '/tmp/vault'));
     expect(ptys[0].options.cwd).toBe('/tmp/vault');
     expect(tab).toMatchObject({ kind: 'vault', cardKey: null, projectKey: 'DIG' });
   });
@@ -580,7 +599,7 @@ describe('SessionManager', () => {
     // when
     const tab = manager.openVault('DIG', 'vault-session');
     // then
-    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--resume', 'vault-session'], '/tmp/vault'));
+    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--resume', 'vault-session'], '/tmp/vault', '/tmp/vault'));
     expect(ptys[0].options.cwd).toBe('/tmp/vault');
   });
 
@@ -630,7 +649,7 @@ describe('SessionManager', () => {
     manager.startFresh(tab.id);
     // then
     const sessionId = manager.get(tab.id)?.sessionId ?? '';
-    expect(ptys[1].args).toEqual(wrapped(tab.id, [...base, '--session-id', sessionId], '/tmp/vault'));
+    expect(ptys[1].args).toEqual(wrapped(tab.id, [...base, '--session-id', sessionId], '/tmp/vault', '/tmp/vault'));
     expect(ptys[1].options.cwd).toBe('/tmp/vault');
   });
 

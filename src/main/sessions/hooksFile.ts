@@ -13,6 +13,9 @@ export async function writeHooksFile(dir: string, execPath: string, scriptPath: 
       Stop: [{ hooks: hook('Stop') }],
       UserPromptSubmit: [{ hooks: hook('UserPromptSubmit') }],
       Notification: [{ matcher: 'permission_prompt', hooks: hook('Notification') }],
+      PreToolUse: [
+        { matcher: 'Write|Edit|MultiEdit|mcp__anchorhold__anchorhold_write_note', hooks: hook('PreToolUse') },
+      ],
     },
   };
   const path = join(dir, 'hooksFile.json');

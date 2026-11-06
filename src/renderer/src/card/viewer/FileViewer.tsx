@@ -47,6 +47,8 @@ const OUTSIDE_DIFF = 'GitHub only accepts comments on lines in the PR diff';
 
 const NOT_PUSHED = 'Push your edits first: line numbers would not match the PR';
 
+const NO_COPY = 'The session has not changed this note';
+
 const OPTIONS = {
   readOnly: true,
   domReadOnly: true,
@@ -97,7 +99,9 @@ export function FileViewer({
   const [mode, setMode] = useState(loadMode);
   const [pair, setPair] = useState<FilePair | null>(null);
   const [note, setNote] = useState<{ path: string; text: string } | null>(null);
+  const [before, setBefore] = useState<{ path: string; text: string | null } | null>(null);
   const [editing, setEditing] = useState<Record<string, boolean>>({});
+  const [changes, setChanges] = useState<Record<string, boolean>>({});
   const [plain, setPlain] = useState<editor.ICodeEditor | null>(null);
   const scrollTarget = useRef<editor.ICodeEditor | null>(null);
   const [target, setTarget] = useState<editor.ICodeEditor | null>(null);
@@ -128,6 +132,9 @@ export function FileViewer({
   const shownNote = showsNote && note !== null && note.path === activeFile ? note : null;
   const noteDraft = shownNote !== null && Object.hasOwn(drafts, shownNote.path) ? drafts[shownNote.path] : null;
   const editsNote = shownNote !== null && (editing[shownNote.path] ?? noteDraft !== null);
+  const noteBefore = before !== null && before.path === activeFile ? before.text : null;
+  const changesOn = shownNote !== null && noteBefore !== null && (changes[shownNote.path] ?? false);
+  const showsChanges = shownNote !== null && noteBefore !== null && changesOn && !editsNote;
 
   useEffect(() => {
     if (activeFile === null || !activeFile.startsWith(VAULT_PREFIX)) {
@@ -135,9 +142,15 @@ export function FileViewer({
     }
     let live = true;
     const load = () => {
-      void window.maple.vault.read(activeFile.slice(VAULT_PREFIX.length)).then((text) => {
+      const path = activeFile.slice(VAULT_PREFIX.length);
+      void window.maple.vault.read(path).then((text) => {
         if (live) {
           setNote({ path: activeFile, text });
+        }
+      });
+      void window.maple.vault.before(tabId, path).then((text) => {
+        if (live) {
+          setBefore({ path: activeFile, text });
         }
       });
     };
@@ -147,7 +160,7 @@ export function FileViewer({
       live = false;
       unsubscribe();
     };
-  }, [activeFile]);
+  }, [tabId, activeFile]);
 
   useEffect(() => {
     if (
@@ -225,10 +238,12 @@ export function FileViewer({
   const inDiff = selected !== null && ranges.some(([start, end]) => start <= selected.start && selected.end <= end);
   const blocked = text !== null && diff.unpushed.includes(text.path) ? NOT_PUSHED : inDiff ? null : OUTSIDE_DIFF;
 
-  const specs = useMemo(
-    () => (text !== null && edited !== null && text.base !== edited ? toDecorations(lineMarks(text.base, edited)) : []),
-    [text, edited],
-  );
+  const specs = useMemo(() => {
+    if (showsChanges) {
+      return toDecorations(lineMarks(noteBefore, shownNote.text));
+    }
+    return text !== null && edited !== null && text.base !== edited ? toDecorations(lineMarks(text.base, edited)) : [];
+  }, [showsChanges, noteBefore, shownNote, text, edited]);
 
   useEffect(() => {
     if (plain === null || monaco === null) {
@@ -418,6 +433,12 @@ export function FileViewer({
     saveMode(next);
   };
 
+  const mountDiff = (diff: editor.IStandaloneDiffEditor) => {
+    setPlain(null);
+    scrollTarget.current = diff.getModifiedEditor();
+    setTarget(diff.getModifiedEditor());
+  };
+
   const notices = (path: string, mine: Draft | null, disk: string | null) => (
     <>
       {saveError?.path === path && (
@@ -469,6 +490,33 @@ export function FileViewer({
         </>
       );
     }
+    if (showsChanges && mode === 'side-by-side') {
+      return (
+        <DiffEditor
+          original={noteBefore}
+          modified={shownNote.text}
+          language="markdown"
+          theme="vs-dark"
+          height="100%"
+          options={{ ...OPTIONS, renderSideBySide: true, originalEditable: false }}
+          onMount={mountDiff}
+        />
+      );
+    }
+    if (showsChanges) {
+      return (
+        <div className={styles.editor}>
+          <Editor
+            value={shownNote.text}
+            language="markdown"
+            theme="vs-dark"
+            height="100%"
+            options={OPTIONS}
+            onMount={setPlain}
+          />
+        </div>
+      );
+    }
     if (showsDescription || showsNote) {
       return (
         markdown !== null && (
@@ -498,11 +546,7 @@ export function FileViewer({
           theme="vs-dark"
           height="100%"
           options={{ ...OPTIONS, renderSideBySide: true, originalEditable: false }}
-          onMount={(diff) => {
-            setPlain(null);
-            scrollTarget.current = diff.getModifiedEditor();
-            setTarget(diff.getModifiedEditor());
-          }}
+          onMount={mountDiff}
         />
       );
     }
@@ -537,6 +581,27 @@ export function FileViewer({
       </>
     );
   };
+
+  const modeButtons = (
+    <>
+      <button
+        aria-pressed={mode === 'in-file'}
+        onClick={() => {
+          choose('in-file');
+        }}
+      >
+        In file
+      </button>
+      <button
+        aria-pressed={mode === 'side-by-side'}
+        onClick={() => {
+          choose('side-by-side');
+        }}
+      >
+        Side by side
+      </button>
+    </>
+  );
 
   return (
     <div className={styles.viewer}>
@@ -577,26 +642,22 @@ export function FileViewer({
             >
               {editsNote ? 'Preview' : 'Edit'}
             </button>
+            <button
+              aria-pressed={changesOn}
+              disabled={noteBefore === null}
+              title={noteBefore === null ? NO_COPY : undefined}
+              onClick={() => {
+                setChanges({ ...changes, [shownNote.path]: !changesOn });
+              }}
+            >
+              Changes
+            </button>
+            {showsChanges && modeButtons}
           </div>
         )}
         {!showsDescription && !showsNote && (
           <div className={styles.toggle}>
-            <button
-              aria-pressed={mode === 'in-file'}
-              onClick={() => {
-                choose('in-file');
-              }}
-            >
-              In file
-            </button>
-            <button
-              aria-pressed={mode === 'side-by-side'}
-              onClick={() => {
-                choose('side-by-side');
-              }}
-            >
-              Side by side
-            </button>
+            {modeButtons}
             {commentable && (
               <button
                 title={blocked ?? undefined}

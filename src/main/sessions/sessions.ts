@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import type { IPty, spawn } from 'node-pty';
 import { parseBatch } from '@shared/batch';
@@ -18,6 +19,7 @@ export type SessionDeps = {
   config: () => MapleConfig;
   hooksFile: string;
   socketPath: string;
+  snapshotRoot: string;
   save: (tabs: TabState[], closedSessions: Record<string, string>) => Promise<void>;
   closedSessions: Record<string, string>;
   uuid: () => string;
@@ -265,7 +267,12 @@ export class SessionManager extends EventEmitter<Events> {
     if (prompt !== null) {
       args.push(prompt);
     }
-    const env = { MAPLE_TAB_ID: tab.id, MAPLE_SOCKET: this.deps.socketPath };
+    const env = {
+      MAPLE_TAB_ID: tab.id,
+      MAPLE_SOCKET: this.deps.socketPath,
+      MAPLE_SNAPSHOT_DIR: join(this.deps.snapshotRoot, tab.sessionId),
+      ...(config.vaultDir === null ? {} : { MAPLE_VAULT_DIR: config.vaultDir }),
+    };
     const command = tmuxArgs(tmuxName(tab.id), this.deps.tmuxConf, cwd, env, ['claude', ...args]);
     const pty = this.deps.spawn('tmux', command, {
       name: 'xterm-256color',
