@@ -6,6 +6,7 @@ type Props = {
   nodes: readonly TreeNode[];
   selected: string | null;
   onSelect: (path: string) => void;
+  onPin?: (path: string) => void;
   changedOnly?: boolean;
   onToggle?: (changedOnly: boolean) => void;
   changedCount?: number;
@@ -20,6 +21,7 @@ export function FileTree({
   nodes,
   selected,
   onSelect,
+  onPin,
   changedOnly,
   onToggle,
   changedCount,
@@ -56,6 +58,11 @@ export function FileTree({
             onSelect(node.path);
           }
         }}
+        onDoubleClick={() => {
+          if (!node.dir) {
+            onPin?.(node.path);
+          }
+        }}
       >
         <span className={node.dir ? styles.dir : undefined}>{node.name}</span>
         {commented?.has(node.path) && (
@@ -72,6 +79,9 @@ export function FileTree({
                 aria-label={`Viewed ${node.path}`}
                 checked={viewed?.has(node.path) ?? false}
                 onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                onDoubleClick={(e) => {
                   e.stopPropagation();
                 }}
                 onChange={() => {

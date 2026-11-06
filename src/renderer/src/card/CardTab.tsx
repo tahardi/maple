@@ -7,6 +7,7 @@ import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
 import { buildTree } from '@renderer/card/viewer/buildTree';
 import { closeFiles } from '@renderer/card/viewer/closeFiles';
+import { close, openPreview, pin, type OpenFileList } from '@renderer/card/viewer/openFileList';
 import { cardActions } from './CardActions';
 import { CardHeader } from './CardHeader';
 import styles from './CardTab.module.css';
@@ -48,7 +49,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const active = useMaple((s) => s.activeTabId === tab.id);
   const [columns, setColumns] = useColumns();
   const [changedOverride, setChangedOverride] = useState<boolean | null>(null);
-  const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
+  const [list, setList] = useState<OpenFileList>({ files: [], preview: null });
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [line, setLine] = useState<number | null>(null);
   const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
@@ -152,10 +153,14 @@ export function CardTab({ tab }: { tab: TabState }) {
     };
   }, [active]);
 
-  const openFile = (path: string, at: number | null = null) => {
-    setOpenFiles((files) => (files.includes(path) ? files : [...files, path]));
+  const openFile = (path: string, at: number | null = null, pinned = false) => {
+    setList((now) => (pinned ? pin(now, path) : openPreview(now, path)));
     setActiveFile(path);
     setLine(at);
+  };
+
+  const pinFile = (path: string) => {
+    setList((now) => pin(now, path));
   };
 
   const activateFile = (path: string | null) => {
@@ -165,19 +170,19 @@ export function CardTab({ tab }: { tab: TabState }) {
 
   if (!descriptionOpened && pr?.data) {
     setDescriptionOpened(true);
-    setOpenFiles((files) => [PR_DESCRIPTION, ...files]);
+    setList((now) => ({ ...now, files: [PR_DESCRIPTION, ...now.files] }));
     setActiveFile((active) => active ?? PR_DESCRIPTION);
   }
 
   if (!cardOpened && card !== null && pr !== null && pr.data === null) {
     setCardOpened(true);
-    setOpenFiles((files) => [CARD_DESCRIPTION, ...files]);
+    setList((now) => ({ ...now, files: [CARD_DESCRIPTION, ...now.files] }));
     setActiveFile((active) => active ?? CARD_DESCRIPTION);
   }
 
   const closeTabs = (paths: readonly string[]) => {
-    const next = closeFiles(openFiles, activeFile, paths);
-    setOpenFiles(next.openFiles);
+    const next = closeFiles(list.files, activeFile, paths);
+    setList((now) => close(now, paths));
     if (next.activeFile !== activeFile) {
       activateFile(next.activeFile);
     }
@@ -230,6 +235,9 @@ export function CardTab({ tab }: { tab: TabState }) {
               onSelect={(path) => {
                 openFile(`${VAULT_PREFIX}${path}`);
               }}
+              onPin={(path) => {
+                pinFile(`${VAULT_PREFIX}${path}`);
+              }}
               changedOnly={vaultChangedOnly}
               onToggle={setVaultChangedOnly}
               changedCount={recent.length}
@@ -242,6 +250,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               nodes={buildTree(files, changed, changedOnly)}
               selected={activeFile}
               onSelect={openFile}
+              onPin={pinFile}
               changedOnly={changedOnly}
               onToggle={setChangedOverride}
               changedCount={changed.length}
@@ -255,7 +264,7 @@ export function CardTab({ tab }: { tab: TabState }) {
             <button
               className={styles.cardDescription}
               onClick={() => {
-                openFile(CARD_DESCRIPTION);
+                openFile(CARD_DESCRIPTION, null, true);
               }}
             >
               Card description
@@ -269,7 +278,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               findings={pinned?.findings ?? []}
               headSha={pinned?.headSha ?? null}
               onOpenDescription={() => {
-                openFile(PR_DESCRIPTION);
+                openFile(PR_DESCRIPTION, null, true);
               }}
             />
           )}
@@ -282,7 +291,9 @@ export function CardTab({ tab }: { tab: TabState }) {
             ) : (
               <FileViewer
                 tabId={tab.id}
-                openFiles={openFiles}
+                openFiles={list.files}
+                preview={list.preview}
+                onPin={pinFile}
                 activeFile={activeFile}
                 onActivate={activateFile}
                 onCloseFiles={closeTabs}

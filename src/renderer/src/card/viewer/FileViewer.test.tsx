@@ -54,7 +54,7 @@ const monaco = vi.hoisted(() => {
       ],
     },
   };
-  const change: { value: (text: string) => void } = { value: () => undefined };
+  const change: { value: (text: string, isFlush?: boolean) => void } = { value: () => undefined };
   return {
     editor,
     zones,
@@ -76,11 +76,13 @@ vi.mock('@monaco-editor/react', async () => {
       language: string | undefined;
       options: { readOnly: boolean; minimap?: { enabled: boolean; size: string } };
       onMount: (editor: unknown) => void;
-      onChange: (value: string | undefined) => void;
+      onChange: (value: string | undefined, change: { isFlush: boolean }) => void;
     }) => {
       const { onMount } = props;
       const [ready, setReady] = useState(false);
-      monaco.change.value = props.onChange;
+      monaco.change.value = (text, isFlush = false) => {
+        props.onChange(text, { isFlush });
+      };
       const instance = useRef({
         ...monaco.editor,
         disposed: false,
@@ -201,11 +203,13 @@ function renderViewer(
     line: null,
     canComment,
     prFetchedAt: null,
+    preview: 'README.md',
+    onPin: vi.fn(),
   };
   return { maple, props, ...render(<FileViewer {...props} />) };
 }
 
-function renderNote(vault: Partial<MapleApi['vault']> = {}) {
+function renderNote(vault: Partial<MapleApi['vault']> = {}, onPin = vi.fn()) {
   const maple = fakeMaple({ vault: { read: vi.fn(() => Promise.resolve('## Findings\n')), ...vault } });
   render(
     <FileViewer
@@ -219,6 +223,7 @@ function renderNote(vault: Partial<MapleApi['vault']> = {}) {
       canComment={false}
       prFetchedAt={null}
       noteChanges
+      onPin={onPin}
     />,
   );
   return maple;
@@ -1614,6 +1619,74 @@ describe('FileViewer', () => {
     });
     expect(writeFile).toHaveBeenCalledWith('t1', 'a.ts', 'two\n');
     expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'two\n');
+  });
+
+  test('shows only the preview tab in italics', async () => {
+    // given
+    const pair: FilePair = { kind: 'text', path: 'a.ts', current: 'one\n', base: 'one\n' };
+    // when
+    renderViewer(pair);
+    await screen.findByTestId('editor');
+    // then
+    expect(screen.getByRole('tab', { name: 'README.md' }).className).toMatch(/preview/);
+    expect(screen.getByRole('tab', { name: 'a.ts' }).className).not.toMatch(/preview/);
+  });
+
+  test('double-clicking a file tab pins it', async () => {
+    // given
+    const { props } = renderViewer({ kind: 'text', path: 'a.ts', current: 'one\n', base: 'one\n' });
+    await screen.findByTestId('editor');
+    // when
+    await userEvent.dblClick(screen.getByRole('tab', { name: 'README.md' }));
+    // then
+    expect(props.onPin).toHaveBeenCalledWith('README.md');
+  });
+
+  test('typing in a file pins its tab', async () => {
+    // given
+    const { props } = renderViewer({ kind: 'text', path: 'a.ts', current: 'one\n', base: 'one\n' });
+    await screen.findByTestId('editor');
+    // when
+    act(() => {
+      monaco.change.value('two\n');
+    });
+    // then
+    expect(props.onPin).toHaveBeenCalledWith('a.ts');
+  });
+
+  test('typing in a note pins its tab', async () => {
+    // given
+    const onPin = vi.fn();
+    renderNote({}, onPin);
+    await editNote();
+    // when
+    act(() => {
+      monaco.change.value('## Results\n');
+    });
+    // then
+    expect(onPin).toHaveBeenCalledWith('vault:Spike.md');
+  });
+
+  test('a value set by the editor wrapper pins nothing', async () => {
+    // given
+    const { props } = renderViewer({ kind: 'text', path: 'a.ts', current: 'one\n', base: 'one\n' });
+    await screen.findByTestId('editor');
+    // when
+    act(() => {
+      monaco.change.value('old\n', true);
+    });
+    // then
+    expect(props.onPin).not.toHaveBeenCalled();
+  });
+
+  test('double-clicking a tab close button pins nothing', async () => {
+    // given
+    const { props } = renderViewer({ kind: 'text', path: 'a.ts', current: 'one\n', base: 'one\n' });
+    await screen.findByTestId('editor');
+    // when
+    await userEvent.dblClick(screen.getByRole('button', { name: 'Close README.md' }));
+    // then
+    expect(props.onPin).not.toHaveBeenCalled();
   });
 
   test('a draft survives remounting the viewer', async () => {
