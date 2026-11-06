@@ -13,6 +13,7 @@ type Props = {
   onToggleViewed?: (path: string) => void;
   commented?: ReadonlySet<string>;
   collapsedByDefault?: boolean;
+  title?: string;
 };
 
 export function FileTree({
@@ -26,6 +27,7 @@ export function FileTree({
   onToggleViewed,
   commented,
   collapsedByDefault = false,
+  title,
 }: Props) {
   const [flipped, setFlipped] = useState<ReadonlySet<string>>(new Set());
   const collapsed = (path: string) => collapsedByDefault !== flipped.has(path);
@@ -85,6 +87,11 @@ export function FileTree({
 
   return (
     <div className={styles.tree}>
+      {title !== undefined && (
+        <div className={styles.title} data-testid="file-tree-title" title={title}>
+          {title}
+        </div>
+      )}
       <div className={styles.toggle}>
         <button
           aria-pressed={!changedOnly}

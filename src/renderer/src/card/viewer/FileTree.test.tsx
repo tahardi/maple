@@ -16,11 +16,13 @@ function Harness({
   viewed = new Set(),
   onToggleViewed = vi.fn(),
   commented,
+  title,
 }: {
   onSelect: (path: string) => void;
   viewed?: ReadonlySet<string>;
   onToggleViewed?: (path: string) => void;
   commented?: ReadonlySet<string>;
+  title?: string;
 }) {
   const [changedOnly, setChangedOnly] = useState(false);
   return (
@@ -34,11 +36,33 @@ function Harness({
       viewed={viewed}
       onToggleViewed={onToggleViewed}
       commented={commented}
+      title={title}
     />
   );
 }
 
 describe('FileTree', () => {
+  test('shows the title above the toggle', () => {
+    // given
+    const title = 'maple · mpl-155-repo-name';
+    // when
+    render(<Harness onSelect={vi.fn()} title={title} />);
+    // then
+    const shown = screen.getByText(title);
+    expect(shown).toHaveAttribute('title', title);
+    const toggle = screen.getByRole('button', { name: 'All files' });
+    expect(shown.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test('shows no title without one', () => {
+    // given
+    const onSelect = vi.fn();
+    // when
+    render(<Harness onSelect={onSelect} />);
+    // then
+    expect(screen.queryByTestId('file-tree-title')).not.toBeInTheDocument();
+  });
+
   test('toggle switches between all files and changed files', async () => {
     // given
     render(<Harness onSelect={vi.fn()} />);

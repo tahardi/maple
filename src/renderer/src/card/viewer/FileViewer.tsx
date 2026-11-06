@@ -18,6 +18,7 @@ import { CARD_DESCRIPTION } from '@renderer/card/cardDescription';
 import { useLineZones } from '@renderer/card/comments/useLineZones';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
 import { NoteOverview } from './overview/NoteOverview';
+import { FileTabMenu } from './FileTabMenu';
 import styles from './viewer.module.css';
 
 type Props = {
@@ -25,7 +26,7 @@ type Props = {
   openFiles: readonly string[];
   activeFile: string | null;
   onActivate: (path: string) => void;
-  onCloseFile: (path: string) => void;
+  onCloseFiles: (paths: readonly string[]) => void;
   prBody: string | null;
   cardBody?: string;
   line: number | null;
@@ -86,7 +87,7 @@ export function FileViewer({
   openFiles,
   activeFile,
   onActivate,
-  onCloseFile,
+  onCloseFiles,
   prBody,
   cardBody,
   line,
@@ -115,6 +116,7 @@ export function FileViewer({
   const [commentsRead, setCommentsRead] = useState(0);
   const [diff, setDiff] = useState<DiffLines>(NO_DIFF);
   const [picked, setPicked] = useState<{ editor: editor.ICodeEditor; lines: Lines } | null>(null);
+  const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
 
   const showsDescription = activeFile === PR_DESCRIPTION || activeFile === CARD_DESCRIPTION;
   const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
@@ -565,6 +567,10 @@ export function FileViewer({
               onClick={() => {
                 onActivate(path);
               }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setMenu({ path, x: e.clientX, y: e.clientY });
+              }}
             >
               {label(path)}
               <button
@@ -572,7 +578,7 @@ export function FileViewer({
                 className={styles.close}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onCloseFile(path);
+                  onCloseFiles([path]);
                 }}
               >
                 ×
@@ -631,6 +637,28 @@ export function FileViewer({
         )}
       </div>
       <div className={styles.body}>{body()}</div>
+      {menu !== null && (
+        <FileTabMenu
+          x={menu.x}
+          y={menu.y}
+          only={openFiles.length === 1}
+          onClose={() => {
+            onCloseFiles([menu.path]);
+            setMenu(null);
+          }}
+          onCloseOthers={() => {
+            onCloseFiles(openFiles.filter((file) => file !== menu.path));
+            setMenu(null);
+          }}
+          onCloseAll={() => {
+            onCloseFiles(openFiles);
+            setMenu(null);
+          }}
+          onDismiss={() => {
+            setMenu(null);
+          }}
+        />
+      )}
       {zones.map(({ item, node }) =>
         createPortal(
           <CommentThread

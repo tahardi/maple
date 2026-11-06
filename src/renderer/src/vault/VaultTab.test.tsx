@@ -1,5 +1,5 @@
 import type { TabState } from '@shared/types/tabs';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { VaultTab } from './VaultTab';
@@ -148,6 +148,34 @@ describe('VaultTab', () => {
     // then
     expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['Spike.md']);
     expect(screen.getByRole('tab', { name: 'Spike.md' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('Close Others on a note tab keeps only that note open and active', async () => {
+    // given
+    fakeVault();
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Projects'));
+    await userEvent.click(screen.getByText('Maple'));
+    await userEvent.click(screen.getByText('Spike.md'));
+    await userEvent.click(screen.getByText('Inbox.md'));
+    // when
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'Spike.md' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close Others' }));
+    // then
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['Spike.md']);
+    expect(screen.getByRole('tab', { name: 'Spike.md' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('Close All on a note tab empties the viewer', async () => {
+    // given
+    fakeVault();
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Inbox.md'));
+    // when
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'Inbox.md' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close All' }));
+    // then
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });
 
   test('shows the Claude pane for the tab', () => {

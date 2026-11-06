@@ -7,27 +7,40 @@ import { registerRepo } from './repo';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, changes, listFiles, mergeBase, readFilePair, searchFiles, writeWorktreeFile } = vi.hoisted(() => ({
-  handle: vi.fn<(channel: string, handler: Handler) => void>(),
-  changes: vi.fn(),
-  listFiles: vi.fn(),
-  mergeBase: vi.fn(),
-  readFilePair: vi.fn(),
-  searchFiles: vi.fn(),
-  writeWorktreeFile: vi.fn(),
-}));
+const { handle, changes, currentBranch, listFiles, mergeBase, readFilePair, repoName, searchFiles, writeWorktreeFile } =
+  vi.hoisted(() => ({
+    handle: vi.fn<(channel: string, handler: Handler) => void>(),
+    changes: vi.fn(),
+    currentBranch: vi.fn(),
+    listFiles: vi.fn(),
+    mergeBase: vi.fn(),
+    readFilePair: vi.fn(),
+    repoName: vi.fn(),
+    searchFiles: vi.fn(),
+    writeWorktreeFile: vi.fn(),
+  }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('@main/git/git', () => ({ changes, listFiles, mergeBase, readFilePair, searchFiles, writeWorktreeFile }));
+vi.mock('@main/git/git', () => ({
+  changes,
+  currentBranch,
+  listFiles,
+  mergeBase,
+  readFilePair,
+  repoName,
+  searchFiles,
+  writeWorktreeFile,
+}));
 vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktree: () => () => undefined }));
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+let worktree: string | null = '/wt';
 
 function invoke(channel: string, ...args: unknown[]): unknown {
   registerRepo(
     {
       window: () => null,
-      worktreeFor: () => '/wt',
+      worktreeFor: () => worktree,
       project: () => Promise.resolve(null),
       sessions: {} as SessionManager,
       terminals: {} as Terminals,
@@ -51,11 +64,16 @@ function invoke(channel: string, ...args: unknown[]): unknown {
 describe('registerRepo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    worktree = '/wt';
     mergeBase.mockResolvedValue('base');
+    repoName.mockResolvedValue('maple');
+    currentBranch.mockResolvedValue('mpl-155-repo-name');
   });
 
   test.each([
     { channel: 'repo:changes', args: ['t1'], fail: changes },
+    { channel: 'repo:info', args: ['t1'], fail: repoName },
+    { channel: 'repo:info', args: ['t1'], fail: currentBranch },
     { channel: 'repo:listFiles', args: ['t1'], fail: listFiles },
     { channel: 'repo:readFile', args: ['t1', 'a.ts'], fail: readFilePair },
     { channel: 'repo:search', args: ['t1', 'needle'], fail: searchFiles },
@@ -82,6 +100,28 @@ describe('registerRepo', () => {
     // then
     expect(got).toEqual({ files: [] });
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  test('repo:info returns the repo name and branch of the tab worktree', async () => {
+    // given
+    repoName.mockResolvedValue('maple');
+    currentBranch.mockResolvedValue('mpl-155-repo-name');
+    // when
+    const got = await invoke('repo:info', 't1');
+    // then
+    expect(got).toEqual({ name: 'maple', branch: 'mpl-155-repo-name' });
+    expect(repoName).toHaveBeenCalledWith('/wt');
+    expect(currentBranch).toHaveBeenCalledWith('/wt');
+  });
+
+  test('repo:info returns null for a tab without a worktree', async () => {
+    // given
+    worktree = null;
+    // when
+    const got = await invoke('repo:info', 't1');
+    // then
+    expect(got).toBeNull();
+    expect(repoName).not.toHaveBeenCalled();
   });
 
   test('repo:writeFile writes the file in the tab worktree', async () => {

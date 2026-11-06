@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { changes, listFiles, mergeBase, readFilePair, searchFiles, writeWorktreeFile } from '@main/git/git';
+import {
+  changes,
+  currentBranch,
+  listFiles,
+  mergeBase,
+  readFilePair,
+  repoName,
+  searchFiles,
+  writeWorktreeFile,
+} from '@main/git/git';
 import { appLogger, logFailure, type Logger } from '@main/app/log';
 import { watchWorktree } from '@main/git/worktreeWatcher';
 import { send, type IpcDeps } from './index';
@@ -34,6 +43,16 @@ export function registerRepo(deps: IpcDeps, logger: Logger = appLogger): void {
     logFailure(logger, 'repo', { operation: 'repo:listFiles', args: [tabId] }, () => {
       const path = worktreeFor(tabId);
       return path === null ? [] : listFiles(path);
+    }),
+  );
+  handle('repo:info', z.tuple([tabIdArg]), (tabId) =>
+    logFailure(logger, 'repo', { operation: 'repo:info', args: [tabId] }, async () => {
+      const path = worktreeFor(tabId);
+      if (path === null) {
+        return null;
+      }
+      const [name, branch] = await Promise.all([repoName(path), currentBranch(path)]);
+      return { name, branch };
     }),
   );
   handle('repo:readFile', z.tuple([tabIdArg, z.string().max(4096)]), (tabId, file) =>
