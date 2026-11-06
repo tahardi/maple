@@ -108,6 +108,7 @@ describe('registerIpc', () => {
     { channel: 'vault:write', args: ['a.md', 'x'.repeat(2_097_153)] },
     { channel: 'repo:changes', args: [['t1']] },
     { channel: 'repo:listFiles', args: [''] },
+    { channel: 'repo:info', args: [''] },
     { channel: 'repo:readFile', args: ['t1', 5] },
     { channel: 'pr:get', args: [1] },
     { channel: 'pr:approve', args: ['t1', 'extra'] },

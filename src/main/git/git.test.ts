@@ -20,6 +20,7 @@ import {
   listFiles,
   mergeBase,
   readFilePair,
+  repoName,
   searchFiles,
   writeWorktreeFile,
 } from './git';
@@ -63,6 +64,42 @@ describe('git', () => {
 
   afterEach(() => {
     rmSync(root, { recursive: true, force: true });
+  });
+
+  test.each([
+    { url: 'https://github.com/taylor/maple.git', want: 'maple' },
+    { url: 'git@github.com:taylor/maple.git', want: 'maple' },
+    { url: 'https://github.com/taylor/maple', want: 'maple' },
+    { url: 'https://github.com/taylor/maple/', want: 'maple' },
+    { url: 'https://github.com/taylor/maple.git/', want: 'maple' },
+    { url: 'git@example.com:maple.git', want: 'maple' },
+    { url: 'https://github.com/taylor/taylor.github.io', want: 'taylor.github.io' },
+  ])('repoName returns $want for origin $url', async ({ url, want }) => {
+    // given
+    git(worktree, 'remote', 'set-url', 'origin', url);
+    // when
+    const name = await repoName(worktree);
+    // then
+    expect(name).toBe(want);
+  });
+
+  test('repoName falls back to the main checkout folder without an origin remote', async () => {
+    // given
+    git(worktree, 'remote', 'remove', 'origin');
+    // when
+    const name = await repoName(worktree);
+    // then
+    expect(name).toBe('repo');
+  });
+
+  test('repoName rejects outside a git repo', async () => {
+    // given
+    const plain = join(root, 'plain');
+    mkdirSync(plain);
+    // when
+    const got = repoName(plain);
+    // then
+    await expect(got).rejects.toThrow('running git rev-parse');
   });
 
   test('changes lists committed, uncommitted, and untracked files with line counts', async () => {

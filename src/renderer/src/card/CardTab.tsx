@@ -40,7 +40,7 @@ function branchName(worktreePath: string | null, cardKey: string): string | null
 }
 
 export function CardTab({ tab }: { tab: TabState }) {
-  const { changes, files, pr, card, cost } = useCardData(tab);
+  const { changes, files, repo, pr, card, cost } = useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
@@ -231,6 +231,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               viewed={viewed}
               onToggleViewed={toggleViewed}
               commented={commented}
+              title={repo === null ? undefined : `${repo.name} · ${repo.branch}`}
             />
           )}
           {card !== null && (
