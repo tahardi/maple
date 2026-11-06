@@ -41,7 +41,7 @@ function branchName(worktreePath: string | null, cardKey: string): string | null
 }
 
 export function CardTab({ tab }: { tab: TabState }) {
-  const { changes, files, repo, pr, review, card, cost } = useCardData(tab);
+  const { changes, files, repo, pr, review, reloadReview, card, cost } = useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
@@ -212,7 +212,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         card={card}
         pr={pr?.data ?? null}
         branch={branchName(tab.worktreePath, cardKey)}
-        changes={changes}
+        changes={pinned ?? changes}
         cost={cost}
       />
       <div ref={body} className={styles.body}>
@@ -264,6 +264,8 @@ export function CardTab({ tab }: { tab: TabState }) {
           {pr && (
             <PrSummary
               pr={pr}
+              onReloadReview={reloadReview}
+              reviewError={review?.error ?? null}
               findings={pinned?.findings ?? []}
               headSha={pinned?.headSha ?? null}
               onOpenDescription={() => {

@@ -50,6 +50,8 @@ describe('reviewFiles', () => {
       number: 33,
       headSha: head,
       baseSha: mergeBase,
+      added: 105,
+      removed: 11,
       files: [
         {
           path: '.github/workflows/ci.yml',
@@ -115,13 +117,13 @@ describe('reviewFiles', () => {
   test.each([
     {
       name: 'copied as M',
-      file: { filename: 'b.ts', status: 'copied', sha: 'f'.repeat(40) },
+      file: { filename: 'b.ts', status: 'copied', sha: 'f'.repeat(40), additions: 1, deletions: 0 },
       status: 'M',
       oldPath: null,
     },
     {
       name: 'a rename without a previous name',
-      file: { filename: 'b.ts', status: 'renamed', sha: 'f'.repeat(40) },
+      file: { filename: 'b.ts', status: 'renamed', sha: 'f'.repeat(40), additions: 0, deletions: 0 },
       status: 'R',
       oldPath: null,
     },

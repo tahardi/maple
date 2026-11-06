@@ -13,7 +13,6 @@ type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknow
 const {
   handle,
   prForBranch,
-  commentOnPr,
   commentOnLine,
   replyToComment,
   resolveThread,
@@ -21,7 +20,7 @@ const {
   diffLines,
   headCommit,
   gh,
-  ghRunner,
+  projectRunner,
   reviewFiles,
   reviewFilePair,
   openFindings,
@@ -31,7 +30,6 @@ const {
 } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
   prForBranch: vi.fn(),
-  commentOnPr: vi.fn(),
   commentOnLine: vi.fn(),
   replyToComment: vi.fn(),
   resolveThread: vi.fn(),
@@ -39,7 +37,8 @@ const {
   diffLines: vi.fn(),
   headCommit: vi.fn(),
   gh: vi.fn<CommandRunner>(),
-  ghRunner: vi.fn(),
+  projectRunner:
+    vi.fn<(byKey: (key: string) => Promise<ProjectConfig | null>, key: string | null) => Promise<CommandRunner>>(),
   reviewFiles: vi.fn(),
   reviewFilePair: vi.fn(),
   openFindings: vi.fn(),
@@ -53,12 +52,11 @@ vi.mock('@main/git/git', () => ({ currentBranch, changedSince }));
 vi.mock('@main/github/pr', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@main/github/pr')>()),
   prForBranch,
-  commentOnPr,
   diffLines,
   headCommit,
 }));
 vi.mock('@main/github/comments', () => ({ commentOnLine, replyToComment, resolveThread, reviewComments }));
-vi.mock('@main/github/ghRunner', () => ({ ghRunner }));
+vi.mock('@main/github/ghRunner', () => ({ projectRunner }));
 vi.mock('@main/github/reviewDiff', () => ({ reviewFiles, reviewFilePair }));
 vi.mock('@main/github/securityFindings', () => ({ openFindings, ghLogin }));
 
@@ -136,7 +134,7 @@ function approver(
   gh.mockImplementation((_cmd, args) => {
     const key = args.join(' ');
     calls.push(key);
-    return Promise.resolve(answers[key] ?? ok());
+    return Promise.resolve(answers[key] ?? (key === viewRepo ? ok('main\n') : ok()));
   });
   const sendPrompt = vi.fn(() => {
     calls.push('prompt');
@@ -145,7 +143,10 @@ function approver(
   return { approve: register('pr:approve', worktree, sessions), sendPrompt, calls };
 }
 
-const viewHead = 'pr view 33 --json headRefOid --jq .headRefOid';
+const viewPin = 'pr view 33 --json headRefOid,headRefName,baseRefName';
+const viewRepo = 'repo view --json defaultBranchRef --jq .defaultBranchRef.name';
+const pinned = (sha: string) =>
+  ok(JSON.stringify({ headRefOid: sha, headRefName: 'dig-44-trail', baseRefName: 'main' }));
 const postReview = `api --method POST repos/{owner}/{repo}/pulls/33/reviews -f event=APPROVE -f commit_id=${head}`;
 const merge = `pr merge 33 --squash --match-head-commit ${head}`;
 
@@ -154,7 +155,12 @@ describe('registerPr', () => {
     vi.clearAllMocks();
     prForBranch.mockReset();
     currentBranch.mockReset().mockResolvedValue('mpl-13-github-client');
-    ghRunner.mockReset().mockReturnValue(gh);
+    projectRunner.mockReset().mockImplementation(async (byKey, key) => {
+      if ((key === null ? null : await byKey(key)) === null) {
+        throw new Error(`finding project repo: unknown project ${String(key)}`);
+      }
+      return gh;
+    });
   });
 
   test('get looks up the PR for the tab worktree branch', async () => {
@@ -228,27 +234,26 @@ describe('registerPr', () => {
   test('pr:approve approves and merges the pinned commit, then prompts /card', async () => {
     // given
     prForBranch.mockResolvedValue(pr);
-    const { approve, sendPrompt, calls } = approver({ [viewHead]: ok(`${head}\n`) });
+    const { approve, sendPrompt, calls } = approver({ [viewPin]: pinned(head) });
     // when
     await approve('t1', head);
     // then
-    expect(calls).toEqual([viewHead, postReview, merge, 'prompt']);
+    expect(calls).toEqual([viewPin, viewRepo, postReview, merge, 'prompt']);
     expect(sendPrompt).toHaveBeenCalledWith('t1', '/card DIG-44');
-    expect(ghRunner).toHaveBeenCalledWith('tahardi/dig-days');
-    expect(ghRunner.mock.calls.every(([repo]) => repo === 'tahardi/dig-days')).toBe(true);
+    expect(projectRunner.mock.calls.every(([, key]) => key === 'DIG')).toBe(true);
     expect(prForBranch).toHaveBeenCalledWith(gh, '/wt', 'mpl-13-github-client');
-    expect(commentOnPr).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith('gh', 'merged', { tabId: 't1', number: 33, headSha: head });
   });
 
   test('pr:approve refuses when the head moved', async () => {
     // given
     prForBranch.mockResolvedValue(pr);
-    const { approve, sendPrompt, calls } = approver({ [viewHead]: ok(`${'d'.repeat(40)}\n`) });
+    const { approve, sendPrompt, calls } = approver({ [viewPin]: pinned('d'.repeat(40)) });
     // when
     const result = approve('t1', head);
     // then
     await expect(result).rejects.toThrow(/^approving PR: the PR changed after the diff loaded; review it again$/);
-    expect(calls).toEqual([viewHead]);
+    expect(calls).toEqual([viewPin, viewRepo]);
     expect(sendPrompt).not.toHaveBeenCalled();
   });
 
@@ -256,14 +261,14 @@ describe('registerPr', () => {
     // given
     prForBranch.mockResolvedValue(pr);
     const { approve, sendPrompt, calls } = approver({
-      [viewHead]: ok(`${head}\n`),
+      [viewPin]: pinned(head),
       [postReview]: { code: 1, stdout: '', stderr: 'HTTP 422' },
     });
     // when
     const result = approve('t1', head);
     // then
     await expect(result).rejects.toThrow(/^approving PR: reviewing: HTTP 422$/);
-    expect(calls).toEqual([viewHead, postReview]);
+    expect(calls).toEqual([viewPin, viewRepo, postReview]);
     expect(sendPrompt).not.toHaveBeenCalled();
   });
 
@@ -271,7 +276,7 @@ describe('registerPr', () => {
     // given
     prForBranch.mockResolvedValue(pr);
     const { approve, sendPrompt } = approver({
-      [viewHead]: ok(`${head}\n`),
+      [viewPin]: pinned(head),
       [merge]: { code: 1, stdout: '', stderr: 'Head branch was modified' },
     });
     // when
@@ -351,7 +356,7 @@ describe('registerPr', () => {
     const result = approve('t1', head);
     // then
     await expect(result).rejects.toThrow(/^approving PR: finding project repo: unknown project HALO$/);
-    expect(ghRunner).not.toHaveBeenCalled();
+    expect(gh).not.toHaveBeenCalled();
   });
 
   test('pr:review returns files and open findings for the open PR', async () => {
@@ -461,7 +466,7 @@ describe('registerPr', () => {
     // then
     expect(result).toEqual(pair);
     expect(reviewFilePair).toHaveBeenCalledWith(gh, 'src/a.ts', 'src/old.ts', base, head);
-    expect(ghRunner).toHaveBeenCalledWith('tahardi/dig-days');
+    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG');
   });
 
   test.each([

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import type { ProjectConfig } from '@shared/types/config';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
@@ -16,4 +17,19 @@ export function ghRunner(repo: string, run: typeof execFile = execFile): Command
         },
       );
     });
+}
+
+export async function projectRunner(
+  projectByKey: (key: string) => Promise<ProjectConfig | null>,
+  projectKey: string | null,
+  run: typeof execFile = execFile,
+): Promise<CommandRunner> {
+  if (projectKey === null) {
+    throw new Error('finding project repo: tab has no project');
+  }
+  const project = await projectByKey(projectKey);
+  if (project === null) {
+    throw new Error(`finding project repo: unknown project ${projectKey}`);
+  }
+  return ghRunner(project.repo, run);
 }

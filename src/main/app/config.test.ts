@@ -159,13 +159,13 @@ describe('loadConfig', () => {
   });
 
   test.each([
-    { repo: 'dig-days' },
-    { repo: '-x/y' },
-    { repo: 'a/b/c' },
-    { repo: '../..' },
-    { repo: './x' },
-    { repo: undefined },
-  ])('rejects repo $repo', async ({ repo }) => {
+    { repo: 'dig-days', want: 'must be owner/name' },
+    { repo: '-x/y', want: 'must be owner/name' },
+    { repo: 'a/b/c', want: 'must be owner/name' },
+    { repo: '../..', want: 'must be owner/name' },
+    { repo: './x', want: 'must be owner/name' },
+    { repo: undefined, want: 'Invalid input: expected string, received undefined' },
+  ])('rejects repo $repo', async ({ repo, want }) => {
     // given
     const config = { ...validConfig, projects: [{ ...validConfig.projects[0], repo }] };
     await writeFile(join(dir, 'config.json'), JSON.stringify(config));
@@ -173,7 +173,7 @@ describe('loadConfig', () => {
     const result = await loadConfig(dir);
     // then
     expect(result.data).toBeNull();
-    expect(result.error).toMatch(/^reading config: projects\.0\.repo: /);
+    expect(result.error).toBe(`reading config: projects.0.repo: ${want}`);
   });
 
   test('reports a missing file', async () => {

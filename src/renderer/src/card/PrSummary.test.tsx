@@ -27,7 +27,16 @@ describe('PrSummary', () => {
     // given
     const pr = fetched(info);
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // then
     expect(screen.getByRole('link', { name: 'PR #33 [MPL-20] File Tree and PR Summary' })).toHaveAttribute(
       'href',
@@ -43,7 +52,16 @@ describe('PrSummary', () => {
   test('opens the full description', async () => {
     // given
     const onOpenDescription = vi.fn();
-    render(<PrSummary pr={fetched(info)} onOpenDescription={onOpenDescription} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={fetched(info)}
+        onOpenDescription={onOpenDescription}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Full description' }));
     // then
@@ -54,7 +72,16 @@ describe('PrSummary', () => {
     // given
     const pr = fetched({ ...info, needsTaylor: '- run `make run`\n- check the board', cardImpacts: null });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // then
     const items = screen.getAllByRole('listitem');
     expect(items.map((li) => li.textContent)).toEqual(['run make run', 'check the board']);
@@ -66,7 +93,16 @@ describe('PrSummary', () => {
     // given
     const pr = fetched({ ...info, deviations: null, needsTaylor: null, cardImpacts: null });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // then
     const headings = screen.getAllByRole('heading').map((h) => h.textContent);
     expect(headings).toEqual(['Deviations from the card', 'Needs Taylor', 'Card impacts']);
@@ -83,7 +119,16 @@ describe('PrSummary', () => {
     // given
     const pr = fetched({ ...info, checks });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // then
     expect(screen.getByText(text)).toBeInTheDocument();
   });
@@ -99,7 +144,16 @@ describe('PrSummary', () => {
     const link = 'https://github.com/tahardi/maple/actions/runs/1/job/2';
     const pr = fetched({ ...info, checks: { ...info.checks, runs: [{ name: 'lint', bucket, link }] } });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // then
     const anchor = screen.getByRole('link', { name: 'lint' });
     expect(anchor).toHaveAttribute('href', link);
@@ -118,7 +172,16 @@ describe('PrSummary', () => {
     ];
     const pr = fetched({ ...info, checks: { ...info.checks, runs } });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // then
     expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
       '✗ unit-test',
@@ -133,7 +196,16 @@ describe('PrSummary', () => {
     // given
     const pr = fetched({ ...info, checks: { ...info.checks, runs: [] } });
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // then
     expect(screen.getAllByRole('list')).toHaveLength(2);
     expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
@@ -146,7 +218,16 @@ describe('PrSummary', () => {
     // given
     const pr = fetched(info, 'listing PRs: network down');
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // then
     expect(screen.getByText('GitHub unreachable')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /PR #33/ })).toBeInTheDocument();
@@ -159,7 +240,16 @@ describe('PrSummary', () => {
     // given
     const input = pr;
     // when
-    render(<PrSummary pr={input} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={input}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // then
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Full description' })).not.toBeInTheDocument();
@@ -175,13 +265,21 @@ describe('PrSummary', () => {
     ];
     // when
     const { container } = render(
-      <PrSummary pr={fetched(info)} onOpenDescription={vi.fn()} findings={findings} headSha={null} />,
+      <PrSummary
+        pr={fetched(info)}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={findings}
+        headSha={null}
+      />,
     );
     // then
     expect(screen.getByRole('heading', { name: 'Security findings' })).toBeInTheDocument();
     expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
     expect(container.querySelector('img')).toBeNull();
     expect(screen.getByText('high')).toBeInTheDocument();
+    expect(screen.getByText('F1')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Wide permissions' })).toHaveAttribute('href', 'https://github.com/x/2');
   });
 
@@ -189,7 +287,16 @@ describe('PrSummary', () => {
     // given
     const pr = fetched(info);
     // when
-    render(<PrSummary pr={pr} onOpenDescription={vi.fn()} findings={[]} headSha={null} />);
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
     // then
     expect(screen.queryByRole('heading', { name: 'Security findings' })).toBeNull();
   });
@@ -198,8 +305,80 @@ describe('PrSummary', () => {
     // given
     const headSha = '0123456789abcdef0123456789abcdef01234567';
     // when
-    render(<PrSummary pr={fetched(info)} onOpenDescription={vi.fn()} findings={[]} headSha={headSha} />);
+    render(
+      <PrSummary
+        pr={fetched(info)}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={headSha}
+      />,
+    );
     // then
     expect(screen.getByText('Reviewing 0123456')).toBeInTheDocument();
+  });
+
+  test('links a finding with no summary by its comment', () => {
+    // given
+    const findings: SecurityFinding[] = [{ id: 'F3', severity: 'medium', summary: '', url: 'https://github.com/x/3' }];
+    // when
+    render(
+      <PrSummary
+        pr={fetched(info)}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={findings}
+        headSha={null}
+      />,
+    );
+    // then
+    expect(screen.getByText('F3')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open comment' })).toHaveAttribute('href', 'https://github.com/x/3');
+  });
+
+  test('shows why the review failed to load', () => {
+    // given
+    const reviewError = 'fetching review: the PR head moved, try again';
+    // when
+    render(
+      <PrSummary
+        pr={fetched(info)}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={reviewError}
+        findings={[]}
+        headSha={null}
+      />,
+    );
+    // then
+    expect(screen.getByText(reviewError)).toBeInTheDocument();
+  });
+
+  test.each([
+    { state: 'OPEN' as const, shown: true },
+    { state: 'MERGED' as const, shown: false },
+  ])('a $state PR shows a reload review button: $shown', async ({ state, shown }) => {
+    // given
+    const onReloadReview = vi.fn();
+    render(
+      <PrSummary
+        pr={fetched({ ...info, state })}
+        onOpenDescription={vi.fn()}
+        onReloadReview={onReloadReview}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
+    // when
+    const button = screen.queryByRole('button', { name: 'Reload review' });
+    if (button !== null) {
+      await userEvent.click(button);
+    }
+    // then
+    expect(button !== null).toBe(shown);
+    expect(onReloadReview).toHaveBeenCalledTimes(shown ? 1 : 0);
   });
 });

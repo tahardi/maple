@@ -1218,6 +1218,8 @@ describe('FileViewer', () => {
       number: 7,
       headSha: 'a'.repeat(40),
       baseSha: 'c'.repeat(40),
+      added: 0,
+      removed: 0,
       files: [{ path: 'src/a.ts', status: 'R', oldPath: 'src/old.ts', stamp: 'f'.repeat(40) }],
       findings: [],
     };
@@ -1249,7 +1251,15 @@ describe('FileViewer', () => {
 
   test('shows why a file from GitHub could not be read', async () => {
     // given
-    const pinned: Review = { number: 7, headSha: 'a'.repeat(40), baseSha: 'c'.repeat(40), files: [], findings: [] };
+    const pinned: Review = {
+      number: 7,
+      headSha: 'a'.repeat(40),
+      baseSha: 'c'.repeat(40),
+      added: 0,
+      removed: 0,
+      files: [],
+      findings: [],
+    };
     fakeMaple({
       pr: { readFile: vi.fn(() => Promise.reject(new Error("Error invoking remote method 'pr:readFile': Error: x"))) },
     });

@@ -59,7 +59,7 @@ function reviewOf(paths: readonly string[], findings: SecurityFinding[] = []): (
   const files = paths.map((path) => ({ path, status: 'M' as const, oldPath: null, stamp: 'f'.repeat(40) }));
   return () =>
     Promise.resolve({
-      data: { number: 13, headSha: head, baseSha: 'c'.repeat(40), files, findings },
+      data: { number: 13, headSha: head, baseSha: 'c'.repeat(40), added: 9, removed: 4, files, findings },
       error: null,
       fetchedAt: null,
     });
@@ -869,6 +869,7 @@ describe('CardTab', () => {
     // then
     expect(await screen.findByRole('checkbox', { name: 'Viewed src/b.ts' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: 'Viewed src/a.ts' })).not.toBeInTheDocument();
+    expect(screen.getByText('1 files · +9 −4')).toBeInTheDocument();
   });
 
   test('shows the reviewed commit and findings in the PR summary', async () => {

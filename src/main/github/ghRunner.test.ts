@@ -1,6 +1,6 @@
 import type { execFile } from 'node:child_process';
 import { describe, expect, test, vi } from 'vitest';
-import { ghRunner } from './ghRunner';
+import { ghRunner, projectRunner } from './ghRunner';
 
 type Callback = (error: { code?: string | number } | null, stdout: string, stderr: string) => void;
 
@@ -50,5 +50,40 @@ describe('ghRunner', () => {
     const result = await ghRunner('tahardi/maple', run)('gh', ['pr', 'list']);
     // then
     expect(result).toEqual({ code, stdout: '', stderr: 'boom' });
+  });
+});
+
+describe('projectRunner', () => {
+  const project = {
+    name: 'Dig Days',
+    jiraKey: 'DIG',
+    jiraBoardId: 1,
+    plannerDir: '/tmp/dig',
+    repo: 'tahardi/dig-days',
+  };
+  const byKey = (key: string) => Promise.resolve(key === 'DIG' ? project : null);
+
+  test('runs gh against the project repo', async () => {
+    // given
+    const { fake, run } = fakeExecFile(null);
+    // when
+    await (
+      await projectRunner(byKey, 'DIG', run)
+    )('gh', ['pr', 'list']);
+    // then
+    expect(fake.mock.calls[0]?.[2]).toMatchObject({ env: { GH_REPO: 'tahardi/dig-days' } });
+  });
+
+  test.each([
+    { key: 'HALO', want: 'finding project repo: unknown project HALO' },
+    { key: null, want: 'finding project repo: tab has no project' },
+  ])('rejects project $key', async ({ key, want }) => {
+    // given
+    const { fake, run } = fakeExecFile(null);
+    // when
+    const result = projectRunner(byKey, key, run);
+    // then
+    await expect(result).rejects.toThrow(new RegExp(`^${want}$`));
+    expect(fake).not.toHaveBeenCalled();
   });
 });

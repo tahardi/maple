@@ -24,8 +24,8 @@ const configSchema = z
         plannerDir: z.string(),
         repo: z
           .string()
-          .regex(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*$/)
-          .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..')),
+          .regex(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*$/, 'must be owner/name')
+          .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..'), 'must be owner/name'),
       }),
     ),
     actions: z.array(z.object({ label: z.string(), prompt: z.string() })).default(defaultActions),

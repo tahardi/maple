@@ -11,36 +11,37 @@ type CardData = {
   files: string[];
   repo: RepoInfo | null;
   pr: Fetched<PrInfo> | null;
-  review: Fetched<Review> | null;
   card: Card | null;
   cost: SessionCost | null;
 };
 
+type CardDataWithReview = CardData & { review: Fetched<Review> | null; reloadReview: () => void };
+
 const REFRESH_MS = 60_000;
 
-export function useCardData(tab: TabState): CardData {
+export function useCardData(tab: TabState): CardDataWithReview {
   const [data, setData] = useState<CardData>({
     changes: null,
     files: [],
     repo: null,
     pr: null,
-    review: null,
     card: null,
     cost: null,
   });
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : null));
+  const [loaded, setLoaded] = useState<{ number: number; review: Fetched<Review> } | null>(null);
   const latest = useRef(0);
+  const latestReview = useRef(0);
   const { id, projectKey, cardKey, worktreePath } = tab;
 
   const load = useCallback(async (): Promise<void> => {
     const { maple } = window;
     const seq = ++latest.current;
-    const [changes, files, repo, pr, review, sprint, cost] = await Promise.all([
+    const [changes, files, repo, pr, sprint, cost] = await Promise.all([
       worktreePath === null ? null : maple.repo.changes(id),
       worktreePath === null ? [] : maple.repo.listFiles(id),
       worktreePath === null ? null : maple.repo.info(id),
       maple.pr.get(id),
-      maple.pr.review(id),
       maple.jira.sprint(projectKey),
       maple.tabs.cost(id),
     ]);
@@ -50,7 +51,6 @@ export function useCardData(tab: TabState): CardData {
         files,
         repo,
         pr,
-        review,
         card: sprint.data?.cards.find((c) => c.key === cardKey) ?? null,
         cost,
       });
@@ -74,5 +74,23 @@ export function useCardData(tab: TabState): CardData {
     }
   }, [dot, load]);
 
-  return data;
+  const openNumber = data.pr?.data?.state === 'OPEN' ? data.pr.data.number : null;
+
+  const reloadReview = useCallback((): void => {
+    if (openNumber === null) {
+      return;
+    }
+    const seq = ++latestReview.current;
+    void window.maple.pr.review(id).then((review) => {
+      if (seq === latestReview.current) {
+        setLoaded({ number: openNumber, review });
+      }
+    });
+  }, [id, openNumber]);
+
+  useEffect(() => {
+    reloadReview();
+  }, [reloadReview]);
+
+  return { ...data, review: loaded?.number === openNumber ? loaded.review : null, reloadReview };
 }

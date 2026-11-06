@@ -1,5 +1,5 @@
 import type { Fetched } from '@shared/types/app';
-import type { Review } from '@shared/types/github';
+import type { PrInfo, Review } from '@shared/types/github';
 import type { RepoInfo } from '@shared/types/files';
 import type { SessionCost, TabState } from '@shared/types/tabs';
 import { act, renderHook, waitFor } from '@testing-library/react';
@@ -24,6 +24,30 @@ const tab: TabState = {
   sessionId: 's1',
   worktreePath: '/tmp/wts/bearclave-bear-1-thing',
 };
+
+const openPr: PrInfo = {
+  number: 7,
+  url: 'https://github.com/tahardi/bearclave/pull/7',
+  title: '[BEAR-1] Thing',
+  state: 'OPEN',
+  deviations: null,
+  needsTaylor: null,
+  cardImpacts: null,
+  body: '',
+  checks: { passed: 1, failed: 0, pending: 0, total: 1, runs: [] },
+};
+
+const reviewData: Review = {
+  number: 7,
+  headSha: 'a'.repeat(40),
+  baseSha: 'b'.repeat(40),
+  added: 0,
+  removed: 0,
+  files: [],
+  findings: [],
+};
+
+const fetchedReview: Fetched<Review> = { data: reviewData, error: null, fetchedAt: '2026-10-28T12:00:00.000Z' };
 
 describe('useCardData', () => {
   beforeEach(() => {
@@ -281,21 +305,74 @@ describe('useCardData', () => {
     expect(result.current.files).toEqual(['a.go']);
   });
 
-  test('loads the review with the PR', async () => {
+  test('loads the review once when an open PR appears, not on later refreshes', async () => {
     // given
-    const want: Fetched<Review> = {
-      data: { number: 7, headSha: 'a'.repeat(40), baseSha: 'b'.repeat(40), files: [], findings: [] },
-      error: null,
-      fetchedAt: '2026-10-28T12:00:00.000Z',
-    };
-    const review = vi.fn<(tabId: string) => Promise<Fetched<Review>>>(() => Promise.resolve(want));
-    fakeMaple({ pr: { review } });
+    let changed: () => void = vi.fn();
+    const review = vi.fn<(tabId: string) => Promise<Fetched<Review>>>(() => Promise.resolve(fetchedReview));
+    const changes = vi.fn(() => Promise.resolve(null));
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: openPr, error: null, fetchedAt: null }), review },
+      repo: {
+        changes,
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+    });
+    const { result } = renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(result.current.review).toEqual(fetchedReview);
+    });
+    // when
+    act(() => {
+      changed();
+    });
+    // then
+    await waitFor(() => {
+      expect(changes).toHaveBeenCalledTimes(2);
+    });
+    expect(review).toHaveBeenCalledTimes(1);
+    expect(review).toHaveBeenCalledWith('t1');
+  });
+
+  test.each([
+    { name: 'there is no PR', found: null },
+    { name: 'the PR is merged', found: { ...openPr, state: 'MERGED' as const } },
+  ])('skips the review when $name', async ({ found }) => {
+    // given
+    const review = vi.fn<(tabId: string) => Promise<Fetched<Review>>>(() => Promise.resolve(fetchedReview));
+    const get = vi.fn(() => Promise.resolve({ data: found, error: null, fetchedAt: null }));
+    fakeMaple({ pr: { get, review } });
     // when
     const { result } = renderHook(() => useCardData(tab));
     // then
     await waitFor(() => {
-      expect(result.current.review).toEqual(want);
+      expect(result.current.pr?.data).toEqual(found);
     });
-    expect(review).toHaveBeenCalledWith('t1');
+    expect(review).not.toHaveBeenCalled();
+    expect(result.current.review).toBeNull();
+  });
+
+  test('reloadReview loads the review again', async () => {
+    // given
+    const later: Fetched<Review> = { ...fetchedReview, data: { ...reviewData, headSha: 'd'.repeat(40) } };
+    const review = vi
+      .fn<(tabId: string) => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(fetchedReview)
+      .mockResolvedValueOnce(later);
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: openPr, error: null, fetchedAt: null }), review } });
+    const { result } = renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(result.current.review).toEqual(fetchedReview);
+    });
+    // when
+    act(() => {
+      result.current.reloadReview();
+    });
+    // then
+    await waitFor(() => {
+      expect(result.current.review).toEqual(later);
+    });
   });
 });

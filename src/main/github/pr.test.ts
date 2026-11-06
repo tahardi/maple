@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { approveAndMerge, commentOnPr, diffLines, headCommit, prForBranch } from './pr';
+import { approveAndMerge, diffLines, headCommit, prForBranch } from './pr';
 import type { Runner } from '@main/app/preflight';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');
@@ -126,26 +126,6 @@ describe('prForBranch', () => {
   });
 });
 
-describe('commentOnPr', () => {
-  test('runs gh pr comment in the worktree', async () => {
-    // given
-    const run = vi.fn<Runner>(() => Promise.resolve(ok('')));
-    // when
-    await commentOnPr(run, '/wt', 33, 'LGTM');
-    // then
-    expect(run).toHaveBeenCalledWith('gh', ['pr', 'comment', '33', '--body', 'LGTM'], '/wt');
-  });
-
-  test('rejects when gh pr comment fails', async () => {
-    // given
-    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'closed' }));
-    // when
-    const result = commentOnPr(run, '/wt', 33, 'LGTM');
-    // then
-    await expect(result).rejects.toThrow('commenting on PR: closed');
-  });
-});
-
 describe('diffLines', () => {
   test('maps each file to the new-side ranges of its hunks', async () => {
     // given
@@ -227,17 +207,34 @@ describe('headCommit', () => {
 
 describe('approveAndMerge', () => {
   const sha = 'a'.repeat(40);
+  const viewPin = 'pr view 33 --json headRefOid,headRefName,baseRefName';
+  const viewRepo = 'repo view --json defaultBranchRef --jq .defaultBranchRef.name';
   const review = `api --method POST repos/{owner}/{repo}/pulls/33/reviews -f event=APPROVE -f commit_id=${sha}`;
   const merge = `pr merge 33 --squash --match-head-commit ${sha}`;
+  const pin = (head = sha, branch = 'dig-44-trail-map', target = 'main') =>
+    ok(JSON.stringify({ headRefOid: head, headRefName: branch, baseRefName: target }));
 
   function runner(answers: Record<string, Reply>) {
     return vi.fn<Runner>((_cmd, args) => Promise.resolve(answers[args.join(' ')] ?? ok('')));
   }
 
+  test.each([
+    { name: 'a branch named after the card', branch: 'dig-44-trail-map' },
+    { name: 'a branch that is the card key', branch: 'DIG-44' },
+  ])('reviews and merges the pinned commit on $name', async ({ branch }) => {
+    // given
+    const run = runner({ [viewPin]: pin(sha, branch), [viewRepo]: ok('main\n') });
+    // when
+    await approveAndMerge(run, 33, sha, 'DIG-44');
+    // then
+    expect(run.mock.calls.map(([, args]) => args.join(' '))).toEqual([viewPin, viewRepo, review, merge]);
+  });
+
   test('merges the pinned commit without a review when GitHub refuses self-approval', async () => {
     // given
     const run = runner({
-      'pr view 33 --json headRefOid --jq .headRefOid': ok(`${sha}\n`),
+      [viewPin]: pin(),
+      [viewRepo]: ok('main\n'),
       [review]: {
         code: 1,
         stdout: '{"message":"Unprocessable Entity","errors":["Can not approve your own pull request"]}',
@@ -245,18 +242,47 @@ describe('approveAndMerge', () => {
       },
     });
     // when
-    await approveAndMerge(run, 33, sha);
+    await approveAndMerge(run, 33, sha, 'DIG-44');
     // then
     expect(run).toHaveBeenCalledWith('gh', merge.split(' '), '');
   });
 
-  test('reports a failed head read', async () => {
+  test.each([
+    {
+      name: 'the head moved',
+      reply: pin('d'.repeat(40)),
+      want: 'the PR changed after the diff loaded; review it again',
+    },
+    { name: 'the PR targets another branch', reply: pin(sha, 'dig-44-x', 'dev'), want: 'PR targets dev, not main' },
+    {
+      name: 'the branch belongs to another card',
+      reply: pin(sha, 'dig-440-trail'),
+      want: 'branch dig-440-trail is not for DIG-44',
+    },
+  ])('refuses to merge when $name', async ({ reply, want }) => {
     // given
-    const run = runner({ 'pr view 33 --json headRefOid --jq .headRefOid': { code: 1, stdout: '', stderr: 'offline' } });
+    const run = runner({ [viewPin]: reply, [viewRepo]: ok('main\n') });
     // when
-    const result = approveAndMerge(run, 33, sha);
+    const result = approveAndMerge(run, 33, sha, 'DIG-44');
     // then
-    await expect(result).rejects.toThrow(/^approving PR: reading PR head: offline$/);
-    expect(run).toHaveBeenCalledTimes(1);
+    await expect(result).rejects.toThrow(`approving PR: ${want}`);
+    expect(run.mock.calls.map(([, args]) => args.join(' '))).toEqual([viewPin, viewRepo]);
+  });
+
+  test.each([
+    { name: 'head', failing: viewPin, want: 'reading PR head: offline' },
+    { name: 'default branch', failing: viewRepo, want: 'reading default branch: offline' },
+  ])('reports a failed $name read', async ({ failing, want }) => {
+    // given
+    const run = runner({
+      [viewPin]: pin(),
+      [viewRepo]: ok('main\n'),
+      [failing]: { code: 1, stdout: '', stderr: 'offline' },
+    });
+    // when
+    const result = approveAndMerge(run, 33, sha, 'DIG-44');
+    // then
+    await expect(result).rejects.toThrow(new RegExp(`^approving PR: ${want}$`));
+    expect(run).not.toHaveBeenCalledWith('gh', merge.split(' '), '');
   });
 });

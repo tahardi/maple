@@ -26,7 +26,15 @@ const pr: PrInfo = {
   checks: { passed: 3, failed: 0, pending: 0, total: 3, runs: [] },
 };
 
-const review: Review = { number: 7, headSha: 'a'.repeat(40), baseSha: 'b'.repeat(40), files: [], findings: [] };
+const review: Review = {
+  number: 7,
+  headSha: 'a'.repeat(40),
+  baseSha: 'b'.repeat(40),
+  added: 0,
+  removed: 0,
+  files: [],
+  findings: [],
+};
 
 function actions(overrides: { pr?: PrInfo | null; review?: Review | null; dot?: Dot; worktreeExists?: boolean } = {}) {
   const send = vi.fn();

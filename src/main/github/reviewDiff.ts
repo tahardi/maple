@@ -14,6 +14,8 @@ const filesSchema = z.array(
       filename: z.string(),
       status: z.string(),
       sha: z.string(),
+      additions: z.number(),
+      deletions: z.number(),
       previous_filename: z.string().optional(),
     }),
   ),
@@ -46,19 +48,24 @@ export async function reviewFiles(run: CommandRunner, num: number): Promise<Omit
     throw new Error('fetching review: the PR head moved, try again');
   }
 
-  const files = filesSchema
-    .parse(JSON.parse(listed))
-    .flat()
-    .map((f): FileChange => {
-      const status = statuses[f.status] ?? 'M';
-      return {
-        path: f.filename,
-        status,
-        oldPath: status === 'R' ? (f.previous_filename ?? null) : null,
-        stamp: status === 'D' ? null : f.sha,
-      };
-    });
-  return { number: num, headSha: headRefOid, baseSha: shaSchema.parse(mergeBase.trim()), files };
+  const listedFiles = filesSchema.parse(JSON.parse(listed)).flat();
+  const files = listedFiles.map((f): FileChange => {
+    const status = statuses[f.status] ?? 'M';
+    return {
+      path: f.filename,
+      status,
+      oldPath: status === 'R' ? (f.previous_filename ?? null) : null,
+      stamp: status === 'D' ? null : f.sha,
+    };
+  });
+  return {
+    number: num,
+    headSha: headRefOid,
+    baseSha: shaSchema.parse(mergeBase.trim()),
+    added: listedFiles.reduce((sum, f) => sum + f.additions, 0),
+    removed: listedFiles.reduce((sum, f) => sum + f.deletions, 0),
+    files,
+  };
 }
 
 function isRepoPath(path: string): boolean {

@@ -5,7 +5,7 @@ import type { Fetched } from '@shared/types/app';
 import type { PrInfo, Review, ReviewComment } from '@shared/types/github';
 import { changedSince, currentBranch } from '@main/git/git';
 import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@main/github/comments';
-import { ghRunner } from '@main/github/ghRunner';
+import { projectRunner } from '@main/github/ghRunner';
 import { approveAndMerge, diffLines, headCommit, prForBranch } from '@main/github/pr';
 import { reviewFilePair, reviewFiles } from '@main/github/reviewDiff';
 import { ghLogin, openFindings } from '@main/github/securityFindings';
@@ -25,13 +25,8 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
   const lastGood = new Map<string, Fetched<PrInfo>>();
   let login: Promise<string> | null = null;
 
-  async function runnerFor(tabId: string): Promise<CommandRunner> {
-    const key = deps.sessions.get(tabId)?.projectKey ?? null;
-    const project = key === null ? null : await deps.project(key);
-    if (project === null) {
-      throw new Error(`finding project repo: unknown project ${key ?? tabId}`);
-    }
-    return ghRunner(project.repo);
+  function runnerFor(tabId: string): Promise<CommandRunner> {
+    return projectRunner(deps.project, deps.sessions.get(tabId)?.projectKey ?? null);
   }
 
   async function lookup(tabId: string, worktree: string): Promise<PrInfo | null> {
@@ -112,7 +107,8 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       if (pr?.state !== 'OPEN') {
         throw new Error('approving PR: branch has no open PR');
       }
-      await approveAndMerge(run, pr.number, headSha);
+      await approveAndMerge(run, pr.number, headSha, cardKey);
+      logger.info('gh', 'merged', { tabId, number: pr.number, headSha });
       deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
     } catch (err) {
       logger.warn('gh', 'failed', { operation: 'pr:approve', tabId, error: message(err) });
