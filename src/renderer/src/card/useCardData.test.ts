@@ -1,3 +1,4 @@
+import type { RepoInfo } from '@shared/types/files';
 import type { SessionCost, TabState } from '@shared/types/tabs';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useMaple } from '../store';
@@ -36,6 +37,71 @@ describe('useCardData', () => {
       expect(result.current.cost).toEqual(want);
     });
     expect(cost).toHaveBeenCalledWith('t1');
+  });
+
+  test('loads the repo name and branch for a tab with a worktree', async () => {
+    // given
+    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing' };
+    const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(() => Promise.resolve(want));
+    fakeMaple({ repo: { info } });
+    // when
+    const { result } = renderHook(() => useCardData(tab));
+    // then
+    await waitFor(() => {
+      expect(result.current.repo).toEqual(want);
+    });
+    expect(info).toHaveBeenCalledWith('t1');
+  });
+
+  test('skips the repo info for a tab without a worktree', async () => {
+    // given
+    const want: SessionCost = {
+      inputTokens: 1,
+      outputTokens: 2,
+      cacheWriteTokens: 3,
+      cacheReadTokens: 4,
+      dollars: 0.01,
+    };
+    const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(() => Promise.resolve(null));
+    fakeMaple({ repo: { info }, tabs: { cost: () => Promise.resolve(want) } });
+    // when
+    const { result } = renderHook(() => useCardData({ ...tab, worktreePath: null }));
+    // then
+    await waitFor(() => {
+      expect(result.current.cost).toEqual(want);
+    });
+    expect(info).not.toHaveBeenCalled();
+    expect(result.current.repo).toBeNull();
+  });
+
+  test('picks up a new branch when the repo changes', async () => {
+    // given
+    let changed: () => void = vi.fn();
+    const info = vi
+      .fn<(tabId: string) => Promise<RepoInfo | null>>()
+      .mockResolvedValueOnce({ name: 'bearclave', branch: 'old' })
+      .mockResolvedValue({ name: 'bearclave', branch: 'new' });
+    fakeMaple({
+      repo: {
+        info,
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+    });
+    const { result } = renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(result.current.repo?.branch).toBe('old');
+    });
+    // when
+    act(() => {
+      changed();
+    });
+    // then
+    await waitFor(() => {
+      expect(result.current.repo?.branch).toBe('new');
+    });
   });
 
   test('refreshes on repo changes and when the tab goes idle', async () => {

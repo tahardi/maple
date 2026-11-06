@@ -491,6 +491,36 @@ describe('CardTab', () => {
     expect(screen.getByRole('tab', { name: 'README.md', selected: true })).toBeInTheDocument();
   });
 
+  test('shows the repo name and branch above the worktree file tree', async () => {
+    // given
+    fakeMaple({
+      repo: {
+        listFiles: () => Promise.resolve(['README.md']),
+        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }),
+      },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const slot = within(screen.getByTestId('tree-slot'));
+    expect(await slot.findByText('maple · mpl-20-file-tree')).toBeInTheDocument();
+  });
+
+  test('hides the repo name and branch in the vault tree', async () => {
+    // given
+    useMaple.setState({
+      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
+    });
+    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }) } });
+    render(<CardTab tab={tab} />);
+    await screen.findByTestId('file-tree-title');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    // then
+    expect(screen.getByRole('button', { name: 'Vault', pressed: true })).toBeInTheDocument();
+    expect(screen.queryByTestId('file-tree-title')).not.toBeInTheDocument();
+  });
+
   test('keeps the active file when closing another file tab', async () => {
     // given
     fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
