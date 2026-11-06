@@ -28,6 +28,8 @@ export class Terminals extends EventEmitter<Events> {
     const env = parentEnv();
     delete env.MAPLE_TAB_ID;
     delete env.MAPLE_SOCKET;
+    delete env.MAPLE_SNAPSHOT_DIR;
+    delete env.MAPLE_VAULT_DIR;
     const pty = this.deps.spawn(process.env.SHELL ?? '/bin/bash', ['-l'], {
       name: 'xterm-256color',
       cols: 120,

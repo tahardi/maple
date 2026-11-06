@@ -7,13 +7,14 @@ import { registerVault } from './vault';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, listNotes, readNote, writeNote, vaultWrites, watch } = vi.hoisted(() => {
+const { handle, listNotes, readNote, readSnapshot, writeNote, vaultWrites, watch } = vi.hoisted(() => {
   const stop = vi.fn();
   const state = { changed: (): void => undefined };
   return {
     handle: vi.fn<(channel: string, handler: Handler) => void>(),
     listNotes: vi.fn(),
     readNote: vi.fn(),
+    readSnapshot: vi.fn(),
     writeNote: vi.fn(),
     vaultWrites: vi.fn(),
     watch: {
@@ -30,6 +31,7 @@ const { handle, listNotes, readNote, writeNote, vaultWrites, watch } = vi.hoiste
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 vi.mock('@main/vault/vault', () => ({ listNotes, readNote, writeNote }));
 vi.mock('@main/vault/vaultWrites', () => ({ vaultWrites }));
+vi.mock('@main/vault/snapshots', () => ({ readSnapshot }));
 vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktree: watch.watchWorktree }));
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -210,10 +212,45 @@ describe('registerVault', () => {
     expect(watch.watchWorktree).toHaveBeenLastCalledWith('/vault', expect.any(Function));
   });
 
+  test('vault:before returns the copy saved before the tab session first wrote the note', async () => {
+    // given
+    readSnapshot.mockResolvedValue('## Draft\n');
+    // when
+    const got = await invoke('/vault', 'vault:before', 't1', 'Spike.md');
+    // then
+    expect(got).toBe('## Draft\n');
+    expect(readSnapshot).toHaveBeenCalledWith('s1', 'Spike.md');
+  });
+
+  test('vault:before rejects and logs when the copy cannot be read', async () => {
+    // given
+    readSnapshot.mockRejectedValue(new Error('reading snapshot: path is outside the snapshots'));
+    // when
+    const got = invoke('/vault', 'vault:before', 't1', '../x.md');
+    // then
+    await expect(got).rejects.toThrow('reading snapshot: path is outside the snapshots');
+    expect(logger.warn).toHaveBeenCalledWith('vault', 'failed', {
+      operation: 'vault:before',
+      args: ['t1', '../x.md'],
+      error: 'reading snapshot: path is outside the snapshots',
+    });
+  });
+
+  test('vault:before returns null for an unknown tab', async () => {
+    // given
+    const tabId = 'gone';
+    // when
+    const got = await invoke('/vault', 'vault:before', tabId, 'Spike.md');
+    // then
+    expect(got).toBeNull();
+    expect(readSnapshot).not.toHaveBeenCalled();
+  });
+
   test.each([
     { channel: 'vault:list', args: [], logged: [] },
     { channel: 'vault:read', args: ['a.md'], logged: ['a.md'] },
     { channel: 'vault:written', args: ['t1'], logged: ['t1'] },
+    { channel: 'vault:before', args: ['t1', 'a.md'], logged: ['t1', 'a.md'] },
     { channel: 'vault:write', args: ['a.md', 'x'], logged: ['a.md'] },
   ])('$channel rejects and logs without a vaultDir', async ({ channel, args, logged }) => {
     // given

@@ -8,6 +8,7 @@ import { JiraClient, jiraEnvPath, readCreds, type JiraCreds } from '@main/jira/j
 import { appLogger, logsDir, type Logger } from '@main/app/log';
 import { logTail, reportDescription } from '@main/jira/report';
 import { SprintCache } from '@main/jira/sprintCache';
+import { removeSnapshots } from '@main/vault/snapshots';
 import type { IpcDeps } from './index';
 import { cardKeyArg, handle, projectKeyArg } from './validated';
 
@@ -55,9 +56,24 @@ export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
     }
     return got;
   };
-  handle('jira:sprint', z.tuple([projectKeyArg]), (projectKey) =>
-    serve(projectKey, 'sprint', 'activeSprint', (c) => c.sprint),
-  );
+  const removeDoneSnapshots = (sprint: Sprint) => {
+    for (const card of sprint.cards) {
+      const sessionId = card.status === 'Done' ? deps.sessions.sessionOf(card.key) : null;
+      if (sessionId !== null) {
+        removeSnapshots(sessionId).catch((err: unknown) => {
+          const error = err instanceof Error ? err.message : String(err);
+          logger.warn('vault', 'failed', { operation: 'removeSnapshots', args: [sessionId], error });
+        });
+      }
+    }
+  };
+  handle('jira:sprint', z.tuple([projectKeyArg]), async (projectKey) => {
+    const got = await serve(projectKey, 'sprint', 'activeSprint', (c) => c.sprint);
+    if (got.data !== null) {
+      removeDoneSnapshots(got.data);
+    }
+    return got;
+  });
   handle('jira:backlog', z.tuple([projectKeyArg]), (projectKey) =>
     serve(projectKey, 'backlog', 'backlog', (c) => c.backlog),
   );

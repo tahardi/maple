@@ -72,6 +72,7 @@ describe('SessionManager with a real claude', () => {
       config: () => config,
       hooksFile: await writeHooksFile(dir, process.execPath, resolve('resources/maple-hook.mjs')),
       socketPath: join(dir, 'maple.sock'),
+      snapshotRoot: join(dir, 'snapshots'),
       save: () => Promise.resolve(),
       closedSessions: {},
       uuid: randomUUID,

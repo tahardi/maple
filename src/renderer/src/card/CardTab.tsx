@@ -293,6 +293,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 onComments={showComments}
                 line={line}
                 review={pinned}
+                noteChanges
               />
             )}
           </div>
