@@ -1,8 +1,46 @@
-.menu {
-  background: var(--surface);
+.project {
+  position: relative;
+  margin-right: 12px;
+}
+
+.button,
+.row {
   color: var(--text);
+  cursor: pointer;
+}
+
+.button {
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 8px;
-  margin-right: 12px;
+  white-space: nowrap;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  min-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.row {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 6px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.row:hover,
+.row[aria-checked='true'] {
+  background: var(--surface-hover);
 }

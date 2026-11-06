@@ -1,6 +1,6 @@
 import type { Card, Sprint } from '@shared/types/jira';
 import type { Dot, TabState, TabStatus } from '@shared/types/tabs';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
@@ -177,6 +177,30 @@ describe('Inbox', () => {
     await userEvent.click(button);
     // then
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
+  });
+
+  test.each([
+    { name: 'clicking elsewhere in the app', leave: () => userEvent.click(document.body) },
+    { name: 'leaving the window', leave: () => Promise.resolve(fireEvent.blur(window)) },
+  ])('$name closes the list', async ({ leave }) => {
+    // given
+    render(<Inbox />);
+    await userEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
+    await screen.findByRole('list');
+    // when
+    await leave();
+    // then
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+  });
+
+  test('clicking inside the panel keeps the list open', async () => {
+    // given
+    render(<Inbox />);
+    await userEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
+    // when
+    await userEvent.click(await screen.findByText('Ready: 3 pts'));
+    // then
+    expect(screen.getByRole('list')).toBeInTheDocument();
   });
 
   test('says nothing needs Taylor when there are no items', async () => {

@@ -41,9 +41,31 @@ describe('TabBar', () => {
     expect(labels).toEqual(['Home', 'BEAR-1', 'BEAR-2']);
     const inbox = screen.getByRole('button', { name: /^Inbox/ });
     expect(within(screen.getByRole('tablist')).queryByRole('button', { name: /^Inbox/ })).not.toBeInTheDocument();
-    expect(inbox.compareDocumentPosition(screen.getByRole('combobox', { name: 'Project' }))).toBe(
+    expect(inbox.compareDocumentPosition(screen.getByRole('button', { name: 'Project' }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+  });
+
+  test('opening the project menu closes the inbox', async () => {
+    // given
+    render(<TabBar />);
+    await userEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
+    await screen.findByText('Nothing needs you');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Project' }));
+    // then
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(screen.queryByText('Nothing needs you')).not.toBeInTheDocument();
+  });
+
+  test('opening the inbox closes the project menu', async () => {
+    // given
+    render(<TabBar />);
+    await userEvent.click(screen.getByRole('button', { name: 'Project' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
+    // then
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
   test('shows a Vault tab after Home when the vault is configured', () => {

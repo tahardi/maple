@@ -1,5 +1,5 @@
 import type { Dot, TabState } from '@shared/types/tabs';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
@@ -12,36 +12,80 @@ describe('ProjectMenu', () => {
     useMaple.setState({ config: FAKE_CONFIG, projectKey: 'BEAR' });
   });
 
-  test('lists every project with its Jira key', () => {
+  const openMenu = () => userEvent.click(screen.getByRole('button', { name: 'Project' }));
+  const rows = () => screen.getAllByRole('menuitemradio').map((o) => o.textContent);
+
+  test('lists every project with its Jira key', async () => {
     // given
     render(<ProjectMenu />);
     // when
-    const options = screen.getAllByRole('option').map((o) => o.textContent);
+    await openMenu();
     // then
-    expect(options).toEqual(['Bearclave (BEAR)', 'Dig Days (DIG)']);
+    expect(rows()).toEqual(['Bearclave (BEAR)', 'Dig Days (DIG)']);
   });
 
-  test('shows the selected project', () => {
+  test('shows the selected project', async () => {
     // given
     useMaple.setState({ projectKey: 'DIG' });
-    // when
     render(<ProjectMenu />);
+    // when
+    await openMenu();
     // then
-    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveValue('DIG');
+    expect(screen.getByRole('button', { name: 'Project' })).toHaveTextContent('Dig Days (DIG)');
+    expect(screen.getByRole('menuitemradio', { checked: true })).toHaveTextContent('Dig Days (DIG)');
   });
 
-  test('choosing a project selects it', async () => {
+  test('choosing a project selects it and closes the menu', async () => {
     // given
     const selectProject = vi.fn();
     useMaple.setState({ selectProject });
     render(<ProjectMenu />);
+    await openMenu();
     // when
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project' }), 'DIG');
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Dig Days (DIG)' }));
     // then
     expect(selectProject).toHaveBeenCalledWith('DIG');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
-  test('shows waiting and ready counts for projects that have them', () => {
+  test('clicking the button again closes the menu', async () => {
+    // given
+    render(<ProjectMenu />);
+    await openMenu();
+    // when
+    await openMenu();
+    // then
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  test.each([
+    { name: 'clicking elsewhere in the app', leave: () => userEvent.click(document.body) },
+    { name: 'leaving the window', leave: () => Promise.resolve(fireEvent.blur(window)) },
+  ])('$name closes the menu', async ({ leave }) => {
+    // given
+    render(<ProjectMenu />);
+    await openMenu();
+    // when
+    await leave();
+    // then
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  test.each([
+    { name: 'no project is selected', state: { projectKey: null }, rows: 2 },
+    { name: 'the config has not loaded', state: { config: null, projectKey: null }, rows: 0 },
+  ])('still opens when $name', async ({ state, rows: want }) => {
+    // given
+    useMaple.setState(state);
+    render(<ProjectMenu />);
+    // when
+    await openMenu();
+    // then
+    expect(screen.getByRole('button', { name: 'Project' })).toHaveTextContent('▾');
+    expect(screen.queryAllByRole('menuitemradio')).toHaveLength(want);
+  });
+
+  test('shows waiting and ready counts for projects that have them', async () => {
     // given
     const tab = (id: string, projectKey: string): TabState => ({
       id,
@@ -62,18 +106,18 @@ describe('ProjectMenu', () => {
       tabs: [tab('1', 'DIG'), tab('2', 'DIG'), tab('3', 'BEAR')],
       statuses: { '1': status('1', 'waiting'), '2': status('2', 'ready'), '3': status('3', 'idle') },
     });
-    // when
     render(<ProjectMenu />);
+    // when
+    await openMenu();
     // then
-    const options = screen.getAllByRole('option').map((o) => o.textContent);
-    expect(options).toEqual(['Bearclave (BEAR)', 'Dig Days (DIG) · 1 waiting · 1 ready']);
+    expect(rows()).toEqual(['Bearclave (BEAR)', 'Dig Days (DIG) · 1 waiting · 1 ready']);
   });
 
   test.each([
     { name: 'only waiting', dots: ['waiting', 'working'], want: 'Dig Days (DIG) · 1 waiting · 0 ready' },
     { name: 'only ready', dots: ['ready', 'ready'], want: 'Dig Days (DIG) · 0 waiting · 2 ready' },
     { name: 'neither', dots: ['working', 'idle'], want: 'Dig Days (DIG)' },
-  ] as const)('labels a project with $name', ({ dots, want }) => {
+  ] as const)('labels a project with $name', async ({ dots, want }) => {
     // given
     const tab = (id: string): TabState => ({
       id,
@@ -92,9 +136,10 @@ describe('ProjectMenu', () => {
         ]),
       ),
     });
-    // when
     render(<ProjectMenu />);
+    // when
+    await openMenu();
     // then
-    expect(screen.getByRole('option', { name: want })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: want })).toBeInTheDocument();
   });
 });
