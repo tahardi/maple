@@ -27,6 +27,7 @@ function clipboardKeys(term: Terminal) {
       return false;
     }
     if (e.key === 'V') {
+      e.preventDefault();
       void navigator.clipboard.readText().then((text) => {
         term.paste(text);
       });
