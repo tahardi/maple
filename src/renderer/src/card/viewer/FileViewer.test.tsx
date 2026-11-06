@@ -368,7 +368,7 @@ describe('FileViewer', () => {
       tabId: 't1',
       openFiles: ['vault:One.md', 'vault:Two.md'],
       onActivate: vi.fn(),
-      onCloseFile: vi.fn(),
+      onCloseFiles: vi.fn(),
       prBody: null,
       line: null,
       canComment: false,
@@ -396,7 +396,7 @@ describe('FileViewer', () => {
         openFiles={[path]}
         activeFile={path}
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={prBody}
         cardBody={cardBody}
         line={null}
