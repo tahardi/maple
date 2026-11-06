@@ -92,8 +92,13 @@ describe('SessionManager with a real claude', () => {
     // then
     await vi.waitFor(
       () => {
-        expect(events).toContainEqual({ tabId: tab.id, event: 'UserPromptSubmit', notificationType: null });
-        expect(events).toContainEqual({ tabId: tab.id, event: 'Stop', notificationType: null });
+        expect(events).toContainEqual({
+          tabId: tab.id,
+          event: 'UserPromptSubmit',
+          notificationType: null,
+          backgroundAgents: 0,
+        });
+        expect(events).toContainEqual({ tabId: tab.id, event: 'Stop', notificationType: null, backgroundAgents: 0 });
       },
       { timeout: 90_000, interval: 500 },
     );
@@ -115,7 +120,7 @@ describe('SessionManager with a real claude', () => {
     expect(resumed).toEqual([false, true]);
     await vi.waitFor(
       () => {
-        expect(events).toContainEqual({ tabId: again.id, event: 'Stop', notificationType: null });
+        expect(events).toContainEqual({ tabId: again.id, event: 'Stop', notificationType: null, backgroundAgents: 0 });
       },
       { timeout: 90_000, interval: 500 },
     );

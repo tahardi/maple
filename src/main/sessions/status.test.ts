@@ -542,6 +542,129 @@ describe('StatusEngine', () => {
     expect(emitted.map((s) => s.dot)).toEqual(['idle', 'working']);
   });
 
+  test.each([
+    { name: 'card', tab: cardTab },
+    { name: 'planner', tab: { ...cardTab, kind: 'planner', cardKey: null, worktreePath: null } as const },
+  ])('a Stop with a background agent keeps a $name tab working without a lookup', async ({ tab }) => {
+    // given
+    const { sessions, engine, emitted, getCard, prFor } = setup({ tab });
+    sessions.emit('spawn', 't1', true);
+    emitted.length = 0;
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // then
+    expect(emitted).toEqual([]);
+    expect(engine.statuses()[0]?.dot).toBe('working');
+    expect(getCard).not.toHaveBeenCalled();
+    expect(prFor).not.toHaveBeenCalled();
+  });
+
+  test('a Stop with a background agent clears a permission wait', () => {
+    // given
+    const { sessions, engine, emitted, logger } = setup();
+    sessions.emit('spawn', 't1', true);
+    engine.hook({ tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' });
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 2 });
+    // then
+    expect(emitted.at(-1)?.dot).toBe('working');
+    expect(logger.info).toHaveBeenLastCalledWith('dot', 'changed', {
+      tabId: 't1',
+      from: 'waiting',
+      to: 'working',
+      input: 'background',
+    });
+  });
+
+  test('a Stop with a background agent cancels a Stop lookup in flight', async () => {
+    // given
+    const { sessions, engine, emitted } = setup();
+    sessions.emit('spawn', 't1', true);
+    emitted.length = 0;
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // then
+    expect(emitted).toEqual([]);
+  });
+
+  test('the Stop after the last background agent finishes sets the card dot', async () => {
+    // given
+    const inProgress = () => Promise.resolve({ ...card, status: 'In Progress' as const });
+    const { sessions, engine, emitted } = setup({ getCard: inProgress });
+    sessions.emit('spawn', 't1', true);
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 0 });
+    // then
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe('waiting');
+    });
+  });
+
+  test('an interrupt while only a background agent runs keeps the tab working', async () => {
+    // given
+    const { sessions, engine, emitted, getCard } = setup();
+    sessions.emit('spawn', 't1', true);
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    emitted.length = 0;
+    // when
+    sessions.emit('interrupt', 't1');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // then
+    expect(emitted).toEqual([]);
+    expect(getCard).not.toHaveBeenCalled();
+  });
+
+  test('an interrupt of a new prompt after a background Stop looks up the card', async () => {
+    // given
+    const { sessions, engine, getCard } = setup();
+    sessions.emit('spawn', 't1', true);
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    // when
+    sessions.emit('interrupt', 't1');
+    // then
+    await vi.waitFor(() => {
+      expect(getCard).toHaveBeenCalledOnce();
+    });
+  });
+
+  test('a permission prompt after a background Stop emits waiting', () => {
+    // given
+    const { sessions, engine, emitted } = setup();
+    sessions.emit('spawn', 't1', true);
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    // when
+    engine.hook({ tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' });
+    // then
+    expect(emitted.at(-1)?.dot).toBe('waiting');
+  });
+
+  test('a Stop with a background agent leaves an exited tab alone', () => {
+    // given
+    const { sessions, engine, emitted } = setup();
+    sessions.emit('spawn', 't1', true);
+    sessions.emit('exit', 't1', 0);
+    emitted.length = 0;
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    // then
+    expect(emitted).toEqual([]);
+    expect(engine.statuses()[0]?.dot).toBe('idle');
+  });
+
+  test('an unknown tab ignores a Stop with a background agent', () => {
+    // given
+    const { engine, emitted } = setup();
+    // when
+    engine.hook({ tabId: 'nope', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    // then
+    expect(emitted).toEqual([]);
+  });
+
   test('a Notification hook with idle_prompt emits nothing', () => {
     // given
     const { sessions, engine, emitted } = setup();

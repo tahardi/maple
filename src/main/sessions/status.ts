@@ -18,7 +18,7 @@ type Events = { status: [status: TabStatus, prev: Dot] };
 const RESUME_FAIL_MS = 5000;
 const LOOKUP_TIMEOUT_MS = 15_000;
 
-type Tracked = { status: TabStatus; seq: number; resumedAt: number | null };
+type Tracked = { status: TabStatus; seq: number; resumedAt: number | null; background: boolean };
 
 function timeout<T>(lookup: Promise<T>): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -44,7 +44,12 @@ export class StatusEngine extends EventEmitter<Events> {
       const prev = this.tabs.get(tabId);
       const dot = prompted ? 'working' : 'idle';
       const status: TabStatus = { tabId, dot, sessionAlive: true, exitCode: null, resumeFailed: false };
-      this.tabs.set(tabId, { status, seq: (prev?.seq ?? 0) + 1, resumedAt: resumed ? Date.now() : null });
+      this.tabs.set(tabId, {
+        status,
+        seq: (prev?.seq ?? 0) + 1,
+        resumedAt: resumed ? Date.now() : null,
+        background: false,
+      });
       if (prev && prev.status.dot !== dot) {
         this.log.info('dot', 'changed', { tabId, from: prev.status.dot, to: dot, input: 'spawn' });
       }
@@ -71,7 +76,8 @@ export class StatusEngine extends EventEmitter<Events> {
       }
     });
     sessions.on('interrupt', (tabId) => {
-      if (this.tabs.get(tabId)?.status.dot === 'working') {
+      const tracked = this.tabs.get(tabId);
+      if (tracked?.status.dot === 'working' && !tracked.background) {
         void this.stop(tabId);
       }
     });
@@ -92,6 +98,8 @@ export class StatusEngine extends EventEmitter<Events> {
     } else if (e.event === 'Notification' && e.notificationType === 'permission_prompt') {
       this.bump(e.tabId);
       this.apply(e.tabId, { type: 'permission' });
+    } else if (e.event === 'Stop' && (e.backgroundAgents ?? 0) > 0) {
+      this.background(e.tabId);
     } else if (e.event === 'Stop') {
       void this.stop(e.tabId);
     }
@@ -99,6 +107,16 @@ export class StatusEngine extends EventEmitter<Events> {
 
   statuses(): TabStatus[] {
     return [...this.tabs.values()].map((t) => t.status);
+  }
+
+  private background(tabId: string): void {
+    const tracked = this.tabs.get(tabId);
+    if (!tracked?.status.sessionAlive) {
+      return;
+    }
+    this.bump(tabId);
+    tracked.background = true;
+    this.apply(tabId, { type: 'background' });
   }
 
   private async stop(tabId: string): Promise<void> {
@@ -180,6 +198,7 @@ export class StatusEngine extends EventEmitter<Events> {
       return null;
     }
     tracked.seq += 1;
+    tracked.background = false;
     return tracked.seq;
   }
 

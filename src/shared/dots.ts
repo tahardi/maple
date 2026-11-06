@@ -5,6 +5,7 @@ import type { PrInfo } from './types/github';
 export type DotInput =
   | { type: 'prompt' }
   | { type: 'permission' }
+  | { type: 'background' }
   | { type: 'stop'; kind: TabKind; cardStatus: JiraStatus | null; pr: PrInfo | null };
 
 function stopDot(cardStatus: JiraStatus | null, pr: PrInfo | null): Dot {
@@ -18,6 +19,7 @@ function stopDot(cardStatus: JiraStatus | null, pr: PrInfo | null): Dot {
 export function nextDot(input: DotInput): Dot {
   switch (input.type) {
     case 'prompt':
+    case 'background':
       return 'working';
     case 'permission':
       return 'waiting';

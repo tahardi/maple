@@ -65,6 +65,35 @@ describe('startHookServer', () => {
     });
   });
 
+  test('delivers the background agent count', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const onEvent = vi.fn<(e: HookEvent) => void>();
+    close = await startHookServer(socketPath, onEvent);
+    const event: HookEvent = { ...stop, backgroundAgents: 2 };
+    // when
+    await sendLines(socketPath, `${JSON.stringify(event)}\n`);
+    // then
+    await vi.waitFor(() => {
+      expect(onEvent.mock.calls).toEqual([[event]]);
+    });
+  });
+
+  test('drops an event whose background agent count is not a number', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const onEvent = vi.fn<(e: HookEvent) => void>();
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    close = await startHookServer(socketPath, onEvent, logger);
+    // when
+    await sendLines(socketPath, `${JSON.stringify({ ...stop, backgroundAgents: '2' })}\n`);
+    // then
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith('hook', 'malformed', expect.anything());
+    });
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
   test('logs a malformed line at warn', async () => {
     // given
     const socketPath = join(dir, 'maple.sock');

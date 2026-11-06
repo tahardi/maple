@@ -65,7 +65,9 @@ describe('maple-hook', () => {
     );
     // then
     expect(result).toEqual({ code: 0, stdout: '' });
-    expect(received.join('')).toBe('{"tabId":"tab-1","event":"Notification","notificationType":"permission_prompt"}\n');
+    expect(received.join('')).toBe(
+      '{"tabId":"tab-1","event":"Notification","notificationType":"permission_prompt","backgroundAgents":0}\n',
+    );
   });
 
   test('exits 0 within 1 second when the socket is missing', async () => {
@@ -91,7 +93,31 @@ describe('maple-hook', () => {
     const result = await runHook('Stop', { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-2' }, 'not json');
     // then
     expect(result).toEqual({ code: 0, stdout: '' });
-    expect(received.join('')).toBe('{"tabId":"tab-2","event":"Stop","notificationType":null}\n');
+    expect(received.join('')).toBe('{"tabId":"tab-2","event":"Stop","notificationType":null,"backgroundAgents":0}\n');
+  });
+
+  test.each([
+    { name: 'a running subagent', tasks: [{ type: 'subagent' }], want: 1 },
+    { name: 'a running workflow', tasks: [{ type: 'workflow' }], want: 1 },
+    { name: 'a background shell', tasks: [{ type: 'shell' }], want: 0 },
+    { name: 'a monitor', tasks: [{ type: 'monitor' }], want: 0 },
+    { name: 'a mix of tasks', tasks: [{ type: 'subagent' }, { type: 'shell' }, { type: 'subagent' }], want: 2 },
+    { name: 'no tasks', tasks: [], want: 0 },
+    { name: 'a task list that is not an array', tasks: 'subagent', want: 0 },
+    { name: 'a null task', tasks: [null, { type: 'subagent' }], want: 1 },
+  ])('counts background agents from $name', async ({ tasks, want }) => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const received: string[] = [];
+    server = await listen(socketPath, received);
+    // when
+    await runHook(
+      'Stop',
+      { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-3' },
+      JSON.stringify({ background_tasks: tasks }),
+    );
+    // then
+    expect(JSON.parse(received.join(''))).toMatchObject({ event: 'Stop', backgroundAgents: want });
   });
 
   describe('PreToolUse', () => {

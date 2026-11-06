@@ -2,6 +2,12 @@ import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
+const AGENT_TASK_TYPES = new Set(['subagent', 'workflow']);
+
+function countAgents(tasks) {
+  return Array.isArray(tasks) ? tasks.filter((task) => AGENT_TASK_TYPES.has(task?.type)).length : 0;
+}
+
 function targetPath(vault, toolInput) {
   const { file_path: filePath, path } = toolInput;
   if (typeof filePath === 'string') {
@@ -65,12 +71,20 @@ process.stdin.on('end', () => {
     }
   }
   let notificationType = null;
+  let backgroundAgents = 0;
   try {
-    notificationType = JSON.parse(input).notification_type ?? null;
+    const payload = JSON.parse(input);
+    notificationType = payload.notification_type ?? null;
+    backgroundAgents = countAgents(payload.background_tasks);
   } catch {
     notificationType = null;
   }
-  const line = JSON.stringify({ tabId: process.env.MAPLE_TAB_ID ?? '', event: process.argv[2], notificationType });
+  const line = JSON.stringify({
+    tabId: process.env.MAPLE_TAB_ID ?? '',
+    event: process.argv[2],
+    notificationType,
+    backgroundAgents,
+  });
   const socket = connect(process.env.MAPLE_SOCKET ?? '', () => {
     socket.end(`${line}\n`, () => process.exit(0));
   });
