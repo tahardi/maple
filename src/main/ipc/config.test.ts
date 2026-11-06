@@ -31,8 +31,20 @@ const event = {} as IpcMainInvokeEvent;
 const sessions = {} as SessionManager;
 const first = { data: null, error: 'reading config: missing', fetchedAt: null };
 const second = { data: null, error: null, fetchedAt: '2026-10-17T00:00:00.000Z' };
-const halo: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
-const dig: ProjectConfig = { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 8, plannerDir: '/tmp/dig' };
+const halo: ProjectConfig = {
+  name: 'Halo',
+  jiraKey: 'HALO',
+  jiraBoardId: 7,
+  plannerDir: '/tmp/halo',
+  repo: 'tahardi/halo',
+};
+const dig: ProjectConfig = {
+  name: 'Dig Days',
+  jiraKey: 'DIG',
+  jiraBoardId: 8,
+  plannerDir: '/tmp/dig',
+  repo: 'tahardi/dig-days',
+};
 const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleConfig> => ({
   data: { worktreesDir: '/tmp/wts', vaultDir: null, notifications, projects, actions: [] },
   error: null,
@@ -59,6 +71,7 @@ function deps(window: () => BrowserWindow | null = () => null) {
     warnings: () => [],
     setNotifications: vi.fn(() => Promise.resolve()),
     setZoom: vi.fn(() => Promise.resolve()),
+    configLoaded: vi.fn(() => Promise.resolve()),
     setLastProject: vi.fn(() => Promise.resolve()),
     lastProject: () => Promise.resolve(null),
   };
@@ -97,6 +110,22 @@ describe('registerConfig', () => {
     expect(reloaded).toEqual(second);
     expect(after).toEqual(second);
     expect(sendToWindow).toHaveBeenCalledWith('config:changed', second);
+  });
+
+  test('reload hands the new config to the app before notifying the window', async () => {
+    // given
+    const reloadedConfig = loaded([halo]);
+    loadConfig.mockReset().mockResolvedValueOnce(first).mockResolvedValueOnce(reloadedConfig);
+    const { win, sendToWindow } = fakeWindow(false);
+    const given = deps(() => win);
+    registerConfig(given);
+    // when
+    await handler('config:reload')(event);
+    // then
+    expect(given.configLoaded).toHaveBeenCalledWith(reloadedConfig.data);
+    const [handedOver] = given.configLoaded.mock.invocationCallOrder;
+    const [notified] = sendToWindow.mock.invocationCallOrder;
+    expect(handedOver).toBeLessThan(notified);
   });
 
   test.each([

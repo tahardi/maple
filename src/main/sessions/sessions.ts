@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import type { IPty, spawn } from 'node-pty';
 import { parseBatch } from '@shared/batch';
@@ -18,6 +19,7 @@ export type SessionDeps = {
   config: () => MapleConfig;
   hooksFile: string;
   socketPath: string;
+  snapshotRoot: string;
   save: (tabs: TabState[], closedSessions: Record<string, string>) => Promise<void>;
   closedSessions: Record<string, string>;
   uuid: () => string;
@@ -147,6 +149,11 @@ export class SessionManager extends EventEmitter<Events> {
     return this.sessions.get(tabId)?.tab ?? null;
   }
 
+  sessionOf(cardKey: string): string | null {
+    const open = this.list().find((tab) => tab.cardKey === cardKey);
+    return open?.sessionId ?? (Object.hasOwn(this.closed, cardKey) ? this.closed[cardKey] : null);
+  }
+
   list(): TabState[] {
     return [...this.sessions.values()].map((session) => session.tab);
   }
@@ -233,7 +240,12 @@ export class SessionManager extends EventEmitter<Events> {
     };
     const session: Session = { tab, pty: null, alive: false, backlog: '', line: '', stopWatch: () => undefined };
     this.sessions.set(tab.id, session);
-    this.launch(session, { resume: resumeId !== null, prompt });
+    try {
+      this.launch(session, { resume: resumeId !== null, prompt });
+    } catch (err) {
+      this.sessions.delete(tab.id);
+      throw err;
+    }
     this.changed();
     if (cardKey !== null) {
       this.trackWorktree(session, cardKey);
@@ -265,7 +277,12 @@ export class SessionManager extends EventEmitter<Events> {
     if (prompt !== null) {
       args.push(prompt);
     }
-    const env = { MAPLE_TAB_ID: tab.id, MAPLE_SOCKET: this.deps.socketPath };
+    const env = {
+      MAPLE_TAB_ID: tab.id,
+      MAPLE_SOCKET: this.deps.socketPath,
+      ...(tab.kind === 'card' && { MAPLE_SNAPSHOT_DIR: join(this.deps.snapshotRoot, tab.sessionId) }),
+      ...(tab.kind === 'card' && config.vaultDir !== null && { MAPLE_VAULT_DIR: config.vaultDir }),
+    };
     const command = tmuxArgs(tmuxName(tab.id), this.deps.tmuxConf, cwd, env, ['claude', ...args]);
     const pty = this.deps.spawn('tmux', command, {
       name: 'xterm-256color',

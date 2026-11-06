@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { appLogger, logFailure, type Logger } from '@main/app/log';
 import { watchWorktree } from '@main/git/worktreeWatcher';
+import { readSnapshot } from '@main/vault/snapshots';
 import { listNotes, readNote, writeNote } from '@main/vault/vault';
 import { vaultWrites } from '@main/vault/vaultWrites';
 import { vaultDir as configuredVaultDir } from './config';
@@ -60,6 +61,13 @@ export function registerVault(
       const dir = await requireVaultDir();
       const tab = sessions.get(tabId);
       return tab === null ? [] : vaultWrites(tab.sessionId, dir);
+    }),
+  );
+  handle('vault:before', z.tuple([tabIdArg, z.string().max(4096)]), (tabId, path) =>
+    logFailure(logger, 'vault', { operation: 'vault:before', args: [tabId, path] }, async () => {
+      await requireVaultDir();
+      const tab = sessions.get(tabId);
+      return tab === null ? null : readSnapshot(tab.sessionId, path);
     }),
   );
 }

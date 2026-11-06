@@ -18,7 +18,7 @@ describe('writeHooksFile', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('writes the three hooks with quoted exec and script paths', async () => {
+  test('writes the four hooks with quoted exec and script paths', async () => {
     // given
     const execPath = '/opt/Maple/maple';
     const scriptPath = '/opt/Maple/resources/maple-hook.mjs';
@@ -27,7 +27,7 @@ describe('writeHooksFile', () => {
     // then
     expect(path).toBe(join(dir, 'hooksFile.json'));
     const parsed = JSON.parse(await readFile(path, 'utf8')) as Hooks;
-    expect(Object.keys(parsed.hooks).sort()).toEqual(['Notification', 'Stop', 'UserPromptSubmit']);
+    expect(Object.keys(parsed.hooks).sort()).toEqual(['Notification', 'PreToolUse', 'Stop', 'UserPromptSubmit']);
     for (const [event, groups] of Object.entries(parsed.hooks)) {
       expect(groups[0].hooks[0]).toEqual({
         type: 'command',
@@ -35,6 +35,18 @@ describe('writeHooksFile', () => {
       });
     }
     expect(parsed.hooks.Notification[0].matcher).toBe('permission_prompt');
+  });
+
+  test('matches note writes with the PreToolUse hook', async () => {
+    // given
+    const execPath = '/maple';
+    const scriptPath = '/s.mjs';
+    // when
+    const path = await writeHooksFile(dir, execPath, scriptPath);
+    // then
+    const parsed = JSON.parse(await readFile(path, 'utf8')) as Hooks;
+    expect(parsed.hooks.PreToolUse[0].matcher).toBe('Write|Edit|MultiEdit|mcp__anchorhold__anchorhold_write_note');
+    expect(parsed.hooks.PreToolUse[0].hooks[0].command.endsWith(' PreToolUse')).toBe(true);
   });
 
   test('escapes single quotes in paths', async () => {

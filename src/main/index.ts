@@ -3,11 +3,13 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog } from 'electron';
 import { spawn } from 'node-pty';
+import type { MapleConfig } from '@shared/types/config';
 import { configDir, loadConfig } from '@main/app/config';
 import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
 import { writeHooksFile } from '@main/sessions/hooksFile';
 import { currentBranch, findWorktree } from '@main/git/git';
+import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/ipc/config';
@@ -15,7 +17,6 @@ import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/jira';
 import { appLogger, logUncaught, startLogging } from '@main/app/log';
 import { checkNotifications } from '@main/app/menu';
 import { notifyTab, shouldNotify } from '@main/app/notify';
-import { defaultRunner } from '@main/app/preflight';
 import { restoreTabs } from '@main/sessions/restore';
 import { lockDown, webPreferences } from '@main/app/security';
 import { SessionManager } from '@main/sessions/sessions';
@@ -71,7 +72,8 @@ async function start(): Promise<() => number> {
   process.on('uncaughtException', (err) => {
     dialog.showErrorBox('A JavaScript error occurred in the main process', err.stack ?? err.message);
   });
-  const [{ data: config }, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
+  const [loaded, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
+  let config = loaded.data;
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
   const tmuxConf = await writeTmuxConf(configDir());
   const socketPath = hookSocketPath();
@@ -98,6 +100,7 @@ async function start(): Promise<() => number> {
     },
     hooksFile,
     socketPath,
+    snapshotRoot: join(configDir(), 'snapshots'),
     save: (tabs, closedSessions) => persist({ tabs, closedSessions }),
     closedSessions: state.closedSessions,
     uuid: randomUUID,
@@ -112,7 +115,8 @@ async function start(): Promise<() => number> {
   const status = new StatusEngine({
     sessions,
     getCard: async (key) => (await jira).getCard(key),
-    prFor: async (worktree) => prForBranch(defaultRunner, worktree, await currentBranch(worktree)),
+    prFor: async (worktree, projectKey) =>
+      prForBranch(await projectRunner(projectByKey, projectKey), worktree, await currentBranch(worktree)),
   });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
@@ -122,9 +126,9 @@ async function start(): Promise<() => number> {
     terminals.closeAll();
     void stopHooks();
   });
-  const restored = config
-    ? await restoreTabs(state, sessions, (key) => findWorktree(config.worktreesDir, key))
-    : { restored: 0, warnings: [] };
+  const restore = ({ worktreesDir }: MapleConfig) =>
+    restoreTabs(state, sessions, (key) => findWorktree(worktreesDir, key));
+  const restored = config ? await restore(config) : { restored: 0, warnings: [] };
   if (warning !== null) {
     appLogger.warn('restore', 'state unreadable', { warning });
   }
@@ -158,6 +162,16 @@ async function start(): Promise<() => number> {
       await persist({ notifications: on });
     },
     warnings: () => warnings,
+    configLoaded: async (next) => {
+      if (next === null) {
+        return;
+      }
+      const firstLoad = config === null;
+      config = next;
+      if (firstLoad) {
+        warnings.push(...(await restore(next)).warnings);
+      }
+    },
     setLastProject: (key) => persist({ lastProject: key }),
     lastProject: () => Promise.resolve(saved.lastProject),
     setZoom: async (change) => {

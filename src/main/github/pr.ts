@@ -24,7 +24,11 @@ const checksSchema = z.array(
 
 const filesSchema = z.array(z.array(z.object({ filename: z.string(), patch: z.string().optional() })));
 
+const pinSchema = z.object({ headRefOid: z.string(), headRefName: z.string(), baseRefName: z.string() });
+
 const pendingExitCode = 8;
+
+const SELF_APPROVAL = 'Can not approve your own pull request';
 
 async function checksFor(run: Runner, worktree: string, num: number): Promise<ChecksSummary> {
   const { code, stdout, stderr } = await run(
@@ -65,13 +69,6 @@ export async function prForBranch(run: Runner, worktree: string, branch: string)
   return { ...pr, ...parsePrBody(pr.body), checks: await checksFor(run, worktree, pr.number) };
 }
 
-export async function commentOnPr(run: Runner, worktree: string, num: number, body: string): Promise<void> {
-  const { code, stderr } = await run('gh', ['pr', 'comment', String(num), '--body', body], worktree);
-  if (code !== 0) {
-    throw new Error(`commenting on PR: ${stderr}`);
-  }
-}
-
 export async function headCommit(run: Runner, worktree: string, num: number): Promise<string> {
   const { code, stdout, stderr } = await run(
     'gh',
@@ -103,4 +100,61 @@ export async function diffLines(
       .flat()
       .map((f) => [f.filename, hunkLines(f.patch ?? '')]),
   );
+}
+
+async function ghOut(run: Runner, args: string[], doing: string): Promise<string> {
+  const { code, stdout, stderr } = await run('gh', args, '');
+  if (code !== 0) {
+    throw new Error(`approving PR: ${doing}: ${stderr}`);
+  }
+  return stdout;
+}
+
+function isCardBranch(branch: string, cardKey: string): boolean {
+  const key = cardKey.toLowerCase();
+  const name = branch.toLowerCase();
+  return name === key || name.startsWith(`${key}-`);
+}
+
+export async function approveAndMerge(run: Runner, num: number, headSha: string, cardKey: string): Promise<void> {
+  const pinned = pinSchema.parse(
+    JSON.parse(
+      await ghOut(run, ['pr', 'view', String(num), '--json', 'headRefOid,headRefName,baseRefName'], 'reading PR head'),
+    ),
+  );
+  const defaultBranch = (
+    await ghOut(run, ['api', 'repos/{owner}/{repo}', '--jq', '.default_branch'], 'reading default branch')
+  ).trim();
+  if (pinned.headRefOid !== headSha) {
+    throw new Error('approving PR: the PR changed after the diff loaded; review it again');
+  }
+  if (pinned.baseRefName !== defaultBranch) {
+    throw new Error(`approving PR: PR targets ${pinned.baseRefName}, not ${defaultBranch}`);
+  }
+  if (!isCardBranch(pinned.headRefName, cardKey)) {
+    throw new Error(`approving PR: branch ${pinned.headRefName} is not for ${cardKey}`);
+  }
+
+  const review = await run(
+    'gh',
+    [
+      'api',
+      '--method',
+      'POST',
+      `repos/{owner}/{repo}/pulls/${String(num)}/reviews`,
+      '-f',
+      'event=APPROVE',
+      '-f',
+      `commit_id=${headSha}`,
+    ],
+    '',
+  );
+  if (review.code !== 0 && !`${review.stdout}${review.stderr}`.includes(SELF_APPROVAL)) {
+    throw new Error(`approving PR: reviewing: ${review.stderr}`);
+  }
+
+  const merge = await run('gh', ['pr', 'merge', String(num), '--squash', '--match-head-commit', headSha], '');
+  if (merge.code !== 0) {
+    throw new Error(`approving PR: merging: ${merge.stderr}`);
+  }
 }

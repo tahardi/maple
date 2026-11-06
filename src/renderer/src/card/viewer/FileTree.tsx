@@ -6,9 +6,9 @@ type Props = {
   nodes: readonly TreeNode[];
   selected: string | null;
   onSelect: (path: string) => void;
-  changedOnly: boolean;
-  onToggle: (changedOnly: boolean) => void;
-  changedCount: number;
+  changedOnly?: boolean;
+  onToggle?: (changedOnly: boolean) => void;
+  changedCount?: number;
   viewed?: ReadonlySet<string>;
   onToggleViewed?: (path: string) => void;
   commented?: ReadonlySet<string>;
@@ -92,24 +92,26 @@ export function FileTree({
           {title}
         </div>
       )}
-      <div className={styles.toggle}>
-        <button
-          aria-pressed={!changedOnly}
-          onClick={() => {
-            onToggle(false);
-          }}
-        >
-          All files
-        </button>
-        <button
-          aria-pressed={changedOnly}
-          onClick={() => {
-            onToggle(true);
-          }}
-        >
-          {`Changed (${String(changedCount)})`}
-        </button>
-      </div>
+      {onToggle !== undefined && (
+        <div className={styles.toggle}>
+          <button
+            aria-pressed={!changedOnly}
+            onClick={() => {
+              onToggle(false);
+            }}
+          >
+            All files
+          </button>
+          <button
+            aria-pressed={changedOnly}
+            onClick={() => {
+              onToggle(true);
+            }}
+          >
+            {`Changed (${String(changedCount)})`}
+          </button>
+        </div>
+      )}
       <ul className={styles.list}>{rows(nodes, 0)}</ul>
     </div>
   );

@@ -29,6 +29,7 @@ function fakeVault() {
   const now = new Date().toISOString();
   const changed: { value: () => void } = { value: () => undefined };
   const read = vi.fn(() => Promise.resolve('## Findings'));
+  const before = vi.fn(() => Promise.resolve('## Draft\n'));
   const written = vi.fn(() => Promise.resolve(['Inbox.md']));
   const list = vi.fn(() =>
     Promise.resolve([
@@ -41,13 +42,14 @@ function fakeVault() {
       list,
       written,
       read,
+      before,
       onChanged: (cb) => {
         changed.value = cb;
         return vi.fn();
       },
     },
   });
-  return { read, written, list, changed };
+  return { read, before, written, list, changed };
 }
 
 describe('VaultTab', () => {
@@ -66,7 +68,7 @@ describe('VaultTab', () => {
 
   test('shows the top level of the vault with folders closed', async () => {
     // given
-    const { written } = fakeVault();
+    fakeVault();
     // when
     render(<VaultTab tab={vaultTab} />);
     // then
@@ -74,33 +76,20 @@ describe('VaultTab', () => {
     expect(screen.getByText('Projects').parentElement).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText('Inbox.md')).toBeInTheDocument();
     expect(screen.queryByText('Spike.md')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'All files', pressed: true })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Changed (1)', pressed: false })).toBeInTheDocument();
-    expect(written).toHaveBeenCalledWith('v1');
+    expect(screen.queryByRole('button', { name: 'All files' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Changed/ })).not.toBeInTheDocument();
   });
 
-  test('the Changed toggle shows only the notes this session wrote', async () => {
+  test('opens a note with no Changes button, ready to edit', async () => {
     // given
-    fakeVault();
+    const { before } = fakeVault();
     render(<VaultTab tab={vaultTab} />);
-    await screen.findByText('Projects');
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Changed (1)' }));
+    await userEvent.click(await screen.findByText('Inbox.md'));
     // then
-    expect(screen.getByText('Inbox.md')).toBeInTheDocument();
-    expect(screen.queryByText('Projects')).not.toBeInTheDocument();
-  });
-
-  test('the Changed toggle shows written notes inside folders without opening them', async () => {
-    // given
-    const { written } = fakeVault();
-    written.mockResolvedValue(['Projects/Maple/Spike.md']);
-    render(<VaultTab tab={vaultTab} />);
-    await screen.findByText('Projects');
-    // when
-    await userEvent.click(screen.getByRole('button', { name: 'Changed (1)' }));
-    // then
-    expect(screen.getByText('Spike.md')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Changes' })).not.toBeInTheDocument();
+    expect(before).not.toHaveBeenCalled();
   });
 
   test('clicking a note opens it as Markdown', async () => {
@@ -118,21 +107,19 @@ describe('VaultTab', () => {
 
   test('the tree updates when the vault changes', async () => {
     // given
-    const { list, written, changed } = fakeVault();
+    const { list, changed } = fakeVault();
     render(<VaultTab tab={vaultTab} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Changed (1)' }));
+    await screen.findByText('Inbox.md');
     list.mockResolvedValue([
       { path: 'Inbox.md', modifiedAt: '2026-10-23T12:00:00.000Z' },
       { path: 'New.md', modifiedAt: '2026-10-23T12:00:00.000Z' },
     ]);
-    written.mockResolvedValue(['Inbox.md', 'New.md']);
     // when
     act(() => {
       changed.value();
     });
     // then
     expect(await screen.findByText('New.md')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Changed (2)' })).toBeInTheDocument();
   });
 
   test('closing the active note shows the last open note', async () => {

@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron';
-import type { ProjectConfig } from '@shared/types/config';
+import type { MapleConfig, ProjectConfig } from '@shared/types/config';
 import type { SessionManager } from '@main/sessions/sessions';
 import type { StatusEngine } from '@main/sessions/status';
 import type { Terminals } from '@main/sessions/terminals';
@@ -26,6 +26,7 @@ export type IpcDeps = {
   setNotifications: (on: boolean) => Promise<void>;
   setZoom: (change: ZoomChange) => Promise<void>;
   warnings: () => string[];
+  configLoaded: (config: MapleConfig | null) => Promise<void>;
   setLastProject: (key: string) => Promise<void>;
   lastProject: () => Promise<string | null>;
 };

@@ -70,6 +70,8 @@ describe('Terminals', () => {
     vi.stubEnv('SHELL', shell);
     vi.stubEnv('MAPLE_TAB_ID', 'leaked');
     vi.stubEnv('MAPLE_SOCKET', '/tmp/leaked.sock');
+    vi.stubEnv('MAPLE_SNAPSHOT_DIR', '/tmp/leaked-snapshots');
+    vi.stubEnv('MAPLE_VAULT_DIR', '/tmp/leaked-vault');
     const { terminals, ptys } = setup();
     // when
     terminals.open('t1', '/tmp/wts/card');
@@ -81,6 +83,8 @@ describe('Terminals', () => {
     expect(ptys[0].options.env?.TERM).toBe('xterm-256color');
     expect(ptys[0].options.env).not.toHaveProperty('MAPLE_TAB_ID');
     expect(ptys[0].options.env).not.toHaveProperty('MAPLE_SOCKET');
+    expect(ptys[0].options.env).not.toHaveProperty('MAPLE_SNAPSHOT_DIR');
+    expect(ptys[0].options.env).not.toHaveProperty('MAPLE_VAULT_DIR');
   });
 
   test('a second open does not spawn again', () => {

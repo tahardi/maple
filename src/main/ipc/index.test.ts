@@ -36,6 +36,7 @@ describe('registerIpc', () => {
     config: vi.fn(),
     hooksFile: '',
     socketPath: '',
+    snapshotRoot: '/tmp/maple/snapshots',
     save: vi.fn(),
     closedSessions: {},
     uuid: vi.fn(),
@@ -60,6 +61,7 @@ describe('registerIpc', () => {
     warnings: () => [],
     setNotifications: vi.fn(),
     setZoom: vi.fn(),
+    configLoaded: () => Promise.resolve(),
     setLastProject: vi.fn(() => Promise.resolve()),
     lastProject: () => Promise.resolve(null),
   };

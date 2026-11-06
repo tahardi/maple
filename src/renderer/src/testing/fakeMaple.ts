@@ -12,8 +12,14 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
     vaultDir: null,
     notifications: false,
     projects: [
-      { name: 'Bearclave', jiraKey: 'BEAR', jiraBoardId: 1, plannerDir: '/tmp/planner/bear' },
-      { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 2, plannerDir: '/tmp/planner/dig' },
+      {
+        name: 'Bearclave',
+        jiraKey: 'BEAR',
+        jiraBoardId: 1,
+        plannerDir: '/tmp/planner/bear',
+        repo: 'tahardi/bearclave',
+      },
+      { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 2, plannerDir: '/tmp/planner/dig', repo: 'tahardi/dig-days' },
     ],
     actions: [],
   },
@@ -110,6 +116,7 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       list: vi.fn(() => Promise.resolve([])),
       read: vi.fn(() => Promise.resolve('')),
       written: vi.fn(() => Promise.resolve([])),
+      before: vi.fn(() => Promise.resolve(null)),
       write: vi.fn(() => Promise.resolve()),
       onChanged: vi.fn(unsubscribe),
       ...overrides.vault,
@@ -117,6 +124,8 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
     pr: {
       get: vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null })),
       approve: vi.fn(() => Promise.resolve()),
+      review: vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null })),
+      readFile: vi.fn((_tabId: string, path: string) => Promise.resolve({ kind: 'binary' as const, path })),
       comment: vi.fn(() => Promise.resolve()),
       reply: vi.fn(() => Promise.resolve()),
       resolve: vi.fn(() => Promise.resolve()),
