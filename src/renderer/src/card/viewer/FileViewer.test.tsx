@@ -196,7 +196,7 @@ function renderViewer(
     openFiles: [pair.path, 'README.md'],
     activeFile: pair.path,
     onActivate: vi.fn(),
-    onCloseFile: vi.fn(),
+    onCloseFiles: vi.fn(),
     prBody: null,
     line: null,
     canComment,
@@ -213,7 +213,7 @@ function renderNote(vault: Partial<MapleApi['vault']> = {}) {
       openFiles={['vault:Spike.md']}
       activeFile="vault:Spike.md"
       onActivate={vi.fn()}
-      onCloseFile={vi.fn()}
+      onCloseFiles={vi.fn()}
       prBody={null}
       line={null}
       canComment={false}
@@ -287,7 +287,7 @@ describe('FileViewer', () => {
         openFiles={[path]}
         activeFile={path}
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={prBody}
         cardBody={cardBody}
         line={null}
@@ -308,7 +308,7 @@ describe('FileViewer', () => {
     { name: 'Card description', path: CARD_DESCRIPTION },
   ])('closes the $name from its tab', async ({ name, path }) => {
     // given
-    const onCloseFile = vi.fn();
+    const onCloseFiles = vi.fn();
     fakeMaple();
     render(
       <FileViewer
@@ -316,7 +316,7 @@ describe('FileViewer', () => {
         openFiles={[path]}
         activeFile={path}
         onActivate={vi.fn()}
-        onCloseFile={onCloseFile}
+        onCloseFiles={onCloseFiles}
         prBody="Hello"
         cardBody="Ship it"
         line={null}
@@ -327,7 +327,7 @@ describe('FileViewer', () => {
     // when
     await userEvent.click(screen.getByRole('button', { name: `Close ${name}` }));
     // then
-    expect(onCloseFile).toHaveBeenCalledWith(path);
+    expect(onCloseFiles).toHaveBeenCalledWith([path]);
   });
 
   test('shows each description with its own body', () => {
@@ -337,7 +337,7 @@ describe('FileViewer', () => {
       tabId: 't1',
       openFiles: [PR_DESCRIPTION, CARD_DESCRIPTION],
       onActivate: vi.fn(),
-      onCloseFile: vi.fn(),
+      onCloseFiles: vi.fn(),
       prBody: '## From the PR',
       cardBody: '## From the card',
       line: null,
@@ -369,7 +369,7 @@ describe('FileViewer', () => {
         openFiles={['vault:Projects/Maple/Spike.md']}
         activeFile="vault:Projects/Maple/Spike.md"
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={null}
         canComment={false}
@@ -392,7 +392,7 @@ describe('FileViewer', () => {
       tabId: 't1',
       openFiles: ['vault:Spike.md', 'README.md'],
       onActivate: vi.fn(),
-      onCloseFile: vi.fn(),
+      onCloseFiles: vi.fn(),
       prBody: null,
       line: null,
       canComment: false,
@@ -428,7 +428,7 @@ describe('FileViewer', () => {
         openFiles={['vault:Spike.md']}
         activeFile="vault:Spike.md"
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={null}
         canComment={false}
@@ -455,7 +455,7 @@ describe('FileViewer', () => {
       tabId: 't1',
       openFiles: ['vault:Spike.md', 'README.md'],
       onActivate: vi.fn(),
-      onCloseFile: vi.fn(),
+      onCloseFiles: vi.fn(),
       prBody: null,
       line: null,
       canComment: false,
@@ -823,7 +823,7 @@ describe('FileViewer', () => {
         openFiles={['vault:Projects/Spike.md']}
         activeFile="vault:Projects/Spike.md"
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={null}
         canComment={false}
@@ -928,8 +928,118 @@ describe('FileViewer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close src/a.ts' }));
     // then
     expect(props.onActivate).toHaveBeenCalledWith('README.md');
-    expect(props.onCloseFile).toHaveBeenCalledWith('src/a.ts');
+    expect(props.onCloseFiles).toHaveBeenCalledWith(['src/a.ts']);
     expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  test.each([
+    { item: 'Close', closed: ['src/a.ts'] },
+    { item: 'Close Others', closed: ['README.md', 'src/b.ts'] },
+    { item: 'Close All', closed: ['README.md', 'src/a.ts', 'src/b.ts'] },
+  ])('right-clicking a file tab and choosing $item closes $closed', async ({ item, closed }) => {
+    // given
+    const { props, rerender } = renderViewer(changed);
+    rerender(<FileViewer {...props} openFiles={['README.md', 'src/a.ts', 'src/b.ts']} />);
+    await screen.findByTestId('editor');
+    // when
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: item }));
+    // then
+    expect(props.onCloseFiles).toHaveBeenCalledWith(closed);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  test('right-clicking the Card description tab offers the same menu', async () => {
+    // given
+    const onCloseFiles = vi.fn();
+    fakeMaple();
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={[CARD_DESCRIPTION]}
+        activeFile={CARD_DESCRIPTION}
+        onActivate={vi.fn()}
+        onCloseFiles={onCloseFiles}
+        prBody={null}
+        cardBody="Ship it"
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+      />,
+    );
+    // when
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'Card description' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close' }));
+    // then
+    expect(onCloseFiles).toHaveBeenCalledWith([CARD_DESCRIPTION]);
+  });
+
+  test('disables Close Others when one file tab is open', async () => {
+    // given
+    const { props, rerender } = renderViewer(changed);
+    rerender(<FileViewer {...props} openFiles={['src/a.ts']} />);
+    await screen.findByTestId('editor');
+    // when
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
+    // then
+    expect(screen.getByRole('menuitem', { name: 'Close Others' })).toBeDisabled();
+  });
+
+  test.each([
+    {
+      name: 'Escape',
+      dismiss: () => {
+        fireEvent.keyDown(document, { key: 'Escape' });
+      },
+    },
+    {
+      name: 'a click outside',
+      dismiss: () => {
+        fireEvent.pointerDown(document.body);
+      },
+    },
+  ])('$name removes the file tab menu without closing a tab', async ({ dismiss }) => {
+    // given
+    const { props } = renderViewer(changed);
+    await screen.findByTestId('editor');
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
+    // when
+    dismiss();
+    // then
+    expect(await screen.findByRole('tab', { name: 'a.ts' })).toBeInTheDocument();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(props.onCloseFiles).not.toHaveBeenCalled();
+  });
+
+  test('right-clicking a second file tab moves the menu to it', async () => {
+    // given
+    const { props } = renderViewer(changed);
+    await screen.findByTestId('editor');
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
+    // when
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'README.md' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Close' }));
+    // then
+    expect(props.onCloseFiles).toHaveBeenCalledWith(['README.md']);
+  });
+
+  test('right-clicking a file tab does not activate it', async () => {
+    // given
+    const { props } = renderViewer(changed);
+    await screen.findByTestId('editor');
+    // when
+    fireEvent.contextMenu(screen.getByRole('tab', { name: 'README.md' }));
+    // then
+    expect(props.onActivate).not.toHaveBeenCalled();
+  });
+
+  test('shows no file tab menu until a tab is right-clicked', async () => {
+    // given
+    renderViewer(changed);
+    // when
+    await screen.findByTestId('editor');
+    // then
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
   test('reloads the open file when the repo changes', async () => {
@@ -951,7 +1061,7 @@ describe('FileViewer', () => {
         openFiles={['a.ts']}
         activeFile="a.ts"
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={null}
         canComment={false}
@@ -1076,7 +1186,7 @@ describe('FileViewer', () => {
         openFiles={[]}
         activeFile={null}
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={null}
         canComment={false}
@@ -1107,7 +1217,7 @@ describe('FileViewer', () => {
       tabId: 't1',
       openFiles: ['a.ts', 'b.ts'],
       onActivate: vi.fn(),
-      onCloseFile: vi.fn(),
+      onCloseFiles: vi.fn(),
       prBody: null,
       line: null,
       canComment: false,
@@ -1135,7 +1245,7 @@ describe('FileViewer', () => {
         openFiles={['a.png']}
         activeFile="a.png"
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={null}
         canComment={false}
@@ -1159,7 +1269,7 @@ describe('FileViewer', () => {
         openFiles={['src/a.ts']}
         activeFile="src/a.ts"
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={3}
         canComment={false}
@@ -1188,7 +1298,7 @@ describe('FileViewer', () => {
       tabId: 't1',
       openFiles: ['a.ts', 'b.ts'],
       onActivate: vi.fn(),
-      onCloseFile: vi.fn(),
+      onCloseFiles: vi.fn(),
       prBody: null,
       canComment: false,
       prFetchedAt: null,
@@ -1225,7 +1335,7 @@ describe('FileViewer', () => {
         openFiles={['a.ts']}
         activeFile="a.ts"
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={null}
         canComment={false}
@@ -1349,7 +1459,7 @@ describe('FileViewer', () => {
         openFiles={['a.ts']}
         activeFile="a.ts"
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={null}
         canComment={false}
@@ -1440,7 +1550,7 @@ describe('FileViewer', () => {
       tabId: 't1',
       openFiles: ['a.ts', 'b.ts'],
       onActivate: vi.fn(),
-      onCloseFile: vi.fn(),
+      onCloseFiles: vi.fn(),
       prBody: null,
       line: null,
       canComment: false,
@@ -1563,7 +1673,7 @@ describe('FileViewer', () => {
         openFiles={['src/a.ts']}
         activeFile="src/a.ts"
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={null}
         canComment
@@ -1749,7 +1859,7 @@ describe('FileViewer', () => {
         openFiles={['src/a.ts']}
         activeFile="src/a.ts"
         onActivate={vi.fn()}
-        onCloseFile={vi.fn()}
+        onCloseFiles={vi.fn()}
         prBody={null}
         line={null}
         canComment

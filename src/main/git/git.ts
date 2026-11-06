@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { lstat, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { ChangeSet, FileChange, FilePair, SearchHit } from '@shared/types/files';
 import { matchWorktree } from '@shared/worktree';
@@ -117,6 +117,21 @@ export async function findWorktree(worktreesDir: string, cardKey: string): Promi
 
 export async function currentBranch(worktree: string): Promise<string> {
   return (await git(worktree, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+}
+
+export async function repoName(worktree: string): Promise<string> {
+  let url: string;
+  try {
+    url = await git(worktree, ['remote', 'get-url', 'origin']);
+  } catch {
+    const commonDir = await git(worktree, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+    return basename(dirname(commonDir.trim()));
+  }
+  const path = url
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\.git$/, '');
+  return path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf(':')) + 1);
 }
 
 export async function mergeBase(worktree: string): Promise<string> {
