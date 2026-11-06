@@ -2,6 +2,7 @@ import type { TabState } from '@shared/types/tabs';
 import { useState } from 'react';
 import { ClaudePane } from '@renderer/claude/ClaudePane';
 import { buildTree } from '@renderer/card/viewer/buildTree';
+import { closeFiles } from '@renderer/card/viewer/closeFiles';
 import { FileTree } from '@renderer/card/viewer/FileTree';
 import { FileViewer } from '@renderer/card/viewer/FileViewer';
 import { useVault } from '@renderer/card/vault/useVault';
@@ -22,12 +23,10 @@ export function VaultTab({ tab }: { tab: TabState }) {
     setActiveFile(file);
   };
 
-  const closeFile = (path: string) => {
-    const rest = openFiles.filter((file) => file !== path);
-    setOpenFiles(rest);
-    if (path === activeFile) {
-      setActiveFile(rest.at(-1) ?? null);
-    }
+  const closeTabs = (paths: readonly string[]) => {
+    const next = closeFiles(openFiles, activeFile, paths);
+    setOpenFiles(next.openFiles);
+    setActiveFile(next.activeFile);
   };
 
   return (
@@ -54,7 +53,7 @@ export function VaultTab({ tab }: { tab: TabState }) {
           openFiles={openFiles}
           activeFile={activeFile}
           onActivate={setActiveFile}
-          onCloseFile={closeFile}
+          onCloseFiles={closeTabs}
           prBody={null}
           canComment={false}
           prFetchedAt={null}
