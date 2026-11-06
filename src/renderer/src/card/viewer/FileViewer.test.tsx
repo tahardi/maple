@@ -223,14 +223,6 @@ function renderNote(vault: Partial<MapleApi['vault']> = {}) {
   return maple;
 }
 
-async function enabledChanges() {
-  const button = await screen.findByRole('button', { name: 'Changes' });
-  await vi.waitFor(() => {
-    expect(button).toBeEnabled();
-  });
-  return button;
-}
-
 async function editNote() {
   await screen.findByRole('heading', { name: 'Findings' });
   await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
@@ -487,14 +479,13 @@ describe('FileViewer', () => {
     expect(screen.queryByTestId('editor')).not.toBeInTheDocument();
   });
 
-  test('Changes shows the note Markdown read-only with its changed lines marked', async () => {
+  test('a note with a saved copy opens in Changes, read-only with its changed lines marked', async () => {
     // given
     monaco.enabled.value = true;
-    renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
-    await screen.findByRole('heading', { name: 'Findings' });
     // when
-    await userEvent.click(await enabledChanges());
+    renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
     // then
+    expect(screen.queryByRole('heading', { name: 'Findings' })).not.toBeInTheDocument();
     const editor = await screen.findByTestId('editor');
     expect(editor).toHaveAttribute('data-value', '## Findings\n');
     expect(editor).toHaveAttribute('data-language', 'markdown');
@@ -510,14 +501,14 @@ describe('FileViewer', () => {
         }),
       ]);
     });
+    expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'In file' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Side by side' })).toBeInTheDocument();
   });
 
-  test('pressing Changes again shows the formatted note', async () => {
+  test('pressing Changes shows the formatted note', async () => {
     // given
     renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
-    await userEvent.click(await enabledChanges());
     await screen.findByTestId('editor');
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Changes' }));
@@ -530,7 +521,6 @@ describe('FileViewer', () => {
   test('Edit keeps priority over Changes', async () => {
     // given
     renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
-    await userEvent.click(await enabledChanges());
     await screen.findByTestId('editor');
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
@@ -542,14 +532,13 @@ describe('FileViewer', () => {
   test('a saved side-by-side mode opens Changes in the diff editor', async () => {
     // given
     localStorage.setItem('maple.viewMode', 'side-by-side');
-    renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
     // when
-    await userEvent.click(await enabledChanges());
+    renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
     // then
     expect(await screen.findByTestId('diff-editor')).toHaveAttribute('data-original', '## Draft\n');
   });
 
-  test('Changes stays on one note and does not use its copy for another', async () => {
+  test('a note does not use the saved copy of another', async () => {
     // given
     const before = vi.fn((_tabId: string, path: string) => Promise.resolve(path === 'Spike.md' ? '## Draft\n' : null));
     fakeMaple({ vault: { read: vi.fn(() => Promise.resolve('## Findings\n')), before } });
@@ -558,13 +547,13 @@ describe('FileViewer', () => {
       openFiles: ['vault:Spike.md', 'vault:Other.md'],
       onActivate: vi.fn(),
       onCloseFile: vi.fn(),
+      onCloseFiles: vi.fn(),
       prBody: null,
       line: null,
       canComment: false,
       prFetchedAt: null,
     };
     const { rerender } = render(<FileViewer {...props} activeFile="vault:Spike.md" />);
-    await userEvent.click(await enabledChanges());
     await screen.findByTestId('editor');
     // when
     rerender(<FileViewer {...props} activeFile="vault:Other.md" />);
@@ -586,7 +575,6 @@ describe('FileViewer', () => {
       return () => undefined;
     });
     renderNote({ read, onChanged, before: vi.fn(() => Promise.resolve('## Draft\n')) });
-    await userEvent.click(await enabledChanges());
     await screen.findByTestId('editor');
     read.mockResolvedValue('## Draft\nMore\n');
     // when
@@ -607,7 +595,7 @@ describe('FileViewer', () => {
   test('Side by side shows the note before the session next to its current text', async () => {
     // given
     renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
-    await userEvent.click(await enabledChanges());
+    await screen.findByTestId('editor');
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Side by side' }));
     // then
@@ -620,9 +608,8 @@ describe('FileViewer', () => {
   test('a note the session created marks every line as added', async () => {
     // given
     monaco.enabled.value = true;
-    renderNote({ before: vi.fn(() => Promise.resolve('')) });
     // when
-    await userEvent.click(await enabledChanges());
+    renderNote({ before: vi.fn(() => Promise.resolve('')) });
     // then
     await vi.waitFor(() => {
       expect(monaco.editor.createDecorationsCollection).toHaveBeenLastCalledWith([
@@ -632,6 +619,16 @@ describe('FileViewer', () => {
         }),
       ]);
     });
+  });
+
+  test('shows the note when its saved copy cannot be read', async () => {
+    // given
+    const before = vi.fn(() => Promise.reject(new Error('reading snapshot: failed')));
+    // when
+    renderNote({ before });
+    // then
+    expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Changes' })).toBeDisabled();
   });
 
   test('Changes is disabled when the session saved no copy of the note', async () => {

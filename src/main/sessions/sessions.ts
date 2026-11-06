@@ -149,6 +149,11 @@ export class SessionManager extends EventEmitter<Events> {
     return this.sessions.get(tabId)?.tab ?? null;
   }
 
+  sessionOf(cardKey: string): string | null {
+    const open = this.list().find((tab) => tab.cardKey === cardKey);
+    return open?.sessionId ?? (Object.hasOwn(this.closed, cardKey) ? this.closed[cardKey] : null);
+  }
+
   list(): TabState[] {
     return [...this.sessions.values()].map((session) => session.tab);
   }

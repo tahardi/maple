@@ -12,13 +12,18 @@ import { registerJira } from './jira';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
 
-const { handle } = vi.hoisted(() => ({ handle: vi.fn<(channel: string, handler: Handler) => void>() }));
+const { handle, removeSnapshots, sessionOf } = vi.hoisted(() => ({
+  handle: vi.fn<(channel: string, handler: Handler) => void>(),
+  removeSnapshots: vi.fn<(sessionId: string) => Promise<void>>(),
+  sessionOf: vi.fn<(cardKey: string) => string | null>(),
+}));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
+vi.mock('@main/vault/snapshots', () => ({ removeSnapshots }));
 
 const project: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
 
-const sessions = {} as SessionManager;
+const sessions = { sessionOf } as unknown as SessionManager;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const fixtures = resolve(import.meta.dirname, '../../../test/fixtures/jira');
 const deps = {
@@ -77,6 +82,8 @@ function sprintHandler(): Handler {
 describe('registerJira', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionOf.mockReset().mockReturnValue(null);
+    removeSnapshots.mockReset().mockResolvedValue(undefined);
     vi.stubEnv('MAPLE_JIRA_ENV', join(tmpdir(), 'maple-missing-jira-env'));
   });
 
@@ -110,6 +117,60 @@ describe('registerJira', () => {
     const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
     expect(got).toMatchObject({ data: { name: 'HALO Sprint 1' }, error: null });
+  });
+
+  test('deletes the snapshots of Done cards and keeps the others', async () => {
+    // given
+    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+    vi.stubGlobal(
+      'fetch',
+      jiraFetch(() => 200),
+    );
+    sessionOf.mockImplementation((key) => `s-${key}`);
+    removeSnapshots.mockResolvedValue(undefined);
+    registerJira(deps, logger);
+    // when
+    await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    // then
+    expect(removeSnapshots.mock.calls).toEqual([['s-HALO-11']]);
+  });
+
+  test('deletes no snapshots for a Done card with no session', async () => {
+    // given
+    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+    vi.stubGlobal(
+      'fetch',
+      jiraFetch(() => 200),
+    );
+    sessionOf.mockReturnValue(null);
+    registerJira(deps, logger);
+    // when
+    await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    // then
+    expect(removeSnapshots).not.toHaveBeenCalled();
+  });
+
+  test('logs a failure to delete snapshots and still returns the sprint', async () => {
+    // given
+    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+    vi.stubGlobal(
+      'fetch',
+      jiraFetch(() => 200),
+    );
+    sessionOf.mockImplementation((key) => `s-${key}`);
+    removeSnapshots.mockRejectedValue(new Error('removing: busy'));
+    registerJira(deps, logger);
+    // when
+    const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    // then
+    expect(got).toMatchObject({ data: { name: 'HALO Sprint 1' }, error: null });
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith('vault', 'failed', {
+        operation: 'removeSnapshots',
+        args: ['s-HALO-11'],
+        error: 'removing: busy',
+      });
+    });
   });
 
   test('returns the backlog for a known project', async () => {

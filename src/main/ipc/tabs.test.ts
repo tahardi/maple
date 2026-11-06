@@ -9,14 +9,12 @@ import { registerTabs } from './tabs';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, on, removeSnapshots } = vi.hoisted(() => ({
-  removeSnapshots: vi.fn<(sessionId: string) => Promise<void>>(() => Promise.resolve()),
+const { handle, on } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
   on: vi.fn<(channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void>(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle, on } }));
-vi.mock('@main/vault/snapshots', () => ({ removeSnapshots }));
 
 const tab: TabState = {
   id: 't1',
@@ -151,63 +149,6 @@ describe('registerTabs', () => {
     invoke('tabs:close', 't1', false);
     // then
     expect(terminals.closeTab).toHaveBeenCalledWith('t1');
-  });
-
-  test('tabs:close deletes the snapshots of the tab session', () => {
-    // given
-    const { sessions } = setup();
-    sessions.close.mockImplementation(() => {
-      sessions.get.mockReturnValue(null);
-    });
-    // when
-    invoke('tabs:close', 't1', false);
-    // then
-    expect(removeSnapshots).toHaveBeenCalledWith('s1');
-  });
-
-  test('tabs:close deletes the snapshots of a working tab when forced', () => {
-    // given
-    const { engine } = setup();
-    engine.statuses.mockReturnValue([{ ...status, dot: 'working' }]);
-    // when
-    invoke('tabs:close', 't1', true);
-    // then
-    expect(removeSnapshots).toHaveBeenCalledWith('s1');
-  });
-
-  test('tabs:close deletes no snapshots for an unknown tab', () => {
-    // given
-    setup();
-    // when
-    invoke('tabs:close', 'gone', false);
-    // then
-    expect(removeSnapshots).not.toHaveBeenCalled();
-  });
-
-  test('tabs:close logs a failure to delete the snapshots', async () => {
-    // given
-    setup();
-    removeSnapshots.mockRejectedValueOnce(new Error('removing: busy'));
-    // when
-    invoke('tabs:close', 't1', false);
-    // then
-    await vi.waitFor(() => {
-      expect(logger.warn).toHaveBeenCalledWith('session', 'failed', {
-        operation: 'removeSnapshots',
-        args: ['s1'],
-        error: 'removing: busy',
-      });
-    });
-  });
-
-  test('tabs:close keeps the snapshots when asking to confirm', () => {
-    // given
-    const { engine } = setup();
-    engine.statuses.mockReturnValue([{ ...status, dot: 'working' }]);
-    // when
-    invoke('tabs:close', 't1', false);
-    // then
-    expect(removeSnapshots).not.toHaveBeenCalled();
   });
 
   test('tabs:close keeps the shell when asking to confirm', () => {

@@ -3,7 +3,6 @@ import { z } from 'zod';
 import type { CloseResult } from '@shared/types/tabs';
 import { appLogger, logFailure, type Logger } from '@main/app/log';
 import { sessionCost } from '@main/sessions/sessionCost';
-import { removeSnapshots } from '@main/vault/snapshots';
 import { send, type IpcDeps } from './index';
 import { cardKeyArg, handle, on, projectKeyArg, tabIdArg } from './validated';
 
@@ -32,15 +31,8 @@ export function registerTabs(
     if (working && !force) {
       return { closed: false, needsConfirm: true };
     }
-    const sessionId = sessions.get(tabId)?.sessionId;
     sessions.close(tabId);
     terminals.closeTab(tabId);
-    if (sessionId !== undefined) {
-      removeSnapshots(sessionId).catch((err: unknown) => {
-        const error = err instanceof Error ? err.message : String(err);
-        logger.warn('session', 'failed', { operation: 'removeSnapshots', args: [sessionId], error });
-      });
-    }
     return { closed: true, needsConfirm: false };
   });
   handle('tabs:resume', z.tuple([tabIdArg]), (tabId) => {

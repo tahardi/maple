@@ -135,7 +135,7 @@ export function FileViewer({
   const noteDraft = shownNote !== null && Object.hasOwn(drafts, shownNote.path) ? drafts[shownNote.path] : null;
   const editsNote = shownNote !== null && (editing[shownNote.path] ?? noteDraft !== null);
   const noteBefore = before !== null && before.path === activeFile ? before.text : null;
-  const changesOn = shownNote !== null && noteBefore !== null && (changes[shownNote.path] ?? false);
+  const changesOn = shownNote !== null && noteBefore !== null && (changes[shownNote.path] ?? true);
   const showsChanges = shownNote !== null && noteBefore !== null && changesOn && !editsNote;
 
   useEffect(() => {
@@ -145,14 +145,11 @@ export function FileViewer({
     let live = true;
     const load = () => {
       const path = activeFile.slice(VAULT_PREFIX.length);
-      void window.maple.vault.read(path).then((text) => {
+      const copy = window.maple.vault.before(tabId, path).catch(() => null);
+      void Promise.all([window.maple.vault.read(path), copy]).then(([text, saved]) => {
         if (live) {
           setNote({ path: activeFile, text });
-        }
-      });
-      void window.maple.vault.before(tabId, path).then((text) => {
-        if (live) {
-          setBefore({ path: activeFile, text });
+          setBefore({ path: activeFile, text: saved });
         }
       });
     };

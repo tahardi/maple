@@ -154,6 +154,16 @@ describe('SessionManager', () => {
     expect(ptys[0].options.env).toMatchObject({ TERM: 'xterm-256color' });
   });
 
+  test('sessionOf finds the session of an open card, a closed card, and no card', () => {
+    // given
+    const { manager } = setup({ 'DIG-7': 'closed-session' });
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // when
+    const got = ['DIG-44', 'DIG-7', 'DIG-8'].map((key) => manager.sessionOf(key));
+    // then
+    expect(got).toEqual([tab.sessionId, 'closed-session', null]);
+  });
+
   test('gives the session its snapshot dir and the vault dir', () => {
     // given
     const { manager, ptys } = setup({}, () => true, vaultConfig);
