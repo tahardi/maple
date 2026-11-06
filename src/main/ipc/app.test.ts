@@ -51,6 +51,7 @@ function setup(
     setNotifications,
     setZoom: () => Promise.resolve(),
     warnings: () => warnings,
+    configLoaded: () => Promise.resolve(),
     setLastProject,
     lastProject: () => Promise.resolve(lastProject),
   });
