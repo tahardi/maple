@@ -9,7 +9,7 @@ type Props = {
   card: Card | null;
   pr: PrInfo | null;
   branch: string | null;
-  changes: ChangeSet | null;
+  changes: Pick<ChangeSet, 'files' | 'added' | 'removed'> | null;
   cost: SessionCost | null;
 };
 

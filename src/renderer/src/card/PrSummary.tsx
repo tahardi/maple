@@ -1,4 +1,4 @@
-import type { CheckRun, ChecksSummary, PrInfo } from '@shared/types/github';
+import type { CheckRun, ChecksSummary, PrInfo, SecurityFinding } from '@shared/types/github';
 import type { Fetched } from '@shared/types/app';
 import { MarkdownText } from '../shell/MarkdownText';
 import styles from './PrSummary.module.css';
@@ -21,7 +21,16 @@ function checksText({ passed, failed, pending, total }: ChecksSummary): string {
   return `✓ ${String(passed)}/${String(total)}`;
 }
 
-export function PrSummary({ pr, onOpenDescription }: { pr: Fetched<PrInfo>; onOpenDescription: () => void }) {
+type PrSummaryProps = {
+  pr: Fetched<PrInfo>;
+  onOpenDescription: () => void;
+  onReloadReview: () => void;
+  reviewError: string | null;
+  findings: readonly SecurityFinding[];
+  headSha: string | null;
+};
+
+export function PrSummary({ pr, onOpenDescription, onReloadReview, reviewError, findings, headSha }: PrSummaryProps) {
   const info = pr.data;
   const sections = info
     ? [
@@ -40,6 +49,13 @@ export function PrSummary({ pr, onOpenDescription }: { pr: Fetched<PrInfo>; onOp
           <button className={styles.open} onClick={onOpenDescription}>
             Full description
           </button>
+          {headSha !== null && <div className={styles.checks}>{`Reviewing ${headSha.slice(0, 7)}`}</div>}
+          {info.state === 'OPEN' && (
+            <button className={styles.open} onClick={onReloadReview}>
+              Reload review
+            </button>
+          )}
+          {reviewError !== null && <div className={styles.error}>{reviewError}</div>}
           <div className={styles.checks}>{checksText(info.checks)}</div>
           {info.checks.runs.length > 0 && (
             <ul className={styles.runs}>
@@ -52,6 +68,22 @@ export function PrSummary({ pr, onOpenDescription }: { pr: Fetched<PrInfo>; onOp
                 </li>
               ))}
             </ul>
+          )}
+          {findings.length > 0 && (
+            <div>
+              <h4>Security findings</h4>
+              <ul className={styles.runs}>
+                {findings.map((f) => (
+                  <li key={f.id}>
+                    <span className={f.severity === 'high' ? styles.error : undefined}>{f.severity}</span>{' '}
+                    <code>{f.id}</code>{' '}
+                    <a href={f.url} target="_blank" rel="noreferrer">
+                      {f.summary === '' ? 'Open comment' : f.summary}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           {sections.map((s) => (
             <div key={s.title}>

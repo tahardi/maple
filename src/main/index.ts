@@ -8,6 +8,7 @@ import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
 import { writeHooksFile } from '@main/sessions/hooksFile';
 import { currentBranch, findWorktree } from '@main/git/git';
+import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/ipc/config';
@@ -15,7 +16,6 @@ import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/jira';
 import { appLogger, logUncaught, startLogging } from '@main/app/log';
 import { checkNotifications } from '@main/app/menu';
 import { notifyTab, shouldNotify } from '@main/app/notify';
-import { defaultRunner } from '@main/app/preflight';
 import { restoreTabs } from '@main/sessions/restore';
 import { lockDown, webPreferences } from '@main/app/security';
 import { SessionManager } from '@main/sessions/sessions';
@@ -112,7 +112,8 @@ async function start(): Promise<() => number> {
   const status = new StatusEngine({
     sessions,
     getCard: async (key) => (await jira).getCard(key),
-    prFor: async (worktree) => prForBranch(defaultRunner, worktree, await currentBranch(worktree)),
+    prFor: async (worktree, projectKey) =>
+      prForBranch(await projectRunner(projectByKey, projectKey), worktree, await currentBranch(worktree)),
   });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);

@@ -25,8 +25,8 @@ const config: MapleConfig = {
   vaultDir: null,
   notifications: true,
   projects: [
-    { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig-days' },
-    { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 2, plannerDir: '/tmp/halo' },
+    { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig-days', repo: 'tahardi/dig-days' },
+    { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 2, plannerDir: '/tmp/halo', repo: 'tahardi/halo' },
   ],
   actions: [],
 };

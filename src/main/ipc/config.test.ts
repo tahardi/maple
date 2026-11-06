@@ -31,8 +31,20 @@ const event = {} as IpcMainInvokeEvent;
 const sessions = {} as SessionManager;
 const first = { data: null, error: 'reading config: missing', fetchedAt: null };
 const second = { data: null, error: null, fetchedAt: '2026-10-17T00:00:00.000Z' };
-const halo: ProjectConfig = { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 7, plannerDir: '/tmp/halo' };
-const dig: ProjectConfig = { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 8, plannerDir: '/tmp/dig' };
+const halo: ProjectConfig = {
+  name: 'Halo',
+  jiraKey: 'HALO',
+  jiraBoardId: 7,
+  plannerDir: '/tmp/halo',
+  repo: 'tahardi/halo',
+};
+const dig: ProjectConfig = {
+  name: 'Dig Days',
+  jiraKey: 'DIG',
+  jiraBoardId: 8,
+  plannerDir: '/tmp/dig',
+  repo: 'tahardi/dig-days',
+};
 const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleConfig> => ({
   data: { worktreesDir: '/tmp/wts', vaultDir: null, notifications, projects, actions: [] },
   error: null,

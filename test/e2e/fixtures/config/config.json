@@ -1,5 +1,7 @@
 {
   "worktreesDir": "__WORKTREES_DIR__",
   "notifications": false,
-  "projects": [{ "name": "Halo", "jiraKey": "HALO", "jiraBoardId": 1, "plannerDir": "__PLANNER_DIR__" }]
+  "projects": [
+    { "name": "Halo", "jiraKey": "HALO", "jiraBoardId": 1, "plannerDir": "__PLANNER_DIR__", "repo": "tahardi/halo" }
+  ]
 }
