@@ -36,12 +36,6 @@ const CLOSE_WARNING =
   'Claude closes the PR without merging, deletes the branch and worktree, and moves the card to Done with the ' +
   'wont-do label. This cannot be undone.';
 
-function branchName(worktreePath: string | null, cardKey: string): string | null {
-  const name = worktreePath?.split('/').filter(Boolean).at(-1);
-  const start = name?.indexOf(cardKey.toLowerCase()) ?? -1;
-  return name === undefined || start === -1 ? null : name.slice(start);
-}
-
 export function CardTab({ tab }: { tab: TabState }) {
   const { changes, files, repo, pr, review, reloadReview, card, cost } = useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
@@ -217,7 +211,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         cardKey={cardKey}
         card={card}
         pr={pr?.data ?? null}
-        branch={branchName(tab.worktreePath, cardKey)}
+        branch={repo?.branch ?? null}
         changes={pinned ?? changes}
         cost={cost}
         onOpenCard={() => {

@@ -308,13 +308,57 @@ describe('CardTab', () => {
     expect(await screen.findByText('1.2M tokens · $3.40')).toBeInTheDocument();
   });
 
-  test('shows the branch from the worktree folder name', async () => {
+  test('shows the checked-out branch in the header', async () => {
+    // given
+    fakeMaple({
+      repo: {
+        listFiles: () => Promise.resolve(['README.md']),
+        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-renamed' }),
+      },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await within(screen.getByRole('banner')).findByText('mpl-20-renamed')).toBeInTheDocument();
+    expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
+  });
+
+  test('shows the new branch in the header after the branch changes', async () => {
+    // given
+    const listeners: (() => void)[] = [];
+    let branch = 'mpl-20-file-tree';
+    fakeMaple({
+      repo: {
+        listFiles: () => Promise.resolve(['README.md']),
+        info: () => Promise.resolve({ name: 'maple', branch }),
+        onChanged: (_tabId, callback) => {
+          listeners.push(callback);
+          return () => undefined;
+        },
+      },
+    });
+    render(<CardTab tab={tab} />);
+    await within(screen.getByRole('banner')).findByText('mpl-20-file-tree');
+    // when
+    branch = 'renamed-branch';
+    act(() => {
+      listeners.forEach((listener) => {
+        listener();
+      });
+    });
+    // then
+    expect(await within(screen.getByRole('banner')).findByText('renamed-branch')).toBeInTheDocument();
+    expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
+  });
+
+  test('shows no branch in the header before the repo info loads', async () => {
     // given
     fakeRepo(true);
     // when
     render(<CardTab tab={tab} />);
     // then
-    expect(await screen.findByText('mpl-20-file-tree')).toBeInTheDocument();
+    await screen.findByRole('link', { name: '#13 ↗' });
+    expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
   });
 
   test('uses saved column widths', () => {
