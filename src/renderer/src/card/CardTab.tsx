@@ -153,8 +153,8 @@ export function CardTab({ tab }: { tab: TabState }) {
     };
   }, [active]);
 
-  const openFile = (path: string, at: number | null = null, pinned = false) => {
-    setList((now) => (pinned ? pin(now, path) : openPreview(now, path)));
+  const openFile = (path: string, at: number | null = null, keep = false) => {
+    setList((now) => (keep ? pin(now, path) : openPreview(now, path)));
     setActiveFile(path);
     setLine(at);
   };
