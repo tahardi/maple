@@ -21,7 +21,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['src/main/**/*.test.ts', 'src/shared/**/*.test.ts', 'resources/*.test.ts'],
+          include: ['src/main/**/*.test.ts', 'src/shared/**/*.test.ts', 'resources/*.test.ts', 'scripts/**/*.test.ts'],
           exclude: [...configDefaults.exclude, 'test/live/**', ...SOCKET_TESTS],
         },
       },

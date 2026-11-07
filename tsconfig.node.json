@@ -24,6 +24,7 @@
     "src/preload/**/*",
     "src/shared/**/*",
     "resources/*.test.ts",
+    "scripts/**/*.ts",
     "test/live/**/*"
   ]
 }

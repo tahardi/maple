@@ -1,0 +1,87 @@
+{
+  "issues": [
+    {
+      "key": "MPL-97",
+      "fields": {
+        "summary": "Inline New-Comment Form",
+        "created": "2026-10-22T08:30:20.548-0400"
+      },
+      "changelog": {
+        "histories": [
+          {
+            "created": "2026-10-22T14:42:41.738-0400",
+            "items": [
+              {
+                "field": "status",
+                "fromString": "In Review",
+                "toString": "Done"
+              }
+            ]
+          },
+          {
+            "created": "2026-10-22T13:01:13.377-0400",
+            "items": [
+              {
+                "field": "status",
+                "fromString": "In Progress",
+                "toString": "In Review"
+              }
+            ]
+          },
+          {
+            "created": "2026-10-22T12:54:01.825-0400",
+            "items": [
+              {
+                "field": "status",
+                "fromString": "To Do",
+                "toString": "In Progress"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "MPL-6",
+      "fields": {
+        "summary": "Repo Bootstrap",
+        "created": "2026-10-17T20:15:40.583-0400"
+      },
+      "changelog": {
+        "histories": [
+          {
+            "created": "2026-10-17T21:04:02.150-0400",
+            "items": [
+              {
+                "field": "status",
+                "fromString": "In Review",
+                "toString": "Done"
+              }
+            ]
+          },
+          {
+            "created": "2026-10-17T20:57:57.863-0400",
+            "items": [
+              {
+                "field": "status",
+                "fromString": "In Progress",
+                "toString": "In Review"
+              }
+            ]
+          },
+          {
+            "created": "2026-10-17T20:51:22.695-0400",
+            "items": [
+              {
+                "field": "status",
+                "fromString": "To Do",
+                "toString": "In Progress"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "isLast": true
+}

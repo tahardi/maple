@@ -1,0 +1,72 @@
+[
+  [
+    {
+      "event": "committed",
+      "message": "Open the new-comment form in a box under the selected line\n\nGeneralize the thread zone hook into useLineZones and use it a second time for the\nnew-comment form, so the form shows inside the file like review threads do.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+      "committer": {
+        "date": "2026-10-22T16:58:59Z"
+      }
+    },
+    {
+      "event": "committed",
+      "message": "Merge remote-tracking branch 'origin/main' into mpl-97-inline-comment-form",
+      "committer": {
+        "date": "2026-10-22T17:16:57Z"
+      }
+    },
+    {
+      "event": "committed",
+      "message": "Merge remote-tracking branch 'origin/main' into mpl-97-inline-comment-form\n\n# Conflicts:\n#\tsrc/renderer/src/card/viewer/FileViewer.tsx",
+      "committer": {
+        "date": "2026-10-22T18:14:49Z"
+      }
+    },
+    {
+      "event": "committed",
+      "message": "Move the cursor through moveCursor in the new-selection form test\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+      "committer": {
+        "date": "2026-10-22T18:15:16Z"
+      }
+    },
+    {
+      "event": "reviewed",
+      "submitted_at": "2026-10-22T18:20:51Z",
+      "user": {
+        "login": "tahardi"
+      }
+    },
+    {
+      "event": "committed",
+      "message": "Put the cursor in the new comment box when Comment is pressed\n\nFocus the form's text box once its zone is placed, and build the form list from the\nfile path so a file reload does not pull focus back to the form.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+      "committer": {
+        "date": "2026-10-22T18:22:43Z"
+      }
+    },
+    {
+      "event": "committed",
+      "message": "Focus the new comment box once the editor shows its zone\n\nMonaco adds a view zone hidden and shows it on its next render, so focusing the box right\nafter adding the zone did nothing. Wait until the box has a size, then focus it.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+      "committer": {
+        "date": "2026-10-22T18:38:19Z"
+      }
+    },
+    {
+      "event": "reviewed",
+      "submitted_at": "2026-10-22T18:41:55Z",
+      "user": {
+        "login": "tahardi"
+      }
+    },
+    {
+      "event": "merged",
+      "created_at": "2026-10-22T18:42:33Z"
+    },
+    {
+      "event": "closed",
+      "created_at": "2026-10-22T18:42:34Z"
+    },
+    {
+      "event": "head_ref_deleted",
+      "created_at": "2026-10-22T18:42:36Z"
+    }
+  ]
+]
