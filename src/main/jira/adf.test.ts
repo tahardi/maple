@@ -37,15 +37,109 @@ describe('adfToMarkdown', () => {
     },
     { name: 'inline code', input: doc(paragraph(text('run '), text('make', { type: 'code' }))), want: 'run `make`' },
     {
+      name: 'inline code whose text has backticks in a longer delimiter',
+      input: doc(paragraph(text('a`[x](https://evil.example)``b', { type: 'code' }))),
+      want: '```a`[x](https://evil.example)``b```',
+    },
+    {
+      name: 'inline code that starts and ends with a backtick padded with spaces',
+      input: doc(paragraph(text('`a`', { type: 'code' }))),
+      want: '`` `a` ``',
+    },
+    {
       name: 'code block with language',
       input: doc({ type: 'codeBlock', attrs: { language: 'ts' }, content: [text('const x = 1;')] }),
       want: '```ts\nconst x = 1;\n```',
+    },
+    {
+      name: 'code block whose text has three backticks in a longer fence',
+      input: doc({
+        type: 'codeBlock',
+        attrs: { language: 'ts' },
+        content: [text('a\n```\n[x](https://evil.example)')],
+      }),
+      want: '````ts\na\n```\n[x](https://evil.example)\n````',
+    },
+    {
+      name: 'code block whose text has a single backtick in a three-backtick fence',
+      input: doc({ type: 'codeBlock', attrs: { language: 'ts' }, content: [text('x = `y`')] }),
+      want: '```ts\nx = `y`\n```',
+    },
+    {
+      name: 'code block with an unsafe language label dropped',
+      input: doc({ type: 'codeBlock', attrs: { language: 'ts\n[x](https://evil.example)' }, content: [text('a')] }),
+      want: '```\na\n```',
+    },
+    {
+      name: 'code block whose longest backtick run is not the first',
+      input: doc({ type: 'codeBlock', content: [text('````\n`')] }),
+      want: '`````\n````\n`\n`````',
+    },
+    {
+      name: 'code block with a backtick run split across text nodes',
+      input: doc({ type: 'codeBlock', content: [text('``'), text('`')] }),
+      want: '````\n```\n````',
+    },
+    {
+      name: 'code block with very many backtick runs',
+      input: doc({ type: 'codeBlock', content: [text('` '.repeat(500_000))] }),
+      want: `\`\`\`\n${'` '.repeat(500_000)}\n\`\`\``,
+    },
+    {
+      name: 'code block without a language',
+      input: doc({ type: 'codeBlock', content: [text('a')] }),
+      want: '```\na\n```',
+    },
+    {
+      name: 'code block keeps a label with every allowed punctuation mark',
+      input: doc({ type: 'codeBlock', attrs: { language: 'a+b#c.d-e' }, content: [text('x')] }),
+      want: '```a+b#c.d-e\nx\n```',
+    },
+    {
+      name: 'code block with a backtick in its label dropped',
+      input: doc({ type: 'codeBlock', attrs: { language: 'ts`' }, content: [text('a')] }),
+      want: '```\na\n```',
+    },
+    {
+      name: 'code block keeps the first word of a label with spaces',
+      input: doc({ type: 'codeBlock', attrs: { language: ' ts title=x.ts' }, content: [text('a')] }),
+      want: '```ts\na\n```',
+    },
+    {
+      name: 'code block with a trailing newline in its label trimmed',
+      input: doc({ type: 'codeBlock', attrs: { language: 'ts\n' }, content: [text('a')] }),
+      want: '```ts\na\n```',
+    },
+    {
+      name: 'code block with an unsafe first word in its label dropped',
+      input: doc({ type: 'codeBlock', attrs: { language: 'ts` title' }, content: [text('a')] }),
+      want: '```\na\n```',
+    },
+    {
+      name: 'code block with a longer fence in a list item',
+      input: doc({ type: 'bulletList', content: [item({ type: 'codeBlock', content: [text('a\n```')] })] }),
+      want: '- ````\n  a\n  ```\n  ````',
+    },
+    {
+      name: 'code block with a longer fence in a blockquote',
+      input: doc({ type: 'blockquote', content: [{ type: 'codeBlock', content: [text('a\n```')] }] }),
+      want: '> ````\n> a\n> ```\n> ````',
     },
     { name: 'bold', input: doc(paragraph(text('Goal:', { type: 'strong' }))), want: '**Goal:**' },
     {
       name: 'link',
       input: doc(paragraph(text('card', { type: 'link', attrs: { href: 'https://x.test/a' } }))),
       want: '[card](https://x.test/a)',
+    },
+    {
+      name: 'link whose target has characters that end it early',
+      input: doc(paragraph(text('card', { type: 'link', attrs: { href: 'https://x.test/a)(b c<d>\\e' } }))),
+      want: '[card](https://x.test/a%29%28b%20c%3Cd%3E%5Ce)',
+    },
+    {
+      name: 'link whose target has a non-breaking space',
+      input: doc(paragraph(text('card', { type: 'link', attrs: { href: 'https://x.test/a\u00a0b' } }))),
+      want: '[card](https://x.test/a%C2%A0b)',
     },
     { name: 'strikethrough', input: doc(paragraph(text('x', { type: 'strike' }))), want: '~~x~~' },
     { name: 'italic', input: doc(paragraph(text('x', { type: 'em' }))), want: '*x*' },

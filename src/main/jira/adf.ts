@@ -16,6 +16,7 @@ type AdfNode = z.infer<typeof nodeSchema>;
 type AdfMark = z.infer<typeof markSchema>;
 
 const INLINE_PARENTS = new Set(['paragraph', 'heading', 'codeBlock']);
+const SAFE_LANGUAGE = /^[\w+#.-]+$/;
 
 export function adfToMarkdown(doc: unknown): string {
   const parsed = nodeSchema.safeParse(doc);
@@ -34,7 +35,7 @@ function render(node: AdfNode): string {
     case 'heading':
       return `${'#'.repeat(numberAttr(node, 'level', 1))} ${inline(children)}`;
     case 'codeBlock':
-      return `\`\`\`${stringAttr(node, 'language')}\n${inline(children)}\n\`\`\``;
+      return codeBlock(inline(children), stringAttr(node, 'language'));
     case 'bulletList':
       return children.map((item) => listItem(item, '- ')).join('\n');
     case 'orderedList': {
@@ -56,6 +57,31 @@ function render(node: AdfNode): string {
   }
 }
 
+function codeBlock(code: string, language: string): string {
+  const fence = backticks(code, 3);
+  const [word = ''] = language.trim().split(/[ \t]+/);
+  const label = SAFE_LANGUAGE.test(word) ? word : '';
+  return `${fence}${label}\n${code}\n${fence}`;
+}
+
+function inlineCode(code: string): string {
+  const fence = backticks(code, 1);
+  const pad = code.startsWith('`') || code.endsWith('`') ? ' ' : '';
+  return `${fence}${pad}${code}${pad}${fence}`;
+}
+
+function backticks(code: string, min: number): string {
+  const longest = (code.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
+  return '`'.repeat(Math.max(min, longest + 1));
+}
+
+function linkTarget(href: string): string {
+  return href
+    .replace(/[\s<>\\]/g, encodeURIComponent)
+    .replaceAll('(', '%28')
+    .replaceAll(')', '%29');
+}
+
 function inline(nodes: AdfNode[]): string {
   return nodes.map(render).join('');
 }
@@ -73,13 +99,13 @@ function listItem(item: AdfNode, prefix: string): string {
 function applyMarks(text: string, marks: AdfMark[]): string {
   const has = (type: string): AdfMark | undefined => marks.find((m) => m.type === type);
   let out = text;
-  if (has('code')) out = `\`${out}\``;
+  if (has('code')) out = inlineCode(out);
   if (has('em')) out = `*${out}*`;
   if (has('strong')) out = `**${out}**`;
   if (has('strike')) out = `~~${out}~~`;
   const link = has('link');
   const href = link?.attrs?.href;
-  if (typeof href === 'string') out = `[${out}](${href})`;
+  if (typeof href === 'string') out = `[${out}](${linkTarget(href)})`;
   return out;
 }
 
