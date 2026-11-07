@@ -41,9 +41,9 @@ export function useCardData(tab: TabState): CardDataWithReview {
       worktreePath === null ? null : maple.repo.changes(id).catch(() => null),
       worktreePath === null ? [] : maple.repo.listFiles(id).catch(() => []),
       worktreePath === null ? null : maple.repo.info(id).catch(() => null),
-      maple.pr.get(id),
-      maple.jira.sprint(projectKey),
-      maple.tabs.cost(id),
+      maple.pr.get(id).catch(() => null),
+      maple.jira.sprint(projectKey).catch(() => null),
+      maple.tabs.cost(id).catch(() => null),
     ]);
     if (seq === latest.current) {
       setData({
@@ -51,7 +51,7 @@ export function useCardData(tab: TabState): CardDataWithReview {
         files,
         repo,
         pr,
-        card: sprint.data?.cards.find((c) => c.key === cardKey) ?? null,
+        card: sprint?.data?.cards.find((c) => c.key === cardKey) ?? null,
         cost,
       });
     }

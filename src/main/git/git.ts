@@ -10,6 +10,7 @@ const execFileAsync = promisify(execFile);
 const SNIFF_BYTES = 8000;
 const MAX_HITS = 500;
 const MAX_HIT_TEXT = 200;
+const defaultBranches = new Map<string, string>();
 
 async function git(cwd: string, args: string[]): Promise<string> {
   try {
@@ -154,9 +155,29 @@ export async function defaultBranch(worktree: string): Promise<string | null> {
   return null;
 }
 
+async function baseOf(worktree: string, branch: string): Promise<string | null> {
+  try {
+    return (await git(worktree, ['merge-base', branch, 'HEAD'])).trim();
+  } catch (err) {
+    if (err instanceof Error && err.cause instanceof Error && 'code' in err.cause && err.cause.code === 1) {
+      return null;
+    }
+    throw err;
+  }
+}
+
 export async function mergeBase(worktree: string): Promise<string | null> {
+  const cached = defaultBranches.get(worktree);
+  if (cached !== undefined && (await resolves(worktree, cached))) {
+    return baseOf(worktree, cached);
+  }
   const branch = await defaultBranch(worktree);
-  return branch === null ? null : (await git(worktree, ['merge-base', branch, 'HEAD'])).trim();
+  if (branch === null) {
+    defaultBranches.delete(worktree);
+    return null;
+  }
+  defaultBranches.set(worktree, branch);
+  return baseOf(worktree, branch);
 }
 
 export async function changedSince(worktree: string, commit: string): Promise<string[]> {

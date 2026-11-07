@@ -459,6 +459,41 @@ describe('git', () => {
     expect(base).toBeNull();
   });
 
+  test('mergeBase returns null when HEAD shares no history with the default branch', async () => {
+    // given
+    git(worktree, 'checkout', '--orphan', 'unrelated');
+    git(worktree, 'commit', '-m', 'unrelated');
+    // when
+    const base = await mergeBase(worktree);
+    // then
+    expect(base).toBeNull();
+  });
+
+  test('mergeBase keeps the default branch it found', async () => {
+    // given
+    const first = await mergeBase(worktree);
+    git(worktree, 'commit', '--allow-empty', '-m', 'trunk');
+    git(worktree, 'update-ref', 'refs/remotes/origin/trunk', 'HEAD');
+    git(worktree, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/trunk');
+    // when
+    const base = await mergeBase(worktree);
+    // then
+    expect(base).toBe(first);
+  });
+
+  test('mergeBase looks again when the default branch it found is gone', async () => {
+    // given
+    await mergeBase(worktree);
+    git(worktree, 'commit', '--allow-empty', '-m', 'trunk');
+    git(worktree, 'update-ref', 'refs/remotes/origin/trunk', 'HEAD');
+    git(worktree, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/trunk');
+    git(worktree, 'update-ref', '-d', 'refs/remotes/origin/main');
+    // when
+    const base = await mergeBase(worktree);
+    // then
+    expect(base).toBe(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worktree, encoding: 'utf8' }).trim());
+  });
+
   test('changes returns null when no default branch exists', async () => {
     // given
     git(worktree, 'remote', 'remove', 'origin');
