@@ -415,12 +415,10 @@ export function FileViewer({
   }, [activeFile, monaco]);
 
   const edit = (value: string | undefined, change: editor.IModelContentChangedEvent) => {
-    if (text === null) {
+    if (text === null || change.isFlush) {
       return;
     }
-    if (!change.isFlush) {
-      onPin?.(text.path);
-    }
+    onPin?.(text.path);
     const next = value ?? '';
     setDraft(tabId, text.path, next === text.current ? null : { text: next, disk: text.current });
   };

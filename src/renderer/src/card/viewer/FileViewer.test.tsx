@@ -1667,7 +1667,7 @@ describe('FileViewer', () => {
     expect(onPin).toHaveBeenCalledWith('vault:Spike.md');
   });
 
-  test('a value set by the editor wrapper pins nothing', async () => {
+  test('a value set by the editor wrapper pins nothing and writes no draft', async () => {
     // given
     const { props } = renderViewer({ kind: 'text', path: 'a.ts', current: 'one\n', base: 'one\n' });
     await screen.findByTestId('editor');
@@ -1677,6 +1677,7 @@ describe('FileViewer', () => {
     });
     // then
     expect(props.onPin).not.toHaveBeenCalled();
+    expect(screen.getByRole('tab', { name: 'a.ts' })).toBeInTheDocument();
   });
 
   test('double-clicking a tab close button pins nothing', async () => {

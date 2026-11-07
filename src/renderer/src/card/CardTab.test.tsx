@@ -26,9 +26,19 @@ vi.mock('@renderer/card/terminal/TerminalPane', () => ({
   TerminalPane: vi.fn(({ tabId }: { tabId: string }) => <div data-testid="terminal-pane">{tabId}</div>),
 }));
 
+const editorChange = vi.hoisted(() => {
+  const change: { value: (text: string) => void } = { value: () => undefined };
+  return change;
+});
+
 vi.mock('@monaco-editor/react', () => ({
   useMonaco: () => null,
-  Editor: () => <div data-testid="editor" />,
+  Editor: (props: { onChange: (value: string | undefined, change: { isFlush: boolean }) => void }) => {
+    editorChange.value = (text) => {
+      props.onChange(text, { isFlush: false });
+    };
+    return <div data-testid="editor" />;
+  },
   DiffEditor: () => <div data-testid="diff-editor" />,
 }));
 
@@ -479,6 +489,26 @@ describe('CardTab', () => {
     const italic = screen.getAllByRole('tab').filter((t) => /preview/.test(t.className));
     expect(italic.map((t) => t.getAttribute('aria-label'))).toEqual(want.slice(-1));
     expect(italic[0]).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('typing in the preview file keeps it open when another file opens', async () => {
+    // given
+    fakeMaple({
+      repo: {
+        listFiles: () => Promise.resolve(['README.md', 'a.ts']),
+        readFile: (_tabId, path) => Promise.resolve({ kind: 'text', path, current: 'one\n', base: 'one\n' }),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    await screen.findByTestId('editor');
+    // when
+    act(() => {
+      editorChange.value('edited\n');
+    });
+    await userEvent.click(screen.getByText('a.ts'));
+    // then
+    expect(tabLabels()).toEqual(['● README.md', 'a.ts']);
   });
 
   test('vault notes share the preview tab until one is double-clicked', async () => {
