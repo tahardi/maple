@@ -92,6 +92,11 @@
   min-height: 0;
 }
 
+.wrapped pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .message,
 .notice {
   padding: 12px;
