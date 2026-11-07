@@ -61,7 +61,7 @@ export function registerRepo(deps: IpcDeps, logger: Logger = appLogger): void {
       if (path === null) {
         throw new Error(`reading file: tab ${tabId} has no worktree`);
       }
-      return readFilePair(path, await mergeBase(path), file);
+      return readFilePair(path, (await mergeBase(path)) ?? 'HEAD', file);
     }),
   );
   handle('repo:writeFile', z.tuple([tabIdArg, z.string().max(4096), z.string().max(2_097_152)]), (tabId, file, text) =>

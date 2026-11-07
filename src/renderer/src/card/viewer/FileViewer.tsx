@@ -43,6 +43,8 @@ type Mode = 'in-file' | 'side-by-side';
 
 const MODE_KEY = 'maple.viewMode';
 
+const WRAP_KEY = 'maple.noteWrap';
+
 const NO_DRAFTS: Record<string, Draft> = {};
 
 const NO_COMMENTS: ReviewComment[] = [];
@@ -72,6 +74,22 @@ function loadMode(): Mode {
 function saveMode(mode: Mode) {
   try {
     localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    return;
+  }
+}
+
+function loadWrap(): boolean {
+  try {
+    return localStorage.getItem(WRAP_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function saveWrap(wrap: boolean) {
+  try {
+    localStorage.setItem(WRAP_KEY, wrap ? 'on' : 'off');
   } catch {
     return;
   }
@@ -112,6 +130,7 @@ export function FileViewer({
 }: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
+  const [wrap, setWrap] = useState(loadWrap);
   const [pair, setPair] = useState<FilePair | null>(null);
   const [readError, setReadError] = useState<{ path: string; message: string } | null>(null);
   const [note, setNote] = useState<{ path: string; text: string } | null>(null);
@@ -136,6 +155,7 @@ export function FileViewer({
   const [picked, setPicked] = useState<{ editor: editor.ICodeEditor; lines: Lines } | null>(null);
   const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
 
+  const wordWrap = wrap ? 'on' : 'off';
   const headSha = review?.headSha ?? null;
   const baseSha = review?.baseSha ?? null;
   const reviewOldPath = review?.files.find((f) => f.path === activeFile)?.oldPath ?? null;
@@ -533,7 +553,7 @@ export function FileViewer({
               language="markdown"
               theme="vs-dark"
               height="100%"
-              options={{ ...OPTIONS, readOnly: false, domReadOnly: false }}
+              options={{ ...OPTIONS, readOnly: false, domReadOnly: false, wordWrap }}
               onChange={editNote}
               onMount={setPlain}
             />
@@ -549,7 +569,7 @@ export function FileViewer({
           language="markdown"
           theme="vs-dark"
           height="100%"
-          options={{ ...OPTIONS, renderSideBySide: true, originalEditable: false }}
+          options={{ ...OPTIONS, renderSideBySide: true, originalEditable: false, wordWrap }}
           onMount={mountDiff}
         />
       );
@@ -562,7 +582,7 @@ export function FileViewer({
             language="markdown"
             theme="vs-dark"
             height="100%"
-            options={OPTIONS}
+            options={{ ...OPTIONS, wordWrap }}
             onMount={setPlain}
           />
         </div>
@@ -577,7 +597,7 @@ export function FileViewer({
     }
     if (showsNote && markdown !== null) {
       return (
-        <div className={styles.noteView}>
+        <div className={wrap ? `${styles.noteView} ${styles.wrapped}` : styles.noteView}>
           <div ref={setNoteScroller} className={styles.description}>
             <MarkdownText text={markdown} />
           </div>
@@ -742,6 +762,15 @@ export function FileViewer({
                 Changes
               </button>
             )}
+            <button
+              aria-pressed={wrap}
+              onClick={() => {
+                setWrap(!wrap);
+                saveWrap(!wrap);
+              }}
+            >
+              Wrap
+            </button>
             {showsChanges && modeButtons}
           </div>
         )}

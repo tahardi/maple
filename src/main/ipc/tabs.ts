@@ -48,10 +48,12 @@ export function registerTabs(
   on('tabs:setActive', z.tuple([tabIdArg.nullable()]), (tabId) => {
     setActiveTab(tabId);
   });
-  handle('tabs:cost', z.tuple([tabIdArg]), (tabId) => {
-    const tab = sessions.get(tabId);
-    return tab ? costOf(tab.sessionId) : null;
-  });
+  handle('tabs:cost', z.tuple([tabIdArg]), (tabId) =>
+    logged('tabs:cost', [tabId], () => {
+      const tab = sessions.get(tabId);
+      return tab ? costOf(tab.sessionId) : null;
+    }),
+  );
   ipcMain.handle('tabs:statuses', () => status.statuses());
   status.on('status', (s) => {
     send(window(), 'tabs:status', s);
