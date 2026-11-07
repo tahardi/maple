@@ -11,6 +11,20 @@
   font-weight: 600;
 }
 
+button.title {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.title:hover {
+  text-decoration: underline;
+}
+
 .pill {
   background: var(--surface);
   border-radius: 10px;

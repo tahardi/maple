@@ -3,6 +3,7 @@ import type { ChangeSet } from '@shared/types/files';
 import type { PrInfo } from '@shared/types/github';
 import type { SessionCost } from '@shared/types/tabs';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { CardHeader } from './CardHeader';
 
 const card: Card = {
@@ -43,7 +44,7 @@ const pr: PrInfo = {
 describe('CardHeader', () => {
   test('shows the card, status, PR link, branch, and change counts', () => {
     // given
-    const props = { cardKey: 'MPL-20', card, pr, branch: 'mpl-20-file-tree', changes, cost: null };
+    const props = { cardKey: 'MPL-20', card, pr, branch: 'mpl-20-file-tree', changes, cost: null, onOpenCard: vi.fn() };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -56,12 +57,50 @@ describe('CardHeader', () => {
 
   test('shows only the card key before anything loads', () => {
     // given
-    const props = { cardKey: 'MPL-20', card: null, pr: null, branch: null, changes: null, cost: null };
+    const props = {
+      cardKey: 'MPL-20',
+      card: null,
+      pr: null,
+      branch: null,
+      changes: null,
+      cost: null,
+      onOpenCard: vi.fn(),
+    };
     // when
     const { container } = render(<CardHeader {...props} />);
     // then
     expect(container).toHaveTextContent(/^MPL-20$/);
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  test('the card title opens the card description', async () => {
+    // given
+    const onOpenCard = vi.fn();
+    const props = { cardKey: 'MPL-20', card, pr: null, branch: null, changes: null, cost: null, onOpenCard };
+    render(<CardHeader {...props} />);
+    const title = screen.getByRole('button', { name: 'MPL-20 File Tree and PR Summary' });
+    // when
+    await userEvent.click(title);
+    // then
+    expect(onOpenCard).toHaveBeenCalledOnce();
+    expect(title).toHaveAttribute('title', 'Open card description');
+  });
+
+  test('the card key is plain text before the card loads', () => {
+    // given
+    const props = {
+      cardKey: 'MPL-20',
+      card: null,
+      pr: null,
+      branch: null,
+      changes: null,
+      cost: null,
+      onOpenCard: vi.fn(),
+    };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    expect(screen.queryByRole('button')).toBeNull();
   });
 
   const cost: SessionCost = {
@@ -78,7 +117,7 @@ describe('CardHeader', () => {
     { name: 'nothing without a cost', cost: null, want: '' },
   ])('shows $name', ({ cost, want }) => {
     // given
-    const props = { cardKey: 'MPL-20', card: null, pr: null, branch: null, changes: null, cost };
+    const props = { cardKey: 'MPL-20', card: null, pr: null, branch: null, changes: null, cost, onOpenCard: vi.fn() };
     // when
     const { container } = render(<CardHeader {...props} />);
     // then

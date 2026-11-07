@@ -1,6 +1,5 @@
 import type { CheckRun, ChecksSummary, PrInfo, SecurityFinding } from '@shared/types/github';
 import type { Fetched } from '@shared/types/app';
-import { MarkdownText } from '../shell/MarkdownText';
 import styles from './PrSummary.module.css';
 
 const runSymbols: Record<CheckRun['bucket'], string> = {
@@ -21,6 +20,12 @@ function checksText({ passed, failed, pending, total }: ChecksSummary): string {
   return `✓ ${String(passed)}/${String(total)}`;
 }
 
+const stateLabels: Record<PrInfo['state'], string> = { OPEN: 'Open', MERGED: 'Merged', CLOSED: 'Closed' };
+
+function stateLabel(state: PrInfo['state']): string {
+  return stateLabels[state];
+}
+
 type PrSummaryProps = {
   pr: Fetched<PrInfo>;
   onOpenDescription: () => void;
@@ -32,31 +37,32 @@ type PrSummaryProps = {
 
 export function PrSummary({ pr, onOpenDescription, onReloadReview, reviewError, findings, headSha }: PrSummaryProps) {
   const info = pr.data;
-  const sections = info
-    ? [
-        { title: 'Deviations from the card', text: info.deviations },
-        { title: 'Needs Taylor', text: info.needsTaylor },
-        { title: 'Card impacts', text: info.cardImpacts },
-      ]
-    : [];
-
   return (
     <section className={styles.summary}>
       {pr.error !== null && <div className={styles.error}>GitHub unreachable</div>}
       {info && (
         <>
-          <a href={info.url} target="_blank" rel="noreferrer">{`PR #${String(info.number)} ${info.title}`}</a>
-          <button className={styles.open} onClick={onOpenDescription}>
-            Full description
-          </button>
-          {headSha !== null && <div className={styles.checks}>{`Reviewing ${headSha.slice(0, 7)}`}</div>}
-          {info.state === 'OPEN' && (
-            <button className={styles.open} onClick={onReloadReview}>
-              Reload review
+          <div className={styles.row}>
+            <button className={styles.number} title="Open PR description" onClick={onOpenDescription}>
+              {`PR #${String(info.number)}`}
             </button>
+            <span className={styles.state} data-state={info.state}>
+              {stateLabel(info.state)}
+            </span>
+          </div>
+          {(headSha !== null || info.state === 'OPEN') && (
+            <div className={styles.row}>
+              {headSha !== null && <span className={styles.muted}>{`Reviewing ${headSha.slice(0, 7)}`}</span>}
+              {info.state === 'OPEN' && (
+                <button className={styles.reload} onClick={onReloadReview}>
+                  Reload review
+                </button>
+              )}
+            </div>
           )}
           {reviewError !== null && <div className={styles.error}>{reviewError}</div>}
-          <div className={styles.checks}>{checksText(info.checks)}</div>
+          <h4>Checks</h4>
+          <div>{checksText(info.checks)}</div>
           {info.checks.runs.length > 0 && (
             <ul className={styles.runs}>
               {info.checks.runs.map((run) => (
@@ -85,12 +91,6 @@ export function PrSummary({ pr, onOpenDescription, onReloadReview, reviewError, 
               </ul>
             </div>
           )}
-          {sections.map((s) => (
-            <div key={s.title}>
-              <h4>{s.title}</h4>
-              {s.text === null ? <p className={styles.none}>None</p> : <MarkdownText text={s.text} />}
-            </div>
-          ))}
         </>
       )}
     </section>
