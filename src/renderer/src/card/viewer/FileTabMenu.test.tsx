@@ -74,6 +74,26 @@ describe('FileTabMenu', () => {
     expect(props.onDismiss).not.toHaveBeenCalled();
   });
 
+  test('leaving the window dismisses the menu', () => {
+    // given
+    const props = renderMenu();
+    // when
+    fireEvent.blur(window);
+    // then
+    expect(props.onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  test('opens with focus on the first item and arrow keys skip disabled items', () => {
+    // given
+    renderMenu(true);
+    const close = screen.getByRole('menuitem', { name: 'Close' });
+    expect(close).toHaveFocus();
+    // when
+    fireEvent.keyDown(close, { key: 'ArrowDown' });
+    // then
+    expect(screen.getByRole('menuitem', { name: 'Close All' })).toHaveFocus();
+  });
+
   test('a click outside the menu dismisses it', () => {
     // given
     const props = renderMenu();

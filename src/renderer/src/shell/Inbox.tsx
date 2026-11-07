@@ -1,8 +1,9 @@
 import { inboxItems, type InboxItem } from '@shared/inbox';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useMaple } from '../store';
 import styles from './Inbox.module.css';
 import { tabLabel } from './tabLabel';
+import { useDismiss } from './useDismiss';
 
 function pointsLabel(points: number | null): string {
   return points === null ? '–' : `${String(points)} pts`;
@@ -18,13 +19,18 @@ export function Inbox() {
   const activate = useMaple((s) => s.activate);
   const [open, setOpen] = useState(false);
   const [points, setPoints] = useState<Record<string, number | null>>({});
+  const root = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => {
+    setOpen(false);
+  }, []);
+  useDismiss(root, open, close);
   const items = inboxItems(tabs, Object.values(statuses), since, seen, points);
   const readyPoints = items.filter((i) => i.dot === 'ready').reduce((sum, i) => sum + (i.points ?? 0), 0);
   const projectName = (key: string) => config?.data?.projects.find((p) => p.jiraKey === key)?.name ?? key;
 
   const toggle = () => {
     if (open) {
-      setOpen(false);
+      close();
       return;
     }
     setOpen(true);
@@ -36,13 +42,13 @@ export function Inbox() {
   };
 
   const go = (item: InboxItem) => {
-    setOpen(false);
+    close();
     selectProject(item.projectKey);
     activate(item.kind === 'planner' ? null : item.tabId);
   };
 
   return (
-    <div className={styles.inbox}>
+    <div ref={root} className={styles.inbox}>
       <button className={styles.button} onClick={toggle}>
         Inbox {items.length}
       </button>
