@@ -134,16 +134,40 @@ export async function repoName(worktree: string): Promise<string> {
   return path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf(':')) + 1);
 }
 
-export async function mergeBase(worktree: string): Promise<string> {
-  return (await git(worktree, ['merge-base', 'origin/main', 'HEAD'])).trim();
+async function resolves(worktree: string, name: string): Promise<boolean> {
+  try {
+    await git(worktree, ['rev-parse', '--verify', '--quiet', `${name}^{commit}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function defaultBranch(worktree: string): Promise<string | null> {
+  const head = await git(worktree, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']).catch(() => '');
+  const candidates = [head.trim(), 'origin/main', 'origin/master', 'main', 'master'].filter((name) => name !== '');
+  for (const name of candidates) {
+    if (await resolves(worktree, name)) {
+      return name;
+    }
+  }
+  return null;
+}
+
+export async function mergeBase(worktree: string): Promise<string | null> {
+  const branch = await defaultBranch(worktree);
+  return branch === null ? null : (await git(worktree, ['merge-base', branch, 'HEAD'])).trim();
 }
 
 export async function changedSince(worktree: string, commit: string): Promise<string[]> {
   return splitZ(await git(worktree, ['diff', '--name-only', '-z', commit]));
 }
 
-export async function changes(worktree: string): Promise<ChangeSet> {
+export async function changes(worktree: string): Promise<ChangeSet | null> {
   const base = await mergeBase(worktree);
+  if (base === null) {
+    return null;
+  }
   const [nameStatus, numstat, untracked] = await Promise.all([
     git(worktree, ['diff', '--name-status', '-M', '-z', base]),
     git(worktree, ['diff', '--numstat', '-M', base]),

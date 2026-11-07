@@ -38,9 +38,9 @@ export function useCardData(tab: TabState): CardDataWithReview {
     const { maple } = window;
     const seq = ++latest.current;
     const [changes, files, repo, pr, sprint, cost] = await Promise.all([
-      worktreePath === null ? null : maple.repo.changes(id),
-      worktreePath === null ? [] : maple.repo.listFiles(id),
-      worktreePath === null ? null : maple.repo.info(id),
+      worktreePath === null ? null : maple.repo.changes(id).catch(() => null),
+      worktreePath === null ? [] : maple.repo.listFiles(id).catch(() => []),
+      worktreePath === null ? null : maple.repo.info(id).catch(() => null),
       maple.pr.get(id),
       maple.jira.sprint(projectKey),
       maple.tabs.cost(id),
