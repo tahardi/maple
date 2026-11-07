@@ -45,6 +45,23 @@ describe('vaultWrites', () => {
     expect(paths).toEqual(['Daily/2026-10-20.md', 'Inbox.md', 'Projects/Spike.md', 'Research.md']);
   });
 
+  test('counts an anchorhold write without .md as the .md note', async () => {
+    // given
+    await writeFile(
+      join(dir, 's1.jsonl'),
+      [
+        toolUse('mcp__anchorhold__anchorhold_write_note', { path: 'Projects/Spike', content: '' }),
+        toolUse('mcp__anchorhold__anchorhold_write_note', { path: 'Projects/Spike.md', content: '' }),
+        toolUse('mcp__anchorhold__anchorhold_write_note', { path: 'Daily/Today', content: '' }),
+        toolUse('mcp__anchorhold__anchorhold_write_note', { path: 'v1.2/Note', content: '' }),
+      ].join('\n'),
+    );
+    // when
+    const paths = await vaultWrites('s1', vault, root);
+    // then
+    expect(paths).toEqual(['Daily/Today.md', 'Projects/Spike.md', 'v1.2/Note.md']);
+  });
+
   test.each([
     { name: 'a file outside the vault', line: toolUse('Write', { file_path: '/home/me/code/a.md', content: '' }) },
     { name: 'a sibling with a shared prefix', line: toolUse('Write', { file_path: '/home/me/vault2/a.md' }) },
@@ -52,6 +69,27 @@ describe('vaultWrites', () => {
     { name: 'a read', line: toolUse('Read', { file_path: '/home/me/vault/Inbox.md' }) },
     { name: 'a note path that escapes', line: toolUse('mcp__anchorhold__anchorhold_write_note', { path: '../x.md' }) },
     { name: 'a tool with no path', line: toolUse('Write', { content: '' }) },
+    {
+      name: 'an anchorhold path with another extension',
+      line: toolUse('mcp__anchorhold__anchorhold_write_note', { path: 'notes.txt' }),
+    },
+    {
+      name: 'an anchorhold note name with a dot',
+      line: toolUse('mcp__anchorhold__anchorhold_write_note', { path: 'Projects/v1.2' }),
+    },
+    {
+      name: 'an anchorhold path without .md that escapes',
+      line: toolUse('mcp__anchorhold__anchorhold_write_note', { path: '../x' }),
+    },
+    { name: 'an empty anchorhold path', line: toolUse('mcp__anchorhold__anchorhold_write_note', { path: '' }) },
+    {
+      name: 'an anchorhold folder path',
+      line: toolUse('mcp__anchorhold__anchorhold_write_note', { path: 'Projects/' }),
+    },
+    {
+      name: 'a Write path without .md',
+      line: toolUse('Write', { file_path: '/home/me/vault/Projects/Spike', content: '' }),
+    },
   ])('skips $name', async ({ line }) => {
     // given
     await writeFile(join(dir, 's1.jsonl'), line);
