@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const args = process.argv.slice(2);
+const joined = args.join(' ');
+const fixture = (name) => readFileSync(join(import.meta.dirname, '..', name), 'utf8');
+
+if (joined.startsWith('pr list')) {
+  process.stdout.write(
+    process.env.GH_PR_LIST ? readFileSync(process.env.GH_PR_LIST, 'utf8') : fixture('gh-pr-list.json'),
+  );
+} else if (joined === 'api user --jq .login') {
+  process.stdout.write('tahardi\n');
+} else if (joined.startsWith('run list')) {
+  process.stdout.write(fixture('gh-runs.json'));
+} else if (args[0] === 'api' && joined.endsWith('/issues/76/timeline')) {
+  process.stdout.write(fixture('gh-timeline.json'));
+} else if (args[0] === 'api' && joined.endsWith('/pulls/76/reviews')) {
+  process.stdout.write(fixture('gh-reviews.json'));
+} else if (args[0] === 'api' && joined.endsWith('/pulls/76/comments')) {
+  process.stdout.write(fixture('gh-comments.json'));
+} else {
+  process.stderr.write(`no fixture for: ${joined}\n`);
+  process.exit(1);
+}

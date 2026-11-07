@@ -1,0 +1,44 @@
+[
+  [
+    {
+      "id": 4351957627,
+      "user": {
+        "login": "tahardi"
+      },
+      "body": "Testing multi-line comments. I noticed that when I click the comment button my cursor does not automatically appear in the text box so I have to move my mouse to the text box and click before typing. Could you update the functionality so that once I've highlighted text and clicked the comment button it automatically places my cursor in the text box so I can begin typing",
+      "created_at": "2026-10-22T18:20:51Z",
+      "pull_request_review_id": 5618884308,
+      "in_reply_to_id": null
+    },
+    {
+      "id": 4351977025,
+      "user": {
+        "login": "tahardi"
+      },
+      "body": "**Claude:** Pressing Comment now puts the cursor in the new comment box, so you can type right away. A file reload while the form is open no longer pulls focus back to it. In b00a37a",
+      "created_at": "2026-10-22T18:22:55Z",
+      "pull_request_review_id": 5618907613,
+      "in_reply_to_id": 4351957627
+    },
+    {
+      "id": 4352133169,
+      "user": {
+        "login": "tahardi"
+      },
+      "body": "**Claude:** The first fix did not work in the app: Monaco adds a new zone hidden and only shows it on its next render, and focusing a hidden box does nothing. The box now takes focus once the editor shows it. In fc065a1",
+      "created_at": "2026-10-22T18:38:22Z",
+      "pull_request_review_id": 5619109355,
+      "in_reply_to_id": 4351957627
+    },
+    {
+      "id": 4352168831,
+      "user": {
+        "login": "tahardi"
+      },
+      "body": "Cool it works now!",
+      "created_at": "2026-10-22T18:41:55Z",
+      "pull_request_review_id": 5619161335,
+      "in_reply_to_id": null
+    }
+  ]
+]
