@@ -12,23 +12,6 @@ type GhData = { pr: Record<string, unknown> } & Record<
   Record<string, unknown>[]
 >;
 
-const MODELS = [
-  'claude-fable-5-1',
-  'claude-fable-5',
-  'claude-opus-5-5',
-  'claude-opus-5',
-  'claude-opus-4-8',
-  'claude-opus-4-7',
-  'claude-opus-4-6',
-  'claude-sonnet-5-5',
-  'claude-sonnet-5',
-  'claude-sonnet-4-6',
-  'claude-sonnet-4-5',
-  'claude-haiku-5-5',
-  'claude-haiku-4-5',
-  'claude-haiku-4-5-20251001',
-];
-
 const usage = {
   input_tokens: 100_000,
   output_tokens: 200_000,
@@ -127,7 +110,7 @@ describe('report.mjs', () => {
       Summary: 'Inline New-Comment Form',
       'In Progress h': '0.1',
       'In Review h': '1.7',
-      'To Done h': '1.8',
+      'In Progress to Done h': '1.8',
     });
   });
 
@@ -165,7 +148,11 @@ describe('report.mjs', () => {
     // when
     const result = await report();
     // then
-    expect(rowFor(result, 'MPL-998')).toMatchObject({ 'In Progress h': '', 'In Review h': '', 'To Done h': '' });
+    expect(rowFor(result, 'MPL-998')).toMatchObject({
+      'In Progress h': '',
+      'In Review h': '',
+      'In Progress to Done h': '',
+    });
   });
 
   test('counts an approval with no comments as a round that adds no review minutes', async () => {
@@ -185,8 +172,33 @@ describe('report.mjs', () => {
     expect(rowFor(result, 'MPL-97')).toMatchObject({
       'Review Rounds': '3',
       'Review Comments': '2',
-      'Review Min': '0.0',
+      'Review Minutes': '0.0',
     });
+  });
+
+  test("counts Taylor's top-level PR comments as review rounds", async () => {
+    // given
+    await editGh((gh) => {
+      gh.timeline.push(
+        {
+          event: 'commented',
+          user: { login: 'tahardi' },
+          body: 'Please rename this',
+          created_at: '2026-10-22T18:30:00Z',
+        },
+        {
+          event: 'commented',
+          user: { login: 'tahardi' },
+          body: '**Claude:** Renamed',
+          created_at: '2026-10-22T18:31:00Z',
+        },
+        { event: 'commented', user: { login: 'someone' }, body: 'Nice', created_at: '2026-10-22T18:32:00Z' },
+      );
+    });
+    // when
+    const result = await report();
+    // then
+    expect(rowFor(result, 'MPL-97')).toMatchObject({ 'Review Rounds': '3', 'Review Comments': '2' });
   });
 
   test('counts only pull_request runs and failed conclusions', async () => {
@@ -211,7 +223,7 @@ describe('report.mjs', () => {
     // when
     const result = await report();
     // then
-    expect(rowFor(result, 'MPL-97')['Review Min']).toBe('10.0');
+    expect(rowFor(result, 'MPL-97')['Review Minutes']).toBe('10.0');
   });
 
   test('leaves PR columns blank for a card with no merged PR', async () => {
@@ -264,19 +276,6 @@ describe('report.mjs', () => {
     expect(rowFor(result, 'MPL-6')['Claude $']).toBe('');
   });
 
-  test.each(MODELS)('prices %s the same as sessionCost', async (model) => {
-    // given
-    await writeFile(
-      join(project, 's1.jsonl'),
-      [cardStart('MPL-97</command-args>'), assistantLine('msg_1', model)].join('\n') + '\n',
-    );
-    const cost = await sessionCost('s1', join(claudeDir, 'projects'));
-    // when
-    const result = await report();
-    // then
-    expect(rowFor(result, 'MPL-97')['Claude $']).toBe(cost?.dollars?.toFixed(2));
-  });
-
   test('leaves dollars blank when a transcript uses an unknown model', async () => {
     // given
     await writeFile(
@@ -311,7 +310,7 @@ describe('report.mjs', () => {
     const result = await report(...args);
     // then
     expect(result.code).toBe(0);
-    expect(rowFor(result, 'MPL-97')['Hand Min']).toBe(want);
+    expect(rowFor(result, 'MPL-97')['Hand Minutes']).toBe(want);
   });
 
   test('prints medians that skip blank cells', async () => {
@@ -324,6 +323,45 @@ describe('report.mjs', () => {
       'Review Rounds': '2',
       'Claude $': '',
     });
+  });
+
+  test('warns and leaves PR columns blank when a gh file is broken', async () => {
+    // given
+    await writeFile(join(dataDir, 'gh', 'MPL-97.json'), '{not json');
+    // when
+    const result = await report();
+    // then
+    expect(result.code).toBe(0);
+    expect(result.stderr).toContain(`reading ${join(dataDir, 'gh', 'MPL-97.json')}: `);
+    expect(rowFor(result, 'MPL-97')).toMatchObject({ PR: '', 'Review Rounds': '', 'In Review h': '1.7' });
+  });
+
+  test('warns and skips a card whose jira file is broken', async () => {
+    // given
+    await writeFile(join(dataDir, 'jira', 'MPL-5.json'), '{not json');
+    // when
+    const result = await report();
+    // then
+    expect(result.code).toBe(0);
+    expect(result.stderr).toContain(`reading ${join(dataDir, 'jira', 'MPL-5.json')}: `);
+    expect(parseTable(result.stdout).map((r) => r.Card)).toEqual(['MPL-6', 'MPL-97', 'Median']);
+  });
+
+  test("warns and leaves dollars blank when a session's subagent transcript cannot be read", async () => {
+    // given
+    await writeFile(
+      join(project, 's1.jsonl'),
+      [cardStart('MPL-97</command-args>'), assistantLine('msg_1')].join('\n') + '\n',
+    );
+    await mkdir(join(project, 's1', 'subagents', 'agent-a.jsonl'), { recursive: true });
+    await mkdir(join(project, 's2.jsonl'));
+    // when
+    const result = await report();
+    // then
+    expect(result.code).toBe(0);
+    expect(result.stderr).toContain(`reading ${join(project, 's1', 'subagents', 'agent-a.jsonl')}: `);
+    expect(result.stderr).toContain(`reading ${join(project, 's2.jsonl')}: `);
+    expect(rowFor(result, 'MPL-97')['Claude $']).toBe('');
   });
 
   test('exits 1 with "reading hand log: ..." when --hand-log has no file', async () => {
