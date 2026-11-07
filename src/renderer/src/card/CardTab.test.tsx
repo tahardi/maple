@@ -26,9 +26,19 @@ vi.mock('@renderer/card/terminal/TerminalPane', () => ({
   TerminalPane: vi.fn(({ tabId }: { tabId: string }) => <div data-testid="terminal-pane">{tabId}</div>),
 }));
 
+const editorChange = vi.hoisted(() => {
+  const change: { value: (text: string) => void } = { value: () => undefined };
+  return change;
+});
+
 vi.mock('@monaco-editor/react', () => ({
   useMonaco: () => null,
-  Editor: () => <div data-testid="editor" />,
+  Editor: (props: { onChange: (value: string | undefined, change: { isFlush: boolean }) => void }) => {
+    editorChange.value = (text) => {
+      props.onChange(text, { isFlush: false });
+    };
+    return <div data-testid="editor" />;
+  },
   DiffEditor: () => <div data-testid="diff-editor" />,
 }));
 
@@ -350,8 +360,8 @@ describe('CardTab', () => {
     fakeRepo(false);
     render(<CardTab tab={tab} />);
     // when
-    await userEvent.click(await screen.findByText('README.md'));
-    await userEvent.click(screen.getByText('a.ts'));
+    await userEvent.dblClick(await screen.findByText('README.md'));
+    await userEvent.dblClick(screen.getByText('a.ts'));
     await userEvent.click(screen.getByText('README.md', { selector: 'li span' }));
     // then
     expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['README.md', 'a.ts']);
@@ -362,6 +372,160 @@ describe('CardTab', () => {
     // then
     expect(screen.getAllByRole('tab')).toHaveLength(1);
     expect(screen.getByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
+  });
+
+  const tabLabels = () => screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'));
+
+  test.each([
+    {
+      name: 'a single click replaces the preview tab',
+      setup: () => {
+        fakeRepo(false);
+      },
+      steps: async () => {
+        await userEvent.click(await screen.findByText('README.md'));
+        await userEvent.click(screen.getByText('a.ts'));
+      },
+      want: ['a.ts'],
+    },
+    {
+      name: 'double-clicking a file in the tree keeps it open',
+      setup: () => {
+        fakeRepo(false);
+      },
+      steps: async () => {
+        await userEvent.dblClick(await screen.findByText('README.md'));
+        await userEvent.click(screen.getByText('a.ts'));
+      },
+      want: ['README.md', 'a.ts'],
+    },
+    {
+      name: 'double-clicking the preview tab keeps it open',
+      setup: () => {
+        fakeRepo(false);
+      },
+      steps: async () => {
+        await userEvent.click(await screen.findByText('README.md'));
+        await userEvent.dblClick(screen.getByRole('tab', { name: 'README.md' }));
+        await userEvent.click(screen.getByText('a.ts'));
+      },
+      want: ['README.md', 'a.ts'],
+    },
+    {
+      name: 'quick open replaces the preview tab',
+      setup: () => {
+        fakeRepo(false);
+        useMaple.setState({ activeTabId: 't1' });
+      },
+      steps: async () => {
+        await userEvent.click(await screen.findByText('README.md'));
+        await userEvent.keyboard('{Control>}p{/Control}');
+        await userEvent.type(screen.getByRole('textbox'), 'a.ts{Enter}');
+      },
+      want: ['a.ts'],
+    },
+    {
+      name: 'descriptions open pinned',
+      setup: () => {
+        fakeRepo(true, [card('MPL-20', 'In Progress', { descriptionMd: '## Goal' })]);
+      },
+      steps: async () => {
+        await screen.findByRole('tab', { name: 'PR description' });
+        await userEvent.click(await screen.findByRole('button', { name: 'Card description' }));
+        await userEvent.click(screen.getByRole('button', { name: 'All files' }));
+        await userEvent.click(screen.getByText('README.md', { selector: 'li span' }));
+        await userEvent.click(screen.getByText('a.ts'));
+      },
+      want: ['PR description', 'Card description', 'a.ts'],
+    },
+    {
+      name: 'closing the preview tab makes the next file a new tab',
+      setup: () => {
+        fakeRepo(false);
+      },
+      steps: async () => {
+        await userEvent.dblClick(await screen.findByText('README.md'));
+        await userEvent.click(screen.getByText('a.ts'));
+        await userEvent.click(screen.getByRole('button', { name: 'Close src/a.ts' }));
+        await userEvent.click(screen.getByText('a.ts'));
+      },
+      want: ['README.md', 'a.ts'],
+    },
+    {
+      name: 'Close All clears the preview',
+      setup: () => {
+        fakeRepo(false);
+      },
+      steps: async () => {
+        await userEvent.click(await screen.findByText('README.md'));
+        fireEvent.contextMenu(screen.getByRole('tab', { name: 'README.md' }));
+        await userEvent.click(screen.getByRole('menuitem', { name: 'Close All' }));
+        await userEvent.click(screen.getByText('a.ts'));
+      },
+      want: ['a.ts'],
+    },
+    {
+      name: 'Close Others on the preview tab keeps it replaceable',
+      setup: () => {
+        fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
+      },
+      steps: async () => {
+        await userEvent.dblClick(await screen.findByText('README.md'));
+        await userEvent.click(screen.getByText('a.ts'));
+        fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
+        await userEvent.click(screen.getByRole('menuitem', { name: 'Close Others' }));
+        await userEvent.click(screen.getByText('b.ts'));
+      },
+      want: ['b.ts'],
+    },
+  ])('$name', async ({ setup, steps, want }) => {
+    // given
+    setup();
+    render(<CardTab tab={tab} />);
+    // when
+    await steps();
+    // then
+    expect(tabLabels()).toEqual(want);
+    const italic = screen.getAllByRole('tab').filter((t) => /preview/.test(t.className));
+    expect(italic.map((t) => t.getAttribute('aria-label'))).toEqual(want.slice(-1));
+    expect(italic[0]).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('typing in the preview file keeps it open when another file opens', async () => {
+    // given
+    fakeMaple({
+      repo: {
+        listFiles: () => Promise.resolve(['README.md', 'a.ts']),
+        readFile: (_tabId, path) => Promise.resolve({ kind: 'text', path, current: 'one\n', base: 'one\n' }),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByText('README.md'));
+    await screen.findByTestId('editor');
+    // when
+    act(() => {
+      editorChange.value('edited\n');
+    });
+    await userEvent.click(screen.getByText('a.ts'));
+    // then
+    expect(tabLabels()).toEqual(['● README.md', 'a.ts']);
+  });
+
+  test('vault notes share the preview tab until one is double-clicked', async () => {
+    // given
+    const now = new Date().toISOString();
+    fakeVault([
+      { path: 'One.md', modifiedAt: now },
+      { path: 'Two.md', modifiedAt: now },
+      { path: 'Three.md', modifiedAt: now },
+    ]);
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // when
+    await userEvent.click(await screen.findByText('One.md'));
+    await userEvent.dblClick(screen.getByText('Two.md'));
+    await userEvent.click(screen.getByText('Three.md'));
+    // then
+    expect(tabLabels()).toEqual(['Two.md', 'Three.md']);
   });
 
   test('opens the PR description on first load when the card has a PR', async () => {
@@ -512,6 +676,7 @@ describe('CardTab', () => {
     // then
     expect(await screen.findByRole('tab', { name: 'PR description', selected: false })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'README.md', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'README.md', selected: true }).className).toMatch(/preview/);
   });
 
   test('shows the repo name and branch above the worktree file tree', async () => {
@@ -548,9 +713,9 @@ describe('CardTab', () => {
     // given
     fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
     render(<CardTab tab={tab} />);
-    await userEvent.click(await screen.findByText('README.md'));
-    await userEvent.click(screen.getByText('a.ts'));
-    await userEvent.click(screen.getByText('b.ts'));
+    await userEvent.dblClick(await screen.findByText('README.md'));
+    await userEvent.dblClick(screen.getByText('a.ts'));
+    await userEvent.dblClick(screen.getByText('b.ts'));
     await userEvent.click(screen.getByText('README.md', { selector: 'li span' }));
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Close a.ts' }));
@@ -575,9 +740,9 @@ describe('CardTab', () => {
     // given
     fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
     render(<CardTab tab={tab} />);
-    await userEvent.click(await screen.findByText('README.md'));
-    await userEvent.click(screen.getByText('a.ts'));
-    await userEvent.click(screen.getByText('b.ts'));
+    await userEvent.dblClick(await screen.findByText('README.md'));
+    await userEvent.dblClick(screen.getByText('a.ts'));
+    await userEvent.dblClick(screen.getByText('b.ts'));
     // when
     fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Close Others' }));
@@ -590,8 +755,8 @@ describe('CardTab', () => {
     // given
     fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
     render(<CardTab tab={tab} />);
-    await userEvent.click(await screen.findByText('README.md'));
-    await userEvent.click(screen.getByText('a.ts'));
+    await userEvent.dblClick(await screen.findByText('README.md'));
+    await userEvent.dblClick(screen.getByText('a.ts'));
     // when
     fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Close Others' }));
@@ -618,8 +783,8 @@ describe('CardTab', () => {
     // given
     fakeMaple({ repo: { listFiles: () => Promise.resolve(['README.md', 'a.ts', 'b.ts']) } });
     render(<CardTab tab={tab} />);
-    await userEvent.click(await screen.findByText('README.md'));
-    await userEvent.click(screen.getByText('a.ts'));
+    await userEvent.dblClick(await screen.findByText('README.md'));
+    await userEvent.dblClick(screen.getByText('a.ts'));
     // when
     fireEvent.contextMenu(screen.getByRole('tab', { name: 'a.ts' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Close All' }));

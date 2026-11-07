@@ -35,6 +35,8 @@ type Props = {
   noteChanges?: boolean;
   onComments?: (comments: readonly ReviewComment[]) => void;
   review?: Review | null;
+  preview?: string | null;
+  onPin?: (path: string) => void;
 };
 
 type Mode = 'in-file' | 'side-by-side';
@@ -105,6 +107,8 @@ export function FileViewer({
   noteChanges = false,
   onComments,
   review = null,
+  preview = null,
+  onPin,
 }: Props) {
   const monaco = useMonaco();
   const [mode, setMode] = useState(loadMode);
@@ -410,10 +414,11 @@ export function FileViewer({
       .find((l) => (ext !== null && l.extensions?.includes(ext)) || l.filenames?.includes(name))?.id;
   }, [activeFile, monaco]);
 
-  const edit = (value: string | undefined) => {
-    if (text === null) {
+  const edit = (value: string | undefined, change: editor.IModelContentChangedEvent) => {
+    if (text === null || change.isFlush) {
       return;
     }
+    onPin?.(text.path);
     const next = value ?? '';
     setDraft(tabId, text.path, next === text.current ? null : { text: next, disk: text.current });
   };
@@ -427,6 +432,7 @@ export function FileViewer({
       return;
     }
     keepEditing(shownNote.path);
+    onPin?.(shownNote.path);
     const next = value ?? '';
     setDraft(tabId, shownNote.path, next === shownNote.text ? null : { text: next, disk: shownNote.text });
   };
@@ -681,9 +687,16 @@ export function FileViewer({
               aria-label={label(path)}
               aria-selected={path === activeFile}
               title={path}
-              className={path === activeFile ? `${styles.tab} ${styles.active}` : styles.tab}
+              className={[
+                styles.tab,
+                path === activeFile ? styles.active : '',
+                path === preview ? styles.preview : '',
+              ].join(' ')}
               onClick={() => {
                 onActivate(path);
+              }}
+              onDoubleClick={() => {
+                onPin?.(path);
               }}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -697,6 +710,9 @@ export function FileViewer({
                 onClick={(e) => {
                   e.stopPropagation();
                   onCloseFiles([path]);
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
                 }}
               >
                 ×

@@ -13,12 +13,14 @@ const changes = [
 
 function Harness({
   onSelect,
+  onPin,
   viewed = new Set(),
   onToggleViewed = vi.fn(),
   commented,
   title,
 }: {
   onSelect: (path: string) => void;
+  onPin?: (path: string) => void;
   viewed?: ReadonlySet<string>;
   onToggleViewed?: (path: string) => void;
   commented?: ReadonlySet<string>;
@@ -30,6 +32,7 @@ function Harness({
       nodes={buildTree(paths, changes, changedOnly)}
       selected={null}
       onSelect={onSelect}
+      onPin={onPin}
       changedOnly={changedOnly}
       onToggle={setChangedOnly}
       changedCount={changes.length}
@@ -83,6 +86,29 @@ describe('FileTree', () => {
     await userEvent.click(screen.getByText('b.ts'));
     // then
     expect(onSelect).toHaveBeenCalledWith('src/b.ts');
+  });
+
+  test('double-clicking a file pins its path', async () => {
+    // given
+    const onPin = vi.fn();
+    render(<Harness onSelect={vi.fn()} onPin={onPin} />);
+    // when
+    await userEvent.dblClick(screen.getByText('b.ts'));
+    // then
+    expect(onPin).toHaveBeenCalledWith('src/b.ts');
+  });
+
+  test.each([
+    { name: 'a folder', target: () => screen.getByText('src') },
+    { name: 'a Viewed checkbox', target: () => screen.getByRole('checkbox', { name: 'Viewed src/b.ts' }) },
+  ])('double-clicking $name pins nothing', async ({ target }) => {
+    // given
+    const onPin = vi.fn();
+    render(<Harness onSelect={vi.fn()} onPin={onPin} />);
+    // when
+    await userEvent.dblClick(target());
+    // then
+    expect(onPin).not.toHaveBeenCalled();
   });
 
   test('toggle returns to all files and marks the pressed button', async () => {

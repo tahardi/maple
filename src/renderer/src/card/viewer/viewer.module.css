@@ -35,6 +35,10 @@
   color: var(--text-strong);
 }
 
+.preview {
+  font-style: italic;
+}
+
 .close {
   background: transparent;
   border: none;
