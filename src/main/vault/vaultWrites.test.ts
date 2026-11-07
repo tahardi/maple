@@ -81,6 +81,11 @@ describe('vaultWrites', () => {
       name: 'an anchorhold path without .md that escapes',
       line: toolUse('mcp__anchorhold__anchorhold_write_note', { path: '../x' }),
     },
+    { name: 'an empty anchorhold path', line: toolUse('mcp__anchorhold__anchorhold_write_note', { path: '' }) },
+    {
+      name: 'an anchorhold folder path',
+      line: toolUse('mcp__anchorhold__anchorhold_write_note', { path: 'Projects/' }),
+    },
     {
       name: 'a Write path without .md',
       line: toolUse('Write', { file_path: '/home/me/vault/Projects/Spike', content: '' }),

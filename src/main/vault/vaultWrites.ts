@@ -16,7 +16,8 @@ const assistantLine = z.object({
 
 function notePath(vaultDir: string, name: string, input: Record<string, unknown>): string | null {
   const picked = FILE_TOOLS.has(name) ? input.file_path : name === NOTE_TOOL ? input.path : null;
-  const raw = name === NOTE_TOOL && typeof picked === 'string' && extname(picked) === '' ? `${picked}.md` : picked;
+  const bare = typeof picked === 'string' && picked !== '' && !picked.endsWith('/') && extname(picked) === '';
+  const raw = name === NOTE_TOOL && bare ? `${picked}.md` : picked;
   if (typeof raw !== 'string' || !raw.endsWith('.md')) {
     return null;
   }
