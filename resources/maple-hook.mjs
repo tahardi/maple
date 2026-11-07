@@ -2,6 +2,10 @@ import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
+function taskTypes(tasks) {
+  return Array.isArray(tasks) ? tasks.map((task) => task?.type).filter((type) => typeof type === 'string') : [];
+}
+
 function targetPath(vault, toolInput) {
   const { file_path: filePath, path } = toolInput;
   if (typeof filePath === 'string') {
@@ -65,12 +69,23 @@ process.stdin.on('end', () => {
     }
   }
   let notificationType = null;
+  let backgroundTasks = [];
+  let crons = 0;
   try {
-    notificationType = JSON.parse(input).notification_type ?? null;
+    const payload = JSON.parse(input);
+    notificationType = payload.notification_type ?? null;
+    backgroundTasks = taskTypes(payload.background_tasks);
+    crons = Array.isArray(payload.session_crons) ? payload.session_crons.length : 0;
   } catch {
     notificationType = null;
   }
-  const line = JSON.stringify({ tabId: process.env.MAPLE_TAB_ID ?? '', event: process.argv[2], notificationType });
+  const line = JSON.stringify({
+    tabId: process.env.MAPLE_TAB_ID ?? '',
+    event: process.argv[2],
+    notificationType,
+    backgroundTasks,
+    crons,
+  });
   const socket = connect(process.env.MAPLE_SOCKET ?? '', () => {
     socket.end(`${line}\n`, () => process.exit(0));
   });

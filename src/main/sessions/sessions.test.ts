@@ -24,6 +24,7 @@ const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
   vaultDir: null,
   notifications: true,
+  backgroundWaitMinutes: 15,
   projects: [
     { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig-days', repo: 'tahardi/dig-days' },
     { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 2, plannerDir: '/tmp/halo', repo: 'tahardi/halo' },

@@ -10,6 +10,7 @@ export type MapleConfig = {
   worktreesDir: string;
   vaultDir: string | null;
   notifications: boolean;
+  backgroundWaitMinutes: number;
   projects: ProjectConfig[];
   actions: ActionConfig[];
 };

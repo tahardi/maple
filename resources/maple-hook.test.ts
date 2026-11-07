@@ -65,7 +65,9 @@ describe('maple-hook', () => {
     );
     // then
     expect(result).toEqual({ code: 0, stdout: '' });
-    expect(received.join('')).toBe('{"tabId":"tab-1","event":"Notification","notificationType":"permission_prompt"}\n');
+    expect(received.join('')).toBe(
+      '{"tabId":"tab-1","event":"Notification","notificationType":"permission_prompt","backgroundTasks":[],"crons":0}\n',
+    );
   });
 
   test('exits 0 within 1 second when the socket is missing', async () => {
@@ -91,7 +93,42 @@ describe('maple-hook', () => {
     const result = await runHook('Stop', { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-2' }, 'not json');
     // then
     expect(result).toEqual({ code: 0, stdout: '' });
-    expect(received.join('')).toBe('{"tabId":"tab-2","event":"Stop","notificationType":null}\n');
+    expect(received.join('')).toBe(
+      '{"tabId":"tab-2","event":"Stop","notificationType":null,"backgroundTasks":[],"crons":0}\n',
+    );
+  });
+
+  test.each([
+    {
+      name: 'tasks and crons',
+      input: { background_tasks: [{ type: 'subagent' }, { type: 'shell' }], session_crons: [{ id: 'c1' }] },
+      want: { backgroundTasks: ['subagent', 'shell'], crons: 1 },
+    },
+    {
+      name: 'empty lists',
+      input: { background_tasks: [], session_crons: [] },
+      want: { backgroundTasks: [], crons: 0 },
+    },
+    { name: 'missing lists', input: {}, want: { backgroundTasks: [], crons: 0 } },
+    {
+      name: 'lists that are not arrays',
+      input: { background_tasks: 'subagent', session_crons: 'c1' },
+      want: { backgroundTasks: [], crons: 0 },
+    },
+    {
+      name: 'tasks without a type',
+      input: { background_tasks: [null, {}, { type: 1 }, { type: 'subagent' }] },
+      want: { backgroundTasks: ['subagent'], crons: 0 },
+    },
+  ])('sends background work from $name', async ({ input, want }) => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const received: string[] = [];
+    server = await listen(socketPath, received);
+    // when
+    await runHook('Stop', { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-3' }, JSON.stringify(input));
+    // then
+    expect(JSON.parse(received.join(''))).toMatchObject({ event: 'Stop', ...want });
   });
 
   describe('PreToolUse', () => {

@@ -63,8 +63,20 @@ describe('claude hooks', () => {
     expect(first.code).toBe(0);
     expect(first.stdout.toLowerCase()).toContain('ok');
     await vi.waitFor(() => {
-      expect(events).toContainEqual({ tabId: 'live-1', event: 'UserPromptSubmit', notificationType: null });
-      expect(events).toContainEqual({ tabId: 'live-1', event: 'Stop', notificationType: null });
+      expect(events).toContainEqual({
+        tabId: 'live-1',
+        event: 'UserPromptSubmit',
+        notificationType: null,
+        backgroundTasks: [],
+        crons: 0,
+      });
+      expect(events).toContainEqual({
+        tabId: 'live-1',
+        event: 'Stop',
+        notificationType: null,
+        backgroundTasks: [],
+        crons: 0,
+      });
     });
     expect(hasTranscript(sessionId)).toBe(true);
     // when
@@ -75,8 +87,20 @@ describe('claude hooks', () => {
     // then
     expect(second.code).toBe(0);
     await vi.waitFor(() => {
-      expect(events).toContainEqual({ tabId: 'live-2', event: 'UserPromptSubmit', notificationType: null });
-      expect(events).toContainEqual({ tabId: 'live-2', event: 'Stop', notificationType: null });
+      expect(events).toContainEqual({
+        tabId: 'live-2',
+        event: 'UserPromptSubmit',
+        notificationType: null,
+        backgroundTasks: [],
+        crons: 0,
+      });
+      expect(events).toContainEqual({
+        tabId: 'live-2',
+        event: 'Stop',
+        notificationType: null,
+        backgroundTasks: [],
+        crons: 0,
+      });
     });
   });
 

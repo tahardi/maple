@@ -640,6 +640,7 @@ describe('CardTab', () => {
       worktreesDir: '',
       vaultDir: null,
       notifications: false,
+      backgroundWaitMinutes: 15,
       projects: [],
       actions: [{ label: 'Sync', prompt: 'Sync {key}' }],
     };

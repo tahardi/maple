@@ -19,6 +19,7 @@ describe('nextDot', () => {
   test.each<{ name: string; input: DotInput; want: Dot }>([
     { name: 'prompt starts work', input: { type: 'prompt' }, want: 'working' },
     { name: 'permission waits', input: { type: 'permission' }, want: 'waiting' },
+    { name: 'a background agent keeps working', input: { type: 'background' }, want: 'working' },
     {
       name: 'planner stop is idle',
 

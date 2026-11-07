@@ -11,11 +11,14 @@ const defaultActions = [
   { label: 'Merge main', prompt: 'Run the "Sync with Main" steps from the /card skill for {key}.' },
 ];
 
+export const DEFAULT_WAIT_MINUTES = 10;
+
 const configSchema = z
   .object({
     worktreesDir: z.string(),
     vaultDir: z.string().optional(),
     notifications: z.boolean().default(true),
+    backgroundWaitMinutes: z.number().positive().default(DEFAULT_WAIT_MINUTES),
     projects: z.array(
       z.object({
         name: z.string(),

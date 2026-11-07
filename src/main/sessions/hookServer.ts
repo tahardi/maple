@@ -12,6 +12,8 @@ const eventSchema = z.object({
   tabId: z.string(),
   event: z.enum(['Stop', 'Notification', 'UserPromptSubmit']),
   notificationType: z.string().nullable(),
+  backgroundTasks: z.array(z.string()).optional(),
+  crons: z.number().optional(),
 });
 
 export function hookSocketPath(): string {
