@@ -16,6 +16,7 @@ import {
   changes,
   changedSince,
   currentBranch,
+  defaultBranch,
   findWorktree,
   listFiles,
   mergeBase,
@@ -114,16 +115,16 @@ describe('git', () => {
     // when
     const set = await changes(worktree);
     // then
-    expect(set.base).toBe(await mergeBase(worktree));
-    expect([...set.files].sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+    expect(set?.base).toBe(await mergeBase(worktree));
+    expect([...(set?.files ?? [])].sort((a, b) => a.path.localeCompare(b.path))).toEqual([
       { path: 'del.txt', status: 'D', oldPath: null, stamp: null },
       { path: 'keep.txt', status: 'M', oldPath: null, stamp: expect.any(String) as string },
       { path: 'new.txt', status: 'A', oldPath: null, stamp: expect.any(String) as string },
       { path: 'renamed.txt', status: 'R', oldPath: 'old.txt', stamp: expect.any(String) as string },
       { path: 'untracked.txt', status: 'A', oldPath: null, stamp: expect.any(String) as string },
     ]);
-    expect(set.added).toBe(7);
-    expect(set.removed).toBe(2);
+    expect(set?.added).toBe(7);
+    expect(set?.removed).toBe(2);
   });
 
   test('changedSince lists the files that differ from a commit', async () => {
@@ -169,8 +170,8 @@ describe('git', () => {
     // when
     const set = await changes(worktree);
     // then
-    expect(set.files).toEqual([{ path: 'link', status: 'A', oldPath: null, stamp: expect.any(String) as string }]);
-    expect(set.added).toBe(0);
+    expect(set?.files).toEqual([{ path: 'link', status: 'A', oldPath: null, stamp: expect.any(String) as string }]);
+    expect(set?.added).toBe(0);
   });
 
   test('changes gives a file a new stamp when it is rewritten', async () => {
@@ -184,7 +185,7 @@ describe('git', () => {
     utimesSync(join(worktree, 'keep.txt'), later, later);
     const after = await changes(worktree);
     // then
-    const stampOf = (set: typeof before, path: string) => set.files.find((file) => file.path === path)?.stamp;
+    const stampOf = (set: typeof before, path: string) => set?.files.find((file) => file.path === path)?.stamp;
     expect(stampOf(after, 'keep.txt')).not.toBe(stampOf(before, 'keep.txt'));
     expect(stampOf(after, 'untracked.txt')).toBe(stampOf(before, 'untracked.txt'));
   });
@@ -195,7 +196,7 @@ describe('git', () => {
     unlinkSync(join(worktree, 'del.txt'));
     writeFileSync(join(worktree, 'bin.dat'), Buffer.from([0x61, 0x00, 0x62]));
     writeFileSync(join(worktree, 'big.txt'), 'a'.repeat(3 * 1024 * 1024));
-    const base = await mergeBase(worktree);
+    const base = (await mergeBase(worktree)) ?? 'HEAD';
     // when
     const pairs = await Promise.all(
       ['keep.txt', 'del.txt', 'bin.dat', 'big.txt'].map((path) => readFilePair(worktree, base, path)),
@@ -220,7 +221,7 @@ describe('git', () => {
     if (link) {
       symlinkSync(link, join(worktree, linkName ?? path));
     }
-    const base = await mergeBase(worktree);
+    const base = (await mergeBase(worktree)) ?? 'HEAD';
     // when
     const pair = readFilePair(worktree, base, path);
     // then
@@ -268,7 +269,7 @@ describe('git', () => {
   test('readFilePair follows a symlink that stays inside the worktree', async () => {
     // given
     symlinkSync('keep.txt', join(worktree, 'alias.txt'));
-    const base = await mergeBase(worktree);
+    const base = (await mergeBase(worktree)) ?? 'HEAD';
     // when
     const pair = await readFilePair(worktree, base, 'alias.txt');
     // then
@@ -301,8 +302,8 @@ describe('git', () => {
     // when
     const set = await changes(worktree);
     // then
-    expect(set.files.map((file) => file.path).sort()).toEqual(['blob.bin', 'no-newline.txt']);
-    expect(set.added).toBe(2);
+    expect(set?.files.map((file) => file.path).sort()).toEqual(['blob.bin', 'no-newline.txt']);
+    expect(set?.added).toBe(2);
   });
 
   test('readFilePair handles new files, binary base files, and the size limit', async () => {
@@ -310,7 +311,7 @@ describe('git', () => {
     writeFileSync(join(worktree, 'fresh.txt'), 'f\n');
     writeFileSync(join(worktree, 'logo.bin'), 'now text\n');
     writeFileSync(join(worktree, 'limit.txt'), 'a'.repeat(2_097_152));
-    const base = await mergeBase(worktree);
+    const base = (await mergeBase(worktree)) ?? 'HEAD';
     // when
     const [fresh, logo, limit] = await Promise.all(
       ['fresh.txt', 'logo.bin', 'limit.txt'].map((path) => readFilePair(worktree, base, path)),
@@ -383,13 +384,124 @@ describe('git', () => {
     expect(branch).toBe('feature');
   });
 
-  test('mergeBase rejects when origin/main is missing', async () => {
+  test.each([
+    {
+      name: 'origin/HEAD points at trunk',
+      want: 'origin/trunk',
+      setup: (wt: string) => {
+        git(wt, 'update-ref', 'refs/remotes/origin/trunk', 'HEAD');
+        git(wt, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/trunk');
+      },
+    },
+    { name: 'only origin/main exists', want: 'origin/main', setup: () => undefined },
+    {
+      name: 'origin/main is missing',
+      want: 'origin/master',
+      setup: (wt: string) => {
+        git(wt, 'update-ref', 'refs/remotes/origin/master', 'HEAD');
+        git(wt, 'update-ref', '-d', 'refs/remotes/origin/main');
+      },
+    },
+    {
+      name: 'origin/HEAD points at a deleted branch',
+      want: 'origin/main',
+      setup: (wt: string) => {
+        git(wt, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/gone');
+      },
+    },
+    {
+      name: 'origin has neither main nor master',
+      want: 'main',
+      setup: (wt: string) => {
+        git(wt, 'update-ref', '-d', 'refs/remotes/origin/main');
+      },
+    },
+    {
+      name: 'there is no origin',
+      want: 'main',
+      setup: (wt: string) => {
+        git(wt, 'remote', 'remove', 'origin');
+      },
+    },
+    {
+      name: 'only a local master exists',
+      want: 'master',
+      setup: (wt: string) => {
+        git(wt, 'remote', 'remove', 'origin');
+        git(wt, 'update-ref', 'refs/heads/master', 'refs/heads/main');
+        git(wt, 'update-ref', '-d', 'refs/heads/main');
+      },
+    },
+    {
+      name: 'no default branch exists',
+      want: null,
+      setup: (wt: string) => {
+        git(wt, 'remote', 'remove', 'origin');
+        git(wt, 'update-ref', '-d', 'refs/heads/main');
+      },
+    },
+  ])('defaultBranch returns $want when $name', async ({ want, setup }) => {
     // given
+    setup(worktree);
+    // when
+    const branch = await defaultBranch(worktree);
+    // then
+    expect(branch).toBe(want);
+  });
+
+  test('mergeBase returns null when no default branch exists', async () => {
+    // given
+    git(worktree, 'remote', 'remove', 'origin');
+    git(worktree, 'update-ref', '-d', 'refs/heads/main');
+    // when
+    const base = await mergeBase(worktree);
+    // then
+    expect(base).toBeNull();
+  });
+
+  test('mergeBase returns null when HEAD shares no history with the default branch', async () => {
+    // given
+    git(worktree, 'checkout', '--orphan', 'unrelated');
+    git(worktree, 'commit', '-m', 'unrelated');
+    // when
+    const base = await mergeBase(worktree);
+    // then
+    expect(base).toBeNull();
+  });
+
+  test('mergeBase keeps the default branch it found', async () => {
+    // given
+    const first = await mergeBase(worktree);
+    git(worktree, 'commit', '--allow-empty', '-m', 'trunk');
+    git(worktree, 'update-ref', 'refs/remotes/origin/trunk', 'HEAD');
+    git(worktree, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/trunk');
+    // when
+    const base = await mergeBase(worktree);
+    // then
+    expect(base).toBe(first);
+  });
+
+  test('mergeBase looks again when the default branch it found is gone', async () => {
+    // given
+    await mergeBase(worktree);
+    git(worktree, 'commit', '--allow-empty', '-m', 'trunk');
+    git(worktree, 'update-ref', 'refs/remotes/origin/trunk', 'HEAD');
+    git(worktree, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/trunk');
     git(worktree, 'update-ref', '-d', 'refs/remotes/origin/main');
     // when
-    const base = mergeBase(worktree);
+    const base = await mergeBase(worktree);
     // then
-    await expect(base).rejects.toThrow('running git merge-base origin/main HEAD');
+    expect(base).toBe(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worktree, encoding: 'utf8' }).trim());
+  });
+
+  test('changes returns null when no default branch exists', async () => {
+    // given
+    git(worktree, 'remote', 'remove', 'origin');
+    git(worktree, 'update-ref', '-d', 'refs/heads/main');
+    // when
+    const set = await changes(worktree);
+    // then
+    expect(set).toBeNull();
   });
 
   test('findWorktree returns null when no dir matches the key', async () => {

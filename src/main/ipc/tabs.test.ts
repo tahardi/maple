@@ -191,6 +191,21 @@ describe('registerTabs', () => {
     expect(result).toBeNull();
   });
 
+  test('tabs:cost logs a failure at warn and rethrows', async () => {
+    // given
+    setup();
+    sessionCost.mockRejectedValueOnce(new Error('reading transcript: gone'));
+    // when
+    const result = invoke('tabs:cost', 't1');
+    // then
+    await expect(result).rejects.toThrow('reading transcript: gone');
+    expect(logger.warn).toHaveBeenCalledWith('session', 'failed', {
+      operation: 'tabs:cost',
+      args: ['t1'],
+      error: 'reading transcript: gone',
+    });
+  });
+
   test('tabs:statuses returns the engine statuses', () => {
     // given
     setup();

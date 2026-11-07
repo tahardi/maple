@@ -49,6 +49,20 @@ const reviewData: Review = {
 
 const fetchedReview: Fetched<Review> = { data: reviewData, error: null, fetchedAt: '2026-10-28T12:00:00.000Z' };
 
+function watchRejections(): RejectionListener {
+  const rejected = vi.fn();
+  const listeners = process.listeners('unhandledRejection');
+  process.removeAllListeners('unhandledRejection');
+  process.on('unhandledRejection', rejected);
+  onTestFinished(() => {
+    process.off('unhandledRejection', rejected);
+    listeners.forEach((listener) => {
+      process.on('unhandledRejection', listener);
+    });
+  });
+  return rejected;
+}
+
 describe('useCardData', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
@@ -109,32 +123,78 @@ describe('useCardData', () => {
     expect(result.current.repo).toBeNull();
   });
 
-  test('leaves the repo info empty when the changes fail', async () => {
+  test('loads the repo info and files when the changes fail', async () => {
     // given
-    const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(() =>
-      Promise.resolve({ name: 'bearclave', branch: 'bear-1-thing' }),
-    );
-    const failure = new Error('running git merge-base: no origin/main');
-    const changes = vi.fn(() => Promise.reject(failure));
-    fakeMaple({ repo: { changes, info } });
-    const rejected = vi.fn();
-    const listeners = process.listeners('unhandledRejection');
-    process.removeAllListeners('unhandledRejection');
-    process.on('unhandledRejection', rejected);
-    onTestFinished(() => {
-      process.off('unhandledRejection', rejected);
-      listeners.forEach((listener) => {
-        process.on('unhandledRejection', listener);
-      });
-    });
+    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing' };
+    const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(() => Promise.resolve(want));
+    const changes = vi.fn(() => Promise.reject(new Error('running git merge-base: no origin/main')));
+    const listFiles = vi.fn(() => Promise.resolve(['a.go']));
+    fakeMaple({ repo: { changes, info, listFiles } });
+    const rejected = watchRejections();
     // when
     const { result } = renderHook(() => useCardData(tab));
     // then
     await waitFor(() => {
-      expect(rejected).toHaveBeenCalledWith(failure, expect.anything());
+      expect(result.current.repo).toEqual(want);
     });
-    expect(info).toHaveBeenCalledWith('t1');
-    expect(result.current.repo).toBeNull();
+    expect(result.current.files).toEqual(['a.go']);
+    expect(result.current.changes).toBeNull();
+    expect(rejected).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    {
+      name: 'the repo info',
+      fail: 'info' as const,
+      check: (current: ReturnType<typeof useCardData>) => {
+        expect(current.files).toEqual(['a.go']);
+      },
+    },
+    {
+      name: 'the file list',
+      fail: 'listFiles' as const,
+      check: (current: ReturnType<typeof useCardData>) => {
+        expect(current.repo).toEqual({ name: 'bearclave', branch: 'bear-1-thing' });
+      },
+    },
+  ])('loads the changes when $name fails', async ({ fail, check }) => {
+    // given
+    const want = { base: 'b', files: [], added: 1, removed: 0 };
+    fakeMaple({
+      repo: {
+        changes: () => Promise.resolve(want),
+        info: () => Promise.resolve({ name: 'bearclave', branch: 'bear-1-thing' }),
+        listFiles: () => Promise.resolve(['a.go']),
+        [fail]: () => Promise.reject(new Error('running git: not a repo')),
+      },
+    });
+    const rejected = watchRejections();
+    // when
+    const { result } = renderHook(() => useCardData(tab));
+    // then
+    await waitFor(() => {
+      expect(result.current.changes).toEqual(want);
+    });
+    check(result.current);
+    expect(rejected).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'the PR', fail: { pr: { get: () => Promise.reject(new Error('running gh: offline')) } } },
+    { name: 'the sprint', fail: { jira: { sprint: () => Promise.reject(new Error('fetching sprint: offline')) } } },
+    { name: 'the cost', fail: { tabs: { cost: () => Promise.reject(new Error('reading transcript: gone')) } } },
+  ])('loads the repo info when $name fails', async ({ fail }) => {
+    // given
+    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing' };
+    fakeMaple({ ...fail, repo: { info: () => Promise.resolve(want) } });
+    const rejected = watchRejections();
+    // when
+    const { result } = renderHook(() => useCardData(tab));
+    // then
+    await waitFor(() => {
+      expect(result.current.repo).toEqual(want);
+    });
+    expect(rejected).not.toHaveBeenCalled();
   });
 
   test('picks up a new branch when the repo changes', async () => {
