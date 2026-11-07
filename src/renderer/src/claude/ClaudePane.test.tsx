@@ -351,29 +351,19 @@ describe('ClaudePane', () => {
 
   test.each([
     { name: 'Ctrl+Shift+C copies the selection', type: 'keydown', key: 'C', ctrl: true, shift: true, passed: false },
-    { name: 'Ctrl+Shift+V pastes', type: 'keydown', key: 'V', ctrl: true, shift: true, passed: false },
-    { name: 'Ctrl+C goes to the session', type: 'keydown', key: 'c', ctrl: true, shift: false, passed: true },
-    { name: 'Ctrl+Shift+X goes to the session', type: 'keydown', key: 'X', ctrl: true, shift: true, passed: true },
-    { name: 'Shift+C goes to the session', type: 'keydown', key: 'C', ctrl: false, shift: true, passed: true },
-    { name: 'Ctrl+Shift+C keyup does not copy', type: 'keyup', key: 'C', ctrl: true, shift: true, passed: true },
-    { name: 'Ctrl+Shift+V keyup does not paste', type: 'keyup', key: 'V', ctrl: true, shift: true, passed: true },
     {
-      name: 'Ctrl+Shift+V with Caps Lock keeps native paste',
+      name: 'Ctrl+Shift+V is left to the native paste',
       type: 'keydown',
-      key: 'v',
+      key: 'V',
       ctrl: true,
       shift: true,
       passed: true,
     },
+    { name: 'Ctrl+C goes to the session', type: 'keydown', key: 'c', ctrl: true, shift: false, passed: true },
+    { name: 'Ctrl+Shift+X goes to the session', type: 'keydown', key: 'X', ctrl: true, shift: true, passed: true },
+    { name: 'Shift+C goes to the session', type: 'keydown', key: 'C', ctrl: false, shift: true, passed: true },
+    { name: 'Ctrl+Shift+C keyup does not copy', type: 'keyup', key: 'C', ctrl: true, shift: true, passed: true },
     { name: 'Ctrl+V goes to the session', type: 'keydown', key: 'v', ctrl: true, shift: false, passed: true },
-    {
-      name: 'Ctrl+V with Caps Lock goes to the session',
-      type: 'keydown',
-      key: 'V',
-      ctrl: true,
-      shift: false,
-      passed: true,
-    },
     {
       name: 'Ctrl+backtick is left to the panel toggle',
       type: 'keydown',
@@ -386,8 +376,7 @@ describe('ClaudePane', () => {
     // given
     fakeMaple();
     const writeText = vi.fn(() => Promise.resolve());
-    const readText = vi.fn(() => Promise.resolve('clip'));
-    vi.stubGlobal('navigator', { clipboard: { writeText, readText } });
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
     render(<ClaudePane tabId="t1" actions={[]} />);
     await flush();
     const event = new KeyboardEvent(type, { key, ctrlKey: ctrl, shiftKey: shift, cancelable: true });
@@ -398,8 +387,8 @@ describe('ClaudePane', () => {
     expect(result).toBe(passed);
     const handled = !passed;
     expect(writeText.mock.calls).toEqual(handled && key === 'C' ? [['selected']] : []);
-    expect(xterm.paste.mock.calls).toEqual(handled && key === 'V' ? [['clip']] : []);
-    expect(event.defaultPrevented).toBe(handled && key === 'V');
+    expect(xterm.paste).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
   });
 
   async function wheelAt(clientX: number, clientY: number, deltaY: number) {
