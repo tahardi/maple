@@ -15,6 +15,7 @@ import { FileTree } from '@renderer/card/viewer/FileTree';
 import { FileViewer } from '@renderer/card/viewer/FileViewer';
 import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
+import { RepoBranch } from '@renderer/card/viewer/RepoBranch';
 import { QuickOpen } from '@renderer/card/viewer/QuickOpen';
 import { PR_DESCRIPTION } from './prDescription';
 import { CARD_DESCRIPTION } from './cardDescription';
@@ -219,10 +220,14 @@ export function CardTab({ tab }: { tab: TabState }) {
         branch={branchName(tab.worktreePath, cardKey)}
         changes={pinned ?? changes}
         cost={cost}
+        onOpenCard={() => {
+          openFile(CARD_DESCRIPTION, null, true);
+        }}
       />
       <div ref={body} className={styles.body}>
         <div className={styles.left} style={{ width: columns.left }} data-testid="tree-slot">
           {hasVault && <VaultSwitch view={view} onChange={setViewOverride} onRefresh={vault.refresh} />}
+          {!showsVault && worktreeExists && repo !== null && <RepoBranch repo={repo} />}
           {showsVault ? (
             <FileTree
               key="vault"
@@ -257,18 +262,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               viewed={viewed}
               onToggleViewed={toggleViewed}
               commented={commented}
-              title={repo === null ? undefined : `${repo.name} · ${repo.branch}`}
             />
-          )}
-          {card !== null && (
-            <button
-              className={styles.cardDescription}
-              onClick={() => {
-                openFile(CARD_DESCRIPTION, null, true);
-              }}
-            >
-              Card description
-            </button>
           )}
           {pr && (
             <PrSummary

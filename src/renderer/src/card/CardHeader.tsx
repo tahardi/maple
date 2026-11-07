@@ -11,6 +11,7 @@ type Props = {
   branch: string | null;
   changes: Pick<ChangeSet, 'files' | 'added' | 'removed'> | null;
   cost: SessionCost | null;
+  onOpenCard: () => void;
 };
 
 const compact = new Intl.NumberFormat('en', { notation: 'compact' });
@@ -21,10 +22,16 @@ function costLabel(cost: SessionCost): string {
   return cost.dollars === null ? label : `${label} · $${cost.dollars.toFixed(2)}`;
 }
 
-export function CardHeader({ cardKey, card, pr, branch, changes, cost }: Props) {
+export function CardHeader({ cardKey, card, pr, branch, changes, cost, onOpenCard }: Props) {
   return (
     <header className={styles.header}>
-      <span className={styles.title}>{card ? `${cardKey} ${card.summary}` : cardKey}</span>
+      {card ? (
+        <button className={styles.title} title="Open card description" onClick={onOpenCard}>
+          {`${cardKey} ${card.summary}`}
+        </button>
+      ) : (
+        <span className={styles.title}>{cardKey}</span>
+      )}
       {card && <span className={styles.pill}>{card.status}</span>}
       {pr && (
         <a href={pr.url} target="_blank" rel="noreferrer">

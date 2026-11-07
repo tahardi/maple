@@ -23,7 +23,7 @@ const fetched = (data: PrInfo | null, error: string | null = null): Fetched<PrIn
 });
 
 describe('PrSummary', () => {
-  test('shows the PR link and its sections', () => {
+  test('leaves out the PR title and description sections', () => {
     // given
     const pr = fetched(info);
     // when
@@ -38,18 +38,53 @@ describe('PrSummary', () => {
       />,
     );
     // then
-    expect(screen.getByRole('link', { name: 'PR #33 [MPL-20] File Tree and PR Summary' })).toHaveAttribute(
-      'href',
-      info.url,
-    );
-    expect(screen.getByText('Used X instead of Y')).toBeInTheDocument();
-    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Try it on device',
-      'MPL-21: rename foo to bar',
-    ]);
+    expect(screen.queryByText(info.title)).toBeNull();
+    expect(screen.queryByText('Used X instead of Y')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Needs Taylor' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Full description' })).toBeNull();
   });
 
-  test('opens the full description', async () => {
+  test.each<{ state: PrInfo['state']; label: string }>([
+    { state: 'OPEN', label: 'Open' },
+    { state: 'MERGED', label: 'Merged' },
+    { state: 'CLOSED', label: 'Closed' },
+  ])('shows a $state PR as $label', ({ state, label }) => {
+    // given
+    const pr = fetched({ ...info, state });
+    // when
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
+    // then
+    expect(screen.getByText(label)).toHaveAttribute('data-state', state);
+  });
+
+  test('shows the checks under a Checks heading', () => {
+    // given
+    const pr = fetched(info);
+    // when
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        headSha={null}
+      />,
+    );
+    // then
+    expect(screen.getByRole('heading', { name: 'Checks' })).toBeInTheDocument();
+  });
+
+  test('the PR number opens the PR description', async () => {
     // given
     const onOpenDescription = vi.fn();
     render(
@@ -63,50 +98,10 @@ describe('PrSummary', () => {
       />,
     );
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Full description' }));
+    await userEvent.click(screen.getByRole('button', { name: 'PR #33' }));
     // then
     expect(onOpenDescription).toHaveBeenCalledOnce();
-  });
-
-  test('renders section Markdown', () => {
-    // given
-    const pr = fetched({ ...info, needsTaylor: '- run `make run`\n- check the board', cardImpacts: null });
-    // when
-    render(
-      <PrSummary
-        pr={pr}
-        onOpenDescription={vi.fn()}
-        onReloadReview={vi.fn()}
-        reviewError={null}
-        findings={[]}
-        headSha={null}
-      />,
-    );
-    // then
-    const items = screen.getAllByRole('listitem');
-    expect(items.map((li) => li.textContent)).toEqual(['run make run', 'check the board']);
-    expect(screen.getByText('make run').tagName).toBe('CODE');
-    expect(screen.getByText('None')).toBeInTheDocument();
-  });
-
-  test('shows None for null sections in order', () => {
-    // given
-    const pr = fetched({ ...info, deviations: null, needsTaylor: null, cardImpacts: null });
-    // when
-    render(
-      <PrSummary
-        pr={pr}
-        onOpenDescription={vi.fn()}
-        onReloadReview={vi.fn()}
-        reviewError={null}
-        findings={[]}
-        headSha={null}
-      />,
-    );
-    // then
-    const headings = screen.getAllByRole('heading').map((h) => h.textContent);
-    expect(headings).toEqual(['Deviations from the card', 'Needs Taylor', 'Card impacts']);
-    expect(screen.getAllByText('None')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'PR #33' })).toHaveAttribute('title', 'Open PR description');
   });
 
   test.each<{ checks: ChecksSummary; text: string }>([
@@ -183,13 +178,7 @@ describe('PrSummary', () => {
       />,
     );
     // then
-    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      '✗ unit-test',
-      '● e2e',
-      '✓ format',
-      'Try it on device',
-      'MPL-21: rename foo to bar',
-    ]);
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['✗ unit-test', '● e2e', '✓ format']);
   });
 
   test('shows no check list without check runs', () => {
@@ -207,11 +196,7 @@ describe('PrSummary', () => {
       />,
     );
     // then
-    expect(screen.getAllByRole('list')).toHaveLength(2);
-    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Try it on device',
-      'MPL-21: rename foo to bar',
-    ]);
+    expect(screen.queryAllByRole('list')).toHaveLength(0);
   });
 
   test('keeps the last data when GitHub is unreachable', () => {
@@ -230,7 +215,7 @@ describe('PrSummary', () => {
     );
     // then
     expect(screen.getByText('GitHub unreachable')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /PR #33/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PR #33' })).toBeInTheDocument();
   });
 
   test.each([
@@ -252,8 +237,8 @@ describe('PrSummary', () => {
     );
     // then
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Full description' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('heading')).toBeNull();
     expect(screen.queryByText('GitHub unreachable') !== null).toBe(unreachable);
   });
 
