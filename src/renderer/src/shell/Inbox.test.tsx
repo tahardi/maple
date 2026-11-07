@@ -20,6 +20,7 @@ const status = (tabId: string, dot: Dot): TabStatus => ({
   sessionAlive: true,
   exitCode: null,
   resumeFailed: false,
+  sync: null,
 });
 const card = (key: string, points: number | null): Card => ({
   key,

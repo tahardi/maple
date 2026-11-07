@@ -50,7 +50,14 @@ const cost: SessionCost = {
 };
 const sessionCost = vi.fn<(sessionId: string) => Promise<SessionCost | null>>(() => Promise.resolve(cost));
 
-const status: TabStatus = { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false };
+const status: TabStatus = {
+  tabId: 't1',
+  dot: 'waiting',
+  sessionAlive: true,
+  exitCode: null,
+  resumeFailed: false,
+  sync: null,
+};
 
 function setup() {
   const sessions = fakeSessions();

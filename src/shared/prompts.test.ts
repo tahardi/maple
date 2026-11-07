@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { cardPrompt, closePrompt, fillAction, refinePrompt, suggestPrompt } from './prompts';
+import { cardPrompt, closePrompt, fillAction, refinePrompt, suggestPrompt, syncPrompt } from './prompts';
 
 describe('cardPrompt', () => {
   test('builds the card command', () => {
@@ -68,5 +68,16 @@ describe('suggestPrompt', () => {
     expect(prompt).toContain('If no To Do card in the active DIG sprint can start');
     expect(prompt).toContain('DIG backlog');
     expect(prompt.endsWith('MAPLE-BATCH: KEY-1, KEY-2 (or MAPLE-BATCH: none).')).toBe(true);
+  });
+});
+
+describe('syncPrompt', () => {
+  test('builds the Sync with Main prompt', () => {
+    // given
+    const key = 'DIG-44';
+    // when
+    const prompt = syncPrompt(key);
+    // then
+    expect(prompt).toBe('Run the "Sync with Main" steps from the /card skill for DIG-44.');
   });
 });

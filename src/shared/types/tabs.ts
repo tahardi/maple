@@ -14,6 +14,7 @@ export type SessionCost = {
   cacheReadTokens: number;
   dollars: number | null;
 };
+export type SyncState = 'queued' | 'syncing' | null;
 export type Dot = 'working' | 'waiting' | 'ready' | 'idle' | 'merged';
 export type TabStatus = {
   tabId: string;
@@ -21,6 +22,7 @@ export type TabStatus = {
   sessionAlive: boolean;
   exitCode: number | null;
   resumeFailed: boolean;
+  sync: SyncState;
 };
 export type HookEvent = {
   tabId: string;

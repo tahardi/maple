@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { nextDot, type DotInput } from '@shared/dots';
 import type { Card } from '@shared/types/jira';
-import type { Dot, HookEvent, TabStatus } from '@shared/types/tabs';
+import type { Dot, HookEvent, SyncState, TabStatus } from '@shared/types/tabs';
 import type { PrInfo } from '@shared/types/github';
 import { appLogger, type Logger } from '@main/app/log';
 import { backgroundWait, unknownTasks, type BackgroundWait } from './backgroundWait';
@@ -52,7 +52,7 @@ export class StatusEngine extends EventEmitter<Events> {
       const prev = this.tabs.get(tabId);
       clearTimeout(prev?.waitLimit);
       const dot = prompted ? 'working' : 'idle';
-      const status: TabStatus = { tabId, dot, sessionAlive: true, exitCode: null, resumeFailed: false };
+      const status: TabStatus = { tabId, dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null };
       this.tabs.set(tabId, {
         status,
         seq: (prev?.seq ?? 0) + 1,
@@ -112,6 +112,17 @@ export class StatusEngine extends EventEmitter<Events> {
     } else if (e.event === 'Stop') {
       this.stopped(e);
     }
+  }
+
+  setSync(tabId: string, sync: SyncState): void {
+    const tracked = this.tabs.get(tabId);
+    if (!tracked || tracked.status.sync === sync) {
+      return;
+    }
+    const from = tracked.status.sync;
+    tracked.status = { ...tracked.status, sync };
+    this.log.info('session', 'sync changed', { tabId, from, to: sync });
+    this.emit('status', tracked.status, tracked.status.dot);
   }
 
   statuses(): TabStatus[] {
