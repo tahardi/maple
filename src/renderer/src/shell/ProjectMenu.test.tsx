@@ -139,6 +139,7 @@ describe('ProjectMenu', () => {
       sessionAlive: true,
       exitCode: null,
       resumeFailed: false,
+      sync: null,
     });
     useMaple.setState({
       tabs: [tab('1', 'DIG'), tab('2', 'DIG'), tab('3', 'BEAR')],
@@ -170,7 +171,7 @@ describe('ProjectMenu', () => {
       statuses: Object.fromEntries(
         dots.map((dot: Dot, i) => [
           String(i + 1),
-          { tabId: String(i + 1), dot, sessionAlive: true, exitCode: null, resumeFailed: false },
+          { tabId: String(i + 1), dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
         ]),
       ),
     });

@@ -7,6 +7,7 @@ import type { MapleConfig } from '@shared/types/config';
 import { configDir, DEFAULT_WAIT_MINUTES, loadConfig } from '@main/app/config';
 import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
+import { defaultRunner } from '@main/app/preflight';
 import { writeHooksFile } from '@main/sessions/hooksFile';
 import { currentBranch, findWorktree } from '@main/git/git';
 import { projectRunner } from '@main/github/ghRunner';
@@ -23,6 +24,7 @@ import { SessionManager } from '@main/sessions/sessions';
 import { Terminals } from '@main/sessions/terminals';
 import { saveState, loadState, type SavedState } from '@main/app/state';
 import { StatusEngine } from '@main/sessions/status';
+import { AutoSync } from '@main/sessions/autoSync';
 import { endTmux, writeTmuxConf } from '@main/sessions/tmux';
 import { hasTranscript } from '@main/sessions/transcripts';
 import { windowTitle } from '@main/app/windowTitle';
@@ -112,17 +114,21 @@ async function start(): Promise<() => number> {
   const terminals = new Terminals({ spawn });
   const jira = creds.then((c) => new JiraClient(c));
   jira.catch(() => undefined);
+  const getCard = async (key: string) => (await jira).getCard(key);
+  const prFor = async (worktree: string, projectKey: string) =>
+    prForBranch(await projectRunner(projectByKey, projectKey), worktree, await currentBranch(worktree));
   const status = new StatusEngine({
     sessions,
-    getCard: async (key) => (await jira).getCard(key),
-    prFor: async (worktree, projectKey) =>
-      prForBranch(await projectRunner(projectByKey, projectKey), worktree, await currentBranch(worktree)),
+    getCard,
+    prFor,
     waitLimitMs: () => (config?.backgroundWaitMinutes ?? DEFAULT_WAIT_MINUTES) * 60_000,
   });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
   });
+  const stopAutoSync = new AutoSync({ sessions, status, getCard, prFor, run: defaultRunner }).start();
   app.on('will-quit', () => {
+    stopAutoSync();
     sessions.killAll();
     terminals.closeAll();
     void stopHooks();

@@ -116,6 +116,7 @@ const status = (tabId: string, dot: Dot): TabStatus => ({
   sessionAlive: true,
   exitCode: null,
   resumeFailed: false,
+  sync: null,
 });
 
 describe('projectCounts', () => {

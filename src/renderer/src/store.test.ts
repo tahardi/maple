@@ -20,6 +20,7 @@ const status = (tabId: string, dot: TabStatus['dot']): TabStatus => ({
   sessionAlive: true,
   exitCode: null,
   resumeFailed: false,
+  sync: null,
 });
 
 const MPL_CONFIG: Fetched<MapleConfig> = {
