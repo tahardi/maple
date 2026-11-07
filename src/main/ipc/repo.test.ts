@@ -134,6 +134,16 @@ describe('registerRepo', () => {
     expect(writeWorktreeFile).toHaveBeenCalledWith('/wt', 'a.ts', 'x');
   });
 
+  test('repo:readFile compares against HEAD when the repo has no default branch', async () => {
+    // given
+    mergeBase.mockResolvedValue(null);
+    readFilePair.mockResolvedValue({ kind: 'binary', path: 'a.ts' });
+    // when
+    await invoke('repo:readFile', 't1', 'a.ts');
+    // then
+    expect(readFilePair).toHaveBeenCalledWith('/wt', 'HEAD', 'a.ts');
+  });
+
   test('repo:search searches the tab worktree', async () => {
     // given
     searchFiles.mockResolvedValue([{ path: 'a.ts', line: 3, text: 'needle' }]);
