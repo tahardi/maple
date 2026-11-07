@@ -106,7 +106,7 @@ describe('loadConfig', () => {
   test.each([
     { name: 'actions missing', config: withoutActions, check: { actions: validConfig.actions } },
     { name: 'notifications missing', config: withoutNotifications, check: { notifications: true } },
-    { name: 'backgroundWaitMinutes missing', config: validConfig, check: { backgroundWaitMinutes: 15 } },
+    { name: 'backgroundWaitMinutes missing', config: validConfig, check: { backgroundWaitMinutes: 10 } },
   ])('defaults when $name', async ({ config, check }) => {
     // given
     await writeFile(join(dir, 'config.json'), JSON.stringify(config));

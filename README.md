@@ -53,7 +53,7 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
   "worktreesDir": "~/Documents/code/wts",
   "vaultDir": "~/Documents/obsidian-vault",
   "notifications": true,
-  "backgroundWaitMinutes": 15,
+  "backgroundWaitMinutes": 10,
   "projects": [
     {
       "name": "Maple",

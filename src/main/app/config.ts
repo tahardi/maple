@@ -11,7 +11,7 @@ const defaultActions = [
   { label: 'Merge main', prompt: 'Run the "Sync with Main" steps from the /card skill for {key}.' },
 ];
 
-export const DEFAULT_WAIT_MINUTES = 15;
+export const DEFAULT_WAIT_MINUTES = 10;
 
 const configSchema = z
   .object({
