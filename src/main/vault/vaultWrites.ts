@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
+import { extname, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { isInside } from '@main/app/paths';
 import { projectsDir, transcriptFiles } from '@main/sessions/transcripts';
@@ -15,7 +15,8 @@ const assistantLine = z.object({
 });
 
 function notePath(vaultDir: string, name: string, input: Record<string, unknown>): string | null {
-  const raw = FILE_TOOLS.has(name) ? input.file_path : name === NOTE_TOOL ? input.path : null;
+  const picked = FILE_TOOLS.has(name) ? input.file_path : name === NOTE_TOOL ? input.path : null;
+  const raw = name === NOTE_TOOL && typeof picked === 'string' && extname(picked) === '' ? `${picked}.md` : picked;
   if (typeof raw !== 'string' || !raw.endsWith('.md')) {
     return null;
   }
