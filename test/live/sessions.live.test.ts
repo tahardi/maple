@@ -56,6 +56,7 @@ describe('SessionManager with a real claude', () => {
       worktreesDir: dir,
       vaultDir: null,
       notifications: false,
+      backgroundWaitMinutes: 15,
       actions: [],
       projects: [
         {
@@ -96,9 +97,16 @@ describe('SessionManager with a real claude', () => {
           tabId: tab.id,
           event: 'UserPromptSubmit',
           notificationType: null,
-          backgroundAgents: 0,
+          backgroundTasks: [],
+          crons: 0,
         });
-        expect(events).toContainEqual({ tabId: tab.id, event: 'Stop', notificationType: null, backgroundAgents: 0 });
+        expect(events).toContainEqual({
+          tabId: tab.id,
+          event: 'Stop',
+          notificationType: null,
+          backgroundTasks: [],
+          crons: 0,
+        });
       },
       { timeout: 90_000, interval: 500 },
     );
@@ -120,7 +128,13 @@ describe('SessionManager with a real claude', () => {
     expect(resumed).toEqual([false, true]);
     await vi.waitFor(
       () => {
-        expect(events).toContainEqual({ tabId: again.id, event: 'Stop', notificationType: null, backgroundAgents: 0 });
+        expect(events).toContainEqual({
+          tabId: again.id,
+          event: 'Stop',
+          notificationType: null,
+          backgroundTasks: [],
+          crons: 0,
+        });
       },
       { timeout: 90_000, interval: 500 },
     );

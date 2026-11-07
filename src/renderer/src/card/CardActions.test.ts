@@ -7,6 +7,7 @@ const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
   vaultDir: null,
   notifications: false,
+  backgroundWaitMinutes: 15,
   projects: [],
   actions: [
     { label: 'Address review', prompt: '/card {key}' },

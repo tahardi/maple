@@ -46,7 +46,7 @@ const dig: ProjectConfig = {
   repo: 'tahardi/dig-days',
 };
 const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleConfig> => ({
-  data: { worktreesDir: '/tmp/wts', vaultDir: null, notifications, projects, actions: [] },
+  data: { worktreesDir: '/tmp/wts', vaultDir: null, notifications, backgroundWaitMinutes: 15, projects, actions: [] },
   error: null,
   fetchedAt: '2026-10-18T00:00:00.000Z',
 });

@@ -66,7 +66,7 @@ describe('maple-hook', () => {
     // then
     expect(result).toEqual({ code: 0, stdout: '' });
     expect(received.join('')).toBe(
-      '{"tabId":"tab-1","event":"Notification","notificationType":"permission_prompt","backgroundAgents":0}\n',
+      '{"tabId":"tab-1","event":"Notification","notificationType":"permission_prompt","backgroundTasks":[],"crons":0}\n',
     );
   });
 
@@ -93,31 +93,42 @@ describe('maple-hook', () => {
     const result = await runHook('Stop', { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-2' }, 'not json');
     // then
     expect(result).toEqual({ code: 0, stdout: '' });
-    expect(received.join('')).toBe('{"tabId":"tab-2","event":"Stop","notificationType":null,"backgroundAgents":0}\n');
+    expect(received.join('')).toBe(
+      '{"tabId":"tab-2","event":"Stop","notificationType":null,"backgroundTasks":[],"crons":0}\n',
+    );
   });
 
   test.each([
-    { name: 'a running subagent', tasks: [{ type: 'subagent' }], want: 1 },
-    { name: 'a running workflow', tasks: [{ type: 'workflow' }], want: 1 },
-    { name: 'a background shell', tasks: [{ type: 'shell' }], want: 0 },
-    { name: 'a monitor', tasks: [{ type: 'monitor' }], want: 0 },
-    { name: 'a mix of tasks', tasks: [{ type: 'subagent' }, { type: 'shell' }, { type: 'subagent' }], want: 2 },
-    { name: 'no tasks', tasks: [], want: 0 },
-    { name: 'a task list that is not an array', tasks: 'subagent', want: 0 },
-    { name: 'a null task', tasks: [null, { type: 'subagent' }], want: 1 },
-  ])('counts background agents from $name', async ({ tasks, want }) => {
+    {
+      name: 'tasks and crons',
+      input: { background_tasks: [{ type: 'subagent' }, { type: 'shell' }], session_crons: [{ id: 'c1' }] },
+      want: { backgroundTasks: ['subagent', 'shell'], crons: 1 },
+    },
+    {
+      name: 'empty lists',
+      input: { background_tasks: [], session_crons: [] },
+      want: { backgroundTasks: [], crons: 0 },
+    },
+    { name: 'missing lists', input: {}, want: { backgroundTasks: [], crons: 0 } },
+    {
+      name: 'lists that are not arrays',
+      input: { background_tasks: 'subagent', session_crons: 'c1' },
+      want: { backgroundTasks: [], crons: 0 },
+    },
+    {
+      name: 'tasks without a type',
+      input: { background_tasks: [null, {}, { type: 1 }, { type: 'subagent' }] },
+      want: { backgroundTasks: ['subagent'], crons: 0 },
+    },
+  ])('sends background work from $name', async ({ input, want }) => {
     // given
     const socketPath = join(dir, 'maple.sock');
     const received: string[] = [];
     server = await listen(socketPath, received);
     // when
-    await runHook(
-      'Stop',
-      { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-3' },
-      JSON.stringify({ background_tasks: tasks }),
-    );
+    await runHook('Stop', { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-3' }, JSON.stringify(input));
     // then
-    expect(JSON.parse(received.join(''))).toMatchObject({ event: 'Stop', backgroundAgents: want });
+    expect(JSON.parse(received.join(''))).toMatchObject({ event: 'Stop', ...want });
   });
 
   describe('PreToolUse', () => {

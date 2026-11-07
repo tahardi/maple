@@ -4,12 +4,14 @@ import type { Card } from '@shared/types/jira';
 import type { Dot, HookEvent, TabStatus } from '@shared/types/tabs';
 import type { PrInfo } from '@shared/types/github';
 import { appLogger, type Logger } from '@main/app/log';
+import { backgroundWait, unknownTasks, type BackgroundWait } from './backgroundWait';
 import type { SessionManager } from './sessions';
 
 export type StatusDeps = {
   sessions: SessionManager;
   getCard: (key: string) => Promise<Card>;
   prFor: (worktree: string, projectKey: string) => Promise<PrInfo | null>;
+  waitLimitMs: () => number;
   logger?: Logger;
 };
 
@@ -18,7 +20,13 @@ type Events = { status: [status: TabStatus, prev: Dot] };
 const RESUME_FAIL_MS = 5000;
 const LOOKUP_TIMEOUT_MS = 15_000;
 
-type Tracked = { status: TabStatus; seq: number; resumedAt: number | null; background: boolean };
+type Tracked = {
+  status: TabStatus;
+  seq: number;
+  resumedAt: number | null;
+  background: boolean;
+  waitLimit?: NodeJS.Timeout;
+};
 
 function timeout<T>(lookup: Promise<T>): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -42,6 +50,7 @@ export class StatusEngine extends EventEmitter<Events> {
     const { sessions } = deps;
     sessions.on('spawn', (tabId, prompted, resumed) => {
       const prev = this.tabs.get(tabId);
+      clearTimeout(prev?.waitLimit);
       const dot = prompted ? 'working' : 'idle';
       const status: TabStatus = { tabId, dot, sessionAlive: true, exitCode: null, resumeFailed: false };
       this.tabs.set(tabId, {
@@ -61,6 +70,7 @@ export class StatusEngine extends EventEmitter<Events> {
     sessions.on('exit', (tabId, exitCode) => {
       const tracked = this.tabs.get(tabId);
       if (tracked) {
+        clearTimeout(tracked.waitLimit);
         const { resumedAt } = tracked;
         const prev = tracked.status.dot;
         const resumeFailed = exitCode !== 0 && resumedAt !== null && Date.now() - resumedAt < RESUME_FAIL_MS;
@@ -83,8 +93,9 @@ export class StatusEngine extends EventEmitter<Events> {
     });
     sessions.on('changed', (tabs) => {
       const open = new Set(tabs.map((t) => t.id));
-      for (const tabId of this.tabs.keys()) {
+      for (const [tabId, tracked] of this.tabs) {
         if (!open.has(tabId)) {
+          clearTimeout(tracked.waitLimit);
           this.tabs.delete(tabId);
         }
       }
@@ -98,10 +109,8 @@ export class StatusEngine extends EventEmitter<Events> {
     } else if (e.event === 'Notification' && e.notificationType === 'permission_prompt') {
       this.bump(e.tabId);
       this.apply(e.tabId, { type: 'permission' });
-    } else if (e.event === 'Stop' && (e.backgroundAgents ?? 0) > 0) {
-      this.background(e.tabId);
     } else if (e.event === 'Stop') {
-      void this.stop(e.tabId);
+      this.stopped(e);
     }
   }
 
@@ -109,13 +118,32 @@ export class StatusEngine extends EventEmitter<Events> {
     return [...this.tabs.values()].map((t) => t.status);
   }
 
-  private background(tabId: string): void {
+  private stopped(e: HookEvent): void {
+    const tasks = e.backgroundTasks ?? [];
+    for (const type of unknownTasks(tasks)) {
+      this.log.warn('hook', 'unknown task type', { tabId: e.tabId, type });
+    }
+    const wait = backgroundWait(tasks, e.crons ?? 0);
+    if (wait === null) {
+      void this.stop(e.tabId);
+    } else {
+      this.background(e.tabId, wait);
+    }
+  }
+
+  private background(tabId: string, wait: BackgroundWait): void {
     const tracked = this.tabs.get(tabId);
     if (!tracked?.status.sessionAlive) {
       return;
     }
     this.bump(tabId);
     tracked.background = true;
+    if (wait === 'limited') {
+      tracked.waitLimit = setTimeout(() => {
+        this.log.info('dot', 'wait limit reached', { tabId });
+        void this.stop(tabId);
+      }, this.deps.waitLimitMs());
+    }
     this.apply(tabId, { type: 'background' });
   }
 
@@ -199,6 +227,7 @@ export class StatusEngine extends EventEmitter<Events> {
     }
     tracked.seq += 1;
     tracked.background = false;
+    clearTimeout(tracked.waitLimit);
     return tracked.seq;
   }
 

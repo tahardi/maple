@@ -67,9 +67,16 @@ describe('claude hooks', () => {
         tabId: 'live-1',
         event: 'UserPromptSubmit',
         notificationType: null,
-        backgroundAgents: 0,
+        backgroundTasks: [],
+        crons: 0,
       });
-      expect(events).toContainEqual({ tabId: 'live-1', event: 'Stop', notificationType: null, backgroundAgents: 0 });
+      expect(events).toContainEqual({
+        tabId: 'live-1',
+        event: 'Stop',
+        notificationType: null,
+        backgroundTasks: [],
+        crons: 0,
+      });
     });
     expect(hasTranscript(sessionId)).toBe(true);
     // when
@@ -84,9 +91,16 @@ describe('claude hooks', () => {
         tabId: 'live-2',
         event: 'UserPromptSubmit',
         notificationType: null,
-        backgroundAgents: 0,
+        backgroundTasks: [],
+        crons: 0,
       });
-      expect(events).toContainEqual({ tabId: 'live-2', event: 'Stop', notificationType: null, backgroundAgents: 0 });
+      expect(events).toContainEqual({
+        tabId: 'live-2',
+        event: 'Stop',
+        notificationType: null,
+        backgroundTasks: [],
+        crons: 0,
+      });
     });
   });
 

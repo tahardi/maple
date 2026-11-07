@@ -26,6 +26,7 @@ export type HookEvent = {
   tabId: string;
   event: 'Stop' | 'Notification' | 'UserPromptSubmit';
   notificationType: string | null;
-  backgroundAgents?: number;
+  backgroundTasks?: string[];
+  crons?: number;
 };
 export type CloseResult = { closed: boolean; needsConfirm: boolean };

@@ -65,12 +65,12 @@ describe('startHookServer', () => {
     });
   });
 
-  test('delivers the background agent count', async () => {
+  test('delivers the background tasks and cron count', async () => {
     // given
     const socketPath = join(dir, 'maple.sock');
     const onEvent = vi.fn<(e: HookEvent) => void>();
     close = await startHookServer(socketPath, onEvent);
-    const event: HookEvent = { ...stop, backgroundAgents: 2 };
+    const event: HookEvent = { ...stop, backgroundTasks: ['subagent'], crons: 1 };
     // when
     await sendLines(socketPath, `${JSON.stringify(event)}\n`);
     // then
@@ -79,14 +79,17 @@ describe('startHookServer', () => {
     });
   });
 
-  test('drops an event whose background agent count is not a number', async () => {
+  test.each([
+    { name: 'background tasks that are not strings', fields: { backgroundTasks: [1] } },
+    { name: 'a cron count that is not a number', fields: { crons: '2' } },
+  ])('drops an event with $name', async ({ fields }) => {
     // given
     const socketPath = join(dir, 'maple.sock');
     const onEvent = vi.fn<(e: HookEvent) => void>();
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     close = await startHookServer(socketPath, onEvent, logger);
     // when
-    await sendLines(socketPath, `${JSON.stringify({ ...stop, backgroundAgents: '2' })}\n`);
+    await sendLines(socketPath, `${JSON.stringify({ ...stop, ...fields })}\n`);
     // then
     await vi.waitFor(() => {
       expect(logger.warn).toHaveBeenCalledWith('hook', 'malformed', expect.anything());

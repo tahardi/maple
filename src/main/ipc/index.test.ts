@@ -49,6 +49,7 @@ describe('registerIpc', () => {
     sessions,
     getCard: vi.fn(),
     prFor: vi.fn(),
+    waitLimitMs: () => 60_000,
   });
   const deps = {
     window: () => null,

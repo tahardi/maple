@@ -106,6 +106,7 @@ describe('loadConfig', () => {
   test.each([
     { name: 'actions missing', config: withoutActions, check: { actions: validConfig.actions } },
     { name: 'notifications missing', config: withoutNotifications, check: { notifications: true } },
+    { name: 'backgroundWaitMinutes missing', config: validConfig, check: { backgroundWaitMinutes: 15 } },
   ])('defaults when $name', async ({ config, check }) => {
     // given
     await writeFile(join(dir, 'config.json'), JSON.stringify(config));
@@ -132,6 +133,11 @@ describe('loadConfig', () => {
       name: 'a non-string vaultDir',
       content: JSON.stringify({ ...validConfig, vaultDir: 7 }),
       error: /^reading config: vaultDir:/,
+    },
+    {
+      name: 'a backgroundWaitMinutes of zero',
+      content: JSON.stringify({ ...validConfig, backgroundWaitMinutes: 0 }),
+      error: /^reading config: backgroundWaitMinutes:/,
     },
     {
       name: 'string jiraBoardId',

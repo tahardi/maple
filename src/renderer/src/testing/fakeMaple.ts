@@ -11,6 +11,7 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
     worktreesDir: '/tmp/wts',
     vaultDir: null,
     notifications: false,
+    backgroundWaitMinutes: 15,
     projects: [
       {
         name: 'Bearclave',

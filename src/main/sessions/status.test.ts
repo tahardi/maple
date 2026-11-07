@@ -39,6 +39,8 @@ const openPr: PrInfo = {
   checks: { passed: 2, failed: 0, pending: 0, total: 2, runs: [] },
 };
 
+const WAIT_LIMIT_MS = 60_000;
+
 type Overrides = {
   tab?: TabState | null;
   getCard?: () => Promise<Card>;
@@ -55,6 +57,7 @@ function setup(overrides: Overrides = {}) {
     sessions: sessions as unknown as SessionManager,
     getCard,
     prFor,
+    waitLimitMs: () => WAIT_LIMIT_MS,
     logger,
   });
   const emitted: TabStatus[] = [];
@@ -551,7 +554,7 @@ describe('StatusEngine', () => {
     sessions.emit('spawn', 't1', true);
     emitted.length = 0;
     // when
-    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['subagent'] });
     await new Promise((resolve) => setTimeout(resolve, 10));
     // then
     expect(emitted).toEqual([]);
@@ -566,7 +569,7 @@ describe('StatusEngine', () => {
     sessions.emit('spawn', 't1', true);
     engine.hook({ tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' });
     // when
-    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 2 });
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['subagent'] });
     // then
     expect(emitted.at(-1)?.dot).toBe('working');
     expect(logger.info).toHaveBeenLastCalledWith('dot', 'changed', {
@@ -584,7 +587,7 @@ describe('StatusEngine', () => {
     emitted.length = 0;
     engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
     // when
-    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['subagent'] });
     await new Promise((resolve) => setTimeout(resolve, 10));
     // then
     expect(emitted).toEqual([]);
@@ -595,9 +598,9 @@ describe('StatusEngine', () => {
     const inProgress = () => Promise.resolve({ ...card, status: 'In Progress' as const });
     const { sessions, engine, emitted } = setup({ getCard: inProgress });
     sessions.emit('spawn', 't1', true);
-    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['subagent'] });
     // when
-    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 0 });
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: [] });
     // then
     await vi.waitFor(() => {
       expect(emitted.at(-1)?.dot).toBe('waiting');
@@ -608,7 +611,7 @@ describe('StatusEngine', () => {
     // given
     const { sessions, engine, emitted, getCard } = setup();
     sessions.emit('spawn', 't1', true);
-    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['subagent'] });
     emitted.length = 0;
     // when
     sessions.emit('interrupt', 't1');
@@ -622,7 +625,7 @@ describe('StatusEngine', () => {
     // given
     const { sessions, engine, getCard } = setup();
     sessions.emit('spawn', 't1', true);
-    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['subagent'] });
     engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
     // when
     sessions.emit('interrupt', 't1');
@@ -636,7 +639,7 @@ describe('StatusEngine', () => {
     // given
     const { sessions, engine, emitted } = setup();
     sessions.emit('spawn', 't1', true);
-    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['subagent'] });
     // when
     engine.hook({ tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' });
     // then
@@ -650,17 +653,118 @@ describe('StatusEngine', () => {
     sessions.emit('exit', 't1', 0);
     emitted.length = 0;
     // when
-    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['subagent'] });
     // then
     expect(emitted).toEqual([]);
     expect(engine.statuses()[0]?.dot).toBe('idle');
+  });
+
+  test.each([
+    { name: 'a background shell', tasks: ['shell'], crons: 0 },
+    { name: 'a scheduled wake-up', tasks: [], crons: 1 },
+  ])('$name keeps the tab working until the wait limit', async ({ tasks, crons }) => {
+    // given
+    vi.useFakeTimers();
+    const inProgress = () => Promise.resolve({ ...card, status: 'In Progress' as const });
+    const { sessions, engine, emitted, getCard } = setup({ getCard: inProgress });
+    sessions.emit('spawn', 't1', true);
+    emitted.length = 0;
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: tasks, crons });
+    await vi.advanceTimersByTimeAsync(WAIT_LIMIT_MS - 1);
+    // then
+    expect(emitted).toEqual([]);
+    expect(getCard).not.toHaveBeenCalled();
+    // when
+    await vi.advanceTimersByTimeAsync(1);
+    // then
+    expect(emitted.at(-1)?.dot).toBe('waiting');
+  });
+
+  test('a running agent has no wait limit even with a background shell', async () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, engine, getCard } = setup();
+    sessions.emit('spawn', 't1', true);
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['shell', 'subagent'] });
+    await vi.advanceTimersByTimeAsync(WAIT_LIMIT_MS * 10);
+    // then
+    expect(getCard).not.toHaveBeenCalled();
+    expect(engine.statuses()[0]?.dot).toBe('working');
+  });
+
+  test('a later Stop with a background shell restarts the wait limit', async () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, engine, getCard } = setup();
+    sessions.emit('spawn', 't1', true);
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['shell'] });
+    await vi.advanceTimersByTimeAsync(WAIT_LIMIT_MS - 1);
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['shell'] });
+    await vi.advanceTimersByTimeAsync(WAIT_LIMIT_MS - 1);
+    // then
+    expect(getCard).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    {
+      name: 'a prompt',
+      act: ({ engine }: ReturnType<typeof setup>) => {
+        engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+      },
+    },
+    {
+      name: 'an exit',
+      act: ({ sessions }: ReturnType<typeof setup>) => {
+        sessions.emit('exit', 't1', 0);
+      },
+    },
+    {
+      name: 'a respawn',
+      act: ({ sessions }: ReturnType<typeof setup>) => {
+        sessions.emit('spawn', 't1', true);
+      },
+    },
+    {
+      name: 'closing the tab',
+      act: ({ sessions }: ReturnType<typeof setup>) => {
+        sessions.emit('changed', []);
+      },
+    },
+  ])('$name cancels the wait limit', async ({ act }) => {
+    // given
+    vi.useFakeTimers();
+    const context = setup();
+    context.sessions.emit('spawn', 't1', true);
+    context.engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['shell'] });
+    // when
+    act(context);
+    await vi.advanceTimersByTimeAsync(WAIT_LIMIT_MS);
+    // then
+    expect(context.getCard).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  test('a Stop with an unknown task type warns and sets the card dot', async () => {
+    // given
+    const { sessions, engine, emitted, logger } = setup();
+    sessions.emit('spawn', 't1', true);
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null, backgroundTasks: ['helper'] });
+    // then
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe('ready');
+    });
+    expect(logger.warn).toHaveBeenCalledWith('hook', 'unknown task type', { tabId: 't1', type: 'helper' });
   });
 
   test('an unknown tab ignores a Stop with a background agent', () => {
     // given
     const { engine, emitted } = setup();
     // when
-    engine.hook({ tabId: 'nope', event: 'Stop', notificationType: null, backgroundAgents: 1 });
+    engine.hook({ tabId: 'nope', event: 'Stop', notificationType: null, backgroundTasks: ['subagent'] });
     // then
     expect(emitted).toEqual([]);
   });

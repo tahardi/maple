@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog } from 'electron';
 import { spawn } from 'node-pty';
 import type { MapleConfig } from '@shared/types/config';
-import { configDir, loadConfig } from '@main/app/config';
+import { configDir, DEFAULT_WAIT_MINUTES, loadConfig } from '@main/app/config';
 import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
 import { writeHooksFile } from '@main/sessions/hooksFile';
@@ -117,6 +117,7 @@ async function start(): Promise<() => number> {
     getCard: async (key) => (await jira).getCard(key),
     prFor: async (worktree, projectKey) =>
       prForBranch(await projectRunner(projectByKey, projectKey), worktree, await currentBranch(worktree)),
+    waitLimitMs: () => (config?.backgroundWaitMinutes ?? DEFAULT_WAIT_MINUTES) * 60_000,
   });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
