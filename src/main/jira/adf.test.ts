@@ -106,6 +106,11 @@ describe('adfToMarkdown', () => {
       want: '```ts\na\n```',
     },
     {
+      name: 'code block with a trailing newline in its label trimmed',
+      input: doc({ type: 'codeBlock', attrs: { language: 'ts\n' }, content: [text('a')] }),
+      want: '```ts\na\n```',
+    },
+    {
       name: 'code block with an unsafe first word in its label dropped',
       input: doc({ type: 'codeBlock', attrs: { language: 'ts` title' }, content: [text('a')] }),
       want: '```\na\n```',
