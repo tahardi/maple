@@ -1,4 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { useDismiss } from '../../shell/useDismiss';
+import { useMenuKeys } from '../../shell/useMenuKeys';
 import styles from './FileTabMenu.module.css';
 
 type Props = {
@@ -22,32 +24,14 @@ export function FileTabMenu({ x, y, only, onClose, onCloseOthers, onCloseAll, on
     }
   }, []);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onDismiss();
-      }
-    };
-    const onOutside = (e: Event) => {
-      if (e.target instanceof Node && !menu.current?.contains(e.target)) {
-        onDismiss();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('pointerdown', onOutside);
-    document.addEventListener('focusin', onOutside);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('pointerdown', onOutside);
-      document.removeEventListener('focusin', onOutside);
-    };
-  }, [onDismiss]);
+  useDismiss(menu, true, onDismiss);
+  const onKeyDown = useMenuKeys(menu, true);
 
   const left = Math.max(0, Math.min(x, window.innerWidth - size.width));
   const top = Math.max(0, Math.min(y, window.innerHeight - size.height));
 
   return (
-    <div ref={menu} role="menu" className={styles.menu} style={{ left, top }}>
+    <div ref={menu} role="menu" className={styles.menu} style={{ left, top }} onKeyDown={onKeyDown}>
       <button role="menuitem" onClick={onClose}>
         Close
       </button>
