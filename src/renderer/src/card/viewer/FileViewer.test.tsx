@@ -74,7 +74,7 @@ vi.mock('@monaco-editor/react', async () => {
     Editor: (props: {
       value: string;
       language: string | undefined;
-      options: { readOnly: boolean; minimap?: { enabled: boolean; size: string } };
+      options: { readOnly: boolean; minimap?: { enabled: boolean; size: string }; wordWrap?: string };
       onMount: (editor: unknown) => void;
       onChange: (value: string | undefined, change: { isFlush: boolean }) => void;
     }) => {
@@ -119,13 +119,19 @@ vi.mock('@monaco-editor/react', async () => {
           data-language={props.language}
           data-readonly={String(props.options.readOnly)}
           data-minimap={JSON.stringify(props.options.minimap)}
+          data-wrap={props.options.wordWrap}
         />
       );
     },
     DiffEditor: (props: {
       original: string;
       modified: string;
-      options: { renderSideBySide: boolean; readOnly: boolean; minimap?: { enabled: boolean; size: string } };
+      options: {
+        renderSideBySide: boolean;
+        readOnly: boolean;
+        minimap?: { enabled: boolean; size: string };
+        wordWrap?: string;
+      };
       onMount: (editor: unknown) => void;
     }) => {
       const { onMount } = props;
@@ -143,6 +149,7 @@ vi.mock('@monaco-editor/react', async () => {
           data-side-by-side={String(props.options.renderSideBySide)}
           data-readonly={String(props.options.readOnly)}
           data-minimap={JSON.stringify(props.options.minimap)}
+          data-wrap={props.options.wordWrap}
         />
       );
     },
@@ -1291,6 +1298,149 @@ describe('FileViewer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Side by side' }));
     // then
     expect(screen.getByTestId('diff-editor')).toBeInTheDocument();
+  });
+
+  test.each([
+    {
+      view: 'the note editor',
+      open: async () => {
+        renderNote();
+        return editNote();
+      },
+    },
+    {
+      view: 'Changes in file',
+      open: () => {
+        renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
+        return screen.findByTestId('editor');
+      },
+    },
+    {
+      view: 'Changes side by side',
+      open: () => {
+        localStorage.setItem('maple.viewMode', 'side-by-side');
+        renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
+        return screen.findByTestId('diff-editor');
+      },
+    },
+  ])('wraps lines by default in $view', async ({ open }) => {
+    // given
+    // when
+    const editor = await open();
+    // then
+    expect(editor).toHaveAttribute('data-wrap', 'on');
+  });
+
+  test('wraps code blocks in the formatted note by default', async () => {
+    // given
+    renderNote();
+    // when
+    await screen.findByRole('heading', { name: 'Findings' });
+    // then
+    expect(screen.getByTestId('note-overview').parentElement?.className).toMatch(/wrapped/);
+    expect(screen.getByRole('button', { name: 'Wrap' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('Wrap turns wrapping off and saves the choice', async () => {
+    // given
+    renderNote();
+    await screen.findByRole('heading', { name: 'Findings' });
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Wrap' }));
+    // then
+    expect(screen.getByRole('button', { name: 'Wrap' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('note-overview').parentElement?.className).not.toMatch(/wrapped/);
+    expect(localStorage.getItem('maple.noteWrap')).toBe('off');
+    expect(await editNote()).toHaveAttribute('data-wrap', 'off');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Wrap' }));
+    // then
+    expect(localStorage.getItem('maple.noteWrap')).toBe('on');
+    expect(screen.getByTestId('editor')).toHaveAttribute('data-wrap', 'on');
+  });
+
+  test('reads a saved Wrap choice on mount', async () => {
+    // given
+    localStorage.setItem('maple.noteWrap', 'off');
+    // when
+    renderNote();
+    // then
+    expect(await screen.findByRole('button', { name: 'Wrap' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('wraps by default when storage throws', async () => {
+    // given
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('reading storage: blocked');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('writing storage: blocked');
+    });
+    // when
+    renderNote();
+    // then
+    const button = await screen.findByRole('button', { name: 'Wrap' });
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    // when
+    await userEvent.click(button);
+    // then
+    expect(screen.getByRole('button', { name: 'Wrap' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test.each([
+    { view: 'Changes in file', mode: 'in-file', testId: 'editor' },
+    { view: 'Changes side by side', mode: 'side-by-side', testId: 'diff-editor' },
+  ])('Wrap turns wrapping off in $view', async ({ mode, testId }) => {
+    // given
+    localStorage.setItem('maple.viewMode', mode);
+    renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
+    await screen.findByTestId(testId);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Wrap' }));
+    // then
+    expect(screen.getByTestId(testId)).toHaveAttribute('data-wrap', 'off');
+  });
+
+  test('keeps Wrap off when another note opens', async () => {
+    // given
+    fakeMaple({ vault: { read: vi.fn((path: string) => Promise.resolve(`## ${path}\n`)) } });
+    const props = {
+      tabId: 't1',
+      openFiles: ['vault:One.md', 'vault:Two.md'],
+      onActivate: vi.fn(),
+      onCloseFiles: vi.fn(),
+      prBody: null,
+      line: null,
+      canComment: false,
+      prFetchedAt: null,
+    };
+    const { rerender } = render(<FileViewer {...props} activeFile="vault:One.md" />);
+    await screen.findByRole('heading', { name: 'One.md' });
+    await userEvent.click(screen.getByRole('button', { name: 'Wrap' }));
+    // when
+    rerender(<FileViewer {...props} activeFile="vault:Two.md" />);
+    await screen.findByRole('heading', { name: 'Two.md' });
+    // then
+    expect(screen.getByRole('button', { name: 'Wrap' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('note-overview').parentElement?.className).not.toMatch(/wrapped/);
+  });
+
+  test('wraps for an unknown saved Wrap choice', async () => {
+    // given
+    localStorage.setItem('maple.noteWrap', 'sideways');
+    // when
+    renderNote();
+    // then
+    expect(await screen.findByRole('button', { name: 'Wrap' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('shows no Wrap button and leaves wrapping alone on repo files', async () => {
+    // given
+    // when
+    renderViewer(changed);
+    // then
+    expect(await screen.findByTestId('editor')).not.toHaveAttribute('data-wrap');
+    expect(screen.queryByRole('button', { name: 'Wrap' })).not.toBeInTheDocument();
   });
 
   test('shows a deleted file in a plain editor in side by side mode', async () => {
