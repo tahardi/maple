@@ -37,6 +37,16 @@ describe('adfToMarkdown', () => {
     },
     { name: 'inline code', input: doc(paragraph(text('run '), text('make', { type: 'code' }))), want: 'run `make`' },
     {
+      name: 'inline code whose text has backticks in a longer delimiter',
+      input: doc(paragraph(text('a`[x](https://evil.example)``b', { type: 'code' }))),
+      want: '```a`[x](https://evil.example)``b```',
+    },
+    {
+      name: 'inline code that starts and ends with a backtick padded with spaces',
+      input: doc(paragraph(text('`a`', { type: 'code' }))),
+      want: '`` `a` ``',
+    },
+    {
       name: 'code block with language',
       input: doc({ type: 'codeBlock', attrs: { language: 'ts' }, content: [text('const x = 1;')] }),
       want: '```ts\nconst x = 1;\n```',
@@ -91,8 +101,13 @@ describe('adfToMarkdown', () => {
       want: '```\na\n```',
     },
     {
-      name: 'code block with a space in its label dropped',
-      input: doc({ type: 'codeBlock', attrs: { language: 'ts title' }, content: [text('a')] }),
+      name: 'code block keeps the first word of a label with spaces',
+      input: doc({ type: 'codeBlock', attrs: { language: ' ts title=x.ts' }, content: [text('a')] }),
+      want: '```ts\na\n```',
+    },
+    {
+      name: 'code block with an unsafe first word in its label dropped',
+      input: doc({ type: 'codeBlock', attrs: { language: 'ts` title' }, content: [text('a')] }),
       want: '```\na\n```',
     },
     {
@@ -110,6 +125,16 @@ describe('adfToMarkdown', () => {
       name: 'link',
       input: doc(paragraph(text('card', { type: 'link', attrs: { href: 'https://x.test/a' } }))),
       want: '[card](https://x.test/a)',
+    },
+    {
+      name: 'link whose target has characters that end it early',
+      input: doc(paragraph(text('card', { type: 'link', attrs: { href: 'https://x.test/a)(b c<d>\\e' } }))),
+      want: '[card](https://x.test/a%29%28b%20c%3Cd%3E%5Ce)',
+    },
+    {
+      name: 'link whose target has a non-breaking space',
+      input: doc(paragraph(text('card', { type: 'link', attrs: { href: 'https://x.test/a\u00a0b' } }))),
+      want: '[card](https://x.test/a%C2%A0b)',
     },
     { name: 'strikethrough', input: doc(paragraph(text('x', { type: 'strike' }))), want: '~~x~~' },
     { name: 'italic', input: doc(paragraph(text('x', { type: 'em' }))), want: '*x*' },
