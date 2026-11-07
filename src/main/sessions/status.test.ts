@@ -115,6 +115,40 @@ describe('StatusEngine', () => {
     expect(emitted).toHaveLength(before);
   });
 
+  test.each([
+    { name: 'a permission prompt', events: ['permission'], want: true },
+    { name: 'a permission prompt then a new prompt', events: ['permission', 'prompt'], want: false },
+    { name: 'only a prompt', events: ['prompt'], want: false },
+  ])('asking after $name is $want', ({ events, want }) => {
+    // given
+    const { sessions, engine } = setup();
+    sessions.emit('spawn', 't1', false);
+    // when
+    for (const event of events) {
+      engine.hook(
+        event === 'permission'
+          ? { tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' }
+          : { tabId: 't1', event: 'UserPromptSubmit', notificationType: null },
+      );
+    }
+    // then
+    expect(engine.asking('t1')).toBe(want);
+  });
+
+  test('asking clears when the turn stops', async () => {
+    // given
+    const { sessions, engine, emitted } = setup();
+    sessions.emit('spawn', 't1', false);
+    engine.hook({ tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' });
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    // then
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe('ready');
+    });
+    expect(engine.asking('t1')).toBe(false);
+  });
+
   test('a respawn clears the sync state', () => {
     // given
     const { sessions, engine, emitted } = setup();

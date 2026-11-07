@@ -2,13 +2,14 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Fetched } from '@shared/types/app';
+import { syncPrompt } from '@shared/prompts';
 import type { MapleConfig } from '@shared/types/config';
 import { z } from 'zod';
 import { appLogger, type Logger } from './log';
 
 const defaultActions = [
   { label: 'Address review', prompt: '/card {key}' },
-  { label: 'Merge main', prompt: 'Run the "Sync with Main" steps from the /card skill for {key}.' },
+  { label: 'Merge main', prompt: syncPrompt('{key}') },
 ];
 
 export const DEFAULT_WAIT_MINUTES = 10;

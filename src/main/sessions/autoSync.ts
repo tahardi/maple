@@ -8,6 +8,7 @@ import type { SessionManager } from './sessions';
 import type { StatusEngine } from './status';
 
 export const POLL_MS = 120_000;
+export const LS_REMOTE_TIMEOUT_MS = 30_000;
 
 export type AutoSyncDeps = {
   sessions: SessionManager;
@@ -15,6 +16,7 @@ export type AutoSyncDeps = {
   getCard: (key: string) => Promise<Card>;
   prFor: (worktree: string, projectKey: string) => Promise<PrInfo | null>;
   run: Runner;
+  commonDir: (worktree: string) => Promise<string>;
   logger?: Logger;
 };
 
@@ -102,7 +104,7 @@ export class AutoSync {
     }
     if (!s.sessionAlive) {
       this.deps.status.setSync(s.tabId, null);
-    } else if (s.sync === 'queued' && s.dot !== 'working') {
+    } else if (s.sync === 'queued' && s.dot !== 'working' && !this.deps.status.asking(s.tabId)) {
       const cardKey = this.deps.sessions.get(s.tabId)?.cardKey ?? null;
       if (cardKey === null) {
         this.deps.status.setSync(s.tabId, null);
@@ -120,22 +122,22 @@ export class AutoSync {
     if (cached !== undefined) {
       return cached;
     }
-    const repo = await this.git(worktree, 'reading repo', ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+    const repo = await this.deps.commonDir(worktree);
     this.repos.set(worktree, repo);
     return repo;
   }
 
   private async mainSha(repo: string): Promise<string> {
-    const out = await this.git(repo, 'reading main', ['ls-remote', 'origin', 'refs/heads/main']);
-    return out.split('\t')[0];
-  }
-
-  private async git(cwd: string, action: string, args: string[]): Promise<string> {
-    const { code, stdout, stderr } = await this.deps.run('git', args, cwd);
+    const { code, stdout, stderr } = await this.deps.run(
+      'git',
+      ['ls-remote', 'origin', 'refs/heads/main'],
+      repo,
+      LS_REMOTE_TIMEOUT_MS,
+    );
     if (code !== 0) {
-      throw new Error(`${action}: ${stderr.trim()}`);
+      throw new Error(`reading main: ${stderr.trim()}`);
     }
-    return stdout.trim();
+    return stdout.trim().split('\t')[0];
   }
 
   private async attempt<T>(

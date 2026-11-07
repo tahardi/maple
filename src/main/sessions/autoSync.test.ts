@@ -5,7 +5,7 @@ import type { Card } from '@shared/types/jira';
 import type { PrInfo } from '@shared/types/github';
 import type { TabState, TabStatus } from '@shared/types/tabs';
 import type { Runner } from '@main/app/preflight';
-import { AutoSync } from './autoSync';
+import { AutoSync, LS_REMOTE_TIMEOUT_MS } from './autoSync';
 import type { SessionManager } from './sessions';
 import { StatusEngine } from './status';
 
@@ -68,10 +68,8 @@ function setup(overrides: Overrides = {}) {
   });
   const main: { sha: string; byRepo: Record<string, string> } = { sha: 'aaa', byRepo: {} };
   const repoOf = overrides.repoOf ?? ((worktree: string) => `/repos${worktree}`);
-  const run = vi.fn<Runner>((_cmd, args, cwd) => {
-    if (args[0] === 'rev-parse') {
-      return Promise.resolve({ code: 0, stdout: `${repoOf(cwd ?? '')}\n`, stderr: '' });
-    }
+  const commonDir = vi.fn((worktree: string) => Promise.resolve(repoOf(worktree)));
+  const run = vi.fn<Runner>((_cmd, _args, cwd) => {
     const sha = main.byRepo[cwd ?? ''] ?? main.sha;
     return Promise.resolve({ code: 0, stdout: `${sha}\trefs/heads/main\n`, stderr: '' });
   });
@@ -81,6 +79,7 @@ function setup(overrides: Overrides = {}) {
     getCard,
     prFor,
     run,
+    commonDir,
     logger,
   });
   const emitted: TabStatus[] = [];
@@ -91,15 +90,29 @@ function setup(overrides: Overrides = {}) {
     sessions.emit('spawn', tab.id, true, false);
   }
   const syncOf = (tabId: string) => status.statuses().find((s) => s.tabId === tabId)?.sync;
-  const calls = (command: string) => run.mock.calls.filter(([, args]) => args[0] === command);
-  const lsRemotes = () => calls('ls-remote').length;
+  const lsRemoteCalls = () => run.mock.calls.filter(([, args]) => args[0] === 'ls-remote');
+  const lsRemotes = () => lsRemoteCalls().length;
   const stop = async (tabId: string) => {
     status.hook({ tabId, event: 'Stop', notificationType: null });
     await vi.waitFor(() => {
       expect(status.statuses().find((s) => s.tabId === tabId)?.dot).not.toBe('working');
     });
   };
-  return { sessions, status, auto, main, run, logger, getCard, emitted, syncOf, calls, lsRemotes, stop };
+  return {
+    sessions,
+    status,
+    auto,
+    main,
+    run,
+    logger,
+    getCard,
+    emitted,
+    syncOf,
+    commonDir,
+    lsRemoteCalls,
+    lsRemotes,
+    stop,
+  };
 }
 
 describe('AutoSync', () => {
@@ -279,7 +292,7 @@ describe('AutoSync', () => {
 
   test('runs ls-remote once per repo in the repo dir for tabs that share a repo', async () => {
     // given
-    const { auto, calls } = setup({
+    const { auto, lsRemoteCalls } = setup({
       tabs: [cardTab('t1', 'DIG-44', '/wts/dig-44'), cardTab('t2', 'DIG-45', '/wts/dig-45')],
       repoOf: () => '/repos/dig',
     });
@@ -287,17 +300,58 @@ describe('AutoSync', () => {
     await auto.poll();
     await auto.poll();
     // then
-    expect(calls('ls-remote').map(([, , cwd]) => cwd)).toEqual(['/repos/dig', '/repos/dig']);
+    expect(lsRemoteCalls().map(([, , cwd]) => cwd)).toEqual(['/repos/dig', '/repos/dig']);
   });
 
-  test('runs rev-parse once per worktree across polls', async () => {
+  test('looks up the repo once per worktree across polls', async () => {
     // given
-    const { auto, calls } = setup();
+    const { auto, commonDir } = setup();
     // when
     await auto.poll();
     await auto.poll();
     // then
-    expect(calls('rev-parse')).toHaveLength(1);
+    expect(commonDir).toHaveBeenCalledTimes(1);
+  });
+
+  test('runs ls-remote with a timeout', async () => {
+    // given
+    const { auto, lsRemoteCalls } = setup();
+    // when
+    await auto.poll();
+    // then
+    expect(lsRemoteCalls()[0]?.[3]).toBe(LS_REMOTE_TIMEOUT_MS);
+  });
+
+  test('a waiting tab with a question prompt open is sent the prompt only after its turn stops', async () => {
+    // given
+    const { auto, sessions, status, main, syncOf, stop } = setup();
+    await stop('t1');
+    status.hook({ tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' });
+    await auto.poll();
+    main.sha = 'bbb';
+    // when
+    await auto.poll();
+    const queued = { sync: syncOf('t1'), prompts: sessions.sendPrompt.mock.calls.length };
+    status.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    // then
+    expect(queued).toEqual({ sync: 'queued', prompts: 0 });
+    await vi.waitFor(() => {
+      expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44'));
+    });
+  });
+
+  test('a waiting tab with failed checks is sent the prompt', async () => {
+    // given
+    const failing = { ...openPr, checks: { ...openPr.checks, failed: 1 } };
+    const { auto, sessions, status, main, stop } = setup({ prFor: () => Promise.resolve(failing) });
+    await stop('t1');
+    await auto.poll();
+    main.sha = 'bbb';
+    // when
+    await auto.poll();
+    // then
+    expect(status.statuses()[0]?.dot).toBe('waiting');
+    expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44'));
   });
 
   test('a new main sha syncs only the tabs of the repo whose main moved', async () => {
@@ -349,19 +403,19 @@ describe('AutoSync', () => {
     expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44'));
   });
 
-  test('a failed rev-parse warns and skips only that worktree', async () => {
+  test('a failed repo lookup warns and skips only that worktree', async () => {
     // given
-    const { auto, run, logger, lsRemotes } = setup({
+    const { auto, commonDir, logger, lsRemotes } = setup({
       tabs: [cardTab('t1', 'DIG-44', '/wts/gone'), cardTab('t2', 'DIG-45', '/wts/dig-45')],
     });
-    run.mockImplementationOnce(() => Promise.resolve({ code: 128, stdout: '', stderr: 'fatal: not a git repository' }));
+    commonDir.mockImplementationOnce(() => Promise.reject(new Error('running git rev-parse: not a git repository')));
     // when
     await auto.poll();
     // then
     expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
       operation: 'rev-parse',
       worktree: '/wts/gone',
-      error: 'reading repo: fatal: not a git repository',
+      error: 'running git rev-parse: not a git repository',
     });
     expect(lsRemotes()).toBe(1);
   });
@@ -417,14 +471,13 @@ describe('AutoSync', () => {
     // given
     const { auto, run, lsRemotes } = setup();
     let release: () => void = () => undefined;
-    run.mockImplementation((_cmd, args) =>
-      args[0] === 'rev-parse'
-        ? Promise.resolve({ code: 0, stdout: '/repos/dig\n', stderr: '' })
-        : new Promise((resolve) => {
-            release = () => {
-              resolve({ code: 0, stdout: 'aaa\trefs/heads/main\n', stderr: '' });
-            };
-          }),
+    run.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => {
+            resolve({ code: 0, stdout: 'aaa\trefs/heads/main\n', stderr: '' });
+          };
+        }),
     );
     const first = auto.poll();
     await vi.advanceTimersByTimeAsync(0);

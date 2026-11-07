@@ -350,6 +350,16 @@ describe('defaultRunner', () => {
     expect(result).toMatchObject({ code, stdout });
   });
 
+  test('stops a command that runs past the timeout', async () => {
+    // given
+    const run = defaultRunner;
+    // when
+    const result = await run(process.execPath, ['-e', 'setTimeout(() => undefined, 5000)'], undefined, 50);
+    // then
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toBe('timing out after 50ms');
+  });
+
   test('runs in the given working directory', async () => {
     // given
     const run = defaultRunner;

@@ -9,7 +9,7 @@ import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
 import { defaultRunner } from '@main/app/preflight';
 import { writeHooksFile } from '@main/sessions/hooksFile';
-import { currentBranch, findWorktree } from '@main/git/git';
+import { currentBranch, findWorktree, gitCommonDir } from '@main/git/git';
 import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { registerIpc } from '@main/ipc';
@@ -126,7 +126,14 @@ async function start(): Promise<() => number> {
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
   });
-  const stopAutoSync = new AutoSync({ sessions, status, getCard, prFor, run: defaultRunner }).start();
+  const stopAutoSync = new AutoSync({
+    sessions,
+    status,
+    getCard,
+    prFor,
+    run: defaultRunner,
+    commonDir: gitCommonDir,
+  }).start();
   app.on('will-quit', () => {
     stopAutoSync();
     sessions.killAll();
