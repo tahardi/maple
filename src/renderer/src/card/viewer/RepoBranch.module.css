@@ -1,0 +1,34 @@
+.repo {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.field {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.field dt {
+  flex-shrink: 0;
+  width: 4.5em;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.field dd {
+  margin: 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.branch {
+  font-family: monospace;
+}

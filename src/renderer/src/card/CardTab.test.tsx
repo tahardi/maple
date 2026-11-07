@@ -431,7 +431,7 @@ describe('CardTab', () => {
       },
       steps: async () => {
         await screen.findByRole('tab', { name: 'PR description' });
-        await userEvent.click(await screen.findByRole('button', { name: 'Card description' }));
+        await userEvent.click(await screen.findByTitle('Open card description'));
         await userEvent.click(screen.getByRole('button', { name: 'All files' }));
         await userEvent.click(screen.getByText('README.md', { selector: 'li span' }));
         await userEvent.click(screen.getByText('a.ts'));
@@ -540,7 +540,7 @@ describe('CardTab', () => {
     expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
   });
 
-  test('keeps the PR description closed until Full description opens it', async () => {
+  test('keeps the PR description closed until the PR number opens it', async () => {
     // given
     fakeRepo(true);
     render(<CardTab tab={tab} />);
@@ -551,7 +551,7 @@ describe('CardTab', () => {
     // then
     expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['a.ts']);
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Full description' }));
+    await userEvent.click(screen.getByRole('button', { name: 'PR #13' }));
     // then
     expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
   });
@@ -571,24 +571,24 @@ describe('CardTab', () => {
     fakeRepo(true, [card('MPL-20', 'In Progress', { descriptionMd: '## Goal' })]);
     // when
     render(<CardTab tab={tab} />);
-    await screen.findByRole('button', { name: 'Card description' });
+    await screen.findByTitle('Open card description');
     // then
     expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
     expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['PR description']);
   });
 
-  test('Card description opens the card description', async () => {
+  test('the card title opens the card description', async () => {
     // given
     fakeRepo(true, [card('MPL-20', 'In Progress', { descriptionMd: '## Goal' })]);
     render(<CardTab tab={tab} />);
     await screen.findByRole('tab', { name: 'PR description' });
     // when
-    await userEvent.click(await screen.findByRole('button', { name: 'Card description' }));
+    await userEvent.click(await screen.findByTitle('Open card description'));
     // then
     expect(screen.getByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Close Card description' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Card description' }));
+    await userEvent.click(screen.getByTitle('Open card description'));
     // then
     expect(screen.getByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
   });
@@ -622,7 +622,7 @@ describe('CardTab', () => {
       });
     });
     // then
-    expect(await screen.findByRole('button', { name: 'Card description' })).toBeInTheDocument();
+    expect(await screen.findByTitle('Open card description')).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Card description' })).not.toBeInTheDocument();
   });
 
@@ -637,14 +637,14 @@ describe('CardTab', () => {
     expect(screen.getByRole('button', { name: 'Vault', pressed: true })).toBeInTheDocument();
   });
 
-  test('shows no Card description button without the card', async () => {
+  test('the card title opens nothing without the card', async () => {
     // given
     fakeRepo(false);
     // when
     render(<CardTab tab={tab} />);
     await screen.findByText('README.md');
     // then
-    expect(screen.queryByRole('button', { name: 'Card description' })).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Open card description')).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Card description' })).not.toBeInTheDocument();
   });
 
@@ -691,7 +691,9 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     // then
     const slot = within(screen.getByTestId('tree-slot'));
-    expect(await slot.findByText('maple · mpl-20-file-tree')).toBeInTheDocument();
+    expect((await slot.findAllByRole('term')).map((t) => t.textContent)).toEqual(['Repo', 'Branch']);
+    expect(slot.getByText('maple')).toBeInTheDocument();
+    expect(slot.getByText('mpl-20-file-tree')).toBeInTheDocument();
   });
 
   test('hides the repo name and branch in the vault tree', async () => {
@@ -701,12 +703,12 @@ describe('CardTab', () => {
     });
     fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }) } });
     render(<CardTab tab={tab} />);
-    await screen.findByTestId('file-tree-title');
+    await screen.findByTestId('repo-branch');
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
     // then
     expect(screen.getByRole('button', { name: 'Vault', pressed: true })).toBeInTheDocument();
-    expect(screen.queryByTestId('file-tree-title')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('repo-branch')).not.toBeInTheDocument();
   });
 
   test('keeps the active file when closing another file tab', async () => {
