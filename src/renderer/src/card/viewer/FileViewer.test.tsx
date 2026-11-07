@@ -8,6 +8,7 @@ import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { FileViewer } from './FileViewer';
 import { PR_DESCRIPTION } from '@renderer/card/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/cardDescription';
+import { MERGE_CONFLICTS } from '@renderer/card/mergeConflicts';
 
 vi.mock('./monacoSetup', () => ({}));
 
@@ -271,9 +272,28 @@ describe('FileViewer', () => {
   });
 
   test.each([
-    { name: 'PR description', path: PR_DESCRIPTION, prBody: '## Summary\n\nHello', cardBody: undefined },
-    { name: 'Card description', path: CARD_DESCRIPTION, prBody: null, cardBody: '## Summary\n\nShip it' },
-  ])('renders the $name as Markdown', ({ name, path, prBody, cardBody }) => {
+    {
+      name: 'PR description',
+      path: PR_DESCRIPTION,
+      prBody: '## Summary\n\nHello',
+      cardBody: undefined,
+      conflictsBody: undefined,
+    },
+    {
+      name: 'Card description',
+      path: CARD_DESCRIPTION,
+      prBody: null,
+      cardBody: '## Summary\n\nShip it',
+      conflictsBody: undefined,
+    },
+    {
+      name: 'Merge conflicts',
+      path: MERGE_CONFLICTS,
+      prBody: null,
+      cardBody: undefined,
+      conflictsBody: '## Summary\n\nBoth sides',
+    },
+  ])('renders the $name as Markdown', ({ name, path, prBody, cardBody, conflictsBody }) => {
     // given
     const readFile = vi.fn();
     const onChanged = vi.fn();
@@ -288,6 +308,7 @@ describe('FileViewer', () => {
         onCloseFiles={vi.fn()}
         prBody={prBody}
         cardBody={cardBody}
+        conflictsBody={conflictsBody}
         line={null}
         canComment={false}
         prFetchedAt={null}
@@ -304,6 +325,7 @@ describe('FileViewer', () => {
   test.each([
     { name: 'PR description', path: PR_DESCRIPTION },
     { name: 'Card description', path: CARD_DESCRIPTION },
+    { name: 'Merge conflicts', path: MERGE_CONFLICTS },
   ])('closes the $name from its tab', async ({ name, path }) => {
     // given
     const onCloseFiles = vi.fn();

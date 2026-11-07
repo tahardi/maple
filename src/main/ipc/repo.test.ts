@@ -7,22 +7,34 @@ import { registerRepo } from './repo';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, changes, currentBranch, listFiles, mergeBase, readFilePair, repoName, searchFiles, writeWorktreeFile } =
-  vi.hoisted(() => ({
-    handle: vi.fn<(channel: string, handler: Handler) => void>(),
-    changes: vi.fn(),
-    currentBranch: vi.fn(),
-    listFiles: vi.fn(),
-    mergeBase: vi.fn(),
-    readFilePair: vi.fn(),
-    repoName: vi.fn(),
-    searchFiles: vi.fn(),
-    writeWorktreeFile: vi.fn(),
-  }));
+const {
+  handle,
+  changes,
+  conflictReport,
+  currentBranch,
+  listFiles,
+  mergeBase,
+  readFilePair,
+  repoName,
+  searchFiles,
+  writeWorktreeFile,
+} = vi.hoisted(() => ({
+  handle: vi.fn<(channel: string, handler: Handler) => void>(),
+  changes: vi.fn(),
+  conflictReport: vi.fn(),
+  currentBranch: vi.fn(),
+  listFiles: vi.fn(),
+  mergeBase: vi.fn(),
+  readFilePair: vi.fn(),
+  repoName: vi.fn(),
+  searchFiles: vi.fn(),
+  writeWorktreeFile: vi.fn(),
+}));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 vi.mock('@main/git/git', () => ({
   changes,
+  conflictReport,
   currentBranch,
   listFiles,
   mergeBase,
@@ -73,6 +85,7 @@ describe('registerRepo', () => {
 
   test.each([
     { channel: 'repo:changes', args: ['t1'], fail: changes },
+    { channel: 'repo:conflicts', args: ['t1'], fail: conflictReport },
     { channel: 'repo:info', args: ['t1'], fail: repoName },
     { channel: 'repo:info', args: ['t1'], fail: currentBranch },
     { channel: 'repo:listFiles', args: ['t1'], fail: listFiles },
@@ -142,5 +155,25 @@ describe('registerRepo', () => {
     // then
     expect(searchFiles).toHaveBeenCalledWith('/wt', 'needle');
     expect(got).toEqual([{ path: 'a.ts', line: 3, text: 'needle' }]);
+  });
+
+  test('repo:conflicts reads the report in the tab worktree', async () => {
+    // given
+    conflictReport.mockResolvedValue('# report');
+    // when
+    const got = await invoke('repo:conflicts', 't1');
+    // then
+    expect(conflictReport).toHaveBeenCalledWith('/wt');
+    expect(got).toBe('# report');
+  });
+
+  test('repo:conflicts returns null for a tab without a worktree', async () => {
+    // given
+    worktree = null;
+    // when
+    const got = await invoke('repo:conflicts', 't1');
+    // then
+    expect(got).toBeNull();
+    expect(conflictReport).not.toHaveBeenCalled();
   });
 });

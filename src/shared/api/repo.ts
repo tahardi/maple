@@ -5,6 +5,7 @@ import type { Unsubscribe } from '../types/app';
 export type RepoApi = {
   changes(tabId: string): Promise<ChangeSet | null>;
   listFiles(tabId: string): Promise<string[]>;
+  conflicts(tabId: string): Promise<string | null>;
   info(tabId: string): Promise<RepoInfo | null>;
   readFile(tabId: string, path: string): Promise<FilePair>;
   writeFile(tabId: string, path: string, text: string): Promise<void>;
@@ -15,6 +16,7 @@ export type RepoApi = {
 export const REPO_CHANNELS = {
   changes: 'invoke',
   listFiles: 'invoke',
+  conflicts: 'invoke',
   info: 'invoke',
   readFile: 'invoke',
   writeFile: 'invoke',

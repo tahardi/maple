@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import {
   changes,
   changedSince,
+  conflictReport,
   currentBranch,
   findWorktree,
   listFiles,
@@ -273,6 +274,44 @@ describe('git', () => {
     const pair = await readFilePair(worktree, base, 'alias.txt');
     // then
     expect(pair).toEqual({ kind: 'text', path: 'alias.txt', base: null, current: 'a\nb\nc\n' });
+  });
+
+  test('conflictReport reads maple-conflicts.md from the worktree git dir', async () => {
+    // given
+    const text = '**Why:** both sides changed parse\n';
+    writeFileSync(join(root, 'repo', '.git', 'worktrees', 'maple-mpl-1-feature', 'maple-conflicts.md'), text);
+    // when
+    const report = await conflictReport(worktree);
+    // then
+    expect(report).toBe(text);
+  });
+
+  test('conflictReport reads the report from the main checkout git dir', async () => {
+    // given
+    const repo = join(root, 'repo');
+    writeFileSync(join(repo, '.git', 'maple-conflicts.md'), '**Why:** main\n');
+    // when
+    const report = await conflictReport(repo);
+    // then
+    expect(report).toBe('**Why:** main\n');
+  });
+
+  test('conflictReport rejects when the worktree is gone', async () => {
+    // given
+    rmSync(worktree, { recursive: true, force: true });
+    // when
+    const report = conflictReport(worktree);
+    // then
+    await expect(report).rejects.toThrow('running git rev-parse');
+  });
+
+  test('conflictReport returns null when there is no report', async () => {
+    // given
+    const clean = worktree;
+    // when
+    const report = await conflictReport(clean);
+    // then
+    expect(report).toBeNull();
   });
 
   test('findWorktree finds the worktree dir by card key', async () => {

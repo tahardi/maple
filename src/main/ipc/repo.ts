@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   changes,
+  conflictReport,
   currentBranch,
   listFiles,
   mergeBase,
@@ -43,6 +44,12 @@ export function registerRepo(deps: IpcDeps, logger: Logger = appLogger): void {
     logFailure(logger, 'repo', { operation: 'repo:listFiles', args: [tabId] }, () => {
       const path = worktreeFor(tabId);
       return path === null ? [] : listFiles(path);
+    }),
+  );
+  handle('repo:conflicts', z.tuple([tabIdArg]), (tabId) =>
+    logFailure(logger, 'repo', { operation: 'repo:conflicts', args: [tabId] }, () => {
+      const path = worktreeFor(tabId);
+      return path === null ? null : conflictReport(path);
     }),
   );
   handle('repo:info', z.tuple([tabIdArg]), (tabId) =>
