@@ -12,7 +12,7 @@ describe('ProjectMenu', () => {
     useMaple.setState({ config: FAKE_CONFIG, projectKey: 'BEAR' });
   });
 
-  const openMenu = () => userEvent.click(screen.getByRole('button', { name: 'Project' }));
+  const openMenu = () => userEvent.click(screen.getByRole('button', { name: /^Project/ }));
   const rows = () => screen.getAllByRole('menuitemradio').map((o) => o.textContent);
 
   test('lists every project with its Jira key', async () => {
@@ -31,7 +31,7 @@ describe('ProjectMenu', () => {
     // when
     await openMenu();
     // then
-    expect(screen.getByRole('button', { name: 'Project' })).toHaveTextContent('Dig Days (DIG)');
+    expect(screen.getByRole('button', { name: /^Project/ })).toHaveTextContent('Dig Days (DIG)');
     expect(screen.getByRole('menuitemradio', { checked: true })).toHaveTextContent('Dig Days (DIG)');
   });
 
@@ -71,18 +71,56 @@ describe('ProjectMenu', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
-  test.each([
-    { name: 'no project is selected', state: { projectKey: null }, rows: 2 },
-    { name: 'the config has not loaded', state: { config: null, projectKey: null }, rows: 0 },
-  ])('still opens when $name', async ({ state, rows: want }) => {
+  test('names the current project to screen readers and in the tooltip', () => {
     // given
-    useMaple.setState(state);
+    useMaple.setState({ projectKey: 'DIG' });
+    // when
+    render(<ProjectMenu />);
+    // then
+    const button = screen.getByRole('button', { name: 'Project: Dig Days (DIG)' });
+    expect(button).toHaveAttribute('title', 'Dig Days (DIG)');
+  });
+
+  test('says when no project is selected', () => {
+    // given
+    useMaple.setState({ projectKey: null });
+    // when
+    render(<ProjectMenu />);
+    // then
+    expect(screen.getByRole('button', { name: 'Project: No project selected' })).toBeInTheDocument();
+  });
+
+  test('says when there are no projects', async () => {
+    // given
+    useMaple.setState({ config: null, projectKey: null });
     render(<ProjectMenu />);
     // when
     await openMenu();
     // then
-    expect(screen.getByRole('button', { name: 'Project' })).toHaveTextContent('▾');
-    expect(screen.queryAllByRole('menuitemradio')).toHaveLength(want);
+    expect(screen.getByText('No projects')).toBeInTheDocument();
+    expect(screen.queryByRole('menuitemradio')).not.toBeInTheDocument();
+  });
+
+  test('opening focuses the selected project and arrow keys move through the list', async () => {
+    // given
+    render(<ProjectMenu />);
+    await openMenu();
+    expect(screen.getByRole('menuitemradio', { name: 'Bearclave (BEAR)' })).toHaveFocus();
+    // when
+    await userEvent.keyboard('{ArrowDown}');
+    // then
+    expect(screen.getByRole('menuitemradio', { name: 'Dig Days (DIG)' })).toHaveFocus();
+  });
+
+  test('Escape closes the menu and returns focus to the button', async () => {
+    // given
+    render(<ProjectMenu />);
+    await openMenu();
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Project/ })).toHaveFocus();
   });
 
   test('shows waiting and ready counts for projects that have them', async () => {
