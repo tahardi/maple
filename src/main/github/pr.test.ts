@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { approveAndMerge, diffLines, headCommit, prForBranch } from './pr';
+import { approveAndMerge, diffLines, prForBranch } from './pr';
 import type { Runner } from '@main/app/preflight';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');
@@ -127,15 +127,18 @@ describe('prForBranch', () => {
 });
 
 describe('diffLines', () => {
+  const base = 'b'.repeat(40);
+  const head = 'a'.repeat(40);
+
   test('maps each file to the new-side ranges of its hunks', async () => {
     // given
-    const run = vi.fn<Runner>(() => Promise.resolve(ok(fixture('pr-files.json'))));
+    const run = vi.fn<Runner>(() => Promise.resolve(ok(fixture('compare-files.json'))));
     // when
-    const result = await diffLines(run, '/wt', 53);
+    const result = await diffLines(run, '/wt', base, head);
     // then
     expect(run).toHaveBeenCalledWith(
       'gh',
-      ['api', '--paginate', '--slurp', 'repos/{owner}/{repo}/pulls/53/files'],
+      ['api', `repos/{owner}/{repo}/compare/${base}...${head}`, '--jq', '.files'],
       '/wt',
     );
     expect(result).toEqual({
@@ -161,47 +164,13 @@ describe('diffLines', () => {
     });
   });
 
-  test('joins the files from every page', async () => {
-    // given
-    const pages = JSON.stringify([
-      [{ filename: 'a.ts', patch: '@@ -1 +1 @@\n-a\n+b' }],
-      [{ filename: 'b.ts', patch: '@@ -3,2 +3,4 @@\n x\n+y\n+z\n w' }],
-    ]);
-    const run = vi.fn<Runner>(() => Promise.resolve(ok(pages)));
-    // when
-    const result = await diffLines(run, '/wt', 53);
-    // then
-    expect(result).toEqual({ 'a.ts': [[1, 1]], 'b.ts': [[3, 6]] });
-  });
-
   test('rejects with the gh error', async () => {
     // given
     const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'offline' }));
     // when
-    const result = diffLines(run, '/wt', 53);
+    const result = diffLines(run, '/wt', base, head);
     // then
     await expect(result).rejects.toThrow('listing PR files: offline');
-  });
-});
-
-describe('headCommit', () => {
-  test('returns the PR head commit', async () => {
-    // given
-    const run = vi.fn<Runner>(() => Promise.resolve(ok('abc123\n')));
-    // when
-    const head = await headCommit(run, '/wt', 33);
-    // then
-    expect(head).toBe('abc123');
-    expect(run).toHaveBeenCalledWith('gh', ['pr', 'view', '33', '--json', 'headRefOid', '--jq', '.headRefOid'], '/wt');
-  });
-
-  test('rejects with the gh error', async () => {
-    // given
-    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'no pull requests found' }));
-    // when
-    const result = headCommit(run, '/wt', 33);
-    // then
-    await expect(result).rejects.toThrow('reading PR head: no pull requests found');
   });
 });
 

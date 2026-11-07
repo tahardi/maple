@@ -11,13 +11,15 @@ type Reply = { code: number; stdout: string; stderr: string };
 const ok = (stdout: string): Reply => ({ code: 0, stdout, stderr: '' });
 
 describe('commentOnLine', () => {
-  test('posts a review comment on the PR head commit', async () => {
+  const sha = 'a'.repeat(40);
+
+  test('posts a review comment on the given commit', async () => {
     // given
-    const run = vi.fn<Runner>((_cmd, args) => Promise.resolve(ok(args[0] === 'pr' ? 'abc123\n' : '')));
+    const run = vi.fn<Runner>(() => Promise.resolve(ok('')));
     // when
-    await commentOnLine(run, '/wt', 33, { path: 'src/a.ts', startLine: null, line: 3, body: 'why?' });
+    await commentOnLine(run, '/wt', 33, sha, { path: 'src/a.ts', startLine: null, line: 3, body: 'why?' });
     // then
-    expect(run).toHaveBeenCalledWith('gh', ['pr', 'view', '33', '--json', 'headRefOid', '--jq', '.headRefOid'], '/wt');
+    expect(run).toHaveBeenCalledTimes(1);
     expect(run).toHaveBeenCalledWith(
       'gh',
       [
@@ -28,7 +30,7 @@ describe('commentOnLine', () => {
         '-f',
         'body=why?',
         '-f',
-        'commit_id=abc123',
+        `commit_id=${sha}`,
         '-f',
         'path=src/a.ts',
         '-F',
@@ -42,9 +44,9 @@ describe('commentOnLine', () => {
 
   test('posts a comment on a range of lines with its first line', async () => {
     // given
-    const run = vi.fn<Runner>((_cmd, args) => Promise.resolve(ok(args[0] === 'pr' ? 'abc123\n' : '')));
+    const run = vi.fn<Runner>(() => Promise.resolve(ok('')));
     // when
-    await commentOnLine(run, '/wt', 33, { path: 'src/a.ts', startLine: 1, line: 3, body: 'why?' });
+    await commentOnLine(run, '/wt', 33, sha, { path: 'src/a.ts', startLine: 1, line: 3, body: 'why?' });
     // then
     expect(run).toHaveBeenCalledWith(
       'gh',
@@ -56,7 +58,7 @@ describe('commentOnLine', () => {
         '-f',
         'body=why?',
         '-f',
-        'commit_id=abc123',
+        `commit_id=${sha}`,
         '-f',
         'path=src/a.ts',
         '-F',
@@ -117,25 +119,11 @@ describe('commentOnLine', () => {
     },
   ])('rejects with $name', async ({ stdout, want }) => {
     // given
-    const run = vi.fn<Runner>((_cmd, args) =>
-      Promise.resolve(
-        args[0] === 'pr' ? ok('abc123\n') : { code: 1, stdout, stderr: 'gh: Validation Failed (HTTP 422)' },
-      ),
-    );
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout, stderr: 'gh: Validation Failed (HTTP 422)' }));
     // when
-    const result = commentOnLine(run, '/wt', 33, { path: 'src/a.ts', startLine: null, line: 3, body: 'why?' });
+    const result = commentOnLine(run, '/wt', 33, sha, { path: 'src/a.ts', startLine: null, line: 3, body: 'why?' });
     // then
     await expect(result).rejects.toThrow(new Error(want));
-  });
-
-  test('rejects and posts nothing when the head commit lookup fails', async () => {
-    // given
-    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '', stderr: 'no pull requests found' }));
-    // when
-    const result = commentOnLine(run, '/wt', 33, { path: 'src/a.ts', startLine: null, line: 3, body: 'why?' });
-    // then
-    await expect(result).rejects.toThrow('commenting on line: reading PR head: no pull requests found');
-    expect(run).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -189,16 +189,28 @@ const disconnect = vi.fn();
 
 const changed: FilePair = { kind: 'text', path: 'src/a.ts', current: 'new\n', base: 'old\n' };
 
+const reviewed: Review = {
+  number: 7,
+  headSha: 'a'.repeat(40),
+  baseSha: 'c'.repeat(40),
+  added: 0,
+  removed: 0,
+  files: [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: 'f'.repeat(40) }],
+  findings: [],
+};
+
 function renderViewer(
   pair: FilePair,
   writeFile = vi.fn(() => Promise.resolve()),
   canComment = false,
   comments = vi.fn(() => Promise.resolve<ReviewComment[]>([])),
-  diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] })),
+  diffLines: MapleApi['pr']['diffLines'] = vi.fn(() =>
+    Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } }),
+  ),
 ) {
   const maple = fakeMaple({
     repo: { readFile: () => Promise.resolve(pair), writeFile },
-    pr: { comments, diffLines },
+    pr: { comments, diffLines, readFile: () => Promise.resolve(pair) },
   });
   const props = {
     tabId: 't1',
@@ -210,6 +222,7 @@ function renderViewer(
     line: null,
     canComment,
     prFetchedAt: null,
+    review: canComment ? reviewed : null,
     preview: 'README.md',
     onPin: vi.fn(),
   };
@@ -2074,31 +2087,23 @@ describe('FileViewer', () => {
 
   test('leaves the cursor where it is when the file reloads under an open form', async () => {
     // given
-    let changedCb: () => void = () => undefined;
     const readFile = vi.fn(() => Promise.resolve<FilePair>({ ...changed }));
     fakeMaple({
-      repo: {
-        readFile,
-        onChanged: (_tabId, cb) => {
-          changedCb = cb;
-          return () => undefined;
-        },
-      },
-      pr: { diffLines: () => Promise.resolve({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }) },
+      pr: { readFile, diffLines: () => Promise.resolve({ ranges: { 'src/a.ts': [[1, 10]] } }) },
     });
-    render(
-      <FileViewer
-        tabId="t1"
-        openFiles={['src/a.ts']}
-        activeFile="src/a.ts"
-        onActivate={vi.fn()}
-        onCloseFiles={vi.fn()}
-        prBody={null}
-        line={null}
-        canComment
-        prFetchedAt={null}
-      />,
-    );
+    const props = {
+      tabId: 't1',
+      openFiles: ['src/a.ts'],
+      activeFile: 'src/a.ts',
+      onActivate: vi.fn(),
+      onCloseFiles: vi.fn(),
+      prBody: null,
+      line: null,
+      canComment: true,
+      prFetchedAt: null,
+      review: reviewed,
+    };
+    const { rerender } = render(<FileViewer {...props} />);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
       expect(button).not.toHaveAttribute('title');
@@ -2108,7 +2113,7 @@ describe('FileViewer', () => {
     const box = within(zone.domNode).getByRole('textbox');
     const focus = vi.spyOn(box, 'focus');
     // when
-    changedCb();
+    rerender(<FileViewer {...props} review={{ ...reviewed, headSha: 'b'.repeat(40) }} />);
     // then
     await vi.waitFor(() => {
       expect(readFile).toHaveBeenCalledTimes(2);
@@ -2269,8 +2274,11 @@ describe('FileViewer', () => {
     // given
     const comment = vi.fn(() => Promise.resolve());
     fakeMaple({
-      repo: { readFile: () => Promise.resolve(changed) },
-      pr: { comment, diffLines: () => Promise.resolve({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }) },
+      pr: {
+        comment,
+        readFile: () => Promise.resolve(changed),
+        diffLines: () => Promise.resolve({ ranges: { 'src/a.ts': [[1, 10]] } }),
+      },
     });
     render(
       <FileViewer
@@ -2283,6 +2291,7 @@ describe('FileViewer', () => {
         line={null}
         canComment
         prFetchedAt={null}
+        review={reviewed}
       />,
     );
     const button = await screen.findByRole('button', { name: 'Comment' });
@@ -2299,12 +2308,12 @@ describe('FileViewer', () => {
     fireEvent.change(form.getByRole('textbox'), { target: { value: 'why?' } });
     fireEvent.click(form.getByRole('button', { name: 'Post' }));
     // then
-    expect(comment).toHaveBeenCalledWith('t1', 'src/a.ts', 2, 4, 'why?');
+    expect(comment).toHaveBeenCalledWith('t1', 'src/a.ts', 2, 4, 'why?', reviewed.headSha);
   });
 
   test('explains why Comment does nothing on lines that leave the PR diff', async () => {
     // given
-    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }));
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } }));
     renderViewer(changed, undefined, true, undefined, diffLines);
     await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
@@ -2322,27 +2331,15 @@ describe('FileViewer', () => {
   test.each<{ name: string; lines: DiffLines; cursor: number; reason: string }>([
     {
       name: 'outside the PR diff',
-      lines: { ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] },
+      lines: { ranges: { 'src/a.ts': [[1, 10]] } },
       cursor: 20,
       reason: 'GitHub only accepts comments on lines in the PR diff',
     },
     {
       name: 'in a file the PR does not change',
-      lines: { ranges: { 'README.md': [[1, 10]] }, unpushed: [] },
+      lines: { ranges: { 'README.md': [[1, 10]] } },
       cursor: 3,
       reason: 'GitHub only accepts comments on lines in the PR diff',
-    },
-    {
-      name: 'in a file with edits that are not pushed',
-      lines: { ranges: { 'src/a.ts': [[1, 10]] }, unpushed: ['src/a.ts'] },
-      cursor: 3,
-      reason: 'Push your edits first: line numbers would not match the PR',
-    },
-    {
-      name: 'outside the PR diff in a file with edits that are not pushed',
-      lines: { ranges: { 'src/a.ts': [[1, 10]] }, unpushed: ['src/a.ts'] },
-      cursor: 20,
-      reason: 'Push your edits first: line numbers would not match the PR',
     },
   ])('explains why Comment does nothing on a line $name', async ({ lines, cursor, reason }) => {
     // given
@@ -2362,7 +2359,7 @@ describe('FileViewer', () => {
 
   test('drops the explanation and opens the form once the cursor moves into the PR diff', async () => {
     // given
-    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }));
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } }));
     renderViewer(changed, undefined, true, undefined, diffLines);
     await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
@@ -2379,6 +2376,104 @@ describe('FileViewer', () => {
     const [zone] = monaco.zones.addZone.mock.calls[0];
     expect(zone.afterLineNumber).toBe(10);
     within(zone.domNode).getByRole('heading', { name: 'Comment on src/a.ts:10' });
+  });
+
+  test('reads the diff ranges at the review commits', async () => {
+    // given
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: {} }));
+    // when
+    renderViewer(changed, undefined, true, undefined, diffLines);
+    // then
+    await vi.waitFor(() => {
+      expect(diffLines).toHaveBeenCalledWith('t1', reviewed.baseSha, reviewed.headSha);
+    });
+  });
+
+  test('asks for the ranges again after the review reloads', async () => {
+    // given
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: {} }));
+    const { props, rerender } = renderViewer(changed, undefined, true, undefined, diffLines);
+    await vi.waitFor(() => {
+      expect(diffLines).toHaveBeenCalledTimes(1);
+    });
+    const next = { ...reviewed, headSha: 'b'.repeat(40) };
+    // when
+    rerender(<FileViewer {...props} review={next} />);
+    // then
+    await vi.waitFor(() => {
+      expect(diffLines).toHaveBeenCalledWith('t1', reviewed.baseSha, next.headSha);
+    });
+  });
+
+  test('keeps Comment refused until the ranges for the new review arrive', async () => {
+    // given
+    const next = { ...reviewed, headSha: 'b'.repeat(40) };
+    const diffLines = vi.fn((_tabId: string, _base: string, head: string) =>
+      head === reviewed.headSha
+        ? Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } })
+        : new Promise<DiffLines>(() => undefined),
+    );
+    const { props, rerender } = renderViewer(changed, undefined, true, undefined, diffLines);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    // when
+    rerender(<FileViewer {...props} review={next} />);
+    // then
+    await vi.waitFor(() => {
+      expect(diffLines).toHaveBeenCalledWith('t1', reviewed.baseSha, next.headSha);
+    });
+    expect(screen.getByRole('button', { name: 'Comment' })).toHaveAttribute(
+      'title',
+      'GitHub only accepts comments on lines in the PR diff',
+    );
+  });
+
+  test('removes the form zone when the review goes away', async () => {
+    // given
+    const { props, rerender } = renderViewer(changed, undefined, true);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(button).not.toHaveAttribute('title');
+    });
+    await userEvent.click(button);
+    expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
+    // when
+    rerender(<FileViewer {...props} review={null} />);
+    // then
+    await vi.waitFor(() => {
+      expect(monaco.zones.removeZone).toHaveBeenCalledWith('z1');
+    });
+  });
+
+  test('explains why Comment does nothing without a loaded review', async () => {
+    // given
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } }));
+    fakeMaple({ repo: { readFile: () => Promise.resolve(changed) }, pr: { diffLines } });
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFiles={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment
+        prFetchedAt={null}
+        review={null}
+      />,
+    );
+    await screen.findByRole('button', { name: 'Comment' });
+    await moveCursor(select(3, 3));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Can't comment on line 3. Review not loaded: comments pin to the reviewed commit",
+    );
+    expect(diffLines).not.toHaveBeenCalled();
   });
 
   test.each<{ name: string; canComment: boolean; mode: string; pair: FilePair; testId: string }>([
@@ -2717,7 +2812,7 @@ describe('FileViewer', () => {
 
   test('re-reads the PR diff when another file opens', async () => {
     // given
-    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: {}, unpushed: [] }));
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: {} }));
     const { props, rerender } = renderViewer(changed, undefined, true, undefined, diffLines);
     await vi.waitFor(() => {
       expect(diffLines).toHaveBeenCalledTimes(1);
@@ -2733,7 +2828,7 @@ describe('FileViewer', () => {
   test('re-reads the review comments and the PR diff after posting one', async () => {
     // given
     const comments = vi.fn(() => Promise.resolve([]));
-    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] }, unpushed: [] }));
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } }));
     renderViewer(changed, undefined, true, comments, diffLines);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
@@ -2750,7 +2845,7 @@ describe('FileViewer', () => {
       expect(comments).toHaveBeenCalledTimes(2);
       expect(diffLines).toHaveBeenCalledTimes(2);
     });
-    expect(diffLines).toHaveBeenCalledWith('t1');
+    expect(diffLines).toHaveBeenCalledWith('t1', reviewed.baseSha, reviewed.headSha);
     expect(monaco.zones.removeZone).toHaveBeenCalledWith('z1');
   });
 

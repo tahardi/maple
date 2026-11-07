@@ -22,7 +22,7 @@ const checksSchema = z.array(
   }),
 );
 
-const filesSchema = z.array(z.array(z.object({ filename: z.string(), patch: z.string().optional() })));
+const filesSchema = z.array(z.object({ filename: z.string(), patch: z.string().optional() }));
 
 const pinSchema = z.object({ headRefOid: z.string(), headRefName: z.string(), baseRefName: z.string() });
 
@@ -69,37 +69,21 @@ export async function prForBranch(run: Runner, worktree: string, branch: string)
   return { ...pr, ...parsePrBody(pr.body), checks: await checksFor(run, worktree, pr.number) };
 }
 
-export async function headCommit(run: Runner, worktree: string, num: number): Promise<string> {
-  const { code, stdout, stderr } = await run(
-    'gh',
-    ['pr', 'view', String(num), '--json', 'headRefOid', '--jq', '.headRefOid'],
-    worktree,
-  );
-  if (code !== 0) {
-    throw new Error(`reading PR head: ${stderr}`);
-  }
-  return stdout.trim();
-}
-
 export async function diffLines(
   run: Runner,
   worktree: string,
-  num: number,
+  baseSha: string,
+  headSha: string,
 ): Promise<Record<string, readonly [number, number][]>> {
   const { code, stdout, stderr } = await run(
     'gh',
-    ['api', '--paginate', '--slurp', `repos/{owner}/{repo}/pulls/${String(num)}/files`],
+    ['api', `repos/{owner}/{repo}/compare/${baseSha}...${headSha}`, '--jq', '.files'],
     worktree,
   );
   if (code !== 0) {
     throw new Error(`listing PR files: ${stderr}`);
   }
-  return Object.fromEntries(
-    filesSchema
-      .parse(JSON.parse(stdout))
-      .flat()
-      .map((f) => [f.filename, hunkLines(f.patch ?? '')]),
-  );
+  return Object.fromEntries(filesSchema.parse(JSON.parse(stdout)).map((f) => [f.filename, hunkLines(f.patch ?? '')]));
 }
 
 async function ghOut(run: Runner, args: string[], doing: string): Promise<string> {

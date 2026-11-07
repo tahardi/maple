@@ -7,10 +7,11 @@ type Props = {
   path: string;
   startLine: number | null;
   line: number;
+  headSha: string;
   onDone: () => void;
 };
 
-export function LineComment({ tabId, path, startLine, line, onDone }: Props) {
+export function LineComment({ tabId, path, startLine, line, headSha, onDone }: Props) {
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +19,7 @@ export function LineComment({ tabId, path, startLine, line, onDone }: Props) {
   const post = () => {
     setPosting(true);
     setError(null);
-    window.maple.pr.comment(tabId, path, startLine, line, text).then(onDone, (err: unknown) => {
+    window.maple.pr.comment(tabId, path, startLine, line, text, headSha).then(onDone, (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       setError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
       setPosting(false);

@@ -49,11 +49,9 @@ const NO_DRAFTS: Record<string, Draft> = {};
 
 const NO_COMMENTS: ReviewComment[] = [];
 
-const NO_DIFF: DiffLines = { ranges: {}, unpushed: [] };
-
 const OUTSIDE_DIFF = 'GitHub only accepts comments on lines in the PR diff';
 
-const NOT_PUSHED = 'Push your edits first: line numbers would not match the PR';
+const NO_REVIEW = 'Review not loaded: comments pin to the reviewed commit';
 
 const NO_COPY = 'No saved copy of this note from this session';
 
@@ -151,7 +149,7 @@ export function FileViewer({
   const [refused, setRefused] = useState<({ path: string } & Lines) | null>(null);
   const [comments, setComments] = useState<ReviewComment[]>(NO_COMMENTS);
   const [commentsRead, setCommentsRead] = useState(0);
-  const [diff, setDiff] = useState<DiffLines>(NO_DIFF);
+  const [diff, setDiff] = useState<({ headSha: string } & DiffLines) | null>(null);
   const [picked, setPicked] = useState<{ editor: editor.ICodeEditor; lines: Lines } | null>(null);
   const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
 
@@ -300,7 +298,10 @@ export function FileViewer({
   const draft = text === null || review !== null ? null : Object.hasOwn(drafts, text.path) ? drafts[text.path] : null;
   const edited = draft?.text ?? text?.current ?? null;
   const commentable = canComment && text !== null && text.current !== null && !sideBySide && plain !== null;
-  const ranges = text !== null && Object.hasOwn(diff.ranges, text.path) ? diff.ranges[text.path] : [];
+  const ranges =
+    text !== null && diff !== null && diff.headSha === headSha && Object.hasOwn(diff.ranges, text.path)
+      ? diff.ranges[text.path]
+      : [];
   const shownSelection = plain?.getSelection() ?? null;
   const selected =
     picked !== null && picked.editor === plain
@@ -309,7 +310,7 @@ export function FileViewer({
         ? null
         : selectedLines(shownSelection);
   const inDiff = selected !== null && ranges.some(([start, end]) => start <= selected.start && selected.end <= end);
-  const blocked = text !== null && diff.unpushed.includes(text.path) ? NOT_PUSHED : inDiff ? null : OUTSIDE_DIFF;
+  const blocked = headSha === null ? NO_REVIEW : inDiff ? null : OUTSIDE_DIFF;
 
   const specs = useMemo(() => {
     if (showsChanges) {
@@ -360,14 +361,14 @@ export function FileViewer({
   }, [tabId, canComment, commentsRead, prFetchedAt, dot, onComments]);
 
   useEffect(() => {
-    if (!canComment) {
+    if (!canComment || headSha === null || baseSha === null) {
       return;
     }
     let live = true;
-    window.maple.pr.diffLines(tabId).then(
+    window.maple.pr.diffLines(tabId, baseSha, headSha).then(
       (next) => {
         if (live) {
-          setDiff(next);
+          setDiff({ headSha, ...next });
         }
       },
       () => undefined,
@@ -375,7 +376,7 @@ export function FileViewer({
     return () => {
       live = false;
     };
-  }, [tabId, canComment, commentsRead, activeFile]);
+  }, [tabId, canComment, commentsRead, activeFile, headSha, baseSha]);
 
   useEffect(() => {
     if (plain === null) {
@@ -400,8 +401,10 @@ export function FileViewer({
 
   const formItems = useMemo(
     () =>
-      commentable && commenting !== null && commenting.path === textPath ? [{ id: 'new', line: commenting.end }] : [],
-    [commentable, commenting, textPath],
+      commentable && headSha !== null && commenting !== null && commenting.path === textPath
+        ? [{ id: 'new', line: commenting.end }]
+        : [],
+    [commentable, headSha, commenting, textPath],
   );
 
   const forms = useLineZones(plain, formItems);
@@ -835,6 +838,7 @@ export function FileViewer({
         ),
       )}
       {commenting !== null &&
+        headSha !== null &&
         forms.map(({ node }) =>
           createPortal(
             <LineComment
@@ -842,6 +846,7 @@ export function FileViewer({
               path={commenting.path}
               startLine={commenting.start === commenting.end ? null : commenting.start}
               line={commenting.end}
+              headSha={headSha}
               onDone={() => {
                 setCommenting(null);
                 setCommentsRead((n) => n + 1);
