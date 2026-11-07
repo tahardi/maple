@@ -679,6 +679,149 @@ describe('CardTab', () => {
     expect(screen.getByRole('tab', { name: 'README.md', selected: true }).className).toMatch(/preview/);
   });
 
+  test('opens the merge conflicts tab and makes it active when the sync reports conflicts', async () => {
+    // given
+    fakeMaple({
+      repo: { conflicts: () => Promise.resolve('## Why\n\nBoth sides changed parse') },
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByRole('tab', { name: 'Merge conflicts', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Why' })).toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual([
+      'Merge conflicts',
+      'PR description',
+    ]);
+  });
+
+  test('closes the merge conflicts tab when the report is gone', async () => {
+    // given
+    const listeners: (() => void)[] = [];
+    const conflicts = vi
+      .fn<(tabId: string) => Promise<string | null>>()
+      .mockResolvedValueOnce('## Why\n\nBoth sides changed parse')
+      .mockResolvedValue(null);
+    fakeMaple({
+      repo: {
+        conflicts,
+        onChanged: (_tabId, callback) => {
+          listeners.push(callback);
+          return () => undefined;
+        },
+      },
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) },
+    });
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('tab', { name: 'Merge conflicts', selected: true });
+    // when
+    act(() => {
+      listeners.forEach((listener) => {
+        listener();
+      });
+    });
+    // then
+    expect(await screen.findByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Merge conflicts' })).not.toBeInTheDocument();
+  });
+
+  test('keeps a closed merge conflicts tab closed while the report stays', async () => {
+    // given
+    const listeners: (() => void)[] = [];
+    fakeMaple({
+      repo: {
+        conflicts: () => Promise.resolve('## Why'),
+        onChanged: (_tabId, callback) => {
+          listeners.push(callback);
+          return () => undefined;
+        },
+      },
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) },
+    });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Close Merge conflicts' }));
+    // when
+    act(() => {
+      listeners.forEach((listener) => {
+        listener();
+      });
+    });
+    // then
+    expect(await screen.findByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Merge conflicts' })).not.toBeInTheDocument();
+  });
+
+  test('reopens the merge conflicts tab when a new report follows a cleared one', async () => {
+    // given
+    const listeners: (() => void)[] = [];
+    const conflicts = vi
+      .fn<(tabId: string) => Promise<string | null>>()
+      .mockResolvedValueOnce('## First')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue('## Second');
+    fakeMaple({
+      repo: {
+        conflicts,
+        onChanged: (_tabId, callback) => {
+          listeners.push(callback);
+          return () => undefined;
+        },
+      },
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) },
+    });
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('heading', { name: 'First' });
+    act(() => {
+      listeners.forEach((listener) => {
+        listener();
+      });
+    });
+    await screen.findByRole('tab', { name: 'PR description', selected: true });
+    // when
+    act(() => {
+      listeners.forEach((listener) => {
+        listener();
+      });
+    });
+    // then
+    expect(await screen.findByRole('tab', { name: 'Merge conflicts', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Second' })).toBeInTheDocument();
+  });
+
+  test('keeps another active file active when the merge conflicts report is gone', async () => {
+    // given
+    const listeners: (() => void)[] = [];
+    const conflicts = vi
+      .fn<(tabId: string) => Promise<string | null>>()
+      .mockResolvedValueOnce('## Why')
+      .mockResolvedValue(null);
+    fakeMaple({
+      repo: {
+        conflicts,
+        listFiles: () => Promise.resolve(['README.md']),
+        onChanged: (_tabId, callback) => {
+          listeners.push(callback);
+          return () => undefined;
+        },
+      },
+    });
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('tab', { name: 'Merge conflicts', selected: true });
+    await userEvent.click(screen.getByText('README.md'));
+    // when
+    act(() => {
+      listeners.forEach((listener) => {
+        listener();
+      });
+    });
+    // then
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('tab', { name: 'Merge conflicts' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('tab', { name: 'README.md', selected: true })).toBeInTheDocument();
+  });
+
   test('shows the repo name and branch above the worktree file tree', async () => {
     // given
     fakeMaple({

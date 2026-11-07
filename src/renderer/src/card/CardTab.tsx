@@ -19,6 +19,7 @@ import { RepoBranch } from '@renderer/card/viewer/RepoBranch';
 import { QuickOpen } from '@renderer/card/viewer/QuickOpen';
 import { PR_DESCRIPTION } from './prDescription';
 import { CARD_DESCRIPTION } from './cardDescription';
+import { MERGE_CONFLICTS } from './mergeConflicts';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 import { useCardData } from './useCardData';
 import { useColumns } from './useColumns';
@@ -43,7 +44,7 @@ function branchName(worktreePath: string | null, cardKey: string): string | null
 }
 
 export function CardTab({ tab }: { tab: TabState }) {
-  const { changes, files, repo, pr, review, reloadReview, card, cost } = useCardData(tab);
+  const { changes, files, repo, pr, review, reloadReview, card, cost, conflicts } = useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
@@ -60,6 +61,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [confirmClose, setConfirmClose] = useState(false);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
   const [cardOpened, setCardOpened] = useState(false);
+  const [conflictsOpened, setConflictsOpened] = useState(false);
   const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
   const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
   const [vaultChangedOnly, setVaultChangedOnly] = useState(true);
@@ -189,6 +191,17 @@ export function CardTab({ tab }: { tab: TabState }) {
     }
   };
 
+  if (conflicts !== null && !conflictsOpened) {
+    setConflictsOpened(true);
+    setList((now) => ({ ...now, files: [MERGE_CONFLICTS, ...now.files] }));
+    activateFile(MERGE_CONFLICTS);
+  }
+
+  if (conflicts === null && conflictsOpened) {
+    setConflictsOpened(false);
+    closeTabs([MERGE_CONFLICTS]);
+  }
+
   const drag = (side: 'left' | 'right') => (e: React.PointerEvent) => {
     const rect = body.current?.getBoundingClientRect();
     if (!rect) {
@@ -292,6 +305,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 onActivate={activateFile}
                 onCloseFiles={closeTabs}
                 prBody={pr?.data?.body ?? null}
+                conflictsBody={conflicts}
                 cardBody={card?.descriptionMd}
                 canComment={pr?.data?.state === 'OPEN'}
                 prFetchedAt={pr?.fetchedAt ?? null}

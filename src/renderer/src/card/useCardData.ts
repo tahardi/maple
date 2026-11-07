@@ -13,6 +13,7 @@ type CardData = {
   pr: Fetched<PrInfo> | null;
   card: Card | null;
   cost: SessionCost | null;
+  conflicts: string | null;
 };
 
 type CardDataWithReview = CardData & { review: Fetched<Review> | null; reloadReview: () => void };
@@ -27,6 +28,7 @@ export function useCardData(tab: TabState): CardDataWithReview {
     pr: null,
     card: null,
     cost: null,
+    conflicts: null,
   });
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : null));
   const [loaded, setLoaded] = useState<{ number: number; review: Fetched<Review> } | null>(null);
@@ -37,13 +39,14 @@ export function useCardData(tab: TabState): CardDataWithReview {
   const load = useCallback(async (): Promise<void> => {
     const { maple } = window;
     const seq = ++latest.current;
-    const [changes, files, repo, pr, sprint, cost] = await Promise.all([
+    const [changes, files, repo, pr, sprint, cost, conflicts] = await Promise.all([
       worktreePath === null ? null : maple.repo.changes(id),
       worktreePath === null ? [] : maple.repo.listFiles(id),
       worktreePath === null ? null : maple.repo.info(id),
       maple.pr.get(id),
       maple.jira.sprint(projectKey),
       maple.tabs.cost(id),
+      worktreePath === null ? null : maple.repo.conflicts(id),
     ]);
     if (seq === latest.current) {
       setData({
@@ -53,6 +56,7 @@ export function useCardData(tab: TabState): CardDataWithReview {
         pr,
         card: sprint.data?.cards.find((c) => c.key === cardKey) ?? null,
         cost,
+        conflicts,
       });
     }
   }, [id, projectKey, cardKey, worktreePath]);

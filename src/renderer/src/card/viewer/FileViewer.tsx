@@ -15,6 +15,7 @@ import { LineComment } from '@renderer/card/comments/LineComment';
 import './monacoSetup';
 import { PR_DESCRIPTION } from '@renderer/card/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/cardDescription';
+import { MERGE_CONFLICTS } from '@renderer/card/mergeConflicts';
 import { useLineZones } from '@renderer/card/comments/useLineZones';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
 import { NoteOverview } from './overview/NoteOverview';
@@ -29,6 +30,7 @@ type Props = {
   onCloseFiles: (paths: readonly string[]) => void;
   prBody: string | null;
   cardBody?: string;
+  conflictsBody?: string | null;
   line: number | null;
   canComment: boolean;
   prFetchedAt: string | null;
@@ -89,6 +91,9 @@ function baseName(path: string): string {
   if (path === CARD_DESCRIPTION) {
     return 'Card description';
   }
+  if (path === MERGE_CONFLICTS) {
+    return 'Merge conflicts';
+  }
   const bare = path.startsWith(VAULT_PREFIX) ? path.slice(VAULT_PREFIX.length) : path;
   return bare.split('/').at(-1) ?? bare;
 }
@@ -101,6 +106,7 @@ export function FileViewer({
   onCloseFiles,
   prBody,
   cardBody,
+  conflictsBody,
   line,
   canComment,
   prFetchedAt,
@@ -139,16 +145,19 @@ export function FileViewer({
   const headSha = review?.headSha ?? null;
   const baseSha = review?.baseSha ?? null;
   const reviewOldPath = review?.files.find((f) => f.path === activeFile)?.oldPath ?? null;
-  const showsDescription = activeFile === PR_DESCRIPTION || activeFile === CARD_DESCRIPTION;
+  const showsDescription =
+    activeFile === PR_DESCRIPTION || activeFile === CARD_DESCRIPTION || activeFile === MERGE_CONFLICTS;
   const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
   const markdown =
     activeFile === PR_DESCRIPTION
       ? (prBody ?? '')
       : activeFile === CARD_DESCRIPTION
         ? (cardBody ?? '')
-        : note !== null && note.path === activeFile
-          ? note.text
-          : null;
+        : activeFile === MERGE_CONFLICTS
+          ? (conflictsBody ?? '')
+          : note !== null && note.path === activeFile
+            ? note.text
+            : null;
 
   const shownNote = showsNote && note !== null && note.path === activeFile ? note : null;
   const noteDraft = shownNote !== null && Object.hasOwn(drafts, shownNote.path) ? drafts[shownNote.path] : null;
@@ -198,6 +207,7 @@ export function FileViewer({
       activeFile === null ||
       activeFile === PR_DESCRIPTION ||
       activeFile === CARD_DESCRIPTION ||
+      activeFile === MERGE_CONFLICTS ||
       activeFile.startsWith(VAULT_PREFIX)
     ) {
       return;
@@ -705,7 +715,11 @@ export function FileViewer({
             >
               {label(path)}
               <button
-                aria-label={`Close ${path === PR_DESCRIPTION || path === CARD_DESCRIPTION ? baseName(path) : path}`}
+                aria-label={`Close ${
+                  path === PR_DESCRIPTION || path === CARD_DESCRIPTION || path === MERGE_CONFLICTS
+                    ? baseName(path)
+                    : path
+                }`}
                 className={styles.close}
                 onClick={(e) => {
                   e.stopPropagation();

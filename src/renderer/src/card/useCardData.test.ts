@@ -109,6 +109,40 @@ describe('useCardData', () => {
     expect(result.current.repo).toBeNull();
   });
 
+  test('loads the merge conflicts report for the tab', async () => {
+    // given
+    const conflicts = vi.fn<(tabId: string) => Promise<string | null>>(() => Promise.resolve('**Why:** x'));
+    fakeMaple({ repo: { conflicts } });
+    // when
+    const { result } = renderHook(() => useCardData(tab));
+    // then
+    await waitFor(() => {
+      expect(result.current.conflicts).toBe('**Why:** x');
+    });
+    expect(conflicts).toHaveBeenCalledWith('t1');
+  });
+
+  test('skips the merge conflicts report without a worktree', async () => {
+    // given
+    const want: SessionCost = {
+      inputTokens: 1,
+      outputTokens: 2,
+      cacheWriteTokens: 3,
+      cacheReadTokens: 4,
+      dollars: 0.01,
+    };
+    const conflicts = vi.fn<(tabId: string) => Promise<string | null>>(() => Promise.resolve('**Why:** x'));
+    fakeMaple({ repo: { conflicts }, tabs: { cost: () => Promise.resolve(want) } });
+    // when
+    const { result } = renderHook(() => useCardData({ ...tab, worktreePath: null }));
+    // then
+    await waitFor(() => {
+      expect(result.current.cost).toEqual(want);
+    });
+    expect(conflicts).not.toHaveBeenCalled();
+    expect(result.current.conflicts).toBeNull();
+  });
+
   test('leaves the repo info empty when the changes fail', async () => {
     // given
     const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(() =>

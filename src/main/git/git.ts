@@ -176,6 +176,12 @@ export async function changes(worktree: string): Promise<ChangeSet> {
   };
 }
 
+export async function conflictReport(worktree: string): Promise<string | null> {
+  const path = (await git(worktree, ['rev-parse', '--git-path', 'maple-conflicts.md'])).trim();
+  const data = await readOrNull(resolve(worktree, path));
+  return data?.toString('utf8') ?? null;
+}
+
 export async function listFiles(worktree: string): Promise<string[]> {
   return splitZ(await git(worktree, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']));
 }
