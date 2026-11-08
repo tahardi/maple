@@ -8,11 +8,18 @@ export type PrApi = {
   approve(tabId: string, headSha: string): Promise<void>;
   review(tabId: string): Promise<Fetched<Review>>;
   readFile(tabId: string, path: string, oldPath: string | null, baseSha: string, headSha: string): Promise<FilePair>;
-  comment(tabId: string, path: string, startLine: number | null, line: number, body: string): Promise<void>;
+  comment(
+    tabId: string,
+    path: string,
+    startLine: number | null,
+    line: number,
+    body: string,
+    headSha: string,
+  ): Promise<void>;
   reply(tabId: string, commentId: number, body: string): Promise<void>;
   resolve(tabId: string, threadId: string, resolved: boolean): Promise<void>;
   comments(tabId: string): Promise<ReviewComment[]>;
-  diffLines(tabId: string): Promise<DiffLines>;
+  diffLines(tabId: string, baseSha: string, headSha: string): Promise<DiffLines>;
 };
 
 export const PR_CHANNELS = {

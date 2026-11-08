@@ -183,10 +183,6 @@ export async function mergeBase(worktree: string): Promise<string | null> {
   return baseOf(worktree, branch);
 }
 
-export async function changedSince(worktree: string, commit: string): Promise<string[]> {
-  return splitZ(await git(worktree, ['diff', '--name-only', '-z', commit]));
-}
-
 export async function changes(worktree: string): Promise<ChangeSet | null> {
   const base = await mergeBase(worktree);
   if (base === null) {

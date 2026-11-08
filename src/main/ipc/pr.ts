@@ -4,10 +4,10 @@ import { prRepo } from '@shared/prRepo';
 import type { DiffLines, FilePair } from '@shared/types/files';
 import type { Fetched } from '@shared/types/app';
 import type { PrInfo, Review, ReviewComment } from '@shared/types/github';
-import { changedSince, currentBranch } from '@main/git/git';
+import { currentBranch } from '@main/git/git';
 import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@main/github/comments';
 import { projectRunner } from '@main/github/ghRunner';
-import { approveAndMerge, diffLines, headCommit, prForBranch } from '@main/github/pr';
+import { approveAndMerge, diffLines, prForBranch } from '@main/github/pr';
 import { reviewFilePair, reviewFiles } from '@main/github/reviewDiff';
 import { ghLogin, openFindings } from '@main/github/securityFindings';
 import { appLogger, type Logger } from '@main/app/log';
@@ -131,9 +131,10 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
         z.number().int().min(1).nullable(),
         z.number().int().min(1),
         z.string().min(1).max(65_536),
+        shaArg,
       ])
       .refine(([, , startLine, line]) => startLine === null || startLine < line),
-    async (tabId, path, startLine, line, body): Promise<void> => {
+    async (tabId, path, startLine, line, body, headSha): Promise<void> => {
       try {
         const worktree = deps.worktreeFor(tabId);
         if (worktree === null) {
@@ -148,7 +149,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
         if (pr?.state !== 'OPEN') {
           throw new Error('commenting on line: branch has no open PR');
         }
-        await commentOnLine(run, worktree, pr.number, { path, startLine, line, body });
+        await commentOnLine(run, worktree, pr.number, headSha, { path, startLine, line, body });
       } catch (err) {
         logger.warn('gh', 'failed', {
           operation: 'pr:comment',
@@ -232,22 +233,13 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       throw err;
     }
   });
-  handle('pr:diffLines', z.tuple([tabIdArg]), async (tabId): Promise<DiffLines> => {
+  handle('pr:diffLines', z.tuple([tabIdArg, shaArg, shaArg]), async (tabId, baseSha, headSha): Promise<DiffLines> => {
     const worktree = deps.worktreeFor(tabId);
     if (worktree === null) {
-      return { ranges: {}, unpushed: [] };
+      return { ranges: {} };
     }
     try {
-      const run = await runnerFor(tabId);
-      const pr = await lookup(run, worktree);
-      if (pr === null) {
-        return { ranges: {}, unpushed: [] };
-      }
-      const [ranges, head] = await Promise.all([
-        diffLines(run, worktree, pr.number),
-        headCommit(run, worktree, pr.number),
-      ]);
-      return { ranges, unpushed: await changedSince(worktree, head) };
+      return { ranges: await diffLines(await runnerFor(tabId), worktree, baseSha, headSha) };
     } catch (err) {
       logger.warn('gh', 'failed', { operation: 'pr:diffLines', tabId, error: message(err) });
       throw err;

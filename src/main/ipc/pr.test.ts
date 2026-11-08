@@ -18,7 +18,6 @@ const {
   resolveThread,
   reviewComments,
   diffLines,
-  headCommit,
   gh,
   projectRunner,
   reviewFiles,
@@ -26,7 +25,6 @@ const {
   openFindings,
   ghLogin,
   currentBranch,
-  changedSince,
 } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
   prForBranch: vi.fn(),
@@ -35,7 +33,6 @@ const {
   resolveThread: vi.fn(),
   reviewComments: vi.fn(),
   diffLines: vi.fn(),
-  headCommit: vi.fn(),
   gh: vi.fn<CommandRunner>(),
   projectRunner:
     vi.fn<
@@ -50,16 +47,14 @@ const {
   openFindings: vi.fn(),
   ghLogin: vi.fn(),
   currentBranch: vi.fn(),
-  changedSince: vi.fn(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('@main/git/git', () => ({ currentBranch, changedSince }));
+vi.mock('@main/git/git', () => ({ currentBranch }));
 vi.mock('@main/github/pr', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@main/github/pr')>()),
   prForBranch,
   diffLines,
-  headCommit,
 }));
 vi.mock('@main/github/comments', () => ({ commentOnLine, replyToComment, resolveThread, reviewComments }));
 vi.mock('@main/github/ghRunner', () => ({ projectRunner }));
@@ -198,10 +193,10 @@ describe('registerPr', () => {
   test.each([
     { channel: 'pr:get', args: ['t1'] },
     { channel: 'pr:review', args: ['t1'] },
-    { channel: 'pr:comment', args: ['t1', 'src/a.ts', null, 3, 'hi'] },
+    { channel: 'pr:comment', args: ['t1', 'src/a.ts', null, 3, 'hi', head] },
     { channel: 'pr:reply', args: ['t1', 5, 'hi'] },
     { channel: 'pr:comments', args: ['t1'] },
-    { channel: 'pr:diffLines', args: ['t1'] },
+    { channel: 'pr:diffLines', args: ['t1', base, head] },
   ])('$channel finds the runner once', async ({ channel, args }) => {
     // given
     prForBranch.mockResolvedValue(pr);
@@ -561,14 +556,14 @@ describe('registerPr', () => {
     expect(reviewFilePair).not.toHaveBeenCalled();
   });
 
-  test('comment posts the line comment on the open PR', async () => {
+  test('comment posts the line comment pinned to the given commit', async () => {
     // given
     prForBranch.mockResolvedValue(pr);
     const comment = register('pr:comment', '/wt');
     // when
-    await comment('t1', 'src/a.ts', null, 3, 'why?');
+    await comment('t1', 'src/a.ts', null, 3, 'why?', head);
     // then
-    expect(commentOnLine).toHaveBeenCalledWith(gh, '/wt', 33, {
+    expect(commentOnLine).toHaveBeenCalledWith(gh, '/wt', 33, head, {
       path: 'src/a.ts',
       startLine: null,
       line: 3,
@@ -590,7 +585,7 @@ describe('registerPr', () => {
     prForBranch.mockResolvedValue(found);
     const comment = register('pr:comment', worktree);
     // when
-    const result = comment('t1', 'src/a.ts', null, 3, 'why?');
+    const result = comment('t1', 'src/a.ts', null, 3, 'why?', head);
     // then
     await expect(result).rejects.toThrow(`commenting on line: ${want}`);
     expect(commentOnLine).not.toHaveBeenCalled();
@@ -602,7 +597,7 @@ describe('registerPr', () => {
     commentOnLine.mockRejectedValueOnce(new Error('commenting on line: line must be part of the diff'));
     const comment = register('pr:comment', '/wt');
     // when
-    const result = comment('t1', 'src/a.ts', null, 3, 'why?');
+    const result = comment('t1', 'src/a.ts', null, 3, 'why?', head);
     // then
     await expect(result).rejects.toThrow(/^commenting on line: line must be part of the diff$/);
     expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
@@ -620,9 +615,9 @@ describe('registerPr', () => {
     prForBranch.mockResolvedValue(pr);
     const comment = register('pr:comment', '/wt');
     // when
-    await comment('t1', 'src/a.ts', 1, 3, 'why?');
+    await comment('t1', 'src/a.ts', 1, 3, 'why?', head);
     // then
-    expect(commentOnLine).toHaveBeenCalledWith(gh, '/wt', 33, {
+    expect(commentOnLine).toHaveBeenCalledWith(gh, '/wt', 33, head, {
       path: 'src/a.ts',
       startLine: 1,
       line: 3,
@@ -733,34 +728,55 @@ describe('registerPr', () => {
     });
   });
 
-  test('diffLines returns the PR diff ranges and the files that differ from the PR head', async () => {
+  test('diffLines returns the ranges at the given commits', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
     diffLines.mockResolvedValue({ 'src/a.ts': [[1, 4]] });
-    headCommit.mockResolvedValue('abc123');
-    changedSince.mockResolvedValue(['src/b.ts']);
     const lines = register('pr:diffLines', '/wt');
     // when
-    const result = await lines('t1');
+    const result = await lines('t1', base, head);
     // then
-    expect(result).toEqual({ ranges: { 'src/a.ts': [[1, 4]] }, unpushed: ['src/b.ts'] });
-    expect(diffLines).toHaveBeenCalledWith(gh, '/wt', 33);
-    expect(headCommit).toHaveBeenCalledWith(gh, '/wt', 33);
-    expect(changedSince).toHaveBeenCalledWith('/wt', 'abc123');
+    expect(result).toEqual({ ranges: { 'src/a.ts': [[1, 4]] } });
+    expect(diffLines).toHaveBeenCalledWith(gh, '/wt', base, head);
+    expect(prForBranch).not.toHaveBeenCalled();
+  });
+
+  test.each([{ name: 'the tab has no worktree', worktree: null }])(
+    'diffLines returns none when $name',
+    async ({ worktree }) => {
+      // given
+      const lines = register('pr:diffLines', worktree);
+      // when
+      const result = await lines('t1', base, head);
+      // then
+      expect(result).toEqual({ ranges: {} });
+      expect(diffLines).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each([
+    { name: 'a bad base sha', baseSha: 'main', headSha: head },
+    { name: 'a bad head sha', baseSha: base, headSha: 'HEAD' },
+  ])('diffLines rejects $name', ({ baseSha, headSha }) => {
+    // given
+    const lines = register('pr:diffLines', '/wt');
+    // when
+    const result = () => lines('t1', baseSha, headSha);
+    // then
+    expect(result).toThrow('handling pr:diffLines: arguments are invalid');
+    expect(diffLines).not.toHaveBeenCalled();
   });
 
   test.each([
-    { name: 'the tab has no worktree', worktree: null, found: pr },
-    { name: 'the branch has no PR', worktree: '/wt', found: null },
-  ])('diffLines returns none when $name', async ({ worktree, found }) => {
+    { name: 'a short sha', headSha: 'a'.repeat(39) },
+    { name: 'a ref name', headSha: 'HEAD' },
+  ])('comment rejects $name', ({ headSha }) => {
     // given
-    prForBranch.mockResolvedValue(found);
-    const lines = register('pr:diffLines', worktree);
+    const comment = register('pr:comment', '/wt');
     // when
-    const result = await lines('t1');
+    const result = () => comment('t1', 'src/a.ts', null, 3, 'why?', headSha);
     // then
-    expect(result).toEqual({ ranges: {}, unpushed: [] });
-    expect(diffLines).not.toHaveBeenCalled();
+    expect(result).toThrow('handling pr:comment: arguments are invalid');
+    expect(commentOnLine).not.toHaveBeenCalled();
   });
 
   test('comment rejects with the one prefix when the PR lookup fails', async () => {
@@ -768,46 +784,18 @@ describe('registerPr', () => {
     prForBranch.mockRejectedValueOnce(new Error('listing PRs: offline'));
     const comment = register('pr:comment', '/wt');
     // when
-    const result = comment('t1', 'src/a.ts', null, 3, 'why?');
+    const result = comment('t1', 'src/a.ts', null, 3, 'why?', head);
     // then
     await expect(result).rejects.toThrow(/^commenting on line: listing PRs: offline$/);
     expect(commentOnLine).not.toHaveBeenCalled();
   });
 
-  test.each([
-    {
-      name: 'the PR head lookup',
-      fail: () => headCommit.mockRejectedValueOnce(new Error('reading PR head: offline')),
-      error: 'reading PR head: offline',
-    },
-    {
-      name: 'the unpushed files lookup',
-      fail: () => changedSince.mockRejectedValueOnce(new Error('running git diff --name-only -z abc123: bad object')),
-      error: 'running git diff --name-only -z abc123: bad object',
-    },
-  ])('logs a failed diffLines at warn and rejects when $name fails', async ({ fail, error }) => {
-    // given
-    prForBranch.mockResolvedValue(pr);
-    diffLines.mockResolvedValue({});
-    headCommit.mockResolvedValue('abc123');
-    changedSince.mockResolvedValue([]);
-    fail();
-    const lines = register('pr:diffLines', '/wt');
-    // when
-    const result = lines('t1');
-    // then
-    await expect(result).rejects.toThrow(error);
-    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', { operation: 'pr:diffLines', tabId: 't1', error });
-  });
-
   test('logs a failed diffLines lookup at warn and rejects', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
     diffLines.mockRejectedValueOnce(new Error('listing PR files: offline'));
-    headCommit.mockResolvedValue('abc123');
     const lines = register('pr:diffLines', '/wt');
     // when
-    const result = lines('t1');
+    const result = lines('t1', base, head);
     // then
     await expect(result).rejects.toThrow('listing PR files: offline');
     expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {

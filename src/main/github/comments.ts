@@ -1,7 +1,6 @@
 import type { ReviewComment } from '@shared/types/github';
 import { z } from 'zod';
 import type { Runner } from '@main/app/preflight';
-import { headCommit } from './pr';
 
 const reviewCommentsSchema = z.array(
   z.array(
@@ -77,11 +76,9 @@ export async function commentOnLine(
   run: Runner,
   worktree: string,
   num: number,
+  headSha: string,
   comment: { path: string; startLine: number | null; line: number; body: string },
 ): Promise<void> {
-  const head = await headCommit(run, worktree, num).catch((err: unknown) => {
-    throw new Error(`commenting on line: ${err instanceof Error ? err.message : String(err)}`);
-  });
   const { code, stdout, stderr } = await run(
     'gh',
     [
@@ -92,7 +89,7 @@ export async function commentOnLine(
       '-f',
       `body=${comment.body}`,
       '-f',
-      `commit_id=${head}`,
+      `commit_id=${headSha}`,
       '-f',
       `path=${comment.path}`,
       '-F',
