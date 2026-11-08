@@ -326,6 +326,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           title="Open security findings"
           body={findingsWarning}
           confirmLabel="Approve anyway"
+          danger
           onConfirm={() => {
             setConfirmFindings(false);
             confirmViewed();
@@ -340,6 +341,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           title="Unviewed files"
           body={`${String(unviewed)} changed ${unviewed === 1 ? 'file' : 'files'} not viewed. Approve anyway?`}
           confirmLabel="Approve anyway"
+          danger
           onConfirm={() => {
             setConfirmApprove(false);
             approvePr();

@@ -180,6 +180,41 @@ describe('theme', () => {
     expect(selectors.filter((selector) => !css.includes(selector))).toEqual([]);
   });
 
+  test('a disabled button drops its fill and colored border', () => {
+    // given
+    const css = theme;
+
+    // when
+    const disabled = /:where\(button:disabled\)\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+
+    // then
+    expect(disabled).toMatch(/background:\s*transparent/);
+    expect(disabled).toMatch(/border-color:\s*var\(--border\)/);
+  });
+
+  test('filled buttons change on hover', () => {
+    // given
+    const css = theme;
+
+    // when
+    const hover = /:where\(([^{}]*:hover:enabled[^{}]*)\)\s*\{[^}]*filter:/.exec(css)?.[1] ?? '';
+
+    // then
+    expect(hover).toContain("button[data-variant='primary']:hover:enabled");
+    expect(hover).toContain("button[aria-pressed='true']:hover:enabled");
+  });
+
+  test('inputs and textareas use the page font', () => {
+    // given
+    const css = theme;
+
+    // when
+    const fields = /:where\(input, textarea\)\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+
+    // then
+    expect(fields).toMatch(/font:\s*inherit/);
+  });
+
   test('the disabled button style comes after the pressed and variant styles', () => {
     // given
     const later = [

@@ -82,7 +82,17 @@ body {
   border-color: var(--danger);
 }
 
+:where(button[data-variant='primary']:hover:enabled, button[aria-pressed='true']:hover:enabled) {
+  filter: brightness(1.2);
+}
+
 :where(button:disabled) {
+  background: transparent;
   color: var(--text-muted);
+  border-color: var(--border);
   cursor: default;
+}
+
+:where(input, textarea) {
+  font: inherit;
 }

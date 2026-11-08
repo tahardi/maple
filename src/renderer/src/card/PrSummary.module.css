@@ -49,15 +49,6 @@
   color: var(--danger);
 }
 
-.reload {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
-  padding: 2px 8px;
-  cursor: pointer;
-}
-
 .muted {
   color: var(--text-muted);
 }
