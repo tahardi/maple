@@ -60,6 +60,7 @@ describe('PrSummary', () => {
           findings={[]}
           projectRepo="tahardi/maple"
           headSha={null}
+          searchedRepos={[]}
         />,
       );
       // then
@@ -80,6 +81,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={headSha}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -101,6 +103,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
