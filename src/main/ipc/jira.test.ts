@@ -27,6 +27,7 @@ const project: ProjectConfig = {
   jiraBoardId: 7,
   plannerDir: '/tmp/halo',
   repo: 'tahardi/halo',
+  otherRepos: [],
 };
 
 const sessions = { sessionOf } as unknown as SessionManager;
@@ -46,6 +47,8 @@ const deps = {
   configLoaded: () => Promise.resolve(),
   setLastProject: () => Promise.resolve(),
   lastProject: () => Promise.resolve(null),
+  setSeen: () => Promise.resolve(),
+  seen: () => Promise.resolve({}),
 };
 
 function fixture(name: string): string {

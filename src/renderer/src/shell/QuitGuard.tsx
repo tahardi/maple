@@ -14,6 +14,7 @@ export function QuitGuard() {
       title="Quit Maple"
       body={`Quit while ${working.join(', ')} ${working.length === 1 ? 'is' : 'are'} working?`}
       confirmLabel="Quit"
+      danger
       onConfirm={() => {
         window.maple.app.confirmQuit();
       }}

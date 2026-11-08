@@ -46,6 +46,15 @@ describe('QuitGuard', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent(body);
   });
 
+  test('the Quit confirm is danger', () => {
+    // given
+    const { request } = setup();
+    // when
+    request(['DIG-44']);
+    // then
+    expect(screen.getByRole('button', { name: 'Quit' })).toHaveAttribute('data-variant', 'danger');
+  });
+
   test('confirming calls confirmQuit', async () => {
     // given
     const { confirmQuit, request } = setup();

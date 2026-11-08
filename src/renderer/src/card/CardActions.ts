@@ -48,7 +48,7 @@ export function cardActions(input: CardActionsInput): PaneAction[] {
       },
       ...disable(null),
     })),
-    { label: 'Approve', onClick: approve, ...disable(approveBlocker(input)) },
-    { label: 'Close', onClick: close, ...disable(closeBlocker(input)) },
+    { label: 'Approve', onClick: approve, variant: 'primary', ...disable(approveBlocker(input)) },
+    { label: 'Close', onClick: close, variant: 'danger', ...disable(closeBlocker(input)) },
   ];
 }

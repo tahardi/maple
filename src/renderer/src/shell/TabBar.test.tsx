@@ -118,7 +118,9 @@ describe('TabBar', () => {
       config: VAULT_CONFIG,
       activeTabId: 'v1',
       tabs: [...useMaple.getState().tabs, tab('v1', 'BEAR', 'vault', null)],
-      statuses: { v1: { tabId: 'v1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false } },
+      statuses: {
+        v1: { tabId: 'v1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+      },
     });
     render(<TabBar />);
     const vault = screen.getByRole('tab', { name: 'Vault' });
@@ -139,6 +141,18 @@ describe('TabBar', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close Vault' }));
     // then
     expect(await screen.findByRole('dialog')).toHaveTextContent('Vault is still working. Close anyway?');
+  });
+
+  test('the Close tab confirm is danger', async () => {
+    // given
+    fakeMaple({ tabs: { close: () => Promise.resolve({ closed: false, needsConfirm: true }) } });
+    useMaple.setState({ config: VAULT_CONFIG, tabs: [...useMaple.getState().tabs, tab('v1', 'BEAR', 'vault', null)] });
+    render(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close Vault' }));
+    // then
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveAttribute('data-variant', 'danger');
   });
 
   test('clicking Vault again clears the failure', async () => {
@@ -204,7 +218,9 @@ describe('TabBar', () => {
   test('shows each tab status as a dot', () => {
     // given
     useMaple.setState({
-      statuses: { t2: { tabId: 't2', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false } },
+      statuses: {
+        t2: { tabId: 't2', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+      },
     });
     // when
     render(<TabBar />);
@@ -213,10 +229,39 @@ describe('TabBar', () => {
     expect(dot).toHaveAttribute('data-dot', 'waiting');
   });
 
+  test.each([
+    { sync: 'queued' as const, label: 'Sync queued' },
+    { sync: 'syncing' as const, label: 'Syncing with main' },
+  ])('shows a $label badge on a card tab whose sync is $sync', ({ sync, label }) => {
+    // given
+    useMaple.setState({
+      statuses: { t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync } },
+    });
+    // when
+    render(<TabBar />);
+    // then
+    expect(within(screen.getByRole('tab', { name: /BEAR-1/ })).getByLabelText(label)).toBeInTheDocument();
+  });
+
+  test('shows no sync badge when sync is null', () => {
+    // given
+    useMaple.setState({
+      statuses: {
+        t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+      },
+    });
+    // when
+    render(<TabBar />);
+    // then
+    expect(screen.queryByLabelText(/sync/i)).not.toBeInTheDocument();
+  });
+
   test('shows no dot on Home or on a tab without a status', () => {
     // given
     useMaple.setState({
-      statuses: { t2: { tabId: 't2', dot: 'ready', sessionAlive: true, exitCode: null, resumeFailed: false } },
+      statuses: {
+        t2: { tabId: 't2', dot: 'ready', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+      },
     });
     // when
     render(<TabBar />);

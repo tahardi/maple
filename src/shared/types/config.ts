@@ -4,6 +4,7 @@ export type ProjectConfig = {
   jiraBoardId: number;
   plannerDir: string;
   repo: string;
+  otherRepos: string[];
 };
 export type ActionConfig = { label: string; prompt: string };
 export type MapleConfig = {
@@ -11,6 +12,8 @@ export type MapleConfig = {
   vaultDir: string | null;
   notifications: boolean;
   backgroundWaitMinutes: number;
+  eventKeepDays: number;
+  eventMaxMegabytes: number;
   projects: ProjectConfig[];
   actions: ActionConfig[];
 };

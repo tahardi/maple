@@ -5,7 +5,6 @@
 
 .button,
 .row {
-  background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -32,6 +31,12 @@
 .empty {
   margin: 0 0 8px;
   color: var(--text-muted);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .empty {

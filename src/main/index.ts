@@ -7,14 +7,18 @@ import type { MapleConfig } from '@shared/types/config';
 import { configDir, DEFAULT_WAIT_MINUTES, loadConfig } from '@main/app/config';
 import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
+import { defaultRunner } from '@main/app/preflight';
 import { writeHooksFile } from '@main/sessions/hooksFile';
-import { currentBranch, findWorktree } from '@main/git/git';
+import { currentBranch, findWorktree, gitCommonDir } from '@main/git/git';
 import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/ipc/config';
 import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/jira';
 import { appLogger, logUncaught, startLogging } from '@main/app/log';
+import { askDeleteToday } from '@main/events/askDeleteToday';
+import { startEventLog } from '@main/events/eventLog';
+import { pruneLimits } from '@main/events/pruneEvents';
 import { checkNotifications } from '@main/app/menu';
 import { notifyTab, shouldNotify } from '@main/app/notify';
 import { restoreTabs } from '@main/sessions/restore';
@@ -23,6 +27,7 @@ import { SessionManager } from '@main/sessions/sessions';
 import { Terminals } from '@main/sessions/terminals';
 import { saveState, loadState, type SavedState } from '@main/app/state';
 import { StatusEngine } from '@main/sessions/status';
+import { AutoSync } from '@main/sessions/autoSync';
 import { endTmux, writeTmuxConf } from '@main/sessions/tmux';
 import { hasTranscript } from '@main/sessions/transcripts';
 import { windowTitle } from '@main/app/windowTitle';
@@ -74,6 +79,10 @@ async function start(): Promise<() => number> {
   });
   const [loaded, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
   let config = loaded.data;
+  startEventLog({
+    limits: pruneLimits(config),
+    askDeleteToday: (bytes) => askDeleteToday((options) => dialog.showMessageBox(options), bytes),
+  });
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
   const tmuxConf = await writeTmuxConf(configDir());
   const socketPath = hookSocketPath();
@@ -112,17 +121,30 @@ async function start(): Promise<() => number> {
   const terminals = new Terminals({ spawn });
   const jira = creds.then((c) => new JiraClient(c));
   jira.catch(() => undefined);
+  const getCard = async (key: string) => (await jira).getCard(key);
+  const prFor = async (worktree: string, projectKey: string) => {
+    const branch = await currentBranch(worktree);
+    return prForBranch(await projectRunner(projectByKey, projectKey, branch), worktree, branch);
+  };
   const status = new StatusEngine({
     sessions,
-    getCard: async (key) => (await jira).getCard(key),
-    prFor: async (worktree, projectKey) =>
-      prForBranch(await projectRunner(projectByKey, projectKey), worktree, await currentBranch(worktree)),
+    getCard,
+    prFor,
     waitLimitMs: () => (config?.backgroundWaitMinutes ?? DEFAULT_WAIT_MINUTES) * 60_000,
   });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
   });
+  const stopAutoSync = new AutoSync({
+    sessions,
+    status,
+    getCard,
+    prFor,
+    run: defaultRunner,
+    commonDir: gitCommonDir,
+  }).start();
   app.on('will-quit', () => {
+    stopAutoSync();
     sessions.killAll();
     terminals.closeAll();
     void stopHooks();
@@ -175,6 +197,8 @@ async function start(): Promise<() => number> {
     },
     setLastProject: (key) => persist({ lastProject: key }),
     lastProject: () => Promise.resolve(saved.lastProject),
+    setSeen: (seen) => persist({ seen }),
+    seen: () => Promise.resolve(saved.seen),
     setZoom: async (change) => {
       const contents = mainWindow?.webContents;
       if (!contents) {

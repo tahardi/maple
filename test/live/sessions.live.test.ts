@@ -57,6 +57,8 @@ describe('SessionManager with a real claude', () => {
       vaultDir: null,
       notifications: false,
       backgroundWaitMinutes: 15,
+      eventKeepDays: 365,
+      eventMaxMegabytes: 200,
       actions: [],
       projects: [
         {
@@ -65,6 +67,7 @@ describe('SessionManager with a real claude', () => {
           jiraBoardId: 9,
           plannerDir: expandHome('~/Documents/code/maple'),
           repo: 'tahardi/maple',
+          otherRepos: [],
         },
       ],
     };

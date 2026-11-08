@@ -1,7 +1,7 @@
 .summary {
   border-top: 1px solid var(--border);
   padding: 8px;
-  font-size: 13px;
+  font-size: var(--font-md);
   max-height: 45%;
   overflow: auto;
 }
@@ -15,6 +15,11 @@
   gap: 8px;
   align-items: center;
   margin-top: 4px;
+}
+
+.title {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
 }
 
 .number {
@@ -33,7 +38,7 @@
 .state {
   border-radius: 10px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--font-sm);
   border: 1px solid currentColor;
 }
 
@@ -47,15 +52,6 @@
 
 .state[data-state='CLOSED'] {
   color: var(--danger);
-}
-
-.reload {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
-  padding: 2px 8px;
-  cursor: pointer;
 }
 
 .muted {

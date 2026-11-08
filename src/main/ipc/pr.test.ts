@@ -35,7 +35,13 @@ const {
   diffLines: vi.fn(),
   gh: vi.fn<CommandRunner>(),
   projectRunner:
-    vi.fn<(byKey: (key: string) => Promise<ProjectConfig | null>, key: string | null) => Promise<CommandRunner>>(),
+    vi.fn<
+      (
+        byKey: (key: string) => Promise<ProjectConfig | null>,
+        key: string | null,
+        branch: string | null,
+      ) => Promise<CommandRunner>
+    >(),
   reviewFiles: vi.fn(),
   reviewFilePair: vi.fn(),
   openFindings: vi.fn(),
@@ -75,6 +81,7 @@ const project: ProjectConfig = {
   jiraBoardId: 1,
   plannerDir: '/tmp/dig',
   repo: 'tahardi/dig-days',
+  otherRepos: [],
 };
 const head = 'a'.repeat(40);
 const base = 'c'.repeat(40);
@@ -103,6 +110,8 @@ function register(
       configLoaded: () => Promise.resolve(),
       setLastProject: () => Promise.resolve(),
       lastProject: () => Promise.resolve(null),
+      setSeen: () => Promise.resolve(),
+      seen: () => Promise.resolve({}),
     },
     logger,
   );
@@ -171,6 +180,57 @@ describe('registerPr', () => {
     expect(prForBranch).toHaveBeenCalledWith(gh, '/wt', 'mpl-13-github-client');
   });
 
+  test('get finds the runner with the tab worktree branch', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const prGet = get('/wt');
+    // when
+    await prGet('t1');
+    // then
+    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', 'mpl-13-github-client');
+  });
+
+  test.each([
+    { channel: 'pr:get', args: ['t1'] },
+    { channel: 'pr:review', args: ['t1'] },
+    { channel: 'pr:comment', args: ['t1', 'src/a.ts', null, 3, 'hi'] },
+    { channel: 'pr:reply', args: ['t1', 5, 'hi'] },
+    { channel: 'pr:comments', args: ['t1'] },
+    { channel: 'pr:diffLines', args: ['t1'] },
+  ])('$channel finds the runner once', async ({ channel, args }) => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    ghLogin.mockResolvedValue('me');
+    openFindings.mockResolvedValue([]);
+    reviewFiles.mockResolvedValue({ files: [] });
+    const call = register(channel, '/wt');
+    // when
+    await call(...args);
+    // then
+    expect(projectRunner).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    {
+      channel: 'pr:readFile',
+      args: ['t1', 'src/a.ts', null, base, head],
+      want: 'listing branch: git down',
+    },
+    {
+      channel: 'pr:resolve',
+      args: ['t1', 'thread-1', true],
+      want: 'resolving thread: listing branch: git down',
+    },
+  ])('$channel rejects when the branch lookup fails', async ({ channel, args, want }) => {
+    // given
+    currentBranch.mockRejectedValue(new Error('listing branch: git down'));
+    const call = register(channel, '/wt');
+    // when
+    const result = call(...args);
+    // then
+    await expect(result).rejects.toThrow(want);
+  });
+
   test('get keeps the last good PR and its fetchedAt when a later lookup fails', async () => {
     // given
     prForBranch.mockResolvedValueOnce(pr).mockRejectedValueOnce(new Error('listing PRs: offline'));
@@ -237,8 +297,14 @@ describe('registerPr', () => {
     expect(calls).toEqual([viewPin, viewRepo, postReview, merge, 'prompt']);
     expect(sendPrompt).toHaveBeenCalledWith('t1', '/card DIG-44');
     expect(projectRunner.mock.calls.every(([, key]) => key === 'DIG')).toBe(true);
+    expect(projectRunner).toHaveBeenCalledTimes(1);
     expect(prForBranch).toHaveBeenCalledWith(gh, '/wt', 'mpl-13-github-client');
-    expect(logger.info).toHaveBeenCalledWith('gh', 'merged', { tabId: 't1', number: 33, headSha: head });
+    expect(logger.info).toHaveBeenCalledWith('gh', 'merged', {
+      tabId: 't1',
+      repo: 'tahardi/maple',
+      number: 33,
+      headSha: head,
+    });
   });
 
   test('pr:approve refuses when the head moved', async () => {
@@ -462,7 +528,17 @@ describe('registerPr', () => {
     // then
     expect(result).toEqual(pair);
     expect(reviewFilePair).toHaveBeenCalledWith(gh, 'src/a.ts', 'src/old.ts', base, head);
-    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG');
+    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', 'mpl-13-github-client');
+  });
+
+  test('readFile finds the runner with a null branch when the tab has no worktree', async () => {
+    // given
+    reviewFilePair.mockResolvedValue({ kind: 'text', path: 'src/a.ts', base: '', current: '' });
+    const readFile = register('pr:readFile', null);
+    // when
+    await readFile('t1', 'src/a.ts', null, base, head);
+    // then
+    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', null);
   });
 
   test.each([

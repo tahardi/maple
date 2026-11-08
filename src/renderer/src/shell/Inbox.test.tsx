@@ -20,6 +20,7 @@ const status = (tabId: string, dot: Dot): TabStatus => ({
   sessionAlive: true,
   exitCode: null,
   resumeFailed: false,
+  sync: null,
 });
 const card = (key: string, points: number | null): Card => ({
   key,
@@ -95,25 +96,21 @@ describe('Inbox', () => {
   test('clicking a card row selects its project and activates the tab', async () => {
     // given
     const selectProject = vi.fn();
-    const activate = vi.fn();
-    useMaple.setState({ selectProject, activate });
+    useMaple.setState({ selectProject });
     render(<Inbox />);
     await userEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
     // when
     await userEvent.click(await screen.findByRole('button', { name: /^DIG-1/ }));
     // then
-    expect(selectProject).toHaveBeenCalledWith('DIG');
-    expect(activate).toHaveBeenLastCalledWith('t3');
+    expect(selectProject).toHaveBeenCalledWith('DIG', 't3');
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 
   test('clicking a planner row selects its project and shows Home', async () => {
     // given
     const selectProject = vi.fn();
-    const activate = vi.fn();
     useMaple.setState({
       selectProject,
-      activate,
       statuses: { ...useMaple.getState().statuses, p1: status('p1', 'waiting') },
       since: { ...useMaple.getState().since, p1: minutesAgo(1) },
     });
@@ -122,17 +119,14 @@ describe('Inbox', () => {
     // when
     await userEvent.click(await screen.findByRole('button', { name: /^Planner/ }));
     // then
-    expect(selectProject).toHaveBeenCalledWith('DIG');
-    expect(activate).toHaveBeenLastCalledWith(null);
+    expect(selectProject).toHaveBeenCalledWith('DIG', null);
   });
 
   test('clicking a vault row selects its project and activates the vault tab', async () => {
     // given
     const selectProject = vi.fn();
-    const activate = vi.fn();
     useMaple.setState({
       selectProject,
-      activate,
       tabs: [...useMaple.getState().tabs, tab('v1', 'DIG', 'vault', null)],
       statuses: { ...useMaple.getState().statuses, v1: status('v1', 'waiting') },
       since: { ...useMaple.getState().since, v1: minutesAgo(1) },
@@ -142,8 +136,7 @@ describe('Inbox', () => {
     // when
     await userEvent.click(await screen.findByRole('button', { name: /^Vault/ }));
     // then
-    expect(selectProject).toHaveBeenCalledWith('DIG');
-    expect(activate).toHaveBeenLastCalledWith('v1');
+    expect(selectProject).toHaveBeenCalledWith('DIG', 'v1');
   });
 
   test('a visited tab leaves the inbox until its dot changes again', async () => {
@@ -156,15 +149,66 @@ describe('Inbox', () => {
     act(() => {
       useMaple.getState().activate('t1');
     });
-    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 60_000);
     // when
     act(() => {
       useMaple.getState().setStatus(status('t3', 'waiting'));
     });
     // then
-    vi.restoreAllMocks();
     expect(afterVisit).toBe('Inbox 1');
     expect(button).toHaveTextContent('Inbox 2');
+  });
+
+  test('Clear all empties the list and keeps the panel open', async () => {
+    // given
+    render(<Inbox />);
+    const button = screen.getByRole('button', { name: /^Inbox/ });
+    await userEvent.click(button);
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: 'Clear all' }));
+    // then
+    expect(button).toHaveTextContent('Inbox 0');
+    expect(screen.getByText('Nothing needs you')).toBeInTheDocument();
+  });
+
+  test('Clear all is not shown when nothing needs Taylor', async () => {
+    // given
+    useMaple.setState({ statuses: {} });
+    render(<Inbox />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
+    // then
+    expect(await screen.findByText('Nothing needs you')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear all' })).not.toBeInTheDocument();
+  });
+
+  test('a cleared tab returns after it works and stops again', async () => {
+    // given
+    render(<Inbox />);
+    const button = screen.getByRole('button', { name: /^Inbox/ });
+    await userEvent.click(button);
+    await userEvent.click(await screen.findByRole('button', { name: 'Clear all' }));
+    // when
+    act(() => {
+      useMaple.getState().setStatus(status('t2', 'working'));
+      useMaple.getState().setStatus(status('t2', 'waiting'));
+    });
+    // then
+    expect(button).toHaveTextContent('Inbox 1');
+  });
+
+  test('a seen tab stays out of the inbox when it restores to the same dot', () => {
+    // given
+    useMaple.setState({ seen: { t2: 'waiting', t3: 'ready' } });
+    render(<Inbox />);
+    // when
+    act(() => {
+      useMaple.getState().setStatus(status('t2', 'idle'));
+      useMaple.getState().setStatus(status('t3', 'idle'));
+      useMaple.getState().setStatus(status('t2', 'waiting'));
+      useMaple.getState().setStatus(status('t3', 'ready'));
+    });
+    // then
+    expect(screen.getByRole('button', { name: /^Inbox/ })).toHaveTextContent('Inbox 0');
   });
 
   test('clicking the button again closes the list', async () => {

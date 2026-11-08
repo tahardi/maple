@@ -32,6 +32,31 @@ describe('useVault', () => {
     expect(written).toHaveBeenCalledWith('t1');
   });
 
+  test.each([
+    {
+      name: 'the note list',
+      fail: 'list' as const,
+      want: { notes: [], written: ['Inbox.md'] },
+    },
+    {
+      name: 'the written notes',
+      fail: 'written' as const,
+      want: { notes: [note('Inbox.md')], written: [] },
+    },
+  ])('loads the rest when $name fails', async ({ fail, want }) => {
+    // given
+    const mocks = setup([note('Inbox.md')]);
+    mocks[fail].mockRejectedValue(new Error('reading vault: no vault folder is set'));
+    // when
+    const { result } = renderHook(() => useVault('t1', true));
+    // then
+    await waitFor(() => {
+      expect({ notes: result.current.notes, written: result.current.written }).toEqual(want);
+    });
+    expect(mocks.list).toHaveBeenCalled();
+    expect(mocks.written).toHaveBeenCalled();
+  });
+
   test('re-lists when the vault changes', async () => {
     // given
     const { changed, list, written } = setup([note('Inbox.md')]);

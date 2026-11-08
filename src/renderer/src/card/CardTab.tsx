@@ -264,6 +264,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               onReloadReview={reloadReview}
               reviewError={review?.error ?? null}
               findings={pinned?.findings ?? []}
+              projectRepo={config?.projects.find((p) => p.jiraKey === tab.projectKey)?.repo ?? null}
               headSha={pinned?.headSha ?? null}
               onOpenDescription={() => {
                 openFile(PR_DESCRIPTION, null, true);
@@ -325,6 +326,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           title="Open security findings"
           body={findingsWarning}
           confirmLabel="Approve anyway"
+          danger
           onConfirm={() => {
             setConfirmFindings(false);
             confirmViewed();
@@ -339,6 +341,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           title="Unviewed files"
           body={`${String(unviewed)} changed ${unviewed === 1 ? 'file' : 'files'} not viewed. Approve anyway?`}
           confirmLabel="Approve anyway"
+          danger
           onConfirm={() => {
             setConfirmApprove(false);
             approvePr();
@@ -353,6 +356,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           title={`Close ${cardKey}?`}
           body={CLOSE_WARNING}
           confirmLabel="Close card"
+          danger
           onConfirm={() => {
             setConfirmClose(false);
             window.maple.session.sendPrompt(tab.id, closePrompt(cardKey));

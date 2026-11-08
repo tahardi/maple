@@ -17,3 +17,7 @@ export function suggestPrompt(jiraKey: string): string {
 export function fillAction(prompt: string, { key, pr }: { key: string; pr: number | null }): string {
   return prompt.replaceAll('{key}', key).replaceAll('{pr}', pr === null ? '' : String(pr));
 }
+
+export function syncPrompt(key: string): string {
+  return `Run the "Sync with Main" steps from the /card skill for ${key}.`;
+}

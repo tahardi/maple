@@ -47,6 +47,15 @@ describe('ReportDialog', () => {
     expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
   });
 
+  test('Submit is the primary button', () => {
+    // given
+    fakeMaple();
+    // when
+    renderDialog();
+    // then
+    expect(screen.getByRole('button', { name: 'Submit' })).toHaveAttribute('data-variant', 'primary');
+  });
+
   test('files the report and links the new card', async () => {
     // given
     const report = vi.fn(() => Promise.resolve({ key: 'MPL-80', url: 'https://example.atlassian.net/browse/MPL-80' }));

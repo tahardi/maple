@@ -1,5 +1,6 @@
 import type { CheckRun, ChecksSummary, PrInfo, SecurityFinding } from '@shared/types/github';
 import type { Fetched } from '@shared/types/app';
+import { prRepo } from '@shared/prRepo';
 import styles from './PrSummary.module.css';
 
 const runSymbols: Record<CheckRun['bucket'], string> = {
@@ -26,16 +27,31 @@ function stateLabel(state: PrInfo['state']): string {
   return stateLabels[state];
 }
 
+function prLabel(info: PrInfo, projectRepo: string | null): string {
+  const repo = prRepo(info.url);
+  const number = `PR #${String(info.number)}`;
+  return projectRepo === null || repo === projectRepo ? number : `${repo} ${number}`;
+}
+
 type PrSummaryProps = {
   pr: Fetched<PrInfo>;
   onOpenDescription: () => void;
   onReloadReview: () => void;
   reviewError: string | null;
   findings: readonly SecurityFinding[];
+  projectRepo: string | null;
   headSha: string | null;
 };
 
-export function PrSummary({ pr, onOpenDescription, onReloadReview, reviewError, findings, headSha }: PrSummaryProps) {
+export function PrSummary({
+  pr,
+  onOpenDescription,
+  onReloadReview,
+  reviewError,
+  findings,
+  projectRepo,
+  headSha,
+}: PrSummaryProps) {
   const info = pr.data;
   return (
     <section className={styles.summary}>
@@ -44,20 +60,17 @@ export function PrSummary({ pr, onOpenDescription, onReloadReview, reviewError, 
         <>
           <div className={styles.row}>
             <button className={styles.number} title="Open PR description" onClick={onOpenDescription}>
-              {`PR #${String(info.number)}`}
+              {prLabel(info, projectRepo)}
             </button>
             <span className={styles.state} data-state={info.state}>
               {stateLabel(info.state)}
             </span>
           </div>
+          <div className={styles.title}>{info.title}</div>
           {(headSha !== null || info.state === 'OPEN') && (
             <div className={styles.row}>
               {headSha !== null && <span className={styles.muted}>{`Reviewing ${headSha.slice(0, 7)}`}</span>}
-              {info.state === 'OPEN' && (
-                <button className={styles.reload} onClick={onReloadReview}>
-                  Reload review
-                </button>
-              )}
+              {info.state === 'OPEN' && <button onClick={onReloadReview}>Reload review</button>}
             </div>
           )}
           {reviewError !== null && <div className={styles.error}>{reviewError}</div>}

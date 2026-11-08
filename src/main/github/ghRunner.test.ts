@@ -11,6 +11,18 @@ function fakeExecFile(error: { code?: string | number } | null, stdout = '', std
   return { fake, run: fake as unknown as typeof execFile };
 }
 
+type RepoReply = { error?: { code?: string | number }; stdout?: string; stderr?: string };
+
+function fakeRepos(replies: Partial<Record<string, RepoReply>>) {
+  const repoOf = (options: object) => (options as { env: { GH_REPO: string } }).env.GH_REPO;
+  const fake = vi.fn((_cmd: string, _args: string[], options: object, callback: Callback) => {
+    const reply = replies[repoOf(options)] ?? {};
+    callback(reply.error ?? null, reply.stdout ?? '', reply.stderr ?? '');
+  });
+  const repos = () => fake.mock.calls.map(([, , options]) => repoOf(options));
+  return { fake, repos, run: fake as unknown as typeof execFile };
+}
+
 describe('ghRunner', () => {
   test('runs with GH_REPO set and no working directory', async () => {
     // given
@@ -60,6 +72,7 @@ describe('projectRunner', () => {
     jiraBoardId: 1,
     plannerDir: '/tmp/dig',
     repo: 'tahardi/dig-days',
+    otherRepos: [],
   };
   const byKey = (key: string) => Promise.resolve(key === 'DIG' ? project : null);
 
@@ -68,22 +81,121 @@ describe('projectRunner', () => {
     const { fake, run } = fakeExecFile(null);
     // when
     await (
-      await projectRunner(byKey, 'DIG', run)
+      await projectRunner(byKey, 'DIG', null, run)
     )('gh', ['pr', 'list']);
     // then
     expect(fake.mock.calls[0]?.[2]).toMatchObject({ env: { GH_REPO: 'tahardi/dig-days' } });
   });
 
   test.each([
-    { key: 'HALO', want: 'finding project repo: unknown project HALO' },
-    { key: null, want: 'finding project repo: tab has no project' },
-  ])('rejects project $key', async ({ key, want }) => {
+    { key: 'HALO', branch: null, want: 'finding project repo: unknown project HALO' },
+    { key: 'HALO', branch: 'xena-92-go-caches', want: 'finding project repo: unknown project HALO' },
+    { key: null, branch: 'xena-92-go-caches', want: 'finding project repo: tab has no project' },
+  ])('rejects project $key with branch $branch', async ({ key, branch, want }) => {
     // given
     const { fake, run } = fakeExecFile(null);
     // when
-    const result = projectRunner(byKey, key, run);
+    const result = projectRunner(byKey, key, branch, run);
     // then
     await expect(result).rejects.toThrow(new RegExp(`^${want}$`));
     expect(fake).not.toHaveBeenCalled();
+  });
+
+  const branch = 'xena-92-go-caches';
+  const probe = ['pr', 'list', '--head', branch, '--state', 'all', '--limit', '1', '--json', 'number'];
+  const xena = { ...project, jiraKey: 'XENA', repo: 'tahardi/xena', otherRepos: ['tahardi/dotclaude'] };
+  const three = { ...xena, otherRepos: ['tahardi/dotclaude', 'tahardi/halo'] };
+  const none = '[]';
+  const found = '[{"number":8}]';
+
+  test.each([
+    {
+      name: 'uses the project repo when the branch is null',
+      config: xena,
+      head: null,
+      replies: {},
+      want: ['tahardi/xena'],
+    },
+    {
+      name: 'uses the project repo when it has no other repos',
+      config: project,
+      head: branch,
+      replies: {},
+      want: ['tahardi/dig-days'],
+    },
+    {
+      name: 'uses the first listed repo with a PR for the branch',
+      config: xena,
+      head: branch,
+      replies: { 'tahardi/xena': { stdout: none }, 'tahardi/dotclaude': { stdout: found } },
+      want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/dotclaude'],
+    },
+    {
+      name: 'stops probing at the first other repo with a PR',
+      config: three,
+      head: branch,
+      replies: {
+        'tahardi/xena': { stdout: none },
+        'tahardi/dotclaude': { stdout: found },
+        'tahardi/halo': { stdout: found },
+      },
+      want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/dotclaude'],
+    },
+    {
+      name: 'prefers the project repo when both have a PR',
+      config: xena,
+      head: branch,
+      replies: { 'tahardi/xena': { stdout: found }, 'tahardi/dotclaude': { stdout: found } },
+      want: ['tahardi/xena', 'tahardi/xena'],
+    },
+    {
+      name: 'falls back to the project repo when no repo has a PR',
+      config: xena,
+      head: branch,
+      replies: { 'tahardi/xena': { stdout: none }, 'tahardi/dotclaude': { stdout: none } },
+      want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/xena'],
+    },
+  ])('$name', async ({ config, head, replies, want }) => {
+    // given
+    const { fake, repos, run } = fakeRepos(replies);
+    // when
+    const runner = await projectRunner(() => Promise.resolve(config), config.jiraKey, head, run);
+    await runner('gh', ['pr', 'view']);
+    // then
+    expect(repos()).toEqual(want);
+    expect(fake.mock.calls.slice(0, -1).map(([, args]) => args)).toEqual(want.slice(0, -1).map(() => probe));
+  });
+
+  test.each([
+    {
+      name: 'in the project repo',
+      replies: { 'tahardi/xena': { error: { code: 1 }, stderr: 'boom' } },
+      want: 'finding project repo: listing PRs in tahardi/xena: boom',
+    },
+    {
+      name: 'in a later repo',
+      replies: { 'tahardi/xena': { stdout: none }, 'tahardi/dotclaude': { error: { code: 1 }, stderr: 'boom' } },
+      want: 'finding project repo: listing PRs in tahardi/dotclaude: boom',
+    },
+  ])('reports a failed probe $name', async ({ replies, want }) => {
+    // given
+    const { run } = fakeRepos(replies);
+    // when
+    const result = projectRunner(() => Promise.resolve(xena), 'XENA', branch, run);
+    // then
+    await expect(result).rejects.toThrow(want);
+  });
+
+  test.each([
+    { name: 'invalid JSON', stdout: 'not json' },
+    { name: 'a non-array', stdout: '{"number":8}' },
+  ])('rejects a probe that prints $name', async ({ stdout }) => {
+    // given
+    const { repos, run } = fakeRepos({ 'tahardi/xena': { stdout }, 'tahardi/dotclaude': { stdout: found } });
+    // when
+    const result = projectRunner(() => Promise.resolve(xena), 'XENA', branch, run);
+    // then
+    await expect(result).rejects.toThrow();
+    expect(repos()).toEqual(['tahardi/xena']);
   });
 });

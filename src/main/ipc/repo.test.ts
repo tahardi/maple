@@ -52,6 +52,8 @@ function invoke(channel: string, ...args: unknown[]): unknown {
       configLoaded: () => Promise.resolve(),
       setLastProject: () => Promise.resolve(),
       lastProject: () => Promise.resolve(null),
+      setSeen: () => Promise.resolve(),
+      seen: () => Promise.resolve({}),
     },
     logger,
   );
@@ -132,6 +134,16 @@ describe('registerRepo', () => {
     await invoke('repo:writeFile', 't1', 'a.ts', 'x');
     // then
     expect(writeWorktreeFile).toHaveBeenCalledWith('/wt', 'a.ts', 'x');
+  });
+
+  test('repo:readFile compares against HEAD when the repo has no default branch', async () => {
+    // given
+    mergeBase.mockResolvedValue(null);
+    readFilePair.mockResolvedValue({ kind: 'binary', path: 'a.ts' });
+    // when
+    await invoke('repo:readFile', 't1', 'a.ts');
+    // then
+    expect(readFilePair).toHaveBeenCalledWith('/wt', 'HEAD', 'a.ts');
   });
 
   test('repo:search searches the tab worktree', async () => {

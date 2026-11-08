@@ -24,6 +24,7 @@ const status = (tabId: string, dot: Dot): TabStatus => ({
   sessionAlive: true,
   exitCode: null,
   resumeFailed: false,
+  sync: null,
 });
 
 describe('inboxItems', () => {
@@ -32,7 +33,7 @@ describe('inboxItems', () => {
     tabs: TabState[];
     statuses: TabStatus[];
     since: Record<string, number>;
-    seen?: Record<string, number>;
+    seen?: Record<string, Dot>;
     points: Record<string, number | null>;
     want: InboxItem[];
   }>([
@@ -84,23 +85,34 @@ describe('inboxItems', () => {
       want: [],
     },
     {
-      name: 'leaves out a tab seen since its dot changed',
+      name: 'leaves out a tab seen at its current dot',
       tabs: [card('t1', 'DIG', 'DIG-1')],
-      statuses: [status('t1', 'ready')],
+      statuses: [status('t1', 'waiting')],
       since: { t1: 100 },
-      seen: { t1: 100 },
+      seen: { t1: 'waiting' },
       points: {},
       want: [],
     },
     {
-      name: 'includes a tab whose dot changed after it was seen',
+      name: 'includes a tab seen at a different dot',
       tabs: [card('t1', 'DIG', 'DIG-1')],
-      statuses: [status('t1', 'waiting')],
-      since: { t1: 200 },
-      seen: { t1: 100 },
+      statuses: [status('t1', 'ready')],
+      since: { t1: 100 },
+      seen: { t1: 'waiting' },
       points: {},
       want: [
-        { tabId: 't1', projectKey: 'DIG', kind: 'card', cardKey: 'DIG-1', dot: 'waiting', since: 200, points: null },
+        { tabId: 't1', projectKey: 'DIG', kind: 'card', cardKey: 'DIG-1', dot: 'ready', since: 100, points: null },
+      ],
+    },
+    {
+      name: 'includes a tab seen while it was working',
+      tabs: [card('t1', 'DIG', 'DIG-1')],
+      statuses: [status('t1', 'waiting')],
+      since: { t1: 100 },
+      seen: { t1: 'working' },
+      points: {},
+      want: [
+        { tabId: 't1', projectKey: 'DIG', kind: 'card', cardKey: 'DIG-1', dot: 'waiting', since: 100, points: null },
       ],
     },
   ])('$name', ({ tabs, statuses, since, seen = {}, points, want }) => {

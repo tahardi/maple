@@ -231,13 +231,15 @@ describe('ClaudePane', () => {
   test('mounting opens a terminal with the pane font, scrollback, and dark theme', async () => {
     // given
     fakeMaple();
+    document.documentElement.style.setProperty('--font-md', '15px');
     // when
     render(<ClaudePane tabId="t1" actions={[]} />);
     await flush();
+    document.documentElement.style.removeProperty('--font-md');
     // then
     expect(Terminal).toHaveBeenCalledWith({
       fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
-      fontSize: 13,
+      fontSize: 15,
       scrollback: 10_000,
       theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
       allowProposedApi: true,
@@ -462,7 +464,7 @@ describe('ClaudePane', () => {
     // given
     fakeMaple();
     useMaple.setState({
-      statuses: { t1: { tabId: 't1', dot: 'idle', sessionAlive, exitCode: 1, resumeFailed: false } },
+      statuses: { t1: { tabId: 't1', dot: 'idle', sessionAlive, exitCode: 1, resumeFailed: false, sync: null } },
     });
     // when
     render(<ClaudePane tabId="t1" actions={[]} />);
@@ -474,7 +476,7 @@ describe('ClaudePane', () => {
     { name: 'no status', statuses: {} },
     {
       name: 'another tab ended',
-      statuses: { t2: { tabId: 't2', dot: 'idle', sessionAlive: false, exitCode: 1, resumeFailed: false } },
+      statuses: { t2: { tabId: 't2', dot: 'idle', sessionAlive: false, exitCode: 1, resumeFailed: false, sync: null } },
     },
   ] as { name: string; statuses: Record<string, TabStatus> }[])('$name shows no overlay', ({ statuses }) => {
     // given
@@ -490,14 +492,16 @@ describe('ClaudePane', () => {
     // given
     fakeMaple();
     useMaple.setState({
-      statuses: { t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false } },
+      statuses: {
+        t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+      },
     });
     render(<ClaudePane tabId="t1" actions={[]} />);
     // when
     act(() => {
       useMaple
         .getState()
-        .setStatus({ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 137, resumeFailed: false });
+        .setStatus({ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 137, resumeFailed: false, sync: null });
     });
     // then
     expect(screen.getByText('Session ended (exit code 137)')).toBeInTheDocument();
@@ -507,7 +511,7 @@ describe('ClaudePane', () => {
     // given
     fakeMaple();
     useMaple.setState({
-      statuses: { t1: { tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 1, resumeFailed: true } },
+      statuses: { t1: { tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 1, resumeFailed: true, sync: null } },
     });
     // when
     render(<ClaudePane tabId="t1" actions={[]} />);

@@ -584,6 +584,26 @@ describe('CardTab', () => {
     expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
   });
 
+  test('names the repo of a PR outside the project repo', async () => {
+    // given
+    fakeRepo(true);
+    const project = {
+      name: 'Xena',
+      jiraKey: 'MPL',
+      jiraBoardId: 1,
+      plannerDir: '/tmp/planner/xena',
+      repo: 'tahardi/xena',
+      otherRepos: ['tahardi/maple'],
+    };
+    useMaple.setState({
+      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, projects: [project] } },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByRole('button', { name: 'tahardi/maple PR #13' })).toBeInTheDocument();
+  });
+
   test('keeps the PR description closed until the PR number opens it', async () => {
     // given
     fakeRepo(true);
@@ -852,6 +872,8 @@ describe('CardTab', () => {
       vaultDir: null,
       notifications: false,
       backgroundWaitMinutes: 15,
+      eventKeepDays: 365,
+      eventMaxMegabytes: 200,
       projects: [],
       actions: [{ label: 'Sync', prompt: 'Sync {key}' }],
     };
@@ -1022,6 +1044,48 @@ describe('CardTab', () => {
     expect(approve.mock.calls).toEqual(approved ? [['t1', head]] : []);
   });
 
+  test('the unviewed files confirm is danger', async () => {
+    // given
+    fakeApprove();
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    // then
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' })).toHaveAttribute(
+      'data-variant',
+      'danger',
+    );
+  });
+
+  test('the open findings confirm is danger', async () => {
+    // given
+    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
+    fakeApprove([], undefined, [finding]);
+    render(<CardTab tab={tab} />);
+    await screen.findByText('Reviewing aaaaaaa');
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    // then
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' })).toHaveAttribute(
+      'data-variant',
+      'danger',
+    );
+  });
+
+  test('the Close card confirm is danger', async () => {
+    // given
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Close' }));
+    // then
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close card' })).toHaveAttribute(
+      'data-variant',
+      'danger',
+    );
+  });
+
   test('Close opens a dialog that warns before closing the card', async () => {
     // given
     fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
@@ -1170,7 +1234,9 @@ describe('CardTab', () => {
     // given
     fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
     useMaple.setState({
-      statuses: { t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false } },
+      statuses: {
+        t1: { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+      },
     });
     // when
     render(<CardTab tab={tab} />);

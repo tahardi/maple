@@ -2754,7 +2754,7 @@ describe('FileViewer', () => {
       // when
       act(() => {
         useMaple.setState({
-          statuses: { t1: { tabId: 't1', dot, sessionAlive: true, exitCode: null, resumeFailed: false } },
+          statuses: { t1: { tabId: 't1', dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null } },
         });
       });
       // then

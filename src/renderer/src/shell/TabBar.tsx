@@ -7,6 +7,8 @@ import { ReportDialog } from './ReportDialog';
 import styles from './TabBar.module.css';
 import { tabLabel } from './tabLabel';
 
+const SYNC_LABELS = { queued: 'Sync queued', syncing: 'Syncing with main' } as const;
+
 export function TabBar() {
   const tabs = useMaple((s) => s.tabs);
   const projectKey = useMaple((s) => s.projectKey);
@@ -22,6 +24,7 @@ export function TabBar() {
   const cardTabs = tabs.filter((t) => t.projectKey === projectKey && t.kind === 'card');
   const vaultTab = tabs.find((t) => t.projectKey === projectKey && t.kind === 'vault');
   const dotOf = (id: string) => (Object.hasOwn(statuses, id) ? statuses[id].dot : undefined);
+  const syncOf = (id: string) => (Object.hasOwn(statuses, id) ? statuses[id].sync : null);
   const openVault = () => {
     setVaultError(null);
     if (vaultTab) {
@@ -47,6 +50,7 @@ export function TabBar() {
       id: null,
       label: 'Home',
       dot: undefined,
+      sync: null,
       selected: activeTabId === null,
       onClick: () => {
         activate(null);
@@ -60,6 +64,7 @@ export function TabBar() {
             id: vaultTab?.id ?? null,
             label: 'Vault',
             dot: vaultTab && dotOf(vaultTab.id),
+            sync: null,
             selected: vaultTab !== undefined && vaultTab.id === activeTabId,
             onClick: openVault,
           },
@@ -69,6 +74,7 @@ export function TabBar() {
       id: t.id,
       label: t.cardKey ?? t.id,
       dot: dotOf(t.id),
+      sync: syncOf(t.id),
       selected: t.id === activeTabId,
       onClick: () => {
         activate(t.id);
@@ -87,6 +93,16 @@ export function TabBar() {
             <button role="tab" aria-selected={item.selected} className={styles.tab} onClick={item.onClick}>
               {item.dot && <span className={styles.dot} data-dot={item.dot} />}
               {item.label}
+              {item.sync !== null && (
+                <span
+                  className={styles.sync}
+                  data-sync={item.sync}
+                  aria-label={SYNC_LABELS[item.sync]}
+                  title={SYNC_LABELS[item.sync]}
+                >
+                  ↻
+                </span>
+              )}
             </button>
             {id !== null && (
               <button
@@ -125,6 +141,7 @@ export function TabBar() {
           title="Close tab"
           body={`${tabLabel(closing)} is still working. Close anyway?`}
           confirmLabel="Close"
+          danger
           onConfirm={() => void closeTab(closing.id, true)}
           onCancel={cancelClose}
         />

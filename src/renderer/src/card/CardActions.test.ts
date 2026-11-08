@@ -8,6 +8,8 @@ const config: MapleConfig = {
   vaultDir: null,
   notifications: false,
   backgroundWaitMinutes: 15,
+  eventKeepDays: 365,
+  eventMaxMegabytes: 200,
   projects: [],
   actions: [
     { label: 'Address review', prompt: '/card {key}' },
@@ -76,6 +78,15 @@ describe('cardActions', () => {
     list.find((a) => a.label === label)?.onClick();
     // then
     expect(send).toHaveBeenCalledWith(want);
+  });
+
+  test('Approve is primary and Close is danger', () => {
+    // given
+    const { list } = actions();
+    // when
+    const variants = list.map((a) => a.variant);
+    // then
+    expect(variants).toEqual([undefined, undefined, 'primary', 'danger']);
   });
 
   test('Approve calls approve', () => {

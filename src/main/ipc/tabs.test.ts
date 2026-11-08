@@ -50,7 +50,14 @@ const cost: SessionCost = {
 };
 const sessionCost = vi.fn<(sessionId: string) => Promise<SessionCost | null>>(() => Promise.resolve(cost));
 
-const status: TabStatus = { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false };
+const status: TabStatus = {
+  tabId: 't1',
+  dot: 'waiting',
+  sessionAlive: true,
+  exitCode: null,
+  resumeFailed: false,
+  sync: null,
+};
 
 function setup() {
   const sessions = fakeSessions();
@@ -73,6 +80,8 @@ function setup() {
       configLoaded: () => Promise.resolve(),
       setLastProject: () => Promise.resolve(),
       lastProject: () => Promise.resolve(null),
+      setSeen: () => Promise.resolve(),
+      seen: () => Promise.resolve({}),
       warnings: () => [],
     },
     logger,
@@ -189,6 +198,21 @@ describe('registerTabs', () => {
     // then
     expect(sessionCost).not.toHaveBeenCalled();
     expect(result).toBeNull();
+  });
+
+  test('tabs:cost logs a failure at warn and rethrows', async () => {
+    // given
+    setup();
+    sessionCost.mockRejectedValueOnce(new Error('reading transcript: gone'));
+    // when
+    const result = invoke('tabs:cost', 't1');
+    // then
+    await expect(result).rejects.toThrow('reading transcript: gone');
+    expect(logger.warn).toHaveBeenCalledWith('session', 'failed', {
+      operation: 'tabs:cost',
+      args: ['t1'],
+      error: 'reading transcript: gone',
+    });
   });
 
   test('tabs:statuses returns the engine statuses', () => {

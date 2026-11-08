@@ -2,16 +2,23 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Fetched } from '@shared/types/app';
+import { syncPrompt } from '@shared/prompts';
 import type { MapleConfig } from '@shared/types/config';
 import { z } from 'zod';
+import { KEEP_DAYS, MAX_MEGABYTES } from '@main/events/pruneEvents';
 import { appLogger, type Logger } from './log';
 
 const defaultActions = [
   { label: 'Address review', prompt: '/card {key}' },
-  { label: 'Merge main', prompt: 'Run the "Sync with Main" steps from the /card skill for {key}.' },
+  { label: 'Merge main', prompt: syncPrompt('{key}') },
 ];
 
 export const DEFAULT_WAIT_MINUTES = 10;
+
+const repoSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*$/, 'must be owner/name')
+  .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..'), 'must be owner/name');
 
 const configSchema = z
   .object({
@@ -19,16 +26,16 @@ const configSchema = z
     vaultDir: z.string().optional(),
     notifications: z.boolean().default(true),
     backgroundWaitMinutes: z.number().positive().default(DEFAULT_WAIT_MINUTES),
+    eventKeepDays: z.number().int().positive().default(KEEP_DAYS),
+    eventMaxMegabytes: z.number().positive().default(MAX_MEGABYTES),
     projects: z.array(
       z.object({
         name: z.string(),
         jiraKey: z.string(),
         jiraBoardId: z.number(),
         plannerDir: z.string(),
-        repo: z
-          .string()
-          .regex(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*$/, 'must be owner/name')
-          .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..'), 'must be owner/name'),
+        repo: repoSchema,
+        otherRepos: z.array(repoSchema).default([]),
       }),
     ),
     actions: z.array(z.object({ label: z.string(), prompt: z.string() })).default(defaultActions),

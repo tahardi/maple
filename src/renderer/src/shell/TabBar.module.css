@@ -75,3 +75,12 @@
 .dot[data-dot='merged'] {
   background: var(--merged);
 }
+
+.sync {
+  margin-left: 6px;
+  color: var(--idle);
+}
+
+.sync[data-sync='syncing'] {
+  color: var(--warning);
+}
