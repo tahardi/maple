@@ -2,7 +2,7 @@ import { DiffEditor, Editor, useMonaco } from '@monaco-editor/react';
 import { lineMarks } from '@shared/diffMarks';
 import type { DiffLines, Draft, FilePair } from '@shared/types/files';
 import type { Review, ReviewComment } from '@shared/types/github';
-import type { editor } from 'monaco-editor/editor/editor.api';
+import type { editor, IRange } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { MarkdownText } from '@renderer/shell/MarkdownText';
@@ -55,6 +55,8 @@ const NO_REVIEW = 'Review not loaded: click Reload review to pin comments to the
 
 const NO_COPY = 'No saved copy of this note from this session';
 
+const NO_SELECTION = 'Select lines to comment on';
+
 const OPTIONS = {
   readOnly: true,
   domReadOnly: true,
@@ -91,6 +93,10 @@ function saveWrap(wrap: boolean) {
   } catch {
     return;
   }
+}
+
+function atFileStart(range: IRange): boolean {
+  return range.startLineNumber === 1 && range.startColumn === 1 && range.endLineNumber === 1 && range.endColumn === 1;
 }
 
 function errorText(err: unknown): string {
@@ -150,7 +156,7 @@ export function FileViewer({
   const [comments, setComments] = useState<ReviewComment[]>(NO_COMMENTS);
   const [commentsRead, setCommentsRead] = useState(0);
   const [diff, setDiff] = useState<({ headSha: string } & DiffLines) | null>(null);
-  const [picked, setPicked] = useState<{ editor: editor.ICodeEditor; lines: Lines } | null>(null);
+  const [picked, setPicked] = useState<{ editor: editor.ICodeEditor; lines: Lines | null } | null>(null);
   const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
 
   const wordWrap = wrap ? 'on' : 'off';
@@ -306,7 +312,7 @@ export function FileViewer({
   const selected =
     picked !== null && picked.editor === plain
       ? picked.lines
-      : shownSelection === null
+      : shownSelection === null || atFileStart(shownSelection)
         ? null
         : selectedLines(shownSelection);
   const inDiff = selected !== null && ranges.some(([start, end]) => start <= selected.start && selected.end <= end);
@@ -383,7 +389,7 @@ export function FileViewer({
       return;
     }
     const subscription = plain.onDidChangeCursorSelection((e) => {
-      setPicked({ editor: plain, lines: selectedLines(e.selection) });
+      setPicked({ editor: plain, lines: atFileStart(e.selection) ? null : selectedLines(e.selection) });
     });
     return () => {
       subscription.dispose();
@@ -679,7 +685,7 @@ export function FileViewer({
   };
 
   const modeButtons = (
-    <>
+    <div role="group" aria-label="Diff layout" className={styles.segmented}>
       <button
         aria-pressed={mode === 'in-file'}
         onClick={() => {
@@ -696,7 +702,7 @@ export function FileViewer({
       >
         Side by side
       </button>
-    </>
+    </div>
   );
 
   return (
@@ -746,12 +752,13 @@ export function FileViewer({
         {shownNote !== null && (
           <div className={styles.toggle}>
             <button
+              aria-pressed={editsNote}
               onClick={() => {
                 setEditing({ ...editing, [shownNote.path]: !editsNote });
                 setChanges({ ...changes, [shownNote.path]: false });
               }}
             >
-              {editsNote ? 'Preview' : 'Edit'}
+              Edit
             </button>
             {noteChanges && (
               <button
@@ -779,10 +786,11 @@ export function FileViewer({
         )}
         {!showsDescription && !showsNote && (
           <div className={styles.toggle}>
-            {modeButtons}
+            {changed && modeButtons}
             {commentable && (
               <button
-                title={blocked ?? undefined}
+                disabled={selected === null}
+                title={selected === null ? NO_SELECTION : (blocked ?? undefined)}
                 onClick={() => {
                   if (selected === null) {
                     return;

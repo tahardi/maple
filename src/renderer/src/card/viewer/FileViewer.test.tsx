@@ -371,7 +371,7 @@ describe('FileViewer', () => {
     renderNote();
     await editNote();
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit', pressed: true }));
     // then
     expect(await screen.findByTestId('note-overview')).toBeInTheDocument();
   });
@@ -575,21 +575,25 @@ describe('FileViewer', () => {
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
-  test('Edit shows the note in an editor and Preview shows it rendered', async () => {
+  test('Edit toggles between the editor and the formatted note', async () => {
     // given
     renderNote();
+    await screen.findByRole('heading', { name: 'Findings' });
     // when
-    const editor = await editNote();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit', pressed: false }));
+    const editor = await screen.findByTestId('editor');
     // then
     expect(editor).toHaveAttribute('data-value', '## Findings\n');
     expect(editor).toHaveAttribute('data-language', 'markdown');
     expect(editor).toHaveAttribute('data-readonly', 'false');
     expect(screen.queryByRole('heading', { name: 'Findings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Preview' })).not.toBeInTheDocument();
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit', pressed: true }));
     // then
     expect(screen.getByRole('heading', { name: 'Findings' })).toBeInTheDocument();
     expect(screen.queryByTestId('editor')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Preview' })).not.toBeInTheDocument();
   });
 
   test('a note with a saved copy opens in Changes, read-only with its changed lines marked', async () => {
@@ -615,8 +619,9 @@ describe('FileViewer', () => {
       ]);
     });
     expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'In file' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Side by side' })).toBeInTheDocument();
+    const group = within(screen.getByRole('group', { name: 'Diff layout' }));
+    expect(group.getByRole('button', { name: 'In file' })).toBeInTheDocument();
+    expect(group.getByRole('button', { name: 'Side by side' })).toBeInTheDocument();
   });
 
   test('pressing Changes shows the formatted note', async () => {
@@ -760,15 +765,16 @@ describe('FileViewer', () => {
     expect(await screen.findByText(/reading note: file is too large/)).toBeInTheDocument();
   });
 
-  test('Edit turns Changes off, so Preview shows the formatted note', async () => {
+  test('Edit turns Changes off, so leaving Edit shows the formatted note', async () => {
     // given
     renderNote({ before: vi.fn(() => Promise.resolve('## Draft\n')) });
     await screen.findByTestId('editor');
-    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit', pressed: false }));
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit', pressed: true }));
     // then
     expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Preview' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute('aria-pressed', 'false');
   });
 
@@ -915,7 +921,7 @@ describe('FileViewer', () => {
     renderNote();
     // then
     expect(await screen.findByTestId('editor')).toHaveAttribute('data-value', '## Mine\n');
-    expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit', pressed: true })).toBeInTheDocument();
   });
 
   test.each([
@@ -948,7 +954,7 @@ describe('FileViewer', () => {
     await clear();
     // then
     expect(screen.getByTestId('editor')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit', pressed: true })).toBeInTheDocument();
   });
 
   test('Ctrl+S on a note without a draft does not write it', async () => {
@@ -1000,6 +1006,50 @@ describe('FileViewer', () => {
     const editor = await screen.findByTestId('editor');
     expect(editor).toHaveAttribute('data-value', 'new\n');
     expect(screen.getByRole('button', { name: 'In file', pressed: true })).toBeInTheDocument();
+  });
+
+  test('hides the diff layout for an unchanged file', async () => {
+    // given
+    // when
+    renderViewer(same);
+    await screen.findByTestId('editor');
+    // then
+    expect(screen.queryByRole('group', { name: 'Diff layout' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'In file' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Side by side' })).not.toBeInTheDocument();
+  });
+
+  test.each<{ name: string; mode: string; pair: FilePair }>([
+    { name: 'a deleted file', mode: 'in-file', pair: { kind: 'text', path: 'a.ts', current: null, base: 'old\n' } },
+    { name: 'an unchanged file with side by side saved', mode: 'side-by-side', pair: same },
+  ])('hides the diff layout for $name', async ({ mode, pair }) => {
+    // given
+    localStorage.setItem('maple.viewMode', mode);
+    // when
+    renderViewer(pair);
+    await screen.findByTestId('editor');
+    // then
+    expect(screen.queryByRole('group', { name: 'Diff layout' })).not.toBeInTheDocument();
+  });
+
+  test('keeps Comment on an unchanged file with no diff layout', async () => {
+    // given
+    // when
+    renderViewer(same, undefined, true);
+    // then
+    expect(await screen.findByRole('button', { name: 'Comment' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Diff layout' })).not.toBeInTheDocument();
+  });
+
+  test('groups In file and Side by side for a changed file', async () => {
+    // given
+    // when
+    renderViewer(changed);
+    await screen.findByTestId('editor');
+    // then
+    const group = within(screen.getByRole('group', { name: 'Diff layout' }));
+    expect(group.getByRole('button', { name: 'In file' })).toBeInTheDocument();
+    expect(group.getByRole('button', { name: 'Side by side' })).toBeInTheDocument();
   });
 
   test('switches to side by side and saves the mode', async () => {
@@ -2309,6 +2359,72 @@ describe('FileViewer', () => {
     fireEvent.click(form.getByRole('button', { name: 'Post' }));
     // then
     expect(comment).toHaveBeenCalledWith('t1', 'src/a.ts', 2, 4, 'why?', reviewed.headSha);
+  });
+
+  test('Comment is disabled until lines are selected', async () => {
+    // given
+    monaco.editor.getSelection.mockReturnValue({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+    onTestFinished(() => {
+      monaco.editor.getSelection.mockReset();
+    });
+    // when
+    renderViewer(changed, undefined, true);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    // then
+    await vi.waitFor(() => {
+      expect(button).toBeDisabled();
+    });
+    expect(button).toHaveAttribute('title', 'Select lines to comment on');
+    // when
+    await moveCursor(select(3, 3));
+    // then
+    expect(button).toBeEnabled();
+  });
+
+  test('Comment is disabled again when the cursor returns to the start of the file', async () => {
+    // given
+    renderViewer(changed, undefined, true);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await moveCursor(select(3, 3));
+    // when
+    await moveCursor(select(1, 1, 1));
+    // then
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', 'Select lines to comment on');
+  });
+
+  test.each([
+    { name: 'text selected on the first line', selection: select(1, 1, 4).selection },
+    {
+      name: 'a cursor partway along the first line',
+      selection: { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 2 },
+    },
+  ])('Comment is enabled for $name', async ({ selection }) => {
+    // given
+    renderViewer(changed, undefined, true);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    // when
+    await moveCursor({ selection });
+    // then
+    expect(button).toBeEnabled();
+  });
+
+  test.each([
+    { name: 'the no-review reason once lines are selected', cursor: select(3, 3), want: 'Review not loaded' },
+    {
+      name: 'the selection hint before lines are selected',
+      cursor: select(1, 1, 1),
+      want: 'Select lines to comment on',
+    },
+  ])('Comment without a loaded review shows $name', async ({ cursor, want }) => {
+    // given
+    const { props, rerender } = renderViewer(changed, undefined, true);
+    await screen.findByRole('button', { name: 'Comment' });
+    rerender(<FileViewer {...props} review={null} />);
+    // when
+    await moveCursor(cursor);
+    // then
+    expect(screen.getByRole('button', { name: 'Comment' }).getAttribute('title')).toContain(want);
   });
 
   test('explains why Comment does nothing on lines that leave the PR diff', async () => {
