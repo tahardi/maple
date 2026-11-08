@@ -85,6 +85,8 @@ function deps(window: () => BrowserWindow | null = () => null) {
     configLoaded: vi.fn(() => Promise.resolve()),
     setLastProject: vi.fn(() => Promise.resolve()),
     lastProject: () => Promise.resolve(null),
+    setSeen: () => Promise.resolve(),
+    seen: () => Promise.resolve({}),
   };
 }
 

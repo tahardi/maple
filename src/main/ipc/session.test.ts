@@ -39,6 +39,8 @@ function setup() {
     configLoaded: () => Promise.resolve(),
     setLastProject: () => Promise.resolve(),
     lastProject: () => Promise.resolve(null),
+    setSeen: () => Promise.resolve(),
+    seen: () => Promise.resolve({}),
   });
   return { sessions, sendToWindow };
 }

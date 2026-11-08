@@ -274,39 +274,244 @@ describe('useMaple', () => {
     expect(useMaple.getState().since['bear-1']).toBe(loaded + 120_000);
   });
 
+  test('init loads the saved seen map', async () => {
+    // given
+    setup(undefined, { seen: () => Promise.resolve({ 'dig-1': 'waiting' }) });
+    // when
+    await useMaple.getState().init();
+    // then
+    expect(useMaple.getState().seen).toEqual({ 'dig-1': 'waiting' });
+  });
+
   test.each([
-    { name: 'activating a card tab marks it seen', projectKey: 'BEAR', tabId: 'bear-1', want: ['bear-1'] },
-    { name: 'showing Home marks the project planner seen', projectKey: 'DIG', tabId: null, want: ['dig-p'] },
+    {
+      name: 'activating a card tab marks it seen',
+      projectKey: 'BEAR',
+      tabId: 'bear-1',
+      want: { 'bear-1': 'working' },
+    },
+    {
+      name: 'showing Home marks the project planner seen',
+      projectKey: 'DIG',
+      tabId: null,
+      want: { 'dig-p': 'waiting' },
+    },
   ])('$name', async ({ projectKey, tabId, want }) => {
     // given
-    vi.useFakeTimers();
-    const now = new Date('2026-10-20T10:00:00Z').getTime();
-    vi.setSystemTime(now);
-    setup([tab('bear-1', 'BEAR'), tab('dig-1', 'DIG'), { ...tab('dig-p', 'DIG'), kind: 'planner', cardKey: null }]);
+    const setSeen = vi.fn(() => Promise.resolve());
+    setup([tab('bear-1', 'BEAR'), tab('dig-1', 'DIG'), { ...tab('dig-p', 'DIG'), kind: 'planner', cardKey: null }], {
+      setSeen,
+    });
     await useMaple.getState().init();
-    useMaple.setState({ projectKey });
+    useMaple.setState({
+      projectKey,
+      statuses: { ...useMaple.getState().statuses, 'dig-p': status('dig-p', 'waiting') },
+    });
     // when
     useMaple.getState().activate(tabId);
     // then
-    vi.useRealTimers();
-    expect(useMaple.getState().seen).toEqual(Object.fromEntries(want.map((id) => [id, now])));
+    expect(useMaple.getState().seen).toEqual(want);
+    expect(setSeen).toHaveBeenCalledWith(want);
+  });
+
+  test('markSeen records each tab at its current dot and saves it', async () => {
+    // given
+    const setSeen = vi.fn(() => Promise.resolve());
+    setup(undefined, { setSeen });
+    await useMaple.getState().init();
+    useMaple.setState({ statuses: { 'bear-1': status('bear-1', 'ready'), 'dig-1': status('dig-1', 'waiting') } });
+    // when
+    useMaple.getState().markSeen(['bear-1', 'dig-1', 'no-status']);
+    // then
+    const want = { 'bear-1': 'ready', 'dig-1': 'waiting' };
+    expect(useMaple.getState().seen).toEqual(want);
+    expect(setSeen).toHaveBeenCalledWith(want);
   });
 
   test('tabs:status marks a dot change on the tab in view as seen', async () => {
     // given
-    vi.useFakeTimers();
-    const now = new Date('2026-10-20T10:00:00Z').getTime();
-    vi.setSystemTime(now);
     const { events } = setup();
     await useMaple.getState().init();
     useMaple.getState().activate('bear-1');
-    vi.setSystemTime(now + 60_000);
     // when
     events.status(status('bear-1', 'ready'));
     events.status(status('dig-1', 'ready'));
     // then
+    expect(useMaple.getState().seen).toEqual({ 'bear-1': 'ready' });
+  });
+
+  test('tabs:status working clears the seen dot of a tab out of view', async () => {
+    // given
+    const setSeen = vi.fn(() => Promise.resolve());
+    const { events } = setup(undefined, { setSeen, seen: () => Promise.resolve({ 'dig-1': 'waiting' }) });
+    await useMaple.getState().init();
+    useMaple.setState({ statuses: { 'dig-1': status('dig-1', 'waiting') } });
+    // when
+    events.status(status('dig-1', 'working'));
+    // then
+    expect(useMaple.getState().seen).toEqual({});
+    expect(setSeen).toHaveBeenCalledWith({});
+  });
+
+  test.each([
+    { from: 'idle', to: 'waiting' },
+    { from: 'waiting', to: 'ready' },
+  ] as const)('tabs:status from $from to $to keeps the seen dot of a tab out of view', async ({ from, to }) => {
+    // given
+    const setSeen = vi.fn(() => Promise.resolve());
+    const { events } = setup(undefined, { setSeen, seen: () => Promise.resolve({ 'dig-1': 'waiting' }) });
+    await useMaple.getState().init();
+    useMaple.setState({ statuses: { 'dig-1': status('dig-1', from) } });
+    // when
+    events.status(status('dig-1', to));
+    // then
+    expect(useMaple.getState().seen).toEqual({ 'dig-1': 'waiting' });
+    expect(setSeen).not.toHaveBeenCalled();
+  });
+
+  test('init keeps status events that arrive while it loads', async () => {
+    // given
+    vi.useFakeTimers();
+    const loaded = new Date('2026-10-19T10:00:00Z').getTime();
+    vi.setSystemTime(loaded);
+    let finishSeen: (seen: Record<string, TabStatus['dot']>) => void = () => undefined;
+    const seen = new Promise<Record<string, TabStatus['dot']>>((resolve) => {
+      finishSeen = resolve;
+    });
+    const { events } = setup(undefined, { seen: () => seen });
+    const loading = useMaple.getState().init();
+    events.status(status('bear-1', 'waiting'));
+    vi.setSystemTime(loaded + 60_000);
+    // when
+    finishSeen({});
+    await loading;
+    // then
     vi.useRealTimers();
-    expect(useMaple.getState().seen).toEqual({ 'bear-1': now + 60_000 });
+    expect(useMaple.getState().statuses['bear-1'].dot).toBe('waiting');
+    expect(useMaple.getState().since['bear-1']).toBe(loaded);
+  });
+
+  test.each([
+    { name: 'in the first status list', tabId: 'bear-1', event: null },
+    { name: 'from an event while it loads', tabId: 'dig-1', event: status('dig-1', 'working') },
+  ])('init drops the seen dot of a tab working $name', async ({ tabId, event }) => {
+    // given
+    const setSeen = vi.fn(() => Promise.resolve());
+    let finishSeen: (seen: Record<string, TabStatus['dot']>) => void = () => undefined;
+    const seen = new Promise<Record<string, TabStatus['dot']>>((resolve) => {
+      finishSeen = resolve;
+    });
+    const { events } = setup(undefined, { setSeen, seen: () => seen });
+    const loading = useMaple.getState().init();
+    if (event !== null) {
+      events.status(event);
+    }
+    // when
+    finishSeen({ [tabId]: 'waiting' });
+    await loading;
+    // then
+    expect(useMaple.getState().seen).toEqual({});
+    expect(setSeen).toHaveBeenCalledWith({});
+  });
+
+  test('init starts with no seen dots when reading them fails', async () => {
+    // given
+    setup(undefined, { seen: () => Promise.reject(new Error('reading state: boom')) });
+    // when
+    await useMaple.getState().init();
+    // then
+    expect(useMaple.getState().seen).toEqual({});
+    expect(useMaple.getState().projectKey).toBe('BEAR');
+  });
+
+  test('markSeen saves nothing for a tab already seen at its dot', async () => {
+    // given
+    const setSeen = vi.fn(() => Promise.resolve());
+    setup(undefined, { setSeen });
+    await useMaple.getState().init();
+    useMaple.setState({ statuses: { 'bear-1': status('bear-1', 'waiting') }, seen: { 'bear-1': 'waiting' } });
+    // when
+    useMaple.getState().markSeen(['bear-1']);
+    // then
+    expect(setSeen).not.toHaveBeenCalled();
+  });
+
+  test('opening an idle tab keeps its saved dot', async () => {
+    // given
+    const { events } = setup(undefined, { seen: () => Promise.resolve({ 'dig-1': 'waiting' }) });
+    await useMaple.getState().init();
+    useMaple.setState({ statuses: { 'dig-1': status('dig-1', 'idle') } });
+    // when
+    useMaple.getState().activate('dig-1');
+    useMaple.getState().activate(null);
+    events.status(status('dig-1', 'waiting'));
+    // then
+    expect(useMaple.getState().seen).toEqual({ 'dig-1': 'waiting' });
+  });
+
+  test('tabs:status idle on the tab in view keeps its saved dot', async () => {
+    // given
+    const { events } = setup(undefined, { seen: () => Promise.resolve({ 'dig-1': 'waiting' }) });
+    await useMaple.getState().init();
+    useMaple.setState({ statuses: { 'dig-1': status('dig-1', 'waiting') } });
+    useMaple.getState().activate('dig-1');
+    // when
+    events.status(status('dig-1', 'idle'));
+    // then
+    expect(useMaple.getState().seen).toEqual({ 'dig-1': 'waiting' });
+  });
+
+  test('tabs:status working saves nothing for a tab out of view with no seen dot', async () => {
+    // given
+    const setSeen = vi.fn(() => Promise.resolve());
+    const { events } = setup(undefined, { setSeen });
+    await useMaple.getState().init();
+    // when
+    events.status(status('dig-1', 'working'));
+    // then
+    expect(setSeen).not.toHaveBeenCalled();
+  });
+
+  test('a tab left while working stays at its working seen dot when it stops', async () => {
+    // given
+    const { events } = setup();
+    await useMaple.getState().init();
+    useMaple.getState().activate('dig-1');
+    events.status(status('dig-1', 'working'));
+    useMaple.getState().activate(null);
+    // when
+    events.status(status('dig-1', 'waiting'));
+    // then
+    expect(useMaple.getState().seen).toEqual({ 'dig-1': 'working' });
+  });
+
+  test('selectProject with a tab opens it and leaves the last tab of the project unseen', async () => {
+    // given
+    setup([tab('dig-1', 'DIG'), tab('dig-2', 'DIG')]);
+    await useMaple.getState().init();
+    useMaple.setState({
+      statuses: { 'dig-1': status('dig-1', 'waiting'), 'dig-2': status('dig-2', 'ready') },
+      lastActive: { DIG: 'dig-1' },
+    });
+    // when
+    useMaple.getState().selectProject('DIG', 'dig-2');
+    // then
+    expect(useMaple.getState().activeTabId).toBe('dig-2');
+    expect(useMaple.getState().seen).toEqual({ 'dig-2': 'ready' });
+  });
+
+  test('tabs:activate leaves the last tab of the other project unseen', async () => {
+    // given
+    const { events } = setup([tab('bear-1', 'BEAR'), tab('dig-1', 'DIG'), tab('dig-2', 'DIG')]);
+    await useMaple.getState().init();
+    useMaple.setState({
+      statuses: { 'dig-1': status('dig-1', 'waiting'), 'dig-2': status('dig-2', 'ready') },
+      lastActive: { DIG: 'dig-1' },
+    });
+    // when
+    events.activate('dig-2');
+    // then
+    expect(useMaple.getState().seen).toEqual({ 'dig-2': 'ready' });
   });
 
   test('tabs:activate switches to the tab project and activates the tab', async () => {

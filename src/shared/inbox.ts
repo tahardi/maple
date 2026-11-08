@@ -1,4 +1,4 @@
-import type { TabKind, TabState, TabStatus } from './types/tabs';
+import type { Dot, TabKind, TabState, TabStatus } from './types/tabs';
 
 export type InboxItem = {
   tabId: string;
@@ -14,7 +14,7 @@ export function inboxItems(
   tabs: TabState[],
   statuses: TabStatus[],
   since: Record<string, number>,
-  seen: Record<string, number>,
+  seen: Record<string, Dot>,
   points: Record<string, number | null>,
 ): InboxItem[] {
   const dots = new Map(statuses.map((s) => [s.tabId, s.dot]));
@@ -22,7 +22,7 @@ export function inboxItems(
   for (const tab of tabs) {
     const dot = dots.get(tab.id);
     const changed = Object.hasOwn(since, tab.id) ? since[tab.id] : 0;
-    if ((dot !== 'waiting' && dot !== 'ready') || (Object.hasOwn(seen, tab.id) && seen[tab.id] >= changed)) {
+    if ((dot !== 'waiting' && dot !== 'ready') || (Object.hasOwn(seen, tab.id) && seen[tab.id] === dot)) {
       continue;
     }
     items.push({

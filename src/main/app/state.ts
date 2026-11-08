@@ -1,8 +1,9 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { TabState } from '@shared/types/tabs';
+import type { Dot, TabState } from '@shared/types/tabs';
 import { z } from 'zod';
 import { configDir } from './config';
+import { dotSchema } from './dotSchema';
 
 export type SavedState = {
   version: 1;
@@ -11,6 +12,7 @@ export type SavedState = {
   notifications: boolean | null;
   zoom: number;
   lastProject: string | null;
+  seen: Record<string, Dot>;
 };
 
 const stateSchema = z.object({
@@ -29,10 +31,11 @@ const stateSchema = z.object({
   notifications: z.boolean().nullable(),
   zoom: z.number().default(0),
   lastProject: z.string().nullable().default(null),
+  seen: z.record(z.string(), dotSchema).catch({}),
 });
 
 function emptyState(): SavedState {
-  return { version: 1, tabs: [], closedSessions: {}, notifications: null, zoom: 0, lastProject: null };
+  return { version: 1, tabs: [], closedSessions: {}, notifications: null, zoom: 0, lastProject: null, seen: {} };
 }
 
 export async function loadState(dir: string = configDir()): Promise<{ state: SavedState; warning: string | null }> {
@@ -43,7 +46,10 @@ export async function loadState(dir: string = configDir()): Promise<{ state: Sav
     return { state: emptyState(), warning: null };
   }
   try {
-    return { state: stateSchema.parse(JSON.parse(text)), warning: null };
+    const state = stateSchema.parse(JSON.parse(text));
+    const tabIds = new Set(state.tabs.map((t) => t.id));
+    const seen = Object.fromEntries(Object.entries(state.seen).filter(([id]) => tabIds.has(id)));
+    return { state: { ...state, seen }, warning: null };
   } catch {
     return { state: emptyState(), warning: 'reading state: state.json is unreadable, starting with no tabs' };
   }
