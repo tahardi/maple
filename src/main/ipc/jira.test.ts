@@ -27,6 +27,7 @@ const project: ProjectConfig = {
   jiraBoardId: 7,
   plannerDir: '/tmp/halo',
   repo: 'tahardi/halo',
+  otherRepos: [],
 };
 
 const sessions = { sessionOf } as unknown as SessionManager;

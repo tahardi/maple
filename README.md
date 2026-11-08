@@ -68,6 +68,8 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
 
 `repo` is the project's GitHub repository as `owner/name`. Maple runs every `gh` call for the project's PRs against it on the desktop, so the review diff and the merge never depend on a local checkout.
 
+`otherRepos` is optional and lists more `owner/name` repos the project's cards may open PRs in. Maple uses the first repo in `[repo, ...otherRepos]` that has a PR for the card's branch.
+
 `vaultDir` is optional. When set, every card tab can switch its file tree to the Markdown notes in that Obsidian vault and open them read-only next to the card's Claude session. Notes the card's Claude session wrote show as changed.
 
 ## Status

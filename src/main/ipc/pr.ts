@@ -25,12 +25,14 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
   const lastGood = new Map<string, Fetched<PrInfo>>();
   let login: Promise<string> | null = null;
 
-  function runnerFor(tabId: string): Promise<CommandRunner> {
-    return projectRunner(deps.project, deps.sessions.get(tabId)?.projectKey ?? null);
+  async function runnerFor(tabId: string): Promise<CommandRunner> {
+    const worktree = deps.worktreeFor(tabId);
+    const branch = worktree === null ? null : await currentBranch(worktree);
+    return projectRunner(deps.project, deps.sessions.get(tabId)?.projectKey ?? null, branch);
   }
 
-  async function lookup(tabId: string, worktree: string): Promise<PrInfo | null> {
-    return prForBranch(await runnerFor(tabId), worktree, await currentBranch(worktree));
+  async function lookup(run: CommandRunner, worktree: string): Promise<PrInfo | null> {
+    return prForBranch(run, worktree, await currentBranch(worktree));
   }
 
   function myLogin(run: CommandRunner): Promise<string> {
@@ -47,7 +49,11 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       return { data: null, error: null, fetchedAt: null };
     }
     try {
-      const fetched = { data: await lookup(tabId, worktree), error: null, fetchedAt: new Date().toISOString() };
+      const fetched = {
+        data: await lookup(await runnerFor(tabId), worktree),
+        error: null,
+        fetchedAt: new Date().toISOString(),
+      };
       lastGood.set(tabId, fetched);
       return fetched;
     } catch (err) {
@@ -64,7 +70,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
     }
     try {
       const run = await runnerFor(tabId);
-      const pr = await lookup(tabId, worktree);
+      const pr = await lookup(run, worktree);
       if (pr?.state !== 'OPEN') {
         return { data: null, error: null, fetchedAt: null };
       }
@@ -101,7 +107,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       const run = await runnerFor(tabId).catch((err: unknown) => {
         throw new Error(`approving PR: ${message(err)}`);
       });
-      const pr = await lookup(tabId, worktree).catch((err: unknown) => {
+      const pr = await lookup(run, worktree).catch((err: unknown) => {
         throw new Error(`approving PR: ${message(err)}`);
       });
       if (pr?.state !== 'OPEN') {
@@ -135,7 +141,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
         const run = await runnerFor(tabId).catch((err: unknown) => {
           throw new Error(`commenting on line: ${message(err)}`);
         });
-        const pr = await lookup(tabId, worktree).catch((err: unknown) => {
+        const pr = await lookup(run, worktree).catch((err: unknown) => {
           throw new Error(`commenting on line: ${message(err)}`);
         });
         if (pr?.state !== 'OPEN') {
@@ -167,7 +173,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
         const run = await runnerFor(tabId).catch((err: unknown) => {
           throw new Error(`replying to comment: ${message(err)}`);
         });
-        const pr = await lookup(tabId, worktree).catch((err: unknown) => {
+        const pr = await lookup(run, worktree).catch((err: unknown) => {
           throw new Error(`replying to comment: ${message(err)}`);
         });
         if (pr?.state !== 'OPEN') {
@@ -217,8 +223,9 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       return [];
     }
     try {
-      const pr = await lookup(tabId, worktree);
-      return pr === null ? [] : await reviewComments(await runnerFor(tabId), worktree, pr.number);
+      const run = await runnerFor(tabId);
+      const pr = await lookup(run, worktree);
+      return pr === null ? [] : await reviewComments(run, worktree, pr.number);
     } catch (err) {
       logger.warn('gh', 'failed', { operation: 'pr:comments', tabId, error: message(err) });
       throw err;
@@ -231,7 +238,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
     }
     try {
       const run = await runnerFor(tabId);
-      const pr = await lookup(tabId, worktree);
+      const pr = await lookup(run, worktree);
       if (pr === null) {
         return { ranges: {}, unpushed: [] };
       }

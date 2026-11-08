@@ -33,6 +33,7 @@ const project: ProjectConfig = {
   jiraBoardId: 1,
   plannerDir: '/tmp/dig',
   repo: 'tahardi/dig-days',
+  otherRepos: [],
 };
 
 function setup(tabs: TabState[] = [tab]) {
