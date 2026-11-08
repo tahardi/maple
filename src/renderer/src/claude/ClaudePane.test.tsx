@@ -231,13 +231,15 @@ describe('ClaudePane', () => {
   test('mounting opens a terminal with the pane font, scrollback, and dark theme', async () => {
     // given
     fakeMaple();
+    document.documentElement.style.setProperty('--font-md', '15px');
     // when
     render(<ClaudePane tabId="t1" actions={[]} />);
     await flush();
+    document.documentElement.style.removeProperty('--font-md');
     // then
     expect(Terminal).toHaveBeenCalledWith({
       fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
-      fontSize: 13,
+      fontSize: 15,
       scrollback: 10_000,
       theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
       allowProposedApi: true,

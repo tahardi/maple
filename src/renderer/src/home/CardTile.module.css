@@ -28,7 +28,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--font-sm);
   color: var(--text-muted);
 }
 
@@ -39,7 +39,7 @@
 }
 
 .blocked {
-  font-size: 12px;
+  font-size: var(--font-sm);
   color: var(--danger);
 }
 

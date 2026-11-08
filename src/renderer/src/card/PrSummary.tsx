@@ -69,11 +69,7 @@ export function PrSummary({
           {(headSha !== null || info.state === 'OPEN') && (
             <div className={styles.row}>
               {headSha !== null && <span className={styles.muted}>{`Reviewing ${headSha.slice(0, 7)}`}</span>}
-              {info.state === 'OPEN' && (
-                <button className={styles.reload} onClick={onReloadReview}>
-                  Reload review
-                </button>
-              )}
+              {info.state === 'OPEN' && <button onClick={onReloadReview}>Reload review</button>}
             </div>
           )}
           {reviewError !== null && <div className={styles.error}>{reviewError}</div>}

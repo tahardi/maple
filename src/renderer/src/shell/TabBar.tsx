@@ -141,6 +141,7 @@ export function TabBar() {
           title="Close tab"
           body={`${tabLabel(closing)} is still working. Close anyway?`}
           confirmLabel="Close"
+          danger
           onConfirm={() => void closeTab(closing.id, true)}
           onCancel={cancelClose}
         />
