@@ -1,12 +1,12 @@
 .markdown {
-  font-size: 13px;
+  font-size: var(--font-md);
   line-height: 1.45;
 }
 
 .markdown h1,
 .markdown h2,
 .markdown h3 {
-  font-size: 14px;
+  font-size: var(--font-lg);
   margin: 12px 0 4px;
 }
 

@@ -36,6 +36,11 @@
   --epic-magenta: #f797d2;
   --epic-lime: #b3df72;
   --epic-grey: #9fadbc;
+  --font-xs: 11px;
+  --font-sm: 12px;
+  --font-md: 13px;
+  --font-lg: 14px;
+  --font-xl: 16px;
 }
 
 html,
@@ -44,4 +49,40 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, sans-serif;
+  font-size: var(--font-md);
+}
+
+:where(button) {
+  font: inherit;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+:where(button:hover:enabled) {
+  background: var(--surface-hover);
+}
+
+:where(button[aria-pressed='true']) {
+  background: var(--accent);
+  color: var(--text-strong);
+}
+
+:where(button[data-variant='primary']) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-strong);
+}
+
+:where(button[data-variant='danger']) {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+:where(button:disabled) {
+  color: var(--text-muted);
+  cursor: default;
 }

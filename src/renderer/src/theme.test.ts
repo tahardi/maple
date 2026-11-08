@@ -6,6 +6,8 @@ const theme = styles['./theme.css'] ?? '';
 
 const hardCodedColor = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsl)\(|:[^;{}]*(?<![\w-])(?:white|black)(?![\w-])/g;
 
+const hardCodedFontSize = /font-size:(?!\s*var\(--font-)[^;]+/g;
+
 const palette = [
   ['--bg', '#1e1e1e'],
   ['--bg-raised', '#252526'],
@@ -42,6 +44,11 @@ const palette = [
   ['--epic-magenta', '#f797d2'],
   ['--epic-lime', '#b3df72'],
   ['--epic-grey', '#9fadbc'],
+  ['--font-xs', '11px'],
+  ['--font-sm', '12px'],
+  ['--font-md', '13px'],
+  ['--font-lg', '14px'],
+  ['--font-xl', '16px'],
 ];
 
 describe('theme', () => {
@@ -73,6 +80,33 @@ describe('theme', () => {
 
     // when
     const matches = source.match(hardCodedColor) ?? [];
+
+    // then
+    expect(matches, `${path} contains ${matches.join(', ')}`).toEqual([]);
+  });
+
+  test.each([
+    ['a spaced token', 'font-size: var(--font-md);', []],
+    ['an unspaced token', 'font-size:var(--font-md);', []],
+    ['pixels', 'font-size: 12px;', ['font-size: 12px']],
+    ['a calc', 'font-size: calc(1px + 2px);', ['font-size: calc(1px + 2px)']],
+  ])('the font size check on %s', (_name, css, want) => {
+    // given
+    const source = css;
+
+    // when
+    const matches = source.match(hardCodedFontSize) ?? [];
+
+    // then
+    expect(matches).toEqual(want);
+  });
+
+  test.each(modules)('%s sizes text with theme font sizes', (path, css) => {
+    // given
+    const source = css;
+
+    // when
+    const matches = source.match(hardCodedFontSize) ?? [];
 
     // then
     expect(matches, `${path} contains ${matches.join(', ')}`).toEqual([]);
@@ -115,6 +149,50 @@ describe('theme', () => {
     expect(body).toMatch(/background:\s*var\(--bg\)/);
     expect(body).toMatch(/color:\s*var\(--text\)/);
     expect(body).toMatch(/margin:\s*0/);
+  });
+
+  test('the page uses the medium font size', () => {
+    // given
+    const css = theme;
+
+    // when
+    const body = /[^{}]*\bbody\b[^{}]*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+
+    // then
+    expect(body).toMatch(/font-size:\s*var\(--font-md\)/);
+  });
+
+  test('theme.css styles buttons without adding specificity', () => {
+    // given
+    const css = theme;
+
+    // when
+    const selectors = [
+      ':where(button)',
+      ':where(button:hover:enabled)',
+      ':where(button:disabled)',
+      ":where(button[aria-pressed='true'])",
+      ":where(button[data-variant='primary'])",
+      ":where(button[data-variant='danger'])",
+    ];
+
+    // then
+    expect(selectors.filter((selector) => !css.includes(selector))).toEqual([]);
+  });
+
+  test('the disabled button style comes after the pressed and variant styles', () => {
+    // given
+    const later = [
+      ":where(button[aria-pressed='true'])",
+      ":where(button[data-variant='primary'])",
+      ":where(button[data-variant='danger'])",
+    ];
+
+    // when
+    const lastOverride = Math.max(...later.map((selector) => theme.indexOf(selector)));
+
+    // then
+    expect(theme.indexOf(':where(button:disabled)')).toBeGreaterThan(lastOverride);
   });
 
   test('main.tsx imports the theme', () => {

@@ -31,6 +31,28 @@ describe('ConfirmDialog', () => {
     expect(handlers[called === 'onConfirm' ? 'onCancel' : 'onConfirm']).not.toHaveBeenCalled();
   });
 
+  test.each([
+    { danger: true, variant: 'danger' },
+    { danger: false, variant: 'primary' },
+    { danger: undefined, variant: 'primary' },
+  ])('the confirm button is $variant when danger is $danger', ({ danger, variant }) => {
+    // given
+    const confirmLabel = 'Confirm';
+    // when
+    render(
+      <ConfirmDialog
+        title="t"
+        body="b"
+        confirmLabel={confirmLabel}
+        danger={danger}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    // then
+    expect(screen.getByRole('button', { name: confirmLabel })).toHaveAttribute('data-variant', variant);
+  });
+
   test('Escape cancels', async () => {
     // given
     const { onConfirm, onCancel } = renderDialog();

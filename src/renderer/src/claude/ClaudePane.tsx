@@ -8,7 +8,13 @@ import { SessionEnded } from './SessionEnded';
 import { useXterm, type XtermIo } from './useXterm';
 import { useWheelLines } from './useWheelLines';
 
-export type PaneAction = { label: string; onClick: () => void; disabled?: boolean; title?: string };
+export type PaneAction = {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+  variant?: 'primary' | 'danger';
+};
 
 type ClaudePaneProps = { tabId: string; actions: readonly PaneAction[] };
 

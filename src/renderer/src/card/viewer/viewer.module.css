@@ -53,20 +53,6 @@
   padding: 4px 8px;
 }
 
-.toggle button {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
-  padding: 2px 8px;
-  cursor: pointer;
-}
-
-.toggle button[aria-pressed='true'] {
-  background: var(--accent);
-  color: var(--text-strong);
-}
-
 .body {
   display: flex;
   flex-direction: column;

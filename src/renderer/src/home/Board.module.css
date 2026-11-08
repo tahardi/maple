@@ -14,7 +14,7 @@
 
 .header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-xl);
 }
 
 .columns {
@@ -37,5 +37,5 @@
 
 .column h3 {
   margin: 0 0 4px;
-  font-size: 13px;
+  font-size: var(--font-md);
 }

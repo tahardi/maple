@@ -1,7 +1,7 @@
 .summary {
   border-top: 1px solid var(--border);
   padding: 8px;
-  font-size: 13px;
+  font-size: var(--font-md);
   max-height: 45%;
   overflow: auto;
 }
@@ -33,7 +33,7 @@
 .state {
   border-radius: 10px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--font-sm);
   border: 1px solid currentColor;
 }
 

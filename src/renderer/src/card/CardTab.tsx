@@ -354,6 +354,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           title={`Close ${cardKey}?`}
           body={CLOSE_WARNING}
           confirmLabel="Close card"
+          danger
           onConfirm={() => {
             setConfirmClose(false);
             window.maple.session.sendPrompt(tab.id, closePrompt(cardKey));
