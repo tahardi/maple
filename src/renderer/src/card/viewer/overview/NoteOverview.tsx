@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { MarkdownText } from '@renderer/shell/MarkdownText';
 import { overviewScale, scrollTopAt } from './overviewScroll';
 import styles from './NoteOverview.module.css';
@@ -16,7 +16,7 @@ export function NoteOverview({ text, scroller }: { text: string; scroller: HTMLE
   const pressed = useRef(false);
   const copy = useMemo(() => <MarkdownText text={text} />, [text]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (scroller === null) {
       return;
     }
