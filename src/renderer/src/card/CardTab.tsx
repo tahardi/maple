@@ -72,6 +72,8 @@ export function CardTab({ tab }: { tab: TabState }) {
   useQuickOpenKeys(active && worktreeExists ? setQuickOpen : null);
   const wontDo = card?.labels.includes('wont-do') ?? false;
   const placeholder = card?.status === 'Done' ? (wontDo ? CLOSED : MERGED) : WAITING;
+  const project = config?.projects.find((p) => p.jiraKey === tab.projectKey) ?? null;
+  const searchedRepos = card?.status === 'In Review' && project !== null ? [project.repo, ...project.otherRepos] : [];
   const hasVault = (config?.vaultDir ?? null) !== null;
   const view = viewOverride ?? (worktreeExists ? 'worktree' : 'vault');
   const showsVault = hasVault && view === 'vault';
@@ -264,8 +266,9 @@ export function CardTab({ tab }: { tab: TabState }) {
               onReloadReview={reloadReview}
               reviewError={review?.error ?? null}
               findings={pinned?.findings ?? []}
-              projectRepo={config?.projects.find((p) => p.jiraKey === tab.projectKey)?.repo ?? null}
+              projectRepo={project?.repo ?? null}
               headSha={pinned?.headSha ?? null}
+              searchedRepos={searchedRepos}
               onOpenDescription={() => {
                 openFile(PR_DESCRIPTION, null, true);
               }}
