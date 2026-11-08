@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { cardPrompt } from '@shared/prompts';
+import { prRepo } from '@shared/prRepo';
 import type { DiffLines, FilePair } from '@shared/types/files';
 import type { Fetched } from '@shared/types/app';
 import type { PrInfo, Review, ReviewComment } from '@shared/types/github';
@@ -114,7 +115,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
         throw new Error('approving PR: branch has no open PR');
       }
       await approveAndMerge(run, pr.number, headSha, cardKey);
-      logger.info('gh', 'merged', { tabId, number: pr.number, headSha });
+      logger.info('gh', 'merged', { tabId, repo: prRepo(pr.url), number: pr.number, headSha });
       deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
     } catch (err) {
       logger.warn('gh', 'failed', { operation: 'pr:approve', tabId, error: message(err) });

@@ -34,6 +34,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -42,6 +43,34 @@ describe('PrSummary', () => {
     expect(screen.queryByText('Used X instead of Y')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Needs Taylor' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Full description' })).toBeNull();
+  });
+
+  test.each([
+    { name: 'a PR in the project repo', url: info.url, projectRepo: 'tahardi/maple', label: 'PR #33' },
+    {
+      name: 'a PR in another repo',
+      url: 'https://github.com/tahardi/dotclaude/pull/33',
+      projectRepo: 'tahardi/maple',
+      label: 'tahardi/dotclaude PR #33',
+    },
+    { name: 'a PR when the project repo is unknown', url: info.url, projectRepo: null, label: 'PR #33' },
+  ])('labels $name', ({ url, projectRepo, label }) => {
+    // given
+    const pr = fetched({ ...info, url });
+    // when
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        projectRepo={projectRepo}
+        headSha={null}
+      />,
+    );
+    // then
+    expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
   });
 
   test.each<{ state: PrInfo['state']; label: string }>([
@@ -59,6 +88,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -77,6 +107,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -94,6 +125,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -121,6 +153,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -146,6 +179,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -174,6 +208,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -192,6 +227,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -210,6 +246,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -232,6 +269,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -256,6 +294,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={findings}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -279,6 +318,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -297,6 +337,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={headSha}
       />,
     );
@@ -315,6 +356,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={null}
         findings={findings}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -334,6 +376,7 @@ describe('PrSummary', () => {
         onReloadReview={vi.fn()}
         reviewError={reviewError}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );
@@ -354,6 +397,7 @@ describe('PrSummary', () => {
         onReloadReview={onReloadReview}
         reviewError={null}
         findings={[]}
+        projectRepo="tahardi/maple"
         headSha={null}
       />,
     );

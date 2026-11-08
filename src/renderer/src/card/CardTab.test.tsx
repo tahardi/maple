@@ -584,6 +584,26 @@ describe('CardTab', () => {
     expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
   });
 
+  test('names the repo of a PR outside the project repo', async () => {
+    // given
+    fakeRepo(true);
+    const project = {
+      name: 'Xena',
+      jiraKey: 'MPL',
+      jiraBoardId: 1,
+      plannerDir: '/tmp/planner/xena',
+      repo: 'tahardi/xena',
+      otherRepos: ['tahardi/maple'],
+    };
+    useMaple.setState({
+      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, projects: [project] } },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await screen.findByRole('button', { name: 'tahardi/maple PR #13' })).toBeInTheDocument();
+  });
+
   test('keeps the PR description closed until the PR number opens it', async () => {
     // given
     fakeRepo(true);

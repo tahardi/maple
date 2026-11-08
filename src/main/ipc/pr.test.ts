@@ -302,7 +302,12 @@ describe('registerPr', () => {
     expect(projectRunner.mock.calls.every(([, key]) => key === 'DIG')).toBe(true);
     expect(projectRunner).toHaveBeenCalledTimes(1);
     expect(prForBranch).toHaveBeenCalledWith(gh, '/wt', 'mpl-13-github-client');
-    expect(logger.info).toHaveBeenCalledWith('gh', 'merged', { tabId: 't1', number: 33, headSha: head });
+    expect(logger.info).toHaveBeenCalledWith('gh', 'merged', {
+      tabId: 't1',
+      repo: 'tahardi/maple',
+      number: 33,
+      headSha: head,
+    });
   });
 
   test('pr:approve refuses when the head moved', async () => {

@@ -66,7 +66,7 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
 }
 ```
 
-`repo` is the project's GitHub repository as `owner/name`. Maple runs every `gh` call for the project's PRs against it on the desktop, so the review diff and the merge never depend on a local checkout.
+`repo` is the project's GitHub repository as `owner/name`. Maple runs each `gh` call for the project's PRs on the desktop, against `repo` or the `otherRepos` entry that has the card's PR. The review diff and the merge read from GitHub, and the worktree supplies only the branch name, so they never depend on the contents of a local checkout.
 
 `otherRepos` is optional and lists more `owner/name` repos the project's cards may open PRs in. Maple uses the first repo in `[repo, ...otherRepos]` that has a PR for the card's branch.
 
