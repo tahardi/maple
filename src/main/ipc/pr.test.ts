@@ -193,10 +193,10 @@ describe('registerPr', () => {
   test.each([
     { channel: 'pr:get', args: ['t1'] },
     { channel: 'pr:review', args: ['t1'] },
-    { channel: 'pr:comment', args: ['t1', 'src/a.ts', null, 3, 'hi'] },
+    { channel: 'pr:comment', args: ['t1', 'src/a.ts', null, 3, 'hi', head] },
     { channel: 'pr:reply', args: ['t1', 5, 'hi'] },
     { channel: 'pr:comments', args: ['t1'] },
-    { channel: 'pr:diffLines', args: ['t1'] },
+    { channel: 'pr:diffLines', args: ['t1', base, head] },
   ])('$channel finds the runner once', async ({ channel, args }) => {
     // given
     prForBranch.mockResolvedValue(pr);
