@@ -104,6 +104,18 @@ describe('state', () => {
     expect(result.state.seen).toEqual({});
   });
 
+  test.each([
+    { name: 'an unknown dot', seen: { 'tab-1': 'blue' } },
+    { name: 'something that is not a map', seen: 42 },
+  ])('keeps the tabs and empties seen when it holds $name', async ({ seen }) => {
+    // given
+    await writeFile(join(dir, 'state.json'), JSON.stringify({ ...savedState, seen }));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state: { ...savedState, seen: {} }, warning: null });
+  });
+
   test('drops seen entries for tabs that are not saved', async () => {
     // given
     const withGone = { ...savedState, seen: { 'tab-1': 'ready', gone: 'waiting' } };
@@ -129,11 +141,6 @@ describe('state', () => {
     {
       name: 'holding a non-string lastProject',
       content: JSON.stringify({ ...savedState, lastProject: 42 }),
-      warning: 'reading state: state.json is unreadable, starting with no tabs',
-    },
-    {
-      name: 'holding an unknown seen dot',
-      content: JSON.stringify({ ...savedState, seen: { 'tab-1': 'blue' } }),
       warning: 'reading state: state.json is unreadable, starting with no tabs',
     },
   ])('starts empty when the file is $name', async ({ content, warning }) => {

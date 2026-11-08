@@ -1,4 +1,5 @@
 import { app, ipcMain } from 'electron';
+import { dotSchema } from '@main/app/dotSchema';
 import { z } from 'zod';
 import { send, type IpcDeps } from './index';
 import { handle, projectKeyArg, tabIdArg } from './validated';
@@ -19,11 +20,7 @@ export function registerApp({
   ipcMain.handle('app:warnings', () => warnings());
   handle('app:setLastProject', z.tuple([projectKeyArg]), (key) => setLastProject(key));
   ipcMain.handle('app:lastProject', () => lastProject());
-  handle(
-    'app:setSeen',
-    z.tuple([z.record(tabIdArg, z.enum(['working', 'waiting', 'ready', 'idle', 'merged']))]),
-    (map) => setSeen(map),
-  );
+  handle('app:setSeen', z.tuple([z.record(tabIdArg, dotSchema)]), (map) => setSeen(map));
   ipcMain.handle('app:seen', () => seen());
   ipcMain.on('app:confirmQuit', () => {
     confirmed = true;

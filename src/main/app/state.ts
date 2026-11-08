@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Dot, TabState } from '@shared/types/tabs';
 import { z } from 'zod';
 import { configDir } from './config';
+import { dotSchema } from './dotSchema';
 
 export type SavedState = {
   version: 1;
@@ -30,7 +31,7 @@ const stateSchema = z.object({
   notifications: z.boolean().nullable(),
   zoom: z.number().default(0),
   lastProject: z.string().nullable().default(null),
-  seen: z.record(z.string(), z.enum(['working', 'waiting', 'ready', 'idle', 'merged'])).default({}),
+  seen: z.record(z.string(), dotSchema).catch({}),
 });
 
 function emptyState(): SavedState {
