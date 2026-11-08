@@ -65,6 +65,8 @@ describe('registerIpc', () => {
     configLoaded: () => Promise.resolve(),
     setLastProject: vi.fn(() => Promise.resolve()),
     lastProject: () => Promise.resolve(null),
+    setSeen: () => Promise.resolve(),
+    seen: () => Promise.resolve({}),
   };
 
   sessions.setMaxListeners(0);

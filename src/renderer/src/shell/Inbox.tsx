@@ -16,7 +16,7 @@ export function Inbox() {
   const seen = useMaple((s) => s.seen);
   const config = useMaple((s) => s.config);
   const selectProject = useMaple((s) => s.selectProject);
-  const activate = useMaple((s) => s.activate);
+  const markSeen = useMaple((s) => s.markSeen);
   const [open, setOpen] = useState(false);
   const [points, setPoints] = useState<Record<string, number | null>>({});
   const root = useRef<HTMLDivElement>(null);
@@ -43,8 +43,7 @@ export function Inbox() {
 
   const go = (item: InboxItem) => {
     close();
-    selectProject(item.projectKey);
-    activate(item.kind === 'planner' ? null : item.tabId);
+    selectProject(item.projectKey, item.kind === 'planner' ? null : item.tabId);
   };
 
   return (
@@ -58,7 +57,17 @@ export function Inbox() {
             <p className={styles.empty}>Nothing needs you</p>
           ) : (
             <>
-              <p className={styles.header}>Ready: {pointsLabel(readyPoints)}</p>
+              <div className={styles.header}>
+                <span>Ready: {pointsLabel(readyPoints)}</span>
+                <button
+                  className={styles.button}
+                  onClick={() => {
+                    markSeen(items.map((i) => i.tabId));
+                  }}
+                >
+                  Clear all
+                </button>
+              </div>
               <ul className={styles.list}>
                 {items.map((item) => (
                   <li key={item.tabId}>

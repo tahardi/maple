@@ -147,6 +147,8 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       warnings: vi.fn(() => Promise.resolve([])),
       setLastProject: vi.fn(() => Promise.resolve()),
       lastProject: vi.fn(() => Promise.resolve(null)),
+      setSeen: vi.fn(() => Promise.resolve()),
+      seen: vi.fn(() => Promise.resolve({})),
       onQuitRequested: vi.fn(unsubscribe),
       confirmQuit: vi.fn(),
       ...overrides.app,

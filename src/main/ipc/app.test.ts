@@ -1,6 +1,6 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { TabState, TabStatus } from '@shared/types/tabs';
+import type { Dot, TabState, TabStatus } from '@shared/types/tabs';
 import type { SessionManager } from '@main/sessions/sessions';
 import type { StatusEngine } from '@main/sessions/status';
 import type { Terminals } from '@main/sessions/terminals';
@@ -29,10 +29,12 @@ function setup(
   dots: Record<string, TabStatus['dot']> = {},
   warnings: string[] = [],
   lastProject: string | null = 'MPL',
+  seen: Record<string, Dot> = {},
 ) {
   const sendToWindow = vi.fn();
   const setNotifications = vi.fn(() => Promise.resolve());
   const setLastProject = vi.fn(() => Promise.resolve());
+  const setSeen = vi.fn(() => Promise.resolve());
   const statuses = Object.entries(dots).map(([tabId, dot]) => ({
     tabId,
     dot,
@@ -55,6 +57,8 @@ function setup(
     configLoaded: () => Promise.resolve(),
     setLastProject,
     lastProject: () => Promise.resolve(lastProject),
+    setSeen,
+    seen: () => Promise.resolve(seen),
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];
   const confirmQuit = on.mock.calls.find(([name]) => name === 'app:confirmQuit')?.[1];
@@ -66,7 +70,7 @@ function setup(
     beforeQuit(event);
     return event;
   };
-  return { sendToWindow, setNotifications, setLastProject, requestQuit, confirmQuit };
+  return { sendToWindow, setNotifications, setLastProject, setSeen, requestQuit, confirmQuit };
 }
 
 describe('registerApp', () => {
@@ -121,6 +125,46 @@ describe('registerApp', () => {
     const got = await call?.[1]({} as IpcMainInvokeEvent);
     // then
     expect(got).toBe(saved);
+  });
+
+  test.each([
+    { name: 'a map of dots', map: { t1: 'ready' } },
+    { name: 'an empty map', map: {} },
+  ])('app:setSeen passes $name to the setter', async ({ map }) => {
+    // given
+    const { setSeen } = setup();
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:setSeen');
+    // when
+    await call?.[1]({} as IpcMainInvokeEvent, map);
+    // then
+    expect(setSeen).toHaveBeenCalledWith(map);
+  });
+
+  test.each([
+    { name: 'a number', args: [42] },
+    { name: 'an unknown dot', args: [{ t1: 'blue' }] },
+    { name: 'no map', args: [] },
+    { name: 'an empty tab id', args: [{ '': 'ready' }] },
+    { name: 'an over-long tab id', args: [{ ['x'.repeat(101)]: 'ready' }] },
+  ])('app:setSeen rejects $name', async ({ args }) => {
+    // given
+    const { setSeen } = setup();
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:setSeen');
+    // when
+    const got = Promise.resolve().then(() => call?.[1]({} as IpcMainInvokeEvent, ...args));
+    // then
+    await expect(got).rejects.toThrow('handling app:setSeen: arguments are invalid');
+    expect(setSeen).not.toHaveBeenCalled();
+  });
+
+  test('app:seen returns the saved map', async () => {
+    // given
+    setup({}, [], null, { t1: 'waiting' });
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:seen');
+    // when
+    const got = await call?.[1]({} as IpcMainInvokeEvent);
+    // then
+    expect(got).toEqual({ t1: 'waiting' });
   });
 
   test.each([

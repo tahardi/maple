@@ -11,6 +11,7 @@ const emptyState: SavedState = {
   notifications: null,
   zoom: 0,
   lastProject: null,
+  seen: {},
 };
 
 const savedState: SavedState = {
@@ -29,6 +30,7 @@ const savedState: SavedState = {
   notifications: false,
   zoom: 1.5,
   lastProject: 'MPL',
+  seen: { 'tab-1': 'waiting' },
 };
 
 describe('state', () => {
@@ -92,6 +94,26 @@ describe('state', () => {
     expect(result.state).toEqual({ ...savedState, lastProject: null });
   });
 
+  test('defaults seen to empty when missing', async () => {
+    // given
+    const withoutSeen = { ...savedState, seen: undefined };
+    await writeFile(join(dir, 'state.json'), JSON.stringify(withoutSeen));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result.state.seen).toEqual({});
+  });
+
+  test('drops seen entries for tabs that are not saved', async () => {
+    // given
+    const withGone = { ...savedState, seen: { 'tab-1': 'ready', gone: 'waiting' } };
+    await writeFile(join(dir, 'state.json'), JSON.stringify(withGone));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result.state.seen).toEqual({ 'tab-1': 'ready' });
+  });
+
   test('leaves no temp file after saving', async () => {
     // given
     const nested = join(dir, 'nested');
@@ -107,6 +129,11 @@ describe('state', () => {
     {
       name: 'holding a non-string lastProject',
       content: JSON.stringify({ ...savedState, lastProject: 42 }),
+      warning: 'reading state: state.json is unreadable, starting with no tabs',
+    },
+    {
+      name: 'holding an unknown seen dot',
+      content: JSON.stringify({ ...savedState, seen: { 'tab-1': 'blue' } }),
       warning: 'reading state: state.json is unreadable, starting with no tabs',
     },
   ])('starts empty when the file is $name', async ({ content, warning }) => {
