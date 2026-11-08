@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
-import { card } from '../testing/sprintFixture';
+import { card, SPRINT } from '../testing/sprintFixture';
 import { CardTab } from './CardTab';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 
@@ -646,6 +646,18 @@ describe('CardTab', () => {
     await screen.findByRole('tab', { name: 'Card description', selected: true });
     // then
     expect(screen.getByText(/^No PR found in tahardi\/xena, tahardi\/dotclaude\./)).toBeInTheDocument();
+  });
+
+  test('names the searched repos for a card outside the sprint with no PR', async () => {
+    // given
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: null, error: null, fetchedAt: '2026-10-18T12:00:00.000Z' }) },
+      jira: { sprint: () => Promise.resolve({ data: { ...SPRINT, cards: [] }, error: null, fetchedAt: null }) },
+    });
+    // when
+    render(<CardTab tab={{ ...tab, projectKey: 'BEAR' }} />);
+    // then
+    expect(await screen.findByText(/^No PR found in tahardi\/bearclave\./)).toBeInTheDocument();
   });
 
   test('shows no searched repos for a project missing from config', async () => {

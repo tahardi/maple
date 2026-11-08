@@ -311,7 +311,7 @@ describe('PrSummary', () => {
     expect(
       screen.getByText(
         'No PR found in tahardi/xena, tahardi/dotclaude. If it is in another repo, add that repo to otherRepos in ' +
-          'config.json.',
+          'config.json, then choose File > Reload config.',
       ),
     ).toBeInTheDocument();
   });

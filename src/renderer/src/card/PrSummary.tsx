@@ -61,7 +61,7 @@ export function PrSummary({
       {info === null && pr.error === null && pr.fetchedAt !== null && searchedRepos.length > 0 && (
         <div className={styles.muted}>
           {`No PR found in ${searchedRepos.join(', ')}. ` +
-            'If it is in another repo, add that repo to otherRepos in config.json.'}
+            'If it is in another repo, add that repo to otherRepos in config.json, then choose File > Reload config.'}
         </div>
       )}
       {info && (

@@ -37,7 +37,7 @@ const CLOSE_WARNING =
   'wont-do label. This cannot be undone.';
 
 export function CardTab({ tab }: { tab: TabState }) {
-  const { changes, files, repo, pr, review, reloadReview, card, cost } = useCardData(tab);
+  const { changes, files, repo, pr, review, reloadReview, card, cost, outsideSprint } = useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
@@ -73,7 +73,8 @@ export function CardTab({ tab }: { tab: TabState }) {
   const wontDo = card?.labels.includes('wont-do') ?? false;
   const placeholder = card?.status === 'Done' ? (wontDo ? CLOSED : MERGED) : WAITING;
   const project = config?.projects.find((p) => p.jiraKey === tab.projectKey) ?? null;
-  const searchedRepos = card?.status === 'In Review' && project !== null ? [project.repo, ...project.otherRepos] : [];
+  const hintsNoPr = card?.status === 'In Review' || outsideSprint;
+  const searchedRepos = hintsNoPr && project !== null ? [project.repo, ...project.otherRepos] : [];
   const hasVault = (config?.vaultDir ?? null) !== null;
   const view = viewOverride ?? (worktreeExists ? 'worktree' : 'vault');
   const showsVault = hasVault && view === 'vault';
