@@ -41,6 +41,7 @@ type PrSummaryProps = {
   findings: readonly SecurityFinding[];
   projectRepo: string | null;
   headSha: string | null;
+  searchedRepos: readonly string[];
 };
 
 export function PrSummary({
@@ -51,11 +52,18 @@ export function PrSummary({
   findings,
   projectRepo,
   headSha,
+  searchedRepos,
 }: PrSummaryProps) {
   const info = pr.data;
   return (
     <section className={styles.summary}>
       {pr.error !== null && <div className={styles.error}>GitHub unreachable</div>}
+      {info === null && pr.error === null && pr.fetchedAt !== null && searchedRepos.length > 0 && (
+        <div className={styles.muted}>
+          {`No PR found in ${searchedRepos.join(', ')}. ` +
+            'If it is in another repo, add that repo to otherRepos in config.json, then choose File > Reload config.'}
+        </div>
+      )}
       {info && (
         <>
           <div className={styles.row}>

@@ -36,6 +36,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -59,6 +60,7 @@ describe('PrSummary', () => {
           findings={[]}
           projectRepo="tahardi/maple"
           headSha={null}
+          searchedRepos={[]}
         />,
       );
       // then
@@ -79,6 +81,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={headSha}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -100,6 +103,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -129,6 +133,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo={projectRepo}
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -152,6 +157,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -171,6 +177,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -189,6 +196,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // when
@@ -217,6 +225,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -243,6 +252,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -272,6 +282,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -291,6 +302,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -310,6 +322,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -334,6 +347,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -341,6 +355,56 @@ describe('PrSummary', () => {
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.queryByRole('heading')).toBeNull();
     expect(screen.queryByText('GitHub unreachable') !== null).toBe(unreachable);
+  });
+
+  test('names the searched repos when no PR is found', () => {
+    // given
+    const pr: Fetched<PrInfo> = { data: null, error: null, fetchedAt: '2026-10-18T12:00:00.000Z' };
+    // when
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        projectRepo="tahardi/xena"
+        headSha={null}
+        searchedRepos={['tahardi/xena', 'tahardi/dotclaude']}
+      />,
+    );
+    // then
+    expect(
+      screen.getByText(
+        'No PR found in tahardi/xena, tahardi/dotclaude. If it is in another repo, add that repo to otherRepos in ' +
+          'config.json, then choose File > Reload config.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test.each<{ name: string; pr: Fetched<PrInfo>; searchedRepos: readonly string[] }>([
+    { name: 'no searched repos', pr: fetched(null), searchedRepos: [] },
+    { name: 'a failed lookup', pr: fetched(null, 'boom'), searchedRepos: ['tahardi/xena'] },
+    { name: 'no lookup yet', pr: { data: null, error: null, fetchedAt: null }, searchedRepos: ['tahardi/xena'] },
+    { name: 'a PR', pr: fetched(info), searchedRepos: ['tahardi/xena'] },
+  ])('shows no hint with $name', ({ pr, searchedRepos }) => {
+    // given
+    const input = pr;
+    // when
+    render(
+      <PrSummary
+        pr={input}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        projectRepo="tahardi/xena"
+        headSha={null}
+        searchedRepos={searchedRepos}
+      />,
+    );
+    // then
+    expect(screen.queryByText(/No PR found/)).toBeNull();
   });
 
   test('lists open security findings as text', () => {
@@ -359,6 +423,7 @@ describe('PrSummary', () => {
         findings={findings}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -383,6 +448,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -402,6 +468,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={headSha}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -421,6 +488,7 @@ describe('PrSummary', () => {
         findings={findings}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -441,6 +509,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // then
@@ -462,6 +531,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        searchedRepos={[]}
       />,
     );
     // when
