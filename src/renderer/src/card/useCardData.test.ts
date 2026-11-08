@@ -251,7 +251,7 @@ describe('useCardData', () => {
     act(() => {
       useMaple
         .getState()
-        .setStatus({ tabId: 't1', dot: 'idle', sessionAlive: true, exitCode: null, resumeFailed: false });
+        .setStatus({ tabId: 't1', dot: 'idle', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null });
     });
     // then
     await waitFor(() => {
@@ -275,7 +275,9 @@ describe('useCardData', () => {
     });
     // when
     act(() => {
-      useMaple.getState().setStatus({ tabId: 't1', dot, sessionAlive: true, exitCode: null, resumeFailed: false });
+      useMaple
+        .getState()
+        .setStatus({ tabId: 't1', dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null });
     });
     // then
     await waitFor(() => {

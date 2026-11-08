@@ -8,6 +8,7 @@ import {
   unlinkSync,
   utimesSync,
   writeFileSync,
+  realpathSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -21,6 +22,7 @@ import {
   listFiles,
   mergeBase,
   readFilePair,
+  gitCommonDir,
   repoName,
   searchFiles,
   writeWorktreeFile,
@@ -82,6 +84,15 @@ describe('git', () => {
     const name = await repoName(worktree);
     // then
     expect(name).toBe(want);
+  });
+
+  test('gitCommonDir returns the main checkout git dir for a worktree', async () => {
+    // given
+    const repo = join(root, 'repo');
+    // when
+    const dir = await gitCommonDir(worktree);
+    // then
+    expect(dir).toBe(join(realpathSync(repo), '.git'));
   });
 
   test('repoName falls back to the main checkout folder without an origin remote', async () => {

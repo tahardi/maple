@@ -72,6 +72,94 @@ describe('StatusEngine', () => {
     vi.useRealTimers();
   });
 
+  test('a new tab has no sync state', () => {
+    // given
+    const { sessions, emitted } = setup();
+    // when
+    sessions.emit('spawn', 't1', true);
+    // then
+    expect(emitted.at(-1)?.sync).toBeNull();
+  });
+
+  test('setSync emits the tab status with the new sync state and the same dot', () => {
+    // given
+    const { sessions, engine } = setup();
+    sessions.emit('spawn', 't1', false);
+    const seen: [TabStatus, string][] = [];
+    engine.on('status', (s, prev) => {
+      seen.push([s, prev]);
+    });
+    // when
+    engine.setSync('t1', 'queued');
+    // then
+    expect(seen).toEqual([[expect.objectContaining({ tabId: 't1', sync: 'queued', dot: 'idle' }), 'idle']]);
+  });
+
+  test('setSync on an unknown tab emits nothing', () => {
+    // given
+    const { engine, emitted } = setup();
+    // when
+    engine.setSync('nope', 'queued');
+    // then
+    expect(emitted).toEqual([]);
+  });
+
+  test('setSync to the current state emits nothing', () => {
+    // given
+    const { sessions, engine, emitted } = setup();
+    sessions.emit('spawn', 't1', true);
+    const before = emitted.length;
+    // when
+    engine.setSync('t1', null);
+    // then
+    expect(emitted).toHaveLength(before);
+  });
+
+  test.each([
+    { name: 'a permission prompt', events: ['permission'], want: true },
+    { name: 'a permission prompt then a new prompt', events: ['permission', 'prompt'], want: false },
+    { name: 'only a prompt', events: ['prompt'], want: false },
+  ])('asking after $name is $want', ({ events, want }) => {
+    // given
+    const { sessions, engine } = setup();
+    sessions.emit('spawn', 't1', false);
+    // when
+    for (const event of events) {
+      engine.hook(
+        event === 'permission'
+          ? { tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' }
+          : { tabId: 't1', event: 'UserPromptSubmit', notificationType: null },
+      );
+    }
+    // then
+    expect(engine.asking('t1')).toBe(want);
+  });
+
+  test('asking clears when the turn stops', async () => {
+    // given
+    const { sessions, engine, emitted } = setup();
+    sessions.emit('spawn', 't1', false);
+    engine.hook({ tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' });
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    // then
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe('ready');
+    });
+    expect(engine.asking('t1')).toBe(false);
+  });
+
+  test('a respawn clears the sync state', () => {
+    // given
+    const { sessions, engine, emitted } = setup();
+    sessions.emit('spawn', 't1', true);
+    engine.setSync('t1', 'queued');
+    // when
+    sessions.emit('spawn', 't1', true);
+    // then
+    expect(emitted.at(-1)?.sync).toBeNull();
+  });
+
   test.each([
     { prompted: true, want: 'working' },
     { prompted: false, want: 'idle' },
@@ -82,7 +170,7 @@ describe('StatusEngine', () => {
     sessions.emit('spawn', 't1', prompted);
     // then
     expect(engine.statuses()).toEqual([
-      { tabId: 't1', dot: want, sessionAlive: true, exitCode: null, resumeFailed: false },
+      { tabId: 't1', dot: want, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
     ]);
   });
 
@@ -358,7 +446,9 @@ describe('StatusEngine', () => {
     engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
     // then
     await vi.waitFor(() => {
-      expect(emitted).toEqual([{ tabId: 't1', dot: 'ready', sessionAlive: true, exitCode: null, resumeFailed: false }]);
+      expect(emitted).toEqual([
+        { tabId: 't1', dot: 'ready', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+      ]);
     });
   });
 
@@ -829,7 +919,14 @@ describe('StatusEngine', () => {
     // when
     sessions.emit('exit', 't1', 2);
     // then
-    expect(emitted.at(-1)).toEqual({ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 2, resumeFailed: false });
+    expect(emitted.at(-1)).toEqual({
+      tabId: 't1',
+      dot: 'idle',
+      sessionAlive: false,
+      exitCode: 2,
+      resumeFailed: false,
+      sync: null,
+    });
   });
 
   test('an exit of a working tab marks the session dead and idle in one update', () => {
@@ -842,7 +939,7 @@ describe('StatusEngine', () => {
     sessions.emit('exit', 't1', 2);
     // then
     expect(listener.mock.calls).toEqual([
-      [{ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 2, resumeFailed: false }, 'working'],
+      [{ tabId: 't1', dot: 'idle', sessionAlive: false, exitCode: 2, resumeFailed: false, sync: null }, 'working'],
     ]);
   });
 
@@ -863,6 +960,7 @@ describe('StatusEngine', () => {
       sessionAlive: false,
       exitCode: 0,
       resumeFailed: false,
+      sync: null,
     });
   });
 
@@ -886,6 +984,7 @@ describe('StatusEngine', () => {
       sessionAlive: false,
       exitCode: code,
       resumeFailed: want,
+      sync: null,
     });
   });
 
@@ -1001,7 +1100,7 @@ describe('StatusEngine', () => {
     engine.hook({ tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' });
     // then
     expect(listener).toHaveBeenCalledWith(
-      { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false },
+      { tabId: 't1', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
       'working',
     );
   });
@@ -1023,9 +1122,10 @@ describe('StatusEngine', () => {
       sessionAlive: true,
       exitCode: null,
       resumeFailed: false,
+      sync: null,
     });
     expect(engine.statuses()).toEqual([
-      { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false },
+      { tabId: 't1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
     ]);
   });
 

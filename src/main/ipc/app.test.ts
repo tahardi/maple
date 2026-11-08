@@ -39,6 +39,7 @@ function setup(
     sessionAlive: true,
     exitCode: null,
     resumeFailed: false,
+    sync: null,
   }));
   registerApp({
     window: () => ({ isDestroyed: () => false, webContents: { send: sendToWindow } }) as unknown as BrowserWindow,

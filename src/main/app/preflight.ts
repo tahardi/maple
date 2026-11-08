@@ -7,13 +7,15 @@ export type Runner = (
   cmd: string,
   args: string[],
   cwd?: string,
+  timeoutMs?: number,
 ) => Promise<{ code: number; stdout: string; stderr: string }>;
 
-export const defaultRunner: Runner = (cmd, args, cwd) =>
+export const defaultRunner: Runner = (cmd, args, cwd, timeoutMs) =>
   new Promise((resolve) => {
-    execFile(cmd, args, { cwd }, (error, stdout, stderr) => {
+    execFile(cmd, args, { cwd, timeout: timeoutMs }, (error, stdout, stderr) => {
       const code = !error ? 0 : error.code === 'ENOENT' ? 127 : typeof error.code === 'number' ? error.code : 1;
-      resolve({ code, stdout, stderr });
+      const timedOut = error?.killed === true && timeoutMs !== undefined;
+      resolve({ code, stdout, stderr: timedOut ? `timing out after ${String(timeoutMs)}ms` : stderr });
     });
   });
 

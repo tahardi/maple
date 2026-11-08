@@ -120,13 +120,16 @@ export async function currentBranch(worktree: string): Promise<string> {
   return (await git(worktree, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
 }
 
+export async function gitCommonDir(worktree: string): Promise<string> {
+  return (await git(worktree, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).trim();
+}
+
 export async function repoName(worktree: string): Promise<string> {
   let url: string;
   try {
     url = await git(worktree, ['remote', 'get-url', 'origin']);
   } catch {
-    const commonDir = await git(worktree, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-    return basename(dirname(commonDir.trim()));
+    return basename(dirname(await gitCommonDir(worktree)));
   }
   const path = url
     .trim()
