@@ -16,6 +16,7 @@ import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/ipc/config';
 import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/jira';
 import { appLogger, logUncaught, startLogging } from '@main/app/log';
+import { startEventLog } from '@main/events/eventLog';
 import { checkNotifications } from '@main/app/menu';
 import { notifyTab, shouldNotify } from '@main/app/notify';
 import { restoreTabs } from '@main/sessions/restore';
@@ -71,6 +72,7 @@ function createWindow(zoom: () => number): void {
 async function start(): Promise<() => number> {
   startLogging(!app.isPackaged);
   logUncaught();
+  startEventLog();
   process.on('uncaughtException', (err) => {
     dialog.showErrorBox('A JavaScript error occurred in the main process', err.stack ?? err.message);
   });
