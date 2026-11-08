@@ -17,6 +17,11 @@
   margin-top: 4px;
 }
 
+.title {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
 .number {
   background: transparent;
   border: none;

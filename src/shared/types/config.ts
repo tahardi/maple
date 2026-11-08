@@ -12,6 +12,8 @@ export type MapleConfig = {
   vaultDir: string | null;
   notifications: boolean;
   backgroundWaitMinutes: number;
+  eventKeepDays: number;
+  eventMaxMegabytes: number;
   projects: ProjectConfig[];
   actions: ActionConfig[];
 };

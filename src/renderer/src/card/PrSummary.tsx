@@ -74,6 +74,7 @@ export function PrSummary({
               {stateLabel(info.state)}
             </span>
           </div>
+          <div className={styles.title}>{info.title}</div>
           {(headSha !== null || info.state === 'OPEN') && (
             <div className={styles.row}>
               {headSha !== null && <span className={styles.muted}>{`Reviewing ${headSha.slice(0, 7)}`}</span>}

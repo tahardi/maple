@@ -8,6 +8,8 @@ const config: MapleConfig = {
   vaultDir: null,
   notifications: false,
   backgroundWaitMinutes: 15,
+  eventKeepDays: 365,
+  eventMaxMegabytes: 200,
   projects: [],
   actions: [
     { label: 'Address review', prompt: '/card {key}' },
