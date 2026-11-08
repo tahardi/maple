@@ -96,6 +96,16 @@ describe('redact', () => {
       want: { a: { b: { c: 1 } } },
     },
     {
+      name: 'a key inside an array of objects',
+      fields: { items: [{ token: 'x', id: 1 }, 'a'] },
+      want: { items: [{ id: 1 }, 'a'] },
+    },
+    {
+      name: 'a key inside nested arrays',
+      fields: { rows: [[{ password: 'p', id: 2 }]] },
+      want: { rows: [[{ id: 2 }]] },
+    },
+    {
       name: 'nothing from safe fields',
       fields: { tabId: 't', args: ['a'], pr: null },
       want: { tabId: 't', args: ['a'], pr: null },

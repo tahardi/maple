@@ -872,6 +872,8 @@ describe('CardTab', () => {
       vaultDir: null,
       notifications: false,
       backgroundWaitMinutes: 15,
+      eventKeepDays: 365,
+      eventMaxMegabytes: 200,
       projects: [],
       actions: [{ label: 'Sync', prompt: 'Sync {key}' }],
     };

@@ -16,6 +16,9 @@ import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/ipc/config';
 import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/jira';
 import { appLogger, logUncaught, startLogging } from '@main/app/log';
+import { askDeleteToday } from '@main/events/askDeleteToday';
+import { startEventLog } from '@main/events/eventLog';
+import { pruneLimits } from '@main/events/pruneEvents';
 import { checkNotifications } from '@main/app/menu';
 import { notifyTab, shouldNotify } from '@main/app/notify';
 import { restoreTabs } from '@main/sessions/restore';
@@ -76,6 +79,10 @@ async function start(): Promise<() => number> {
   });
   const [loaded, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
   let config = loaded.data;
+  startEventLog({
+    limits: pruneLimits(config),
+    askDeleteToday: (bytes) => askDeleteToday((options) => dialog.showMessageBox(options), bytes),
+  });
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
   const tmuxConf = await writeTmuxConf(configDir());
   const socketPath = hookSocketPath();
