@@ -53,26 +53,6 @@
   padding: 4px 8px;
 }
 
-.segmented {
-  display: flex;
-}
-
-.segmented button {
-  border-radius: 0;
-}
-
-.segmented button + button {
-  border-left: none;
-}
-
-.segmented button:first-child {
-  border-radius: 4px 0 0 4px;
-}
-
-.segmented button:last-child {
-  border-radius: 0 4px 4px 0;
-}
-
 .body {
   display: flex;
   flex-direction: column;

@@ -57,6 +57,8 @@ const NO_COPY = 'No saved copy of this note from this session';
 
 const NO_SELECTION = 'Select lines to comment on';
 
+const LEAVE_EDIT = 'Turn off Edit to see changes';
+
 const OPTIONS = {
   readOnly: true,
   domReadOnly: true,
@@ -93,6 +95,10 @@ function saveWrap(wrap: boolean) {
   } catch {
     return;
   }
+}
+
+function isChanged(pair: FilePair | null): boolean {
+  return pair?.kind === 'text' && pair.current !== null && pair.base !== pair.current;
 }
 
 function atFileStart(range: IRange): boolean {
@@ -299,11 +305,19 @@ export function FileViewer({
   }, [line, shown, target]);
 
   const text = shown?.kind === 'text' ? shown : null;
-  const changed = text !== null && text.current !== null && text.base !== text.current;
+  const changed = isChanged(shown);
   const sideBySide = changed && mode === 'side-by-side';
   const draft = text === null || review !== null ? null : Object.hasOwn(drafts, text.path) ? drafts[text.path] : null;
   const edited = draft?.text ?? text?.current ?? null;
   const commentable = canComment && text !== null && text.current !== null && !sideBySide && plain !== null;
+  const held = activeFile !== null && shown === null && readError?.path !== activeFile ? pair : null;
+  const heldChanged = isChanged(held);
+  const heldComment =
+    canComment &&
+    held?.kind === 'text' &&
+    held.current !== null &&
+    !(heldChanged && mode === 'side-by-side') &&
+    plain !== null;
   const ranges =
     text !== null && diff !== null && diff.headSha === headSha && Object.hasOwn(diff.ranges, text.path)
       ? diff.ranges[text.path]
@@ -685,7 +699,7 @@ export function FileViewer({
   };
 
   const modeButtons = (
-    <div role="group" aria-label="Diff layout" className={styles.segmented}>
+    <div role="group" aria-label="Diff layout" data-variant="segmented">
       <button
         aria-pressed={mode === 'in-file'}
         onClick={() => {
@@ -764,7 +778,7 @@ export function FileViewer({
               <button
                 aria-pressed={showsChanges}
                 disabled={noteBefore === null || editsNote}
-                title={noteBefore === null ? noCopyReason : undefined}
+                title={noteBefore === null ? noCopyReason : editsNote ? LEAVE_EDIT : undefined}
                 onClick={() => {
                   setChanges({ ...changes, [shownNote.path]: !changesOn });
                 }}
@@ -786,13 +800,13 @@ export function FileViewer({
         )}
         {!showsDescription && !showsNote && (
           <div className={styles.toggle}>
-            {changed && modeButtons}
-            {commentable && (
+            {(changed || heldChanged) && modeButtons}
+            {(commentable || heldComment) && (
               <button
-                disabled={selected === null}
+                disabled={!commentable || selected === null}
                 title={selected === null ? NO_SELECTION : (blocked ?? undefined)}
                 onClick={() => {
-                  if (selected === null) {
+                  if (!commentable || selected === null) {
                     return;
                   }
                   if (blocked === null) {

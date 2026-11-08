@@ -229,6 +229,31 @@ function renderViewer(
   return { maple, props, ...render(<FileViewer {...props} />) };
 }
 
+function renderFileSwitch(next: () => Promise<FilePair>, canComment = false) {
+  const readFile = (_tabId: string, path: string) => (path === 'README.md' ? next() : Promise.resolve(changed));
+  fakeMaple({
+    repo: { readFile },
+    pr: { readFile, diffLines: () => Promise.resolve({ ranges: { 'src/a.ts': [[1, 10]] } }) },
+  });
+  const props = {
+    tabId: 't1',
+    openFiles: ['src/a.ts', 'README.md'],
+    onActivate: vi.fn(),
+    onCloseFiles: vi.fn(),
+    prBody: null,
+    line: null,
+    canComment,
+    prFetchedAt: null,
+    review: canComment ? reviewed : null,
+  };
+  const { rerender } = render(<FileViewer {...props} activeFile="src/a.ts" />);
+  return {
+    openNext: () => {
+      rerender(<FileViewer {...props} activeFile="README.md" />);
+    },
+  };
+}
+
 function renderNote(vault: Partial<MapleApi['vault']> = {}, onPin = vi.fn()) {
   const maple = fakeMaple({ vault: { read: vi.fn(() => Promise.resolve('## Findings\n')), ...vault } });
   render(
@@ -788,6 +813,7 @@ describe('FileViewer', () => {
     const button = screen.getByRole('button', { name: 'Changes' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
     expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', 'Turn off Edit to see changes');
   });
 
   test('Changes is disabled when the session saved no copy of the note', async () => {
@@ -1050,6 +1076,65 @@ describe('FileViewer', () => {
     const group = within(screen.getByRole('group', { name: 'Diff layout' }));
     expect(group.getByRole('button', { name: 'In file' })).toBeInTheDocument();
     expect(group.getByRole('button', { name: 'Side by side' })).toBeInTheDocument();
+  });
+
+  test('keeps the diff layout while the next file loads', async () => {
+    // given
+    const { openNext } = renderFileSwitch(() => new Promise<FilePair>(() => undefined));
+    await screen.findByRole('group', { name: 'Diff layout' });
+    // when
+    openNext();
+    await act(() => Promise.resolve());
+    // then
+    expect(screen.getByRole('group', { name: 'Diff layout' })).toBeInTheDocument();
+  });
+
+  test('drops the diff layout once the next file loads unchanged', async () => {
+    // given
+    const { openNext } = renderFileSwitch(() => Promise.resolve({ ...same, path: 'README.md' }));
+    await screen.findByRole('group', { name: 'Diff layout' });
+    // when
+    openNext();
+    // then
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('group', { name: 'Diff layout' })).not.toBeInTheDocument();
+    });
+  });
+
+  test('drops the held controls when the next file cannot be read', async () => {
+    // given
+    const { openNext } = renderFileSwitch(() => Promise.reject(new Error('reading file: offline')), true);
+    await screen.findByRole('button', { name: 'Comment' });
+    // when
+    openNext();
+    await screen.findByRole('alert');
+    // then
+    expect(screen.queryByRole('group', { name: 'Diff layout' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Comment' })).not.toBeInTheDocument();
+  });
+
+  test('keeps Comment in place and disabled while the next file loads', async () => {
+    // given
+    const { openNext } = renderFileSwitch(() => new Promise<FilePair>(() => undefined), true);
+    expect(await screen.findByRole('button', { name: 'Comment' })).toBeEnabled();
+    // when
+    openNext();
+    await act(() => Promise.resolve());
+    // then
+    expect(screen.getByRole('button', { name: 'Comment' })).toBeDisabled();
+  });
+
+  test('does not show Comment while the next file loads from side by side', async () => {
+    // given
+    localStorage.setItem('maple.viewMode', 'side-by-side');
+    const { openNext } = renderFileSwitch(() => new Promise<FilePair>(() => undefined), true);
+    await screen.findByTestId('diff-editor');
+    // when
+    openNext();
+    await act(() => Promise.resolve());
+    // then
+    expect(screen.getByRole('group', { name: 'Diff layout' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Comment' })).not.toBeInTheDocument();
   });
 
   test('switches to side by side and saves the mode', async () => {

@@ -13,22 +13,24 @@ type Props = {
 export function VaultSwitch({ view, onChange, onRefresh }: Props) {
   return (
     <div className={styles.switch}>
-      <button
-        aria-pressed={view === 'worktree'}
-        onClick={() => {
-          onChange('worktree');
-        }}
-      >
-        Worktree
-      </button>
-      <button
-        aria-pressed={view === 'vault'}
-        onClick={() => {
-          onChange('vault');
-        }}
-      >
-        Vault
-      </button>
+      <div role="group" aria-label="Tree view" data-variant="segmented">
+        <button
+          aria-pressed={view === 'worktree'}
+          onClick={() => {
+            onChange('worktree');
+          }}
+        >
+          Worktree
+        </button>
+        <button
+          aria-pressed={view === 'vault'}
+          onClick={() => {
+            onChange('vault');
+          }}
+        >
+          Vault
+        </button>
+      </div>
       {view === 'vault' && (
         <button className={styles.refresh} onClick={onRefresh}>
           Refresh
