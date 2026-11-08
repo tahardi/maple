@@ -65,6 +65,7 @@ describe('SessionManager with a real claude', () => {
           jiraBoardId: 9,
           plannerDir: expandHome('~/Documents/code/maple'),
           repo: 'tahardi/maple',
+          otherRepos: [],
         },
       ],
     };

@@ -37,6 +37,7 @@ const halo: ProjectConfig = {
   jiraBoardId: 7,
   plannerDir: '/tmp/halo',
   repo: 'tahardi/halo',
+  otherRepos: [],
 };
 const dig: ProjectConfig = {
   name: 'Dig Days',
@@ -44,6 +45,7 @@ const dig: ProjectConfig = {
   jiraBoardId: 8,
   plannerDir: '/tmp/dig',
   repo: 'tahardi/dig-days',
+  otherRepos: [],
 };
 const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleConfig> => ({
   data: { worktreesDir: '/tmp/wts', vaultDir: null, notifications, backgroundWaitMinutes: 15, projects, actions: [] },

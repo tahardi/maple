@@ -14,6 +14,11 @@ const defaultActions = [
 
 export const DEFAULT_WAIT_MINUTES = 10;
 
+const repoSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*$/, 'must be owner/name')
+  .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..'), 'must be owner/name');
+
 const configSchema = z
   .object({
     worktreesDir: z.string(),
@@ -26,10 +31,8 @@ const configSchema = z
         jiraKey: z.string(),
         jiraBoardId: z.number(),
         plannerDir: z.string(),
-        repo: z
-          .string()
-          .regex(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*$/, 'must be owner/name')
-          .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..'), 'must be owner/name'),
+        repo: repoSchema,
+        otherRepos: z.array(repoSchema).default([]),
       }),
     ),
     actions: z.array(z.object({ label: z.string(), prompt: z.string() })).default(defaultActions),

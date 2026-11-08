@@ -264,6 +264,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               onReloadReview={reloadReview}
               reviewError={review?.error ?? null}
               findings={pinned?.findings ?? []}
+              projectRepo={config?.projects.find((p) => p.jiraKey === tab.projectKey)?.repo ?? null}
               headSha={pinned?.headSha ?? null}
               onOpenDescription={() => {
                 openFile(PR_DESCRIPTION, null, true);

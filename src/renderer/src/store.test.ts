@@ -29,7 +29,14 @@ const MPL_CONFIG: Fetched<MapleConfig> = {
     ...FAKE_CONFIG.data,
     projects: [
       ...FAKE_CONFIG.data.projects.slice(0, 1),
-      { name: 'Maple', jiraKey: 'MPL', jiraBoardId: 3, plannerDir: '/tmp/planner/mpl', repo: 'tahardi/maple' },
+      {
+        name: 'Maple',
+        jiraKey: 'MPL',
+        jiraBoardId: 3,
+        plannerDir: '/tmp/planner/mpl',
+        repo: 'tahardi/maple',
+        otherRepos: [],
+      },
     ],
   },
 };

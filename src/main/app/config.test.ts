@@ -182,6 +182,62 @@ describe('loadConfig', () => {
     expect(result.error).toBe(`reading config: projects.0.repo: ${want}`);
   });
 
+  test('defaults otherRepos to empty', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify(validConfig));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data?.projects[0]?.otherRepos).toEqual([]);
+  });
+
+  test('accepts otherRepos', async () => {
+    // given
+    const otherRepos = ['tahardi/dotclaude'];
+    const config = { ...validConfig, projects: [{ ...validConfig.projects[0], otherRepos }] };
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data?.projects[0]?.otherRepos).toEqual(otherRepos);
+  });
+
+  test.each([{ repo: 'dotclaude' }, { repo: '-x/y' }, { repo: 'a/b/c' }, { repo: '../x' }])(
+    'rejects other repo $repo',
+    async ({ repo }) => {
+      // given
+      const config = { ...validConfig, projects: [{ ...validConfig.projects[0], otherRepos: [repo] }] };
+      await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+      // when
+      const result = await loadConfig(dir);
+      // then
+      expect(result.data).toBeNull();
+      expect(result.error).toBe('reading config: projects.0.otherRepos.0: must be owner/name');
+    },
+  );
+
+  test.each([
+    {
+      name: 'a plain string',
+      otherRepos: 'tahardi/dotclaude',
+      want: 'projects.0.otherRepos: Invalid input: expected array, received string',
+    },
+    {
+      name: 'a bad later entry',
+      otherRepos: ['tahardi/dotclaude', 'bad'],
+      want: 'projects.0.otherRepos.1: must be owner/name',
+    },
+  ])('rejects otherRepos given $name', async ({ otherRepos, want }) => {
+    // given
+    const config = { ...validConfig, projects: [{ ...validConfig.projects[0], otherRepos }] };
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data).toBeNull();
+    expect(result.error).toBe(`reading config: ${want}`);
+  });
+
   test('reports a missing file', async () => {
     // given
     const path = join(dir, 'config.json');

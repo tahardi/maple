@@ -26,8 +26,15 @@ const config: MapleConfig = {
   notifications: true,
   backgroundWaitMinutes: 15,
   projects: [
-    { name: 'Dig Days', jiraKey: 'DIG', jiraBoardId: 1, plannerDir: '/tmp/dig-days', repo: 'tahardi/dig-days' },
-    { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 2, plannerDir: '/tmp/halo', repo: 'tahardi/halo' },
+    {
+      name: 'Dig Days',
+      jiraKey: 'DIG',
+      jiraBoardId: 1,
+      plannerDir: '/tmp/dig-days',
+      repo: 'tahardi/dig-days',
+      otherRepos: [],
+    },
+    { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 2, plannerDir: '/tmp/halo', repo: 'tahardi/halo', otherRepos: [] },
   ],
   actions: [],
 };

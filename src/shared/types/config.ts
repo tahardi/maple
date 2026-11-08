@@ -4,6 +4,7 @@ export type ProjectConfig = {
   jiraBoardId: number;
   plannerDir: string;
   repo: string;
+  otherRepos: string[];
 };
 export type ActionConfig = { label: string; prompt: string };
 export type MapleConfig = {

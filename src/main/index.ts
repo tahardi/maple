@@ -115,8 +115,10 @@ async function start(): Promise<() => number> {
   const jira = creds.then((c) => new JiraClient(c));
   jira.catch(() => undefined);
   const getCard = async (key: string) => (await jira).getCard(key);
-  const prFor = async (worktree: string, projectKey: string) =>
-    prForBranch(await projectRunner(projectByKey, projectKey), worktree, await currentBranch(worktree));
+  const prFor = async (worktree: string, projectKey: string) => {
+    const branch = await currentBranch(worktree);
+    return prForBranch(await projectRunner(projectByKey, projectKey, branch), worktree, branch);
+  };
   const status = new StatusEngine({
     sessions,
     getCard,

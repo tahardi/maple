@@ -9,6 +9,7 @@ const project: ProjectConfig = {
   jiraBoardId: 7,
   plannerDir: '/tmp/halo',
   repo: 'tahardi/halo',
+  otherRepos: [],
 };
 const sprint: Sprint = { id: 6, name: 'HALO Sprint 1', startDate: '2026-10-12', endDate: '2026-10-26', cards: [] };
 
