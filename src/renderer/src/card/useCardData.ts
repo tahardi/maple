@@ -13,6 +13,7 @@ type CardData = {
   pr: Fetched<PrInfo> | null;
   card: Card | null;
   cost: SessionCost | null;
+  outsideSprint: boolean;
 };
 
 type CardDataWithReview = CardData & { review: Fetched<Review> | null; reloadReview: () => void };
@@ -27,6 +28,7 @@ export function useCardData(tab: TabState): CardDataWithReview {
     pr: null,
     card: null,
     cost: null,
+    outsideSprint: false,
   });
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : null));
   const [loaded, setLoaded] = useState<{ number: number; review: Fetched<Review> } | null>(null);
@@ -46,14 +48,9 @@ export function useCardData(tab: TabState): CardDataWithReview {
       maple.tabs.cost(id).catch(() => null),
     ]);
     if (seq === latest.current) {
-      setData({
-        changes,
-        files,
-        repo,
-        pr,
-        card: sprint?.data?.cards.find((c) => c.key === cardKey) ?? null,
-        cost,
-      });
+      const cards = sprint?.data?.cards ?? null;
+      const card = cards?.find((c) => c.key === cardKey) ?? null;
+      setData({ changes, files, repo, pr, card, cost, outsideSprint: cards !== null && card === null });
     }
   }, [id, projectKey, cardKey, worktreePath]);
 

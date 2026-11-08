@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
-import { card } from '../testing/sprintFixture';
+import { card, SPRINT } from '../testing/sprintFixture';
 import { CardTab } from './CardTab';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 
@@ -96,6 +96,14 @@ function fakeRepo(withPr: boolean, cards: readonly Card[] = []) {
           fetchedAt: null,
         }),
     },
+  });
+}
+
+function fakeNoPr(status: Card['status']) {
+  const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card('MPL-20', status)] };
+  fakeMaple({
+    pr: { get: () => Promise.resolve({ data: null, error: null, fetchedAt: '2026-10-18T12:00:00.000Z' }) },
+    jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) },
   });
 }
 
@@ -602,6 +610,64 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     // then
     expect(await screen.findByRole('button', { name: 'tahardi/maple PR #13' })).toBeInTheDocument();
+  });
+
+  test.each([
+    { status: 'In Review' as const, name: 'shows', shown: true },
+    { status: 'In Progress' as const, name: 'hides', shown: false },
+    { status: 'To Do' as const, name: 'hides', shown: false },
+    { status: 'Done' as const, name: 'hides', shown: false },
+  ])('a $status card with no PR $name the searched repos', async ({ status, shown }) => {
+    // given
+    fakeNoPr(status);
+    // when
+    render(<CardTab tab={{ ...tab, projectKey: 'BEAR' }} />);
+    await screen.findByRole('tab', { name: 'Card description', selected: true });
+    // then
+    expect(screen.queryByText(/No PR found in tahardi\/bearclave\./) !== null).toBe(shown);
+  });
+
+  test('lists the project repo first, then its other repos, when no PR is found', async () => {
+    // given
+    fakeNoPr('In Review');
+    const project = {
+      name: 'Xena',
+      jiraKey: 'MPL',
+      jiraBoardId: 1,
+      plannerDir: '/tmp/planner/xena',
+      repo: 'tahardi/xena',
+      otherRepos: ['tahardi/dotclaude'],
+    };
+    useMaple.setState({
+      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, projects: [project] } },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('tab', { name: 'Card description', selected: true });
+    // then
+    expect(screen.getByText(/^No PR found in tahardi\/xena, tahardi\/dotclaude\./)).toBeInTheDocument();
+  });
+
+  test('names the searched repos for a card outside the sprint with no PR', async () => {
+    // given
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: null, error: null, fetchedAt: '2026-10-18T12:00:00.000Z' }) },
+      jira: { sprint: () => Promise.resolve({ data: { ...SPRINT, cards: [] }, error: null, fetchedAt: null }) },
+    });
+    // when
+    render(<CardTab tab={{ ...tab, projectKey: 'BEAR' }} />);
+    // then
+    expect(await screen.findByText(/^No PR found in tahardi\/bearclave\./)).toBeInTheDocument();
+  });
+
+  test('shows no searched repos for a project missing from config', async () => {
+    // given
+    fakeNoPr('In Review');
+    // when
+    render(<CardTab tab={{ ...tab, projectKey: 'NOPE' }} />);
+    await screen.findByRole('tab', { name: 'Card description', selected: true });
+    // then
+    expect(screen.queryByText(/No PR found/)).toBeNull();
   });
 
   test('keeps the PR description closed until the PR number opens it', async () => {

@@ -2,9 +2,11 @@ import type { Fetched } from '@shared/types/app';
 import type { PrInfo, Review } from '@shared/types/github';
 import type { RepoInfo } from '@shared/types/files';
 import type { SessionCost, TabState } from '@shared/types/tabs';
+import type { Sprint } from '@shared/types/jira';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';
+import { card, SPRINT } from '../testing/sprintFixture';
 import { useCardData } from './useCardData';
 
 type RejectionListener = (reason: unknown, promise: unknown) => void;
@@ -340,6 +342,39 @@ describe('useCardData', () => {
       expect(result.current.card).toEqual(card);
     });
     expect(changes).not.toHaveBeenCalled();
+  });
+
+  test.each<{ name: string; sprint: () => Promise<Fetched<Sprint>>; outside: boolean }>([
+    {
+      name: 'a sprint without the card',
+      sprint: () => Promise.resolve({ data: { ...SPRINT, cards: [] }, error: null, fetchedAt: null }),
+      outside: true,
+    },
+    {
+      name: 'a sprint with the card',
+      sprint: () =>
+        Promise.resolve({ data: { ...SPRINT, cards: [card('BEAR-1', 'To Do')] }, error: null, fetchedAt: null }),
+      outside: false,
+    },
+    {
+      name: 'a failed sprint lookup',
+      sprint: () => Promise.resolve({ data: null, error: 'boom', fetchedAt: null }),
+      outside: false,
+    },
+    { name: 'a rejected sprint lookup', sprint: () => Promise.reject(new Error('boom')), outside: false },
+  ])('with $name the card outside the sprint is $outside', async ({ sprint, outside }) => {
+    // given
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: null, error: null, fetchedAt: null }) },
+      jira: { sprint },
+    });
+    // when
+    const { result } = renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(result.current.pr).not.toBeNull();
+    });
+    // then
+    expect(result.current.outsideSprint).toBe(outside);
   });
 
   test('a slow load from before the worktree appeared does not overwrite the files', async () => {
