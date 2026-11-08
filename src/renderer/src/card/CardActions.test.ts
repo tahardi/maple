@@ -78,6 +78,15 @@ describe('cardActions', () => {
     expect(send).toHaveBeenCalledWith(want);
   });
 
+  test('Approve is primary and Close is danger', () => {
+    // given
+    const { list } = actions();
+    // when
+    const variants = list.map((a) => a.variant);
+    // then
+    expect(variants).toEqual([undefined, undefined, 'primary', 'danger']);
+  });
+
   test('Approve calls approve', () => {
     // given
     const { list, approve } = actions();

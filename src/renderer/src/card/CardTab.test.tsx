@@ -1042,6 +1042,48 @@ describe('CardTab', () => {
     expect(approve.mock.calls).toEqual(approved ? [['t1', head]] : []);
   });
 
+  test('the unviewed files confirm is danger', async () => {
+    // given
+    fakeApprove();
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    // then
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' })).toHaveAttribute(
+      'data-variant',
+      'danger',
+    );
+  });
+
+  test('the open findings confirm is danger', async () => {
+    // given
+    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
+    fakeApprove([], undefined, [finding]);
+    render(<CardTab tab={tab} />);
+    await screen.findByText('Reviewing aaaaaaa');
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    // then
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' })).toHaveAttribute(
+      'data-variant',
+      'danger',
+    );
+  });
+
+  test('the Close card confirm is danger', async () => {
+    // given
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Close' }));
+    // then
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close card' })).toHaveAttribute(
+      'data-variant',
+      'danger',
+    );
+  });
+
   test('Close opens a dialog that warns before closing the card', async () => {
     // given
     fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });

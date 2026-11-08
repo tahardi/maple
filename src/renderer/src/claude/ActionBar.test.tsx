@@ -38,6 +38,21 @@ describe('ActionBar', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  test('marks each action with its variant', () => {
+    // given
+    const actions = [
+      { label: 'Approve', onClick: vi.fn(), variant: 'primary' as const },
+      { label: 'Close', onClick: vi.fn(), variant: 'danger' as const },
+      { label: 'Ship', onClick: vi.fn() },
+    ];
+    // when
+    render(<ActionBar actions={actions} />);
+    // then
+    expect(screen.getByRole('button', { name: 'Approve' })).toHaveAttribute('data-variant', 'primary');
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveAttribute('data-variant', 'danger');
+    expect(screen.getByRole('button', { name: 'Ship' })).not.toHaveAttribute('data-variant');
+  });
+
   test('no actions renders no buttons', () => {
     // when
     render(<ActionBar actions={[]} />);

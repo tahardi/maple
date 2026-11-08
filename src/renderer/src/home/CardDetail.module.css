@@ -18,7 +18,7 @@
 
 .top h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-lg);
 }
 
 .meta,
@@ -27,17 +27,17 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--font-sm);
 }
 
 .blockers {
   margin: 0;
   padding-left: 18px;
-  font-size: 12px;
+  font-size: var(--font-sm);
 }
 
 .failure {
   margin: 0;
   color: var(--danger);
-  font-size: 12px;
+  font-size: var(--font-sm);
 }
