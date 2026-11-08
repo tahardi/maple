@@ -23,7 +23,7 @@ const fetched = (data: PrInfo | null, error: string | null = null): Fetched<PrIn
 });
 
 describe('PrSummary', () => {
-  test('leaves out the PR title and description sections', () => {
+  test('leaves out the description sections', () => {
     // given
     const pr = fetched(info);
     // when
@@ -39,10 +39,72 @@ describe('PrSummary', () => {
       />,
     );
     // then
-    expect(screen.queryByText(info.title)).toBeNull();
     expect(screen.queryByText('Used X instead of Y')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Needs Taylor' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Full description' })).toBeNull();
+  });
+
+  test.each<{ state: PrInfo['state'] }>([{ state: 'OPEN' }, { state: 'MERGED' }, { state: 'CLOSED' }])(
+    'shows the title for a $state PR',
+    ({ state }) => {
+      // given
+      const pr = fetched({ ...info, state });
+      // when
+      render(
+        <PrSummary
+          pr={pr}
+          onOpenDescription={vi.fn()}
+          onReloadReview={vi.fn()}
+          reviewError={null}
+          findings={[]}
+          projectRepo="tahardi/maple"
+          headSha={null}
+        />,
+      );
+      // then
+      expect(screen.getByText(info.title)).toBeInTheDocument();
+    },
+  );
+
+  test('shows the title between the number row and the reviewed commit', () => {
+    // given
+    const headSha = '0123456789abcdef0123456789abcdef01234567';
+    // when
+    render(
+      <PrSummary
+        pr={fetched(info)}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        projectRepo="tahardi/maple"
+        headSha={headSha}
+      />,
+    );
+    // then
+    const title = screen.getByText(info.title);
+    expect(title.previousElementSibling).toContainElement(screen.getByRole('button', { name: 'PR #33' }));
+    expect(title.nextElementSibling).toContainElement(screen.getByText('Reviewing 0123456'));
+  });
+
+  test('shows markup in a title as text', () => {
+    // given
+    const title = '<img src=x onerror=alert(1)>';
+    // when
+    const { container } = render(
+      <PrSummary
+        pr={fetched({ ...info, title })}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        projectRepo="tahardi/maple"
+        headSha={null}
+      />,
+    );
+    // then
+    expect(screen.getByText(title)).toBeInTheDocument();
+    expect(container.querySelector('img')).toBeNull();
   });
 
   test.each([
@@ -253,6 +315,7 @@ describe('PrSummary', () => {
     // then
     expect(screen.getByText('GitHub unreachable')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'PR #33' })).toBeInTheDocument();
+    expect(screen.getByText(info.title)).toBeInTheDocument();
   });
 
   test.each([
