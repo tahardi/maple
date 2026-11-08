@@ -17,7 +17,7 @@ import { appLogger, logFailure, redact, type Logger } from '@main/app/log';
 import { closeTornLine } from './closeTornLine';
 import { dayFiles } from './dayFiles';
 import { dayName } from './dayName';
-import { pruneEvents } from './pruneEvents';
+import { pruneEvents, type PruneLimits } from './pruneEvents';
 
 export type EventLog<S extends EventSchemas> = {
   append<T extends keyof S & string>(type: T, refs: EventRefs, data: z.input<S[T]>): Promise<void>;
@@ -48,8 +48,10 @@ function matches(record: EventRecord, filter: EventFilter): boolean {
   );
 }
 
+type PruneOptions = { limits?: PruneLimits; askDeleteToday?: (bytes: number) => Promise<boolean> };
+
 export function createEventLog<S extends EventSchemas = typeof eventSchemas>(
-  options: { schemas?: S; dir?: string; now?: () => Date; uuid?: () => string; logger?: Logger } = {},
+  options: PruneOptions & { schemas?: S; dir?: string; now?: () => Date; uuid?: () => string; logger?: Logger } = {},
 ): EventLog<S> {
   const schemas = options.schemas ?? (eventSchemas as S);
   const dir = options.dir ?? eventsDir();
@@ -57,15 +59,21 @@ export function createEventLog<S extends EventSchemas = typeof eventSchemas>(
   const uuid = options.uuid ?? randomUUID;
   const logger = options.logger ?? appLogger;
 
-  let queue: Promise<void> = mkdir(dir, { recursive: true })
-    .then(() => logFailure(logger, 'events', { operation: 'pruneEvents' }, () => pruneEvents(dir, now())))
-    .catch(() => undefined)
-    .then(() =>
-      logFailure(logger, 'events', { operation: 'closeTornLine' }, () =>
-        closeTornLine(join(dir, `${dayName(now())}.jsonl`)),
-      ),
-    )
-    .catch(() => undefined);
+  const prune = async (): Promise<void> => {
+    const deleted = await pruneEvents(dir, now(), options.limits, options.askDeleteToday);
+    if (deleted.length > 0) {
+      logger.info('events', 'pruned', { deleted });
+    }
+  };
+  const attempt = (operation: string, run: () => Promise<void>): Promise<void> =>
+    logFailure(logger, 'events', { operation }, run).catch(() => undefined);
+  const startup = async (): Promise<void> => {
+    await logFailure(logger, 'events', { operation: 'createEventsDir' }, () => mkdir(dir, { recursive: true }));
+    await attempt('pruneEvents', prune);
+    await attempt('closeTornLine', () => closeTornLine(join(dir, `${dayName(now())}.jsonl`)));
+  };
+
+  let queue: Promise<void> = startup().catch(() => undefined);
 
   return {
     async append(type, refs, data) {
@@ -111,8 +119,8 @@ export function createEventLog<S extends EventSchemas = typeof eventSchemas>(
 
 let current: EventLog<typeof eventSchemas> | null = null;
 
-export function startEventLog(): EventLog<typeof eventSchemas> {
-  current ??= createEventLog();
+export function startEventLog(options: PruneOptions = {}): EventLog<typeof eventSchemas> {
+  current ??= createEventLog(options);
   return current;
 }
 

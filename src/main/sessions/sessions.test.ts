@@ -25,6 +25,8 @@ const config: MapleConfig = {
   vaultDir: null,
   notifications: true,
   backgroundWaitMinutes: 15,
+  eventKeepDays: 365,
+  eventMaxMegabytes: 200,
   projects: [
     {
       name: 'Dig Days',

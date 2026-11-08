@@ -171,13 +171,63 @@ describe('createEventLog', () => {
     // given
     const { dir, options } = await setup();
     await writeFile(join(dir, 'blocked'), '');
-    const log = createEventLog({ ...options, dir: join(dir, 'blocked', 'events') });
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const log = createEventLog({ ...options, dir: join(dir, 'blocked', 'events'), logger });
 
     // when
     const appending = log.append('test.ping', refs, { n: 1 });
 
     // then
     await expect(appending).rejects.toThrow('ENOTDIR');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'events',
+      'failed',
+      expect.objectContaining({ operation: 'createEventsDir' }),
+    );
+  });
+
+  test('logs the day files it pruned', async () => {
+    // given
+    const { dir, create } = await setup();
+    await writeFile(join(dir, '2025-01-01.jsonl'), 'old\n');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const log = create(logger);
+
+    // when
+    await log.append('test.ping', refs, { n: 1 });
+
+    // then
+    expect(logger.info).toHaveBeenCalledWith('events', 'pruned', { deleted: ['2025-01-01.jsonl'] });
+  });
+
+  test('logs nothing when no day file was pruned', async () => {
+    // given
+    const { create } = await setup();
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const log = create(logger);
+
+    // when
+    await log.append('test.ping', refs, { n: 1 });
+
+    // then
+    expect(logger.info).not.toHaveBeenCalled();
+  });
+
+  test('prunes with the limits and the question it is given', async () => {
+    // given
+    const { dir, options } = await setup();
+    await writeFile(join(dir, '2026-11-01.jsonl'), 'old\n');
+    await writeFile(join(dir, '2026-11-07.jsonl'), 'today\n');
+    const askDeleteToday = vi.fn(() => Promise.resolve(false));
+    const limits = { keepDays: 1, maxBytes: 1 };
+    const log = createEventLog({ ...options, dir, limits, askDeleteToday });
+
+    // when
+    await log.readEvents({ from: '2026-11-07T00:00:00.000Z', to: '2026-11-07T23:59:59.999Z' });
+
+    // then
+    expect(askDeleteToday).toHaveBeenCalledWith(6);
+    expect(await readdir(dir)).toEqual(['2026-11-07.jsonl']);
   });
 
   test('prunes old day files before the first write', async () => {

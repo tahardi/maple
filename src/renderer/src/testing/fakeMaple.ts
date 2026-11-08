@@ -12,6 +12,8 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
     vaultDir: null,
     notifications: false,
     backgroundWaitMinutes: 15,
+    eventKeepDays: 365,
+    eventMaxMegabytes: 200,
     projects: [
       {
         name: 'Bearclave',
