@@ -11,6 +11,7 @@ const emptyState: SavedState = {
   notifications: null,
   zoom: 0,
   lastProject: null,
+  seen: {},
 };
 
 const savedState: SavedState = {
@@ -29,6 +30,7 @@ const savedState: SavedState = {
   notifications: false,
   zoom: 1.5,
   lastProject: 'MPL',
+  seen: { 'tab-1': 'waiting' },
 };
 
 describe('state', () => {
@@ -90,6 +92,38 @@ describe('state', () => {
     const result = await loadState(dir);
     // then
     expect(result.state).toEqual({ ...savedState, lastProject: null });
+  });
+
+  test('defaults seen to empty when missing', async () => {
+    // given
+    const withoutSeen = { ...savedState, seen: undefined };
+    await writeFile(join(dir, 'state.json'), JSON.stringify(withoutSeen));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result.state.seen).toEqual({});
+  });
+
+  test.each([
+    { name: 'an unknown dot', seen: { 'tab-1': 'blue' } },
+    { name: 'something that is not a map', seen: 42 },
+  ])('keeps the tabs and empties seen when it holds $name', async ({ seen }) => {
+    // given
+    await writeFile(join(dir, 'state.json'), JSON.stringify({ ...savedState, seen }));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state: { ...savedState, seen: {} }, warning: null });
+  });
+
+  test('drops seen entries for tabs that are not saved', async () => {
+    // given
+    const withGone = { ...savedState, seen: { 'tab-1': 'ready', gone: 'waiting' } };
+    await writeFile(join(dir, 'state.json'), JSON.stringify(withGone));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result.state.seen).toEqual({ 'tab-1': 'ready' });
   });
 
   test('leaves no temp file after saving', async () => {

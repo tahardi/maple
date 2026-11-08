@@ -33,6 +33,12 @@
   color: var(--text-muted);
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .empty {
   margin: 0;
 }
