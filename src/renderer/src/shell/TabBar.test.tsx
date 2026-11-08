@@ -143,6 +143,18 @@ describe('TabBar', () => {
     expect(await screen.findByRole('dialog')).toHaveTextContent('Vault is still working. Close anyway?');
   });
 
+  test('the Close tab confirm is danger', async () => {
+    // given
+    fakeMaple({ tabs: { close: () => Promise.resolve({ closed: false, needsConfirm: true }) } });
+    useMaple.setState({ config: VAULT_CONFIG, tabs: [...useMaple.getState().tabs, tab('v1', 'BEAR', 'vault', null)] });
+    render(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Close Vault' }));
+    // then
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveAttribute('data-variant', 'danger');
+  });
+
   test('clicking Vault again clears the failure', async () => {
     // given
     const openVault = vi
