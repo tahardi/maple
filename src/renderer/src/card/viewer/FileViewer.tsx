@@ -51,7 +51,7 @@ const NO_COMMENTS: ReviewComment[] = [];
 
 const OUTSIDE_DIFF = 'GitHub only accepts comments on lines in the PR diff';
 
-const NO_REVIEW = 'Review not loaded: comments pin to the reviewed commit';
+const NO_REVIEW = 'Review not loaded: click Reload review to pin comments to the reviewed commit';
 
 const NO_COPY = 'No saved copy of this note from this session';
 

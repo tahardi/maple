@@ -2471,7 +2471,7 @@ describe('FileViewer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     // then
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      "Can't comment on line 3. Review not loaded: comments pin to the reviewed commit",
+      "Can't comment on line 3. Review not loaded: click Reload review to pin comments to the reviewed commit",
     );
     expect(diffLines).not.toHaveBeenCalled();
   });
