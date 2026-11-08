@@ -1,4 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import { NoteOverview } from './NoteOverview';
 
 const copy = vi.hoisted(() => ({ rendered: vi.fn() }));
@@ -31,6 +33,22 @@ function strip(top = 0) {
 describe('NoteOverview', () => {
   const observer = { observe: vi.fn(), disconnect: vi.fn() };
   const resized: { value: () => void } = { value: () => undefined };
+  const mounted: { unmount: () => void } = { unmount: () => undefined };
+
+  function unactedRoot() {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', false);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mounted.unmount = () => {
+      flushSync(() => {
+        root.unmount();
+      });
+      container.remove();
+      mounted.unmount = () => undefined;
+    };
+    return { container, root };
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -44,6 +62,7 @@ describe('NoteOverview', () => {
   });
 
   afterEach(() => {
+    mounted.unmount();
     vi.unstubAllGlobals();
   });
 
@@ -207,6 +226,52 @@ describe('NoteOverview', () => {
     fireEvent.mouseMove(node, { buttons: 1, clientY: 150 });
     // then
     expect(div.scrollTop).toBe(top);
+  });
+
+  test('draws the strip in the same render it mounts', () => {
+    // given
+    const { container, root } = unactedRoot();
+    const div = scroller();
+    // when
+    flushSync(() => {
+      root.render(<NoteOverview text="## Findings" scroller={div} />);
+    });
+    // then
+    expect(container.querySelector('[data-testid="note-overview"]')).not.toBeNull();
+  });
+
+  test('draws the strip in the same render a scroller arrives', () => {
+    // given
+    const { container, root } = unactedRoot();
+    const div = scroller();
+    flushSync(() => {
+      root.render(<NoteOverview text="## Findings" scroller={null} />);
+    });
+    // when
+    flushSync(() => {
+      root.render(<NoteOverview text="## Findings" scroller={div} />);
+    });
+    // then
+    expect(container.querySelector('[data-testid="note-overview"]')).not.toBeNull();
+  });
+
+  test('refits the slider in the same render the text changes', async () => {
+    // given
+    const { root } = unactedRoot();
+    const div = scroller();
+    flushSync(() => {
+      root.render(<NoteOverview text="## Findings" scroller={div} />);
+    });
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('note-overview-slider')).toHaveStyle({ top: '50px' });
+    });
+    Object.defineProperty(div, 'scrollHeight', { value: 8000 });
+    // when
+    flushSync(() => {
+      root.render(<NoteOverview text="## Longer findings" scroller={div} />);
+    });
+    // then
+    expect(screen.getByTestId('note-overview-slider')).toHaveStyle({ top: '25px', height: '5px' });
   });
 
   test('draws nothing without a scroller', () => {
