@@ -13,12 +13,7 @@
 }
 
 .strip button {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
   padding: 0 6px;
-  cursor: pointer;
 }
 
 .strip input {

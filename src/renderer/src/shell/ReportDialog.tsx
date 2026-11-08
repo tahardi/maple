@@ -101,7 +101,7 @@ export function ReportDialog({ onClose }: ReportDialogProps) {
               <button type="button" onClick={onClose}>
                 Cancel
               </button>
-              <button type="submit" disabled={sending || title.trim() === ''}>
+              <button type="submit" data-variant="primary" disabled={sending || title.trim() === ''}>
                 Submit
               </button>
             </div>

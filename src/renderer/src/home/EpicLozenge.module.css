@@ -1,7 +1,7 @@
 .lozenge {
   border-radius: 3px;
   padding: 0 4px;
-  font-size: 11px;
+  font-size: var(--font-xs);
   font-weight: 600;
   text-transform: uppercase;
   white-space: nowrap;

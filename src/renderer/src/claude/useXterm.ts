@@ -64,7 +64,7 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): v
     }
     const term = new Terminal({
       fontFamily: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Consolas, monospace",
-      fontSize: 13,
+      fontSize: Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-md')),
       scrollback: 10_000,
       theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
       allowProposedApi: true,

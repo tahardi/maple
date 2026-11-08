@@ -5,11 +5,12 @@ type ConfirmDialogProps = {
   title: string;
   body: string;
   confirmLabel: string;
+  danger?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };
 
-export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ title, body, confirmLabel, danger, onConfirm, onCancel }: ConfirmDialogProps) {
   const titleId = useId();
 
   useEffect(() => {
@@ -33,7 +34,9 @@ export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel }
           <button onClick={onCancel} autoFocus>
             Cancel
           </button>
-          <button onClick={onConfirm}>{confirmLabel}</button>
+          <button onClick={onConfirm} data-variant={danger === true ? 'danger' : 'primary'}>
+            {confirmLabel}
+          </button>
         </div>
       </div>
     </div>
