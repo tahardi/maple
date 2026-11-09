@@ -18,6 +18,7 @@ import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/jira';
 import { appLogger, logUncaught, startLogging } from '@main/app/log';
 import { askDeleteToday } from '@main/events/askDeleteToday';
 import { startEventLog } from '@main/events/eventLog';
+import { prEvents } from '@main/events/prEvents';
 import { pruneLimits } from '@main/events/pruneEvents';
 import { EventRecorder } from '@main/events/recorder';
 import { checkNotifications } from '@main/app/menu';
@@ -130,14 +131,15 @@ async function start(): Promise<() => number> {
   };
   const status = new StatusEngine({
     sessions,
-    getCard,
-    prFor,
+    getCard: prEvents.tapCard(getCard, () => sessions.list()),
+    prFor: prEvents.tapPr(prFor, () => sessions.list()),
     waitLimitMs: () => (config?.backgroundWaitMinutes ?? DEFAULT_WAIT_MINUTES) * 60_000,
   });
   const recorder = new EventRecorder({ sessions, status, transcriptOffset: (id) => transcriptOffset(id), headSha });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
     recorder.hook(e);
+    prEvents.hook(e);
   });
   const stopAutoSync = new AutoSync({
     sessions,
