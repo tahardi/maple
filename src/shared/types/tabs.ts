@@ -26,9 +26,11 @@ export type TabStatus = {
 };
 export type HookEvent = {
   tabId: string;
-  event: 'Stop' | 'Notification' | 'UserPromptSubmit';
+  event: 'Stop' | 'Notification' | 'UserPromptSubmit' | 'SessionStart';
   notificationType: string | null;
   backgroundTasks?: string[];
   crons?: number;
+  sessionId?: string | null;
+  source?: string | null;
 };
 export type CloseResult = { closed: boolean; needsConfirm: boolean };

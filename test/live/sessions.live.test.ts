@@ -106,6 +106,7 @@ describe('SessionManager with a real claude', () => {
           notificationType: null,
           backgroundTasks: [],
           crons: 0,
+          sessionId: expect.any(String) as unknown,
         });
         expect(events).toContainEqual({
           tabId: tab.id,
@@ -113,6 +114,7 @@ describe('SessionManager with a real claude', () => {
           notificationType: null,
           backgroundTasks: [],
           crons: 0,
+          sessionId: expect.any(String) as unknown,
         });
       },
       { timeout: 90_000, interval: 500 },
@@ -141,6 +143,7 @@ describe('SessionManager with a real claude', () => {
           notificationType: null,
           backgroundTasks: [],
           crons: 0,
+          sessionId: expect.any(String) as unknown,
         });
       },
       { timeout: 90_000, interval: 500 },

@@ -71,11 +71,15 @@ process.stdin.on('end', () => {
   let notificationType = null;
   let backgroundTasks = [];
   let crons = 0;
+  let sessionId = null;
+  let source = null;
   try {
     const payload = JSON.parse(input);
     notificationType = payload.notification_type ?? null;
     backgroundTasks = taskTypes(payload.background_tasks);
     crons = Array.isArray(payload.session_crons) ? payload.session_crons.length : 0;
+    sessionId = typeof payload.session_id === 'string' ? payload.session_id : null;
+    source = typeof payload.source === 'string' ? payload.source : null;
   } catch {
     notificationType = null;
   }
@@ -85,6 +89,8 @@ process.stdin.on('end', () => {
     notificationType,
     backgroundTasks,
     crons,
+    sessionId,
+    ...(process.argv[2] === 'SessionStart' ? { source } : {}),
   });
   const socket = connect(process.env.MAPLE_SOCKET ?? '', () => {
     socket.end(`${line}\n`, () => process.exit(0));
