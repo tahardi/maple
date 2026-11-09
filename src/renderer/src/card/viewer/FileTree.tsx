@@ -97,22 +97,24 @@ export function FileTree({
     <div className={styles.tree}>
       {onToggle !== undefined && (
         <div className={styles.toggle}>
-          <button
-            aria-pressed={!changedOnly}
-            onClick={() => {
-              onToggle(false);
-            }}
-          >
-            All files
-          </button>
-          <button
-            aria-pressed={changedOnly}
-            onClick={() => {
-              onToggle(true);
-            }}
-          >
-            {`Changed (${String(changedCount)})`}
-          </button>
+          <div role="group" aria-label="Files shown" data-variant="segmented">
+            <button
+              aria-pressed={!changedOnly}
+              onClick={() => {
+                onToggle(false);
+              }}
+            >
+              All files
+            </button>
+            <button
+              aria-pressed={changedOnly}
+              onClick={() => {
+                onToggle(true);
+              }}
+            >
+              {`Changed (${String(changedCount)})`}
+            </button>
+          </div>
         </div>
       )}
       <ul className={styles.list}>{rows(nodes, 0)}</ul>
