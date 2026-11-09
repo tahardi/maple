@@ -2,7 +2,7 @@ import { DiffEditor, Editor, useMonaco } from '@monaco-editor/react';
 import { lineMarks } from '@shared/diffMarks';
 import type { DiffLines, Draft, FilePair } from '@shared/types/files';
 import type { Review, ReviewComment } from '@shared/types/github';
-import type { editor } from 'monaco-editor/editor/editor.api';
+import type { editor, IRange } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { MarkdownText } from '@renderer/shell/MarkdownText';
@@ -55,6 +55,10 @@ const NO_REVIEW = 'Review not loaded: click Reload review to pin comments to the
 
 const NO_COPY = 'No saved copy of this note from this session';
 
+const NO_SELECTION = 'Select lines to comment on';
+
+const LEAVE_EDIT = 'Turn off Edit to see changes';
+
 const OPTIONS = {
   readOnly: true,
   domReadOnly: true,
@@ -91,6 +95,14 @@ function saveWrap(wrap: boolean) {
   } catch {
     return;
   }
+}
+
+function isChanged(pair: FilePair | null): boolean {
+  return pair?.kind === 'text' && pair.current !== null && pair.base !== pair.current;
+}
+
+function atFileStart(range: IRange): boolean {
+  return range.startLineNumber === 1 && range.startColumn === 1 && range.endLineNumber === 1 && range.endColumn === 1;
 }
 
 function errorText(err: unknown): string {
@@ -150,7 +162,7 @@ export function FileViewer({
   const [comments, setComments] = useState<ReviewComment[]>(NO_COMMENTS);
   const [commentsRead, setCommentsRead] = useState(0);
   const [diff, setDiff] = useState<({ headSha: string } & DiffLines) | null>(null);
-  const [picked, setPicked] = useState<{ editor: editor.ICodeEditor; lines: Lines } | null>(null);
+  const [picked, setPicked] = useState<{ editor: editor.ICodeEditor; lines: Lines | null } | null>(null);
   const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
 
   const wordWrap = wrap ? 'on' : 'off';
@@ -293,11 +305,19 @@ export function FileViewer({
   }, [line, shown, target]);
 
   const text = shown?.kind === 'text' ? shown : null;
-  const changed = text !== null && text.current !== null && text.base !== text.current;
+  const changed = isChanged(shown);
   const sideBySide = changed && mode === 'side-by-side';
   const draft = text === null || review !== null ? null : Object.hasOwn(drafts, text.path) ? drafts[text.path] : null;
   const edited = draft?.text ?? text?.current ?? null;
   const commentable = canComment && text !== null && text.current !== null && !sideBySide && plain !== null;
+  const held = activeFile !== null && shown === null && readError?.path !== activeFile ? pair : null;
+  const heldChanged = isChanged(held);
+  const heldComment =
+    canComment &&
+    held?.kind === 'text' &&
+    held.current !== null &&
+    !(heldChanged && mode === 'side-by-side') &&
+    plain !== null;
   const ranges =
     text !== null && diff !== null && diff.headSha === headSha && Object.hasOwn(diff.ranges, text.path)
       ? diff.ranges[text.path]
@@ -306,7 +326,7 @@ export function FileViewer({
   const selected =
     picked !== null && picked.editor === plain
       ? picked.lines
-      : shownSelection === null
+      : shownSelection === null || atFileStart(shownSelection)
         ? null
         : selectedLines(shownSelection);
   const inDiff = selected !== null && ranges.some(([start, end]) => start <= selected.start && selected.end <= end);
@@ -383,7 +403,7 @@ export function FileViewer({
       return;
     }
     const subscription = plain.onDidChangeCursorSelection((e) => {
-      setPicked({ editor: plain, lines: selectedLines(e.selection) });
+      setPicked({ editor: plain, lines: atFileStart(e.selection) ? null : selectedLines(e.selection) });
     });
     return () => {
       subscription.dispose();
@@ -679,7 +699,7 @@ export function FileViewer({
   };
 
   const modeButtons = (
-    <>
+    <div role="group" aria-label="Diff layout" data-variant="segmented">
       <button
         aria-pressed={mode === 'in-file'}
         onClick={() => {
@@ -696,7 +716,7 @@ export function FileViewer({
       >
         Side by side
       </button>
-    </>
+    </div>
   );
 
   return (
@@ -746,18 +766,19 @@ export function FileViewer({
         {shownNote !== null && (
           <div className={styles.toggle}>
             <button
+              aria-pressed={editsNote}
               onClick={() => {
                 setEditing({ ...editing, [shownNote.path]: !editsNote });
                 setChanges({ ...changes, [shownNote.path]: false });
               }}
             >
-              {editsNote ? 'Preview' : 'Edit'}
+              Edit
             </button>
             {noteChanges && (
               <button
                 aria-pressed={showsChanges}
                 disabled={noteBefore === null || editsNote}
-                title={noteBefore === null ? noCopyReason : undefined}
+                title={noteBefore === null ? noCopyReason : editsNote ? LEAVE_EDIT : undefined}
                 onClick={() => {
                   setChanges({ ...changes, [shownNote.path]: !changesOn });
                 }}
@@ -779,12 +800,13 @@ export function FileViewer({
         )}
         {!showsDescription && !showsNote && (
           <div className={styles.toggle}>
-            {modeButtons}
-            {commentable && (
+            {(changed || heldChanged) && modeButtons}
+            {(commentable || heldComment) && (
               <button
-                title={blocked ?? undefined}
+                disabled={!commentable || selected === null}
+                title={selected === null ? NO_SELECTION : (blocked ?? undefined)}
                 onClick={() => {
-                  if (selected === null) {
+                  if (!commentable || selected === null) {
                     return;
                   }
                   if (blocked === null) {
