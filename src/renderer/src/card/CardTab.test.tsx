@@ -365,7 +365,7 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={tab} />);
     // then
-    await screen.findByRole('link', { name: '#13 ↗' });
+    await screen.findByRole('link', { name: 'PR #13 ↗' });
     expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
   });
 
@@ -1221,7 +1221,9 @@ describe('CardTab', () => {
     // then
     expect(await screen.findByRole('checkbox', { name: 'Viewed src/b.ts' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: 'Viewed src/a.ts' })).not.toBeInTheDocument();
-    expect(screen.getByText('1 files · +9 −4')).toBeInTheDocument();
+    expect(screen.getByText('1 files')).toBeInTheDocument();
+    expect(screen.getByText('+9')).toBeInTheDocument();
+    expect(screen.getByText('−4')).toBeInTheDocument();
   });
 
   test('shows the reviewed commit and findings in the PR summary', async () => {

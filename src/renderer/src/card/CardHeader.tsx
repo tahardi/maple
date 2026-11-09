@@ -22,6 +22,15 @@ function costLabel(cost: SessionCost): string {
   return cost.dollars === null ? label : `${label} · $${cost.dollars.toFixed(2)}`;
 }
 
+function costBreakdown(cost: SessionCost): string {
+  return [
+    `Input ${compact.format(cost.inputTokens)}`,
+    `Output ${compact.format(cost.outputTokens)}`,
+    `Cache write ${compact.format(cost.cacheWriteTokens)}`,
+    `Cache read ${compact.format(cost.cacheReadTokens)}`,
+  ].join(' · ');
+}
+
 export function CardHeader({ cardKey, card, pr, branch, changes, cost, onOpenCard }: Props) {
   return (
     <header className={styles.header}>
@@ -34,15 +43,23 @@ export function CardHeader({ cardKey, card, pr, branch, changes, cost, onOpenCar
       )}
       {card && <span className={styles.pill}>{card.status}</span>}
       {pr && (
-        <a href={pr.url} target="_blank" rel="noreferrer">
-          {`#${String(pr.number)} ↗`}
+        <a href={pr.url} target="_blank" rel="noreferrer" title="Open on GitHub">
+          {`PR #${String(pr.number)} ↗`}
         </a>
       )}
       {branch !== null && <span className={styles.branch}>{branch}</span>}
       {changes && (
-        <span>{`${String(changes.files.length)} files · +${String(changes.added)} −${String(changes.removed)}`}</span>
+        <span className={styles.changes}>
+          {`${String(changes.files.length)} files`}
+          <span className={styles.added}>{`+${String(changes.added)}`}</span>
+          <span className={styles.removed}>{`−${String(changes.removed)}`}</span>
+        </span>
       )}
-      {cost && <span>{costLabel(cost)}</span>}
+      {cost && (
+        <span className={styles.cost} title={costBreakdown(cost)}>
+          {costLabel(cost)}
+        </span>
+      )}
     </header>
   );
 }

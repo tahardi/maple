@@ -5,6 +5,7 @@ import type { SessionCost } from '@shared/types/tabs';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CardHeader } from './CardHeader';
+import css from './CardHeader.module.css?raw';
 
 const card: Card = {
   key: 'MPL-20',
@@ -50,9 +51,53 @@ describe('CardHeader', () => {
     // then
     expect(screen.getByText('MPL-20 File Tree and PR Summary')).toBeInTheDocument();
     expect(screen.getByText('In Progress')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '#33 ↗' })).toHaveAttribute('href', pr.url);
+    const link = screen.getByRole('link', { name: 'PR #33 ↗' });
+    expect(link).toHaveAttribute('href', pr.url);
+    expect(link).toHaveAttribute('title', 'Open on GitHub');
     expect(screen.getByText('mpl-20-file-tree')).toBeInTheDocument();
-    expect(screen.getByText('3 files · +68 −29')).toBeInTheDocument();
+    expect(screen.getByText('3 files')).toBeInTheDocument();
+    expect(screen.getByText('+68')).toBeInTheDocument();
+    expect(screen.getByText('−29')).toBeInTheDocument();
+  });
+
+  test('colors the added and removed line counts', () => {
+    // given
+    const props = { cardKey: 'MPL-20', card: null, pr: null, branch: null, changes, cost: null, onOpenCard: vi.fn() };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    expect(screen.getByText('+68').className).toMatch(/added/);
+    expect(screen.getByText('−29').className).toMatch(/removed/);
+  });
+
+  test('shows zero added and removed line counts', () => {
+    // given
+    const empty = { ...changes, added: 0, removed: 0 };
+    const props = {
+      cardKey: 'MPL-20',
+      card: null,
+      pr: null,
+      branch: null,
+      changes: empty,
+      cost: null,
+      onOpenCard: vi.fn(),
+    };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    expect(screen.getByText('+0')).toBeInTheDocument();
+    expect(screen.getByText('−0')).toBeInTheDocument();
+  });
+
+  test('the title stays bright and truncates as a button and as plain text', () => {
+    // given
+    const buttonRule = /button\.title \{[^}]*\}/.exec(css)?.[0] ?? '';
+    // when
+    const titleRule = /\.title \{[^}]*\}/.exec(css)?.[0] ?? '';
+    // then
+    expect(titleRule).toContain('color: var(--text-strong)');
+    expect(titleRule).toContain('text-overflow: ellipsis');
+    expect(buttonRule).not.toMatch(/\bcolor:/);
   });
 
   test('shows only the card key before anything loads', () => {
@@ -110,6 +155,40 @@ describe('CardHeader', () => {
     cacheReadTokens: 1000000,
     dollars: 3.4,
   };
+
+  test('the cost tooltip breaks the tokens down', () => {
+    // given
+    const props = { cardKey: 'MPL-20', card: null, pr: null, branch: null, changes: null, cost, onOpenCard: vi.fn() };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    expect(screen.getByText('1.2M tokens · $3.40')).toHaveAttribute(
+      'title',
+      'Input 1.2K · Output 34K · Cache write 200K · Cache read 1M',
+    );
+    expect(screen.getByText('1.2M tokens · $3.40').className).toMatch(/cost/);
+  });
+
+  test('the cost tooltip stays when dollars are unknown', () => {
+    // given
+    const unpriced = { ...cost, dollars: null };
+    const props = {
+      cardKey: 'MPL-20',
+      card: null,
+      pr: null,
+      branch: null,
+      changes: null,
+      cost: unpriced,
+      onOpenCard: vi.fn(),
+    };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    expect(screen.getByText('1.2M tokens')).toHaveAttribute(
+      'title',
+      'Input 1.2K · Output 34K · Cache write 200K · Cache read 1M',
+    );
+  });
 
   test.each([
     { name: 'tokens and dollars', cost, want: '1.2M tokens · $3.40' },

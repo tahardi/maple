@@ -5,17 +5,33 @@
   padding: 6px 12px;
   border-bottom: 1px solid var(--border);
   font-size: var(--font-md);
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.header > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.header a {
+  color: inherit;
 }
 
 .title {
+  color: var(--text-strong);
   font-weight: 600;
+  min-width: 0;
+  flex: 0 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 button.title {
   background: transparent;
   border: none;
   padding: 0;
-  color: inherit;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -33,4 +49,21 @@ button.title:hover {
 
 .branch {
   font-family: monospace;
+}
+
+.changes {
+  display: flex;
+  gap: 4px;
+}
+
+.added {
+  color: var(--success);
+}
+
+.removed {
+  color: var(--danger);
+}
+
+.cost {
+  margin-left: auto;
 }
