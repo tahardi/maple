@@ -33,7 +33,7 @@ describe('CardDetail', () => {
     // when
     await userEvent.click(screen.getByRole('button', { name: button }));
     // then
-    const actions = screen.getAllByRole('button').filter((b) => b.textContent !== 'Close');
+    const actions = screen.getAllByRole('button').filter((b) => b.textContent !== '×');
     expect(actions.map((b) => b.textContent)).toEqual([button]);
     expect(handlers[handler]).toHaveBeenCalledOnce();
   });
@@ -42,7 +42,7 @@ describe('CardDetail', () => {
     // given
     renderDetail(card('DIG-40', 'Done'), null);
     // then
-    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Close']);
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['×']);
   });
 
   test('shows the description, points, labels, blockers, and Jira link', () => {
@@ -72,6 +72,7 @@ describe('CardDetail', () => {
     renderDetail(card('DIG-39', 'Done', { points: null, labels: [] }), null);
     // then
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Blocked by' })).not.toBeInTheDocument();
     expect(screen.getByRole('complementary')).not.toHaveTextContent('pts');
     expect(screen.getByRole('complementary')).not.toHaveTextContent('parallelizable');
   });
@@ -119,7 +120,7 @@ describe('CardDetail', () => {
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Add to sprint' }));
     // then
-    const actions = screen.getAllByRole('button').filter((b) => b.textContent !== 'Close');
+    const actions = screen.getAllByRole('button').filter((b) => b.textContent !== '×');
     expect(actions.map((b) => b.textContent)).toEqual(['Add to sprint']);
     expect(onAddToSprint).toHaveBeenCalledOnce();
   });
@@ -142,11 +143,91 @@ describe('CardDetail', () => {
     expect(screen.getByRole('button', { name: 'Add to sprint' })).toBeDisabled();
   });
 
+  test('hides Blocked by when every blocker is Done', () => {
+    // given
+    const blockedBy = [
+      { key: 'DIG-44', status: 'Done' as const },
+      { key: 'DIG-45', status: 'Done' as const },
+    ];
+    // when
+    renderDetail(card('DIG-41', 'To Do', { blockedBy }), null);
+    // then
+    expect(screen.queryByRole('heading', { name: 'Blocked by' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+  });
+
+  test('lists every blocker when one is still open', () => {
+    // given
+    const blockedBy = [
+      { key: 'DIG-44', status: 'Done' as const },
+      { key: 'DIG-45', status: 'In Progress' as const },
+    ];
+    // when
+    renderDetail(card('DIG-41', 'To Do', { blockedBy }), null);
+    // then
+    expect(screen.getByRole('heading', { name: 'Blocked by' })).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['DIG-44 Done', 'DIG-45 In Progress']);
+  });
+
+  test('labels the blockers', () => {
+    // given
+    const blocked = card('DIG-41', 'To Do', { blockedBy: [{ key: 'DIG-44', status: 'In Progress' }] });
+    // when
+    renderDetail(blocked, null);
+    // then
+    expect(screen.getByRole('heading', { name: 'Blocked by' })).toBeInTheDocument();
+    expect(screen.getByRole('listitem')).toHaveTextContent(/^DIG-44 In Progress$/);
+  });
+
+  test.each([
+    { label: 'Start', status: 'To Do' as const, hasTab: false },
+    { label: 'Open', status: 'In Progress' as const, hasTab: false },
+    { label: 'Go to tab', status: 'In Progress' as const, hasTab: true },
+  ])('the $label action is primary', ({ label, status, hasTab }) => {
+    // given
+    const current = hasTab ? tab : null;
+    // when
+    renderDetail(card('DIG-41', status), current);
+    // then
+    expect(screen.getByRole('button', { name: label })).toHaveAttribute('data-variant', 'primary');
+  });
+
+  test.each([
+    { state: 'enabled', onAddToSprint: vi.fn(), disabled: false },
+    { state: 'disabled', onAddToSprint: null, disabled: true },
+  ])('Add to sprint is primary when $state', ({ onAddToSprint, disabled }) => {
+    // given
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    // when
+    render(
+      <CardDetail
+        card={card('DIG-41', 'To Do')}
+        tab={null}
+        failure={null}
+        {...handlers}
+        onAddToSprint={onAddToSprint}
+      />,
+    );
+    // then
+    const button = screen.getByRole('button', { name: 'Add to sprint' });
+    expect(button).toHaveAttribute('data-variant', 'primary');
+    expect((button as HTMLButtonElement).disabled).toBe(disabled);
+  });
+
+  test('the close button is not primary', () => {
+    // given
+    const todo = card('DIG-41', 'To Do');
+    // when
+    renderDetail(todo, null);
+    // then
+    expect(screen.getByRole('button', { name: 'Close details' })).not.toHaveAttribute('data-variant');
+  });
+
   test('Close calls onClose', async () => {
     // given
     const { onClose } = renderDetail(card('DIG-41', 'To Do'), null);
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Close details' }));
     // then
     expect(onClose).toHaveBeenCalledOnce();
   });
