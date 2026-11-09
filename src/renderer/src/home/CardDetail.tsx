@@ -50,7 +50,7 @@ export function CardDetail(props: Props) {
           </span>
         ))}
       </div>
-      {card.blockedBy.length > 0 && (
+      {card.blockedBy.some((b) => b.status !== 'Done') && (
         <>
           <h4 className={styles.blockedBy}>Blocked by</h4>
           <ul className={styles.blockers}>

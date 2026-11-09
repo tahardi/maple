@@ -143,6 +143,32 @@ describe('CardDetail', () => {
     expect(screen.getByRole('button', { name: 'Add to sprint' })).toBeDisabled();
   });
 
+  test('hides Blocked by when every blocker is Done', () => {
+    // given
+    const blockedBy = [
+      { key: 'DIG-44', status: 'Done' as const },
+      { key: 'DIG-45', status: 'Done' as const },
+    ];
+    // when
+    renderDetail(card('DIG-41', 'To Do', { blockedBy }), null);
+    // then
+    expect(screen.queryByRole('heading', { name: 'Blocked by' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+  });
+
+  test('lists every blocker when one is still open', () => {
+    // given
+    const blockedBy = [
+      { key: 'DIG-44', status: 'Done' as const },
+      { key: 'DIG-45', status: 'In Progress' as const },
+    ];
+    // when
+    renderDetail(card('DIG-41', 'To Do', { blockedBy }), null);
+    // then
+    expect(screen.getByRole('heading', { name: 'Blocked by' })).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['DIG-44 Done', 'DIG-45 In Progress']);
+  });
+
   test('labels the blockers', () => {
     // given
     const blocked = card('DIG-41', 'To Do', { blockedBy: [{ key: 'DIG-44', status: 'In Progress' }] });
