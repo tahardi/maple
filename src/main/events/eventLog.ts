@@ -53,7 +53,7 @@ type PruneOptions = { limits?: PruneLimits; askDeleteToday?: (bytes: number) => 
 export function createEventLog<S extends EventSchemas = typeof eventSchemas>(
   options: PruneOptions & { schemas?: S; dir?: string; now?: () => Date; uuid?: () => string; logger?: Logger } = {},
 ): EventLog<S> {
-  const schemas = options.schemas ?? (eventSchemas as S);
+  const schemas = options.schemas ?? (eventSchemas as EventSchemas as S);
   const dir = options.dir ?? eventsDir();
   const now = options.now ?? (() => new Date());
   const uuid = options.uuid ?? randomUUID;

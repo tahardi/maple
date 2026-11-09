@@ -18,7 +18,7 @@ describe('writeHooksFile', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('writes the four hooks with quoted exec and script paths', async () => {
+  test('writes the five hooks with quoted exec and script paths', async () => {
     // given
     const execPath = '/opt/Maple/maple';
     const scriptPath = '/opt/Maple/resources/maple-hook.mjs';
@@ -27,7 +27,13 @@ describe('writeHooksFile', () => {
     // then
     expect(path).toBe(join(dir, 'hooksFile.json'));
     const parsed = JSON.parse(await readFile(path, 'utf8')) as Hooks;
-    expect(Object.keys(parsed.hooks).sort()).toEqual(['Notification', 'PreToolUse', 'Stop', 'UserPromptSubmit']);
+    expect(Object.keys(parsed.hooks).sort()).toEqual([
+      'Notification',
+      'PreToolUse',
+      'SessionStart',
+      'Stop',
+      'UserPromptSubmit',
+    ]);
     for (const [event, groups] of Object.entries(parsed.hooks)) {
       expect(groups[0].hooks[0]).toEqual({
         type: 'command',
@@ -35,6 +41,7 @@ describe('writeHooksFile', () => {
       });
     }
     expect(parsed.hooks.Notification[0].matcher).toBe('permission_prompt');
+    expect(parsed.hooks.SessionStart[0].matcher).toBeUndefined();
   });
 
   test('matches note writes with the PreToolUse hook', async () => {

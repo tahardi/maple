@@ -120,6 +120,10 @@ export async function currentBranch(worktree: string): Promise<string> {
   return (await git(worktree, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
 }
 
+export async function headSha(worktree: string): Promise<string> {
+  return (await git(worktree, ['rev-parse', 'HEAD'])).trim();
+}
+
 export async function gitCommonDir(worktree: string): Promise<string> {
   return (await git(worktree, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).trim();
 }

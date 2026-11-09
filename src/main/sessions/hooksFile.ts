@@ -12,6 +12,7 @@ export async function writeHooksFile(dir: string, execPath: string, scriptPath: 
     hooks: {
       Stop: [{ hooks: hook('Stop') }],
       UserPromptSubmit: [{ hooks: hook('UserPromptSubmit') }],
+      SessionStart: [{ hooks: hook('SessionStart') }],
       Notification: [{ matcher: 'permission_prompt', hooks: hook('Notification') }],
       PreToolUse: [
         { matcher: 'Write|Edit|MultiEdit|mcp__anchorhold__anchorhold_write_note', hooks: hook('PreToolUse') },

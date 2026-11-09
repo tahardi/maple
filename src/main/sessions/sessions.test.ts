@@ -125,6 +125,10 @@ function resumed(manager: SessionManager, tab: TabState): TabState {
   return tab;
 }
 
+function keptTab(kind: TabState['kind'], projectKey: string, cardKey: string | null): TabState {
+  return { id: 'old-1', projectKey, kind, cardKey, sessionId: 's-old', worktreePath: null };
+}
+
 const base = ['--dangerously-skip-permissions', '--settings', '/tmp/maple/hooksFile.json'];
 
 function wrapped(tabId: string, claude: string[], cwd = '/tmp/dig-days'): string[] {
@@ -560,6 +564,135 @@ describe('SessionManager', () => {
       [[], { 'DIG-1': 'old', 'DIG-44': card.sessionId }],
     ]);
     expect(changed.mock.calls.map(([tabs]) => tabs)).toEqual(save.mock.calls.map(([tabs]) => tabs));
+  });
+
+  test('holdSaves saves nothing until released, then saves every tab once', () => {
+    // given
+    const { manager, save } = setup();
+    const changed = vi.fn<(tabs: TabState[]) => void>();
+    manager.on('changed', changed);
+    const release = manager.holdSaves();
+    // when
+    const card = manager.startCard('DIG', 'DIG-44');
+    const planner = manager.openPlanner('DIG', null);
+    // then
+    expect(save).not.toHaveBeenCalled();
+    expect(changed).toHaveBeenCalledTimes(2);
+    // when
+    release();
+    // then
+    expect(save.mock.calls).toEqual([[[card, planner], {}]]);
+  });
+
+  test('keep adds a tab to every save until a tab for its card opens', () => {
+    // given
+    const { manager, save } = setup();
+    const kept = keptTab('card', 'DIG', 'DIG-44');
+    manager.keep(kept);
+    // when
+    const card45 = manager.startCard('DIG', 'DIG-45');
+    // then
+    expect(save).toHaveBeenLastCalledWith([card45, kept], {});
+    // when
+    const card44 = manager.startCard('DIG', 'DIG-44');
+    // then
+    expect(save).toHaveBeenLastCalledWith([card45, card44], {});
+  });
+
+  test('holdSaves does not save on release when no tab changed', () => {
+    // given
+    const { manager, save } = setup();
+    const release = manager.holdSaves();
+    manager.keep(keptTab('card', 'DIG', 'DIG-44'));
+    // when
+    release();
+    // then
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test('holdSaves forgets changes from an earlier hold', () => {
+    // given
+    const { manager, save } = setup();
+    const first = manager.holdSaves();
+    manager.startCard('DIG', 'DIG-44');
+    first();
+    save.mockClear();
+    const second = manager.holdSaves();
+    // when
+    second();
+    // then
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'the kept session over a closed one', keptCard: 'DIG-44', resumeId: null, want: 's-old' },
+    { name: 'a given session over the kept one', keptCard: 'DIG-44', resumeId: 'given', want: 'given' },
+    { name: 'the closed session when another card is kept', keptCard: 'DIG-45', resumeId: null, want: 'closed' },
+  ])('openCard resumes $name', ({ keptCard, resumeId, want }) => {
+    // given
+    const { manager } = setup({ 'DIG-44': 'closed' });
+    manager.keep(keptTab('card', 'DIG', keptCard));
+    // when
+    const tab = manager.openCard('DIG', 'DIG-44', resumeId);
+    // then
+    expect(tab.sessionId).toBe(want);
+  });
+
+  test('holdSaves writes the tabs and closed sessions as they are when released', () => {
+    // given
+    const { manager, save } = setup();
+    const card = manager.startCard('DIG', 'DIG-44');
+    const planner = manager.openPlanner('DIG', null);
+    save.mockClear();
+    const release = manager.holdSaves();
+    // when
+    manager.close(card.id);
+    release();
+    // then
+    expect(save.mock.calls).toEqual([[[planner], { 'DIG-44': card.sessionId }]]);
+  });
+
+  test('holdSaves includes kept tabs in the save on release', () => {
+    // given
+    const { manager, save } = setup();
+    const kept = keptTab('card', 'DIG', 'DIG-44');
+    const release = manager.holdSaves();
+    // when
+    manager.keep(kept);
+    const card = manager.startCard('DIG', 'DIG-45');
+    release();
+    // then
+    expect(save.mock.calls).toEqual([[[card, kept], {}]]);
+  });
+
+  test('keep holds on to a tab when a launch for its card fails', () => {
+    // given
+    const { manager, save, spawnFn } = setup();
+    const kept = keptTab('card', 'DIG', 'DIG-44');
+    manager.keep(kept);
+    const card = manager.startCard('DIG', 'DIG-45');
+    vi.mocked(spawnFn).mockImplementationOnce(() => {
+      throw new Error('starting session: spawn failed');
+    });
+    // when
+    expect(() => manager.startCard('DIG', 'DIG-44')).toThrow('starting session: spawn failed');
+    manager.setWorktree(card.id, null);
+    // then
+    expect(save).toHaveBeenLastCalledWith([card, kept], {});
+  });
+
+  test.each([
+    { name: 'a vault tab in the same project', open: (m: SessionManager) => m.openVault('DIG', null) },
+    { name: 'a planner tab in another project', open: (m: SessionManager) => m.openPlanner('HALO', null) },
+  ])('keep holds on to a planner tab when $name opens', ({ open }) => {
+    // given
+    const { manager, save } = setup({}, () => true, vaultConfig);
+    const kept = keptTab('planner', 'DIG', null);
+    manager.keep(kept);
+    // when
+    const tab = open(manager);
+    // then
+    expect(save).toHaveBeenLastCalledWith([tab, kept], {});
   });
 
   test('startCard sets the worktree once findWorktree finds it', async () => {
