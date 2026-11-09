@@ -69,6 +69,9 @@ export class SessionManager extends EventEmitter<Events> {
   private readonly sessions = new Map<string, Session>();
   private readonly closed: Record<string, string>;
   private readonly log: Logger;
+  private kept: TabState[] = [];
+  private holding = false;
+  private unsaved = false;
 
   constructor(private readonly deps: SessionDeps) {
     super();
@@ -83,9 +86,11 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   openCard(projectKey: string, cardKey: string, resumeId: string | null, tabId: string | null = null): TabState {
+    const keptId = this.kept.find((k) => k.projectKey === projectKey && k.cardKey === cardKey)?.sessionId ?? null;
     const closedId = Object.hasOwn(this.closed, cardKey) ? this.closed[cardKey] : null;
     return (
-      this.findCard(projectKey, cardKey) ?? this.open(projectKey, 'card', cardKey, resumeId ?? closedId, null, tabId)
+      this.findCard(projectKey, cardKey) ??
+      this.open(projectKey, 'card', cardKey, resumeId ?? keptId ?? closedId, null, tabId)
     );
   }
 
@@ -162,6 +167,21 @@ export class SessionManager extends EventEmitter<Events> {
     const session = this.require(tabId);
     session.tab = { ...session.tab, worktreePath: path };
     this.changed();
+  }
+
+  holdSaves(): () => void {
+    this.holding = true;
+    this.unsaved = false;
+    return () => {
+      this.holding = false;
+      if (this.unsaved) {
+        this.save();
+      }
+    };
+  }
+
+  keep(tab: TabState): void {
+    this.kept.push(tab);
   }
 
   write(tabId: string, data: string): void {
@@ -246,6 +266,7 @@ export class SessionManager extends EventEmitter<Events> {
       this.sessions.delete(tab.id);
       throw err;
     }
+    this.kept = this.kept.filter((k) => k.kind !== kind || k.projectKey !== projectKey || k.cardKey !== cardKey);
     this.changed();
     if (cardKey !== null) {
       this.trackWorktree(session, cardKey);
@@ -364,10 +385,17 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   private changed(): void {
-    const tabs = this.list();
-    this.deps.save(tabs, { ...this.closed }).catch((err: unknown) => {
+    if (this.holding) {
+      this.unsaved = true;
+    } else {
+      this.save();
+    }
+    this.emit('changed', this.list());
+  }
+
+  private save(): void {
+    this.deps.save([...this.list(), ...this.kept], { ...this.closed }).catch((err: unknown) => {
       this.log.error('session', 'failed', { operation: 'saveState', error: message(err) });
     });
-    this.emit('changed', tabs);
   }
 }
