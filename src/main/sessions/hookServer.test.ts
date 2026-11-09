@@ -79,9 +79,51 @@ describe('startHookServer', () => {
     });
   });
 
+  test('delivers a SessionStart event with a null session id and source', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const onEvent = vi.fn<(e: HookEvent) => void>();
+    close = await startHookServer(socketPath, onEvent);
+    const event: HookEvent = {
+      tabId: 't1',
+      event: 'SessionStart',
+      notificationType: null,
+      sessionId: null,
+      source: null,
+    };
+    // when
+    await sendLines(socketPath, `${JSON.stringify(event)}\n`);
+    // then
+    await vi.waitFor(() => {
+      expect(onEvent.mock.calls).toEqual([[event]]);
+    });
+  });
+
+  test('delivers a SessionStart event with its session id and source', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const onEvent = vi.fn<(e: HookEvent) => void>();
+    close = await startHookServer(socketPath, onEvent);
+    const event: HookEvent = {
+      tabId: 't1',
+      event: 'SessionStart',
+      notificationType: null,
+      sessionId: 's1',
+      source: 'clear',
+    };
+    // when
+    await sendLines(socketPath, `${JSON.stringify(event)}\n`);
+    // then
+    await vi.waitFor(() => {
+      expect(onEvent.mock.calls).toEqual([[event]]);
+    });
+  });
+
   test.each([
     { name: 'background tasks that are not strings', fields: { backgroundTasks: [1] } },
     { name: 'a cron count that is not a number', fields: { crons: '2' } },
+    { name: 'a session id that is not a string', fields: { sessionId: 1 } },
+    { name: 'a source that is not a string', fields: { source: 2 } },
   ])('drops an event with $name', async ({ fields }) => {
     // given
     const socketPath = join(dir, 'maple.sock');

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 export function projectsDir(): string {
   return join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), 'projects');
@@ -31,4 +31,12 @@ export async function transcriptFiles(sessionId: string, root: string): Promise<
     ? (await readdir(subagentsDir)).filter((f) => f.endsWith('.jsonl')).map((f) => join(subagentsDir, f))
     : [];
   return [main, ...subagents];
+}
+
+export async function transcriptOffset(sessionId: string, root: string = projectsDir()): Promise<number | null> {
+  if (basename(sessionId) !== sessionId) {
+    return null;
+  }
+  const files = await transcriptFiles(sessionId, root);
+  return files === null ? null : (await stat(files[0])).size;
 }

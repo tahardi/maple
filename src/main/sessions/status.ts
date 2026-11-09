@@ -4,6 +4,7 @@ import type { Card } from '@shared/types/jira';
 import type { Dot, HookEvent, SyncState, TabStatus } from '@shared/types/tabs';
 import type { PrInfo } from '@shared/types/github';
 import { appLogger, type Logger } from '@main/app/log';
+import { withTimeout } from '@main/app/withTimeout';
 import { backgroundWait, unknownTasks, type BackgroundWait } from './backgroundWait';
 import type { SessionManager } from './sessions';
 
@@ -28,18 +29,6 @@ type Tracked = {
   asking: boolean;
   waitLimit?: NodeJS.Timeout;
 };
-
-function timeout<T>(lookup: Promise<T>): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const expired = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error(`timing out after ${String(LOOKUP_TIMEOUT_MS / 1000)}s`));
-    }, LOOKUP_TIMEOUT_MS);
-  });
-  return Promise.race([lookup, expired]).finally(() => {
-    clearTimeout(timer);
-  });
-}
 
 export class StatusEngine extends EventEmitter<Events> {
   private readonly tabs = new Map<string, Tracked>();
@@ -182,10 +171,12 @@ export class StatusEngine extends EventEmitter<Events> {
     let input: DotInput | null;
     try {
       const [card, pr] = await Promise.all([
-        timeout(this.deps.getCard(tab.cardKey)).catch((err: unknown) => this.fail('jira', 'getCard', err)),
+        withTimeout(this.deps.getCard(tab.cardKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
+          this.fail('jira', 'getCard', err),
+        ),
         worktreePath === null
           ? null
-          : timeout(this.deps.prFor(worktreePath, tab.projectKey)).catch((err: unknown) =>
+          : withTimeout(this.deps.prFor(worktreePath, tab.projectKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
               this.fail('gh', 'prFor', err),
             ),
       ]);
@@ -207,13 +198,13 @@ export class StatusEngine extends EventEmitter<Events> {
     }
     let input: DotInput;
     try {
-      const card = await timeout(this.deps.getCard(tab.cardKey)).catch((err: unknown) =>
+      const card = await withTimeout(this.deps.getCard(tab.cardKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
         this.fail('jira', 'getCard', err),
       );
       const worktreePath = this.deps.sessions.get(tabId)?.worktreePath ?? null;
       const pr =
         card.status === 'In Review' && worktreePath !== null
-          ? await timeout(this.deps.prFor(worktreePath, tab.projectKey)).catch((err: unknown) =>
+          ? await withTimeout(this.deps.prFor(worktreePath, tab.projectKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
               this.fail('gh', 'prFor', err),
             )
           : null;

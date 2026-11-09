@@ -69,6 +69,7 @@ describe('claude hooks', () => {
         notificationType: null,
         backgroundTasks: [],
         crons: 0,
+        sessionId: expect.any(String) as unknown,
       });
       expect(events).toContainEqual({
         tabId: 'live-1',
@@ -76,6 +77,7 @@ describe('claude hooks', () => {
         notificationType: null,
         backgroundTasks: [],
         crons: 0,
+        sessionId: expect.any(String) as unknown,
       });
     });
     expect(hasTranscript(sessionId)).toBe(true);
@@ -93,6 +95,7 @@ describe('claude hooks', () => {
         notificationType: null,
         backgroundTasks: [],
         crons: 0,
+        sessionId: expect.any(String) as unknown,
       });
       expect(events).toContainEqual({
         tabId: 'live-2',
@@ -100,6 +103,7 @@ describe('claude hooks', () => {
         notificationType: null,
         backgroundTasks: [],
         crons: 0,
+        sessionId: expect.any(String) as unknown,
       });
     });
   });

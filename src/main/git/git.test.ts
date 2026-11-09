@@ -23,6 +23,7 @@ import {
   mergeBase,
   readFilePair,
   gitCommonDir,
+  headSha,
   originUrl,
   repoName,
   searchFiles,
@@ -561,5 +562,23 @@ describe('git', () => {
     const found = await findWorktree(worktreesDir, 'MPL-2');
     // then
     expect(found).toBeNull();
+  });
+
+  test('headSha returns the commit HEAD points at', async () => {
+    // given
+    const want = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worktree, encoding: 'utf8' }).trim();
+    // when
+    const sha = await headSha(worktree);
+    // then
+    expect(sha).toBe(want);
+  });
+
+  test('headSha rejects outside a git repo', async () => {
+    // given
+    const outside = root;
+    // when
+    const sha = headSha(outside);
+    // then
+    await expect(sha).rejects.toThrow();
   });
 });
