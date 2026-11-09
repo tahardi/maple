@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { buildTree } from './buildTree';
@@ -85,6 +85,16 @@ describe('FileTree', () => {
     await userEvent.dblClick(target());
     // then
     expect(onPin).not.toHaveBeenCalled();
+  });
+
+  test('groups All files and Changed as one control', () => {
+    // given
+    // when
+    render(<Harness onSelect={vi.fn()} />);
+    // then
+    const group = within(screen.getByRole('group', { name: 'Files shown' }));
+    expect(group.getByRole('button', { name: 'All files' })).toBeInTheDocument();
+    expect(group.getByRole('button', { name: 'Changed (3)' })).toBeInTheDocument();
   });
 
   test('toggle returns to all files and marks the pressed button', async () => {
