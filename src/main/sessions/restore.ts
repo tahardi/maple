@@ -56,7 +56,9 @@ export async function restoreTabs(
         logger.info('worktree', 'gone', { cardKey });
       } else {
         logger.info('worktree', 'found', { cardKey, path });
-        sessions.setWorktree(opened.id, path);
+        if (sessions.get(opened.id) !== null) {
+          sessions.setWorktree(opened.id, path);
+        }
       }
     }
   } finally {

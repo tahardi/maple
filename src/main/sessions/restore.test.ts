@@ -46,6 +46,7 @@ function fakeSessions(projects: string[]) {
     openVault: vi.fn((projectKey: string, id: string | null, tabId: string | null = null) =>
       open(projectKey, 'vault', null, id, tabId),
     ),
+    get: vi.fn((tabId: string): TabState | null => opened.find((t) => t.id === tabId) ?? null),
     setWorktree: vi.fn((tabId: string, path: string) => {
       const tab = opened.find((t) => t.id === tabId);
       if (tab) {
@@ -207,6 +208,18 @@ describe('restoreTabs', () => {
     expect(result).toEqual({ restored: 0, warnings: [] });
     expect(sessions.holdSaves).toHaveBeenCalledTimes(1);
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  test('skips the worktree of a tab closed during its lookup and restores the rest', async () => {
+    // given
+    const { sessions, manager } = fakeSessions(['DIG']);
+    sessions.get.mockReturnValueOnce(null);
+    const state = saved([savedTab('card', 'DIG', 'DIG-44', 's1'), savedTab('card', 'DIG', 'DIG-45', 's5')]);
+    // when
+    const result = await restoreTabs(state, manager, () => Promise.resolve('/wts/dig'));
+    // then
+    expect(result).toEqual({ restored: 2, warnings: [] });
+    expect(sessions.setWorktree.mock.calls).toEqual([['old-s5', '/wts/dig']]);
   });
 
   test('releases the save hold when restore throws', async () => {

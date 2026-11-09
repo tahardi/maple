@@ -71,6 +71,7 @@ export class SessionManager extends EventEmitter<Events> {
   private readonly log: Logger;
   private kept: TabState[] = [];
   private holding = false;
+  private unsaved = false;
 
   constructor(private readonly deps: SessionDeps) {
     super();
@@ -85,9 +86,11 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   openCard(projectKey: string, cardKey: string, resumeId: string | null, tabId: string | null = null): TabState {
+    const keptId = this.kept.find((k) => k.projectKey === projectKey && k.cardKey === cardKey)?.sessionId ?? null;
     const closedId = Object.hasOwn(this.closed, cardKey) ? this.closed[cardKey] : null;
     return (
-      this.findCard(projectKey, cardKey) ?? this.open(projectKey, 'card', cardKey, resumeId ?? closedId, null, tabId)
+      this.findCard(projectKey, cardKey) ??
+      this.open(projectKey, 'card', cardKey, resumeId ?? keptId ?? closedId, null, tabId)
     );
   }
 
@@ -168,9 +171,12 @@ export class SessionManager extends EventEmitter<Events> {
 
   holdSaves(): () => void {
     this.holding = true;
+    this.unsaved = false;
     return () => {
       this.holding = false;
-      this.save();
+      if (this.unsaved) {
+        this.save();
+      }
     };
   }
 
@@ -379,7 +385,9 @@ export class SessionManager extends EventEmitter<Events> {
   }
 
   private changed(): void {
-    if (!this.holding) {
+    if (this.holding) {
+      this.unsaved = true;
+    } else {
       this.save();
     }
     this.emit('changed', this.list());

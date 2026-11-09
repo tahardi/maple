@@ -599,6 +599,45 @@ describe('SessionManager', () => {
     expect(save).toHaveBeenLastCalledWith([card45, card44], {});
   });
 
+  test('holdSaves does not save on release when no tab changed', () => {
+    // given
+    const { manager, save } = setup();
+    const release = manager.holdSaves();
+    manager.keep(keptTab('card', 'DIG', 'DIG-44'));
+    // when
+    release();
+    // then
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test('holdSaves forgets changes from an earlier hold', () => {
+    // given
+    const { manager, save } = setup();
+    const first = manager.holdSaves();
+    manager.startCard('DIG', 'DIG-44');
+    first();
+    save.mockClear();
+    const second = manager.holdSaves();
+    // when
+    second();
+    // then
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'the kept session over a closed one', keptCard: 'DIG-44', resumeId: null, want: 's-old' },
+    { name: 'a given session over the kept one', keptCard: 'DIG-44', resumeId: 'given', want: 'given' },
+    { name: 'the closed session when another card is kept', keptCard: 'DIG-45', resumeId: null, want: 'closed' },
+  ])('openCard resumes $name', ({ keptCard, resumeId, want }) => {
+    // given
+    const { manager } = setup({ 'DIG-44': 'closed' });
+    manager.keep(keptTab('card', 'DIG', keptCard));
+    // when
+    const tab = manager.openCard('DIG', 'DIG-44', resumeId);
+    // then
+    expect(tab.sessionId).toBe(want);
+  });
+
   test('holdSaves writes the tabs and closed sessions as they are when released', () => {
     // given
     const { manager, save } = setup();
