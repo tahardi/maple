@@ -9,7 +9,9 @@ export function SessionEnded({ tabId, exitCode, resumeFailed }: SessionEndedProp
         {resumeFailed ? 'Resume failed' : 'Session ended'} (exit code {exitCode ?? 'unknown'})
       </p>
       <div className={styles.buttons}>
-        <button onClick={() => void window.maple.tabs.resume(tabId)}>Resume</button>
+        <button data-variant="primary" onClick={() => void window.maple.tabs.resume(tabId)}>
+          Resume
+        </button>
         <button onClick={() => void window.maple.tabs.startFresh(tabId)}>Start fresh</button>
       </div>
     </div>

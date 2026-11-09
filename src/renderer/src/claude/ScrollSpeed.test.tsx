@@ -1,10 +1,109 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { ScrollSpeed } from './ScrollSpeed';
 
+function openSettings() {
+  fireEvent.click(screen.getByRole('button', { name: 'Pane settings' }));
+}
+
 describe('ScrollSpeed', () => {
-  test('shows the current speed', () => {
-    // when
+  test('hides the speed until Pane settings opens', () => {
+    // given
     render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    const inputBeforeOpening = screen.queryByLabelText('Scroll speed');
+    // when
+    openSettings();
+    // then
+    expect(inputBeforeOpening).toBeNull();
+    expect(screen.getByLabelText('Scroll speed')).toHaveValue(4);
+    expect(screen.getByRole('button', { name: 'Pane settings' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('Escape closes the settings', () => {
+    // given
+    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    openSettings();
+    // when
+    fireEvent.keyDown(document, { key: 'Escape' });
+    // then
+    expect(screen.queryByLabelText('Scroll speed')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Pane settings' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('a click outside closes the settings', () => {
+    // given
+    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    openSettings();
+    // when
+    fireEvent.pointerDown(document.body);
+    // then
+    expect(screen.queryByLabelText('Scroll speed')).toBeNull();
+  });
+
+  test.each([
+    { name: 'a click', act: (input: HTMLElement) => fireEvent.pointerDown(input) },
+    { name: 'focus', act: (input: HTMLElement) => fireEvent.focusIn(input) },
+  ])('$name inside the panel keeps the settings open', ({ act }) => {
+    // given
+    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    openSettings();
+    // when
+    act(screen.getByLabelText('Scroll speed'));
+    // then
+    expect(screen.getByLabelText('Scroll speed')).toBeInTheDocument();
+  });
+
+  test('a second click on Pane settings closes the settings', () => {
+    // given
+    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    const button = screen.getByRole('button', { name: 'Pane settings' });
+    const expandedBeforeOpening = button.getAttribute('aria-expanded');
+    openSettings();
+    // when
+    openSettings();
+    // then
+    expect(expandedBeforeOpening).toBe('false');
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('Scroll speed')).toBeNull();
+  });
+
+  test('shows the unit next to the speed', () => {
+    // given
+    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    // when
+    openSettings();
+    // then
+    expect(screen.getByText('lines per notch')).toBeInTheDocument();
+  });
+
+  test('reopening shows the latest saved speed', () => {
+    // given
+    const { rerender } = render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    openSettings();
+    rerender(<ScrollSpeed value={9} onChange={vi.fn()} />);
+    openSettings();
+    // when
+    openSettings();
+    // then
+    expect(screen.getByLabelText('Scroll speed')).toHaveValue(9);
+  });
+
+  test('reopening drops a speed that was never saved', () => {
+    // given
+    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    openSettings();
+    fireEvent.change(screen.getByLabelText('Scroll speed'), { target: { value: '99' } });
+    openSettings();
+    // when
+    openSettings();
+    // then
+    expect(screen.getByLabelText('Scroll speed')).toHaveValue(4);
+  });
+
+  test('shows the current speed', () => {
+    // given
+    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    // when
+    openSettings();
     // then
     expect(screen.getByLabelText('Scroll speed')).toHaveValue(4);
   });
@@ -21,6 +120,7 @@ describe('ScrollSpeed', () => {
     // given
     const onChange = vi.fn();
     render(<ScrollSpeed value={3} onChange={onChange} />);
+    openSettings();
     // when
     fireEvent.change(screen.getByLabelText('Scroll speed'), { target: { value: typed } });
     // then

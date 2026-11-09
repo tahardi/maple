@@ -441,6 +441,7 @@ describe('ClaudePane', () => {
     const { write, send } = await wheelAt(205, 95, 100);
     xterm.terminal.buffer.active.type = 'alternate';
     xterm.terminal.modes.mouseTrackingMode = 'vt200';
+    fireEvent.click(screen.getByRole('button', { name: 'Pane settings' }));
     fireEvent.change(screen.getByLabelText('Scroll speed'), { target: { value: '5' } });
     // when
     send();
