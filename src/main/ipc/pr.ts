@@ -4,6 +4,7 @@ import { prRepo } from '@shared/prRepo';
 import type { DiffLines, FilePair } from '@shared/types/files';
 import type { Fetched } from '@shared/types/app';
 import type { PrInfo, Review, ReviewComment } from '@shared/types/github';
+import type { TabState } from '@shared/types/tabs';
 import { currentBranch } from '@main/git/git';
 import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@main/github/comments';
 import { projectRunner } from '@main/github/ghRunner';
@@ -11,6 +12,7 @@ import { approveAndMerge, diffLines, prForBranch } from '@main/github/pr';
 import { reviewFilePair, reviewFiles } from '@main/github/reviewDiff';
 import { ghLogin, openFindings } from '@main/github/securityFindings';
 import { appLogger, type Logger } from '@main/app/log';
+import { prEvents, type PrEvents } from '@main/events/prEvents';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 import type { IpcDeps } from './index';
 import { handle, tabIdArg } from './validated';
@@ -22,7 +24,7 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
+export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: PrEvents = prEvents): void {
   const lastGood = new Map<string, Fetched<PrInfo>>();
   let login: Promise<string> | null = null;
 
@@ -42,6 +44,13 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
       throw err;
     });
     return login;
+  }
+
+  function record(tabId: string, write: (tab: TabState) => Promise<void>): void {
+    const tab = deps.sessions.get(tabId);
+    if (tab !== null) {
+      void write(tab);
+    }
   }
 
   handle('pr:get', z.tuple([tabIdArg]), async (tabId): Promise<Fetched<PrInfo>> => {
@@ -115,6 +124,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
         throw new Error('approving PR: branch has no open PR');
       }
       await approveAndMerge(run, pr.number, headSha, cardKey);
+      record(tabId, (tab) => events.approved(tab, pr.number));
       logger.info('gh', 'merged', { tabId, repo: prRepo(pr.url), number: pr.number, headSha });
       deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
     } catch (err) {
@@ -150,6 +160,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
           throw new Error('commenting on line: branch has no open PR');
         }
         await commentOnLine(run, worktree, pr.number, headSha, { path, startLine, line, body });
+        record(tabId, (tab) => events.commented(tab, pr.number, body.length));
       } catch (err) {
         logger.warn('gh', 'failed', {
           operation: 'pr:comment',
@@ -182,6 +193,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
           throw new Error('replying to comment: branch has no open PR');
         }
         await replyToComment(run, worktree, pr.number, commentId, body);
+        record(tabId, (tab) => events.replied(tab, pr.number, commentId, body.length));
       } catch (err) {
         logger.warn('gh', 'failed', {
           operation: 'pr:reply',
@@ -207,6 +219,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger): void {
           throw new Error(`${verb} thread: ${message(err)}`);
         });
         await resolveThread(run, worktree, threadId, resolved);
+        record(tabId, (tab) => events.resolved(tab, threadId, resolved));
       } catch (err) {
         logger.warn('gh', 'failed', {
           operation: 'pr:resolve',

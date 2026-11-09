@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ProjectConfig } from '@shared/types/config';
 import type { PrInfo } from '@shared/types/github';
 import type { Runner as CommandRunner } from '@main/app/preflight';
+import type { PrEvents } from '@main/events/prEvents';
 import type { SessionManager } from '@main/sessions/sessions';
 import type { StatusEngine } from '@main/sessions/status';
 import type { Terminals } from '@main/sessions/terminals';
@@ -63,6 +64,8 @@ vi.mock('@main/github/securityFindings', () => ({ openFindings, ghLogin }));
 
 const event = {} as IpcMainInvokeEvent;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+const events = { approved: vi.fn(), commented: vi.fn(), replied: vi.fn(), resolved: vi.fn() };
+const eventTab = { projectKey: 'DIG', cardKey: 'DIG-44' };
 const pr: PrInfo = {
   number: 33,
   url: 'https://github.com/tahardi/maple/pull/33',
@@ -114,6 +117,7 @@ function register(
       seen: () => Promise.resolve({}),
     },
     logger,
+    events as unknown as PrEvents,
   );
   const call = handle.mock.calls.find(([name]) => name === channel);
   if (!call) {
@@ -305,6 +309,30 @@ describe('registerPr', () => {
       number: 33,
       headSha: head,
     });
+  });
+
+  test('pr:approve records the approval after it merges', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const { approve } = approver({ [viewPin]: pinned(head) });
+    // when
+    await approve('t1', head);
+    // then
+    expect(events.approved).toHaveBeenCalledWith(eventTab, 33);
+  });
+
+  test('pr:approve records nothing when the merge fails', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const { approve } = approver({
+      [viewPin]: pinned(head),
+      [merge]: { code: 1, stdout: '', stderr: 'Head branch was modified' },
+    });
+    // when
+    const result = approve('t1', head);
+    // then
+    await expect(result).rejects.toThrow('merging');
+    expect(events.approved).not.toHaveBeenCalled();
   });
 
   test('pr:approve refuses when the head moved', async () => {
@@ -571,6 +599,28 @@ describe('registerPr', () => {
     });
   });
 
+  test('comment records the comment length after it posts', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const comment = register('pr:comment', '/wt');
+    // when
+    await comment('t1', 'src/a.ts', null, 3, 'why?', head);
+    // then
+    expect(events.commented).toHaveBeenCalledWith(eventTab, 33, 4);
+  });
+
+  test('comment records nothing when the post fails', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    commentOnLine.mockRejectedValueOnce(new Error('commenting on line: line must be part of the diff'));
+    const comment = register('pr:comment', '/wt');
+    // when
+    const result = comment('t1', 'src/a.ts', null, 3, 'why?', head);
+    // then
+    await expect(result).rejects.toThrow('line must be part of the diff');
+    expect(events.commented).not.toHaveBeenCalled();
+  });
+
   test.each([
     {
       name: 'the PR is merged',
@@ -635,6 +685,42 @@ describe('registerPr', () => {
     expect(replyToComment).toHaveBeenCalledWith(gh, '/wt', 33, 101, 'thanks');
   });
 
+  test('reply records the reply length after it posts', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const reply = register('pr:reply', '/wt');
+    // when
+    await reply('t1', 101, 'thanks');
+    // then
+    expect(events.replied).toHaveBeenCalledWith(eventTab, 33, 101, 6);
+  });
+
+  test('reply succeeds and records nothing when the tab closes during the post', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const sessions = {
+      get: vi.fn().mockReturnValueOnce(eventTab).mockReturnValue(null),
+    } as unknown as SessionManager;
+    const reply = register('pr:reply', '/wt', sessions);
+    // when
+    const result = reply('t1', 101, 'thanks');
+    // then
+    await expect(result).resolves.toBeUndefined();
+    expect(events.replied).not.toHaveBeenCalled();
+  });
+
+  test('reply records nothing when the post fails', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    replyToComment.mockRejectedValueOnce(new Error('replying to comment: not found'));
+    const reply = register('pr:reply', '/wt');
+    // when
+    const result = reply('t1', 101, 'thanks');
+    // then
+    await expect(result).rejects.toThrow('not found');
+    expect(events.replied).not.toHaveBeenCalled();
+  });
+
   test.each([
     {
       name: 'the PR is merged',
@@ -692,6 +778,26 @@ describe('registerPr', () => {
     expect(resolveThread).toHaveBeenCalledWith(gh, '/wt', 'PRRT_101', true);
   });
 
+  test('resolve records the thread after it resolves', async () => {
+    // given
+    const resolve = register('pr:resolve', '/wt');
+    // when
+    await resolve('t1', 'PRRT_101', true);
+    // then
+    expect(events.resolved).toHaveBeenCalledWith(eventTab, 'PRRT_101', true);
+  });
+
+  test('resolve records nothing when it fails', async () => {
+    // given
+    resolveThread.mockRejectedValueOnce(new Error('resolving thread: not found'));
+    const resolve = register('pr:resolve', '/wt');
+    // when
+    const result = resolve('t1', 'PRRT_101', true);
+    // then
+    await expect(result).rejects.toThrow('not found');
+    expect(events.resolved).not.toHaveBeenCalled();
+  });
+
   test('resolve unresolves the thread from the tab worktree', async () => {
     // given
     const resolve = register('pr:resolve', '/wt');
@@ -699,6 +805,7 @@ describe('registerPr', () => {
     await resolve('t1', 'PRRT_101', false);
     // then
     expect(resolveThread).toHaveBeenCalledWith(gh, '/wt', 'PRRT_101', false);
+    expect(events.resolved).toHaveBeenCalledWith(eventTab, 'PRRT_101', false);
   });
 
   test('resolve rejects and resolves nothing when the tab has no worktree', async () => {
