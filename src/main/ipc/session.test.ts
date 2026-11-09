@@ -41,6 +41,8 @@ function setup() {
     lastProject: () => Promise.resolve(null),
     setSeen: () => Promise.resolve(),
     seen: () => Promise.resolve({}),
+    runner: { exec: vi.fn(), spawnPty: vi.fn(), readFile: vi.fn(), follow: vi.fn() },
+    home: '/home/dev',
   });
   return { sessions, sendToWindow };
 }

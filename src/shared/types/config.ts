@@ -7,6 +7,13 @@ export type ProjectConfig = {
   otherRepos: string[];
 };
 export type ActionConfig = { label: string; prompt: string };
+export type RemoteConfig = {
+  host: string;
+  user: string;
+  keyPath: string;
+  knownHostsPath: string;
+  vaultSocket: string | null;
+};
 export type MapleConfig = {
   worktreesDir: string;
   vaultDir: string | null;
@@ -16,4 +23,5 @@ export type MapleConfig = {
   eventMaxMegabytes: number;
   projects: ProjectConfig[];
   actions: ActionConfig[];
+  remote: RemoteConfig | null;
 };

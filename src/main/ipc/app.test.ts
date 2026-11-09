@@ -59,6 +59,8 @@ function setup(
     lastProject: () => Promise.resolve(lastProject),
     setSeen,
     seen: () => Promise.resolve(seen),
+    runner: { exec: vi.fn(), spawnPty: vi.fn(), readFile: vi.fn(), follow: vi.fn() },
+    home: '/home/dev',
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];
   const confirmQuit = on.mock.calls.find(([name]) => name === 'app:confirmQuit')?.[1];

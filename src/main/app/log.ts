@@ -15,6 +15,7 @@ export type LogScope =
   | 'repo'
   | 'vault'
   | 'events'
+  | 'remote'
   | 'app';
 
 type Level = 'info' | 'warn' | 'error';

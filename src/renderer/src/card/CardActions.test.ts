@@ -6,6 +6,7 @@ import { cardActions } from './CardActions';
 const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
   vaultDir: null,
+  remote: null,
   notifications: false,
   backgroundWaitMinutes: 15,
   eventKeepDays: 365,

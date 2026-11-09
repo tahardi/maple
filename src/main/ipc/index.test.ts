@@ -44,6 +44,8 @@ describe('registerIpc', () => {
     tmuxConf: '',
     endTmux: vi.fn(),
     sessionEnv: {},
+    runner: { exec: vi.fn(), spawnPty: vi.fn(), readFile: vi.fn(), follow: vi.fn() },
+    home: '/home/dev',
   });
   const status = new StatusEngine({
     sessions,
@@ -67,6 +69,8 @@ describe('registerIpc', () => {
     lastProject: () => Promise.resolve(null),
     setSeen: () => Promise.resolve(),
     seen: () => Promise.resolve({}),
+    runner: { exec: vi.fn(), spawnPty: vi.fn(), readFile: vi.fn(), follow: vi.fn() },
+    home: '/home/dev',
   };
 
   sessions.setMaxListeners(0);
