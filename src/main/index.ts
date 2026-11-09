@@ -9,7 +9,7 @@ import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
 import { defaultRunner } from '@main/app/preflight';
 import { writeHooksFile } from '@main/sessions/hooksFile';
-import { currentBranch, findWorktree, gitCommonDir } from '@main/git/git';
+import { currentBranch, findWorktree, gitCommonDir, headSha } from '@main/git/git';
 import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { registerIpc } from '@main/ipc';
@@ -19,6 +19,7 @@ import { appLogger, logUncaught, startLogging } from '@main/app/log';
 import { askDeleteToday } from '@main/events/askDeleteToday';
 import { startEventLog } from '@main/events/eventLog';
 import { pruneLimits } from '@main/events/pruneEvents';
+import { EventRecorder } from '@main/events/recorder';
 import { checkNotifications } from '@main/app/menu';
 import { notifyTab, shouldNotify } from '@main/app/notify';
 import { restoreTabs } from '@main/sessions/restore';
@@ -29,7 +30,7 @@ import { saveState, loadState, type SavedState } from '@main/app/state';
 import { StatusEngine } from '@main/sessions/status';
 import { AutoSync } from '@main/sessions/autoSync';
 import { endTmux, writeTmuxConf } from '@main/sessions/tmux';
-import { hasTranscript } from '@main/sessions/transcripts';
+import { hasTranscript, transcriptOffset } from '@main/sessions/transcripts';
 import { windowTitle } from '@main/app/windowTitle';
 import { zoomLevel } from '@main/app/zoom';
 
@@ -132,8 +133,10 @@ async function start(): Promise<() => number> {
     prFor,
     waitLimitMs: () => (config?.backgroundWaitMinutes ?? DEFAULT_WAIT_MINUTES) * 60_000,
   });
+  const recorder = new EventRecorder({ sessions, status, transcriptOffset: (id) => transcriptOffset(id), headSha });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
+    recorder.hook(e);
   });
   const stopAutoSync = new AutoSync({
     sessions,
@@ -143,11 +146,15 @@ async function start(): Promise<() => number> {
     run: defaultRunner,
     commonDir: gitCommonDir,
   }).start();
-  app.on('will-quit', () => {
+  app.on('will-quit', (event) => {
+    event.preventDefault();
     stopAutoSync();
     sessions.killAll();
     terminals.closeAll();
     void stopHooks();
+    void recorder.drain().then(() => {
+      app.exit(0);
+    });
   });
   const restore = ({ worktreesDir }: MapleConfig) =>
     restoreTabs(state, sessions, (key) => findWorktree(worktreesDir, key));
