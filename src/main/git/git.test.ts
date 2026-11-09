@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -12,7 +13,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   changes,
   currentBranch,
@@ -65,6 +66,7 @@ describe('git', () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     rmSync(root, { recursive: true, force: true });
   });
 
@@ -478,6 +480,47 @@ describe('git', () => {
     const set = await changes(worktree);
     // then
     expect(set).toBeNull();
+  });
+
+  test.each([
+    { name: 'changes', call: changes },
+    { name: 'listFiles', call: listFiles },
+  ])('$name does not run the core.fsmonitor command from repo config', async ({ call }) => {
+    // given
+    const marker = join(root, 'fsmonitor-ran');
+    const script = join(root, 'fsmonitor.sh');
+    writeFileSync(script, `#!/bin/sh\ntouch "${marker}"\n`, { mode: 0o755 });
+    git(worktree, 'config', 'core.fsmonitor', script);
+    // when
+    await call(worktree);
+    // then
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  test('plain git diff runs the core.fsmonitor command from repo config', () => {
+    // given
+    const marker = join(root, 'fsmonitor-ran');
+    const script = join(root, 'fsmonitor.sh');
+    writeFileSync(script, `#!/bin/sh\ntouch "${marker}"\n`, { mode: 0o755 });
+    git(worktree, 'config', 'core.fsmonitor', script);
+    // when
+    git(worktree, 'diff', '--name-status');
+    // then
+    expect(existsSync(marker)).toBe(true);
+  });
+
+  test('readFilePair runs git show with fsmonitor turned off', async () => {
+    // given
+    const log = join(root, 'git-args.log');
+    const bin = join(root, 'bin');
+    const realGit = join(execFileSync('git', ['--exec-path'], { encoding: 'utf8' }).trim(), 'git');
+    mkdirSync(bin);
+    writeFileSync(join(bin, 'git'), `#!/bin/sh\necho "$*" >> "${log}"\nexec "${realGit}" "$@"\n`, { mode: 0o755 });
+    vi.stubEnv('PATH', `${bin}:${process.env.PATH ?? ''}`);
+    // when
+    await readFilePair(worktree, 'HEAD', 'keep.txt');
+    // then
+    expect(readFileSync(log, 'utf8')).toBe('-c core.fsmonitor=false show HEAD:keep.txt\n');
   });
 
   test('findWorktree returns null when no dir matches the key', async () => {

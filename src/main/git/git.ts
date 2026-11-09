@@ -7,6 +7,7 @@ import { matchWorktree } from '@shared/worktree';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/app/paths';
 
 const execFileAsync = promisify(execFile);
+export const NO_FSMONITOR = ['-c', 'core.fsmonitor=false'];
 const SNIFF_BYTES = 8000;
 const MAX_HITS = 500;
 const MAX_HIT_TEXT = 200;
@@ -14,7 +15,7 @@ const defaultBranches = new Map<string, string>();
 
 async function git(cwd: string, args: string[]): Promise<string> {
   try {
-    const { stdout } = await execFileAsync('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 });
+    const { stdout } = await execFileAsync('git', [...NO_FSMONITOR, ...args], { cwd, maxBuffer: 64 * 1024 * 1024 });
     return stdout;
   } catch (err) {
     throw new Error(`running git ${args.join(' ')}: ${err instanceof Error ? err.message : String(err)}`, {
@@ -96,7 +97,7 @@ async function stampOrNull(path: string): Promise<string | null> {
 
 async function showOrNull(worktree: string, base: string, path: string): Promise<Buffer | null> {
   try {
-    const { stdout } = await execFileAsync('git', ['show', `${base}:${path}`], {
+    const { stdout } = await execFileAsync('git', [...NO_FSMONITOR, 'show', `${base}:${path}`], {
       cwd: worktree,
       encoding: 'buffer',
       maxBuffer: 64 * 1024 * 1024,

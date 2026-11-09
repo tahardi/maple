@@ -90,7 +90,7 @@ function setup(overrides: Overrides = {}) {
     sessions.emit('spawn', tab.id, true, false);
   }
   const syncOf = (tabId: string) => status.statuses().find((s) => s.tabId === tabId)?.sync;
-  const lsRemoteCalls = () => run.mock.calls.filter(([, args]) => args[0] === 'ls-remote');
+  const lsRemoteCalls = () => run.mock.calls.filter(([, args]) => args.includes('ls-remote'));
   const lsRemotes = () => lsRemoteCalls().length;
   const stop = async (tabId: string) => {
     status.hook({ tabId, event: 'Stop', notificationType: null });
@@ -320,6 +320,15 @@ describe('AutoSync', () => {
     await auto.poll();
     // then
     expect(lsRemoteCalls()[0]?.[3]).toBe(LS_REMOTE_TIMEOUT_MS);
+  });
+
+  test('runs ls-remote with fsmonitor turned off', async () => {
+    // given
+    const { auto, lsRemoteCalls } = setup();
+    // when
+    await auto.poll();
+    // then
+    expect(lsRemoteCalls()[0]?.[1]).toEqual(['-c', 'core.fsmonitor=false', 'ls-remote', 'origin', 'refs/heads/main']);
   });
 
   test('a waiting tab with a question prompt open is sent the prompt only after its turn stops', async () => {

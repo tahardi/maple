@@ -3,6 +3,7 @@ import type { Card } from '@shared/types/jira';
 import type { PrInfo } from '@shared/types/github';
 import type { Dot, TabState } from '@shared/types/tabs';
 import { appLogger, type Logger } from '@main/app/log';
+import { NO_FSMONITOR } from '@main/git/git';
 import type { Runner } from '@main/app/preflight';
 import type { SessionManager } from './sessions';
 import type { StatusEngine } from './status';
@@ -130,7 +131,7 @@ export class AutoSync {
   private async mainSha(repo: string): Promise<string> {
     const { code, stdout, stderr } = await this.deps.run(
       'git',
-      ['ls-remote', 'origin', 'refs/heads/main'],
+      [...NO_FSMONITOR, 'ls-remote', 'origin', 'refs/heads/main'],
       repo,
       LS_REMOTE_TIMEOUT_MS,
     );
