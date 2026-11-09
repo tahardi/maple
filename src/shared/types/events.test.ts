@@ -41,6 +41,18 @@ describe('eventSchemas', () => {
       data: { source: null, transcript: null },
       want: { source: null, transcript: null },
     },
+    {
+      type: 'ui.action',
+      name: 'an action and length',
+      data: { channel: 'session:sendPrompt', action: 'Fix PR', length: 12 },
+      want: { channel: 'session:sendPrompt', action: 'Fix PR', length: 12 },
+    },
+    {
+      type: 'ui.action',
+      name: 'a null action and length',
+      data: { channel: 'tabs:close', action: null, length: null },
+      want: { channel: 'tabs:close', action: null, length: null },
+    },
   ];
 
   test.each(cases)('$type accepts $name', ({ type, data, want }) => {
@@ -55,6 +67,7 @@ describe('eventSchemas', () => {
   test.each([
     { type: 'session.exit' as const, name: 'a null exit code', data: { exitCode: null } },
     { type: 'session.spawn' as const, name: 'a missing field', data: { prompted: true } },
+    { type: 'ui.action' as const, name: 'a negative length', data: { channel: 'x', action: null, length: -1 } },
   ])('$type rejects $name', ({ type, data }) => {
     // given
     const schema = eventSchemas[type];

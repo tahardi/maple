@@ -41,4 +41,12 @@ export const eventSchemas = {
     backgroundTasks: z.array(z.string()),
   }),
   'session.start': z.object({ source: z.string().nullable(), transcript: transcriptSchema }),
+
+  'ui.action': z.object({
+    channel: z.string(),
+    action: z.string().nullable(),
+    length: z.number().int().nonnegative().nullable(),
+  }),
 } satisfies EventSchemas;
+
+export type UiActionData = z.infer<(typeof eventSchemas)['ui.action']>;

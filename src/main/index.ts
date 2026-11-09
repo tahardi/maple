@@ -14,12 +14,14 @@ import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/ipc/config';
+import { recordActions } from '@main/ipc/validated';
 import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/jira';
 import { appLogger, logUncaught, startLogging } from '@main/app/log';
 import { askDeleteToday } from '@main/events/askDeleteToday';
-import { startEventLog } from '@main/events/eventLog';
+import { eventLog, startEventLog } from '@main/events/eventLog';
 import { pruneLimits } from '@main/events/pruneEvents';
 import { EventRecorder } from '@main/events/recorder';
+import { uiActionRecorder } from '@main/events/uiActions';
 import { checkNotifications } from '@main/app/menu';
 import { notifyTab, shouldNotify } from '@main/app/notify';
 import { restoreTabs } from '@main/sessions/restore';
@@ -178,6 +180,13 @@ async function start(): Promise<() => number> {
     })();
   });
 
+  recordActions(
+    uiActionRecorder({
+      tab: (id) => sessions.get(id),
+      actions: () => config?.actions ?? [],
+      append: (refs, data) => eventLog().append('ui.action', refs, data),
+    }),
+  );
   registerIpc({
     window: () => mainWindow,
     worktreeFor: (tabId) => sessions.get(tabId)?.worktreePath ?? null,
