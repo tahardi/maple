@@ -10,6 +10,8 @@ import type { StatusEngine } from './status';
 
 export const POLL_MS = 120_000;
 export const LS_REMOTE_TIMEOUT_MS = 30_000;
+const NETWORK_URL = /^(https:\/\/|ssh:\/\/|\w[\w.-]*@[\w.-]+:)/;
+const OUTSIDE_ANY_REPO = '/';
 
 export type AutoSyncDeps = {
   sessions: SessionManager;
@@ -18,6 +20,7 @@ export type AutoSyncDeps = {
   prFor: (worktree: string, projectKey: string) => Promise<PrInfo | null>;
   run: Runner;
   commonDir: (worktree: string) => Promise<string>;
+  originUrl: (repo: string) => Promise<string>;
   logger?: Logger;
 };
 
@@ -129,10 +132,14 @@ export class AutoSync {
   }
 
   private async mainSha(repo: string): Promise<string> {
+    const url = await this.deps.originUrl(repo);
+    if (!NETWORK_URL.test(url)) {
+      throw new Error('checking origin url: url is not https or ssh');
+    }
     const { code, stdout, stderr } = await this.deps.run(
       'git',
-      [...NO_FSMONITOR, 'ls-remote', 'origin', 'refs/heads/main'],
-      repo,
+      [...NO_FSMONITOR, 'ls-remote', url, 'refs/heads/main'],
+      OUTSIDE_ANY_REPO,
       LS_REMOTE_TIMEOUT_MS,
     );
     if (code !== 0) {

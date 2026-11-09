@@ -69,8 +69,9 @@ function setup(overrides: Overrides = {}) {
   const main: { sha: string; byRepo: Record<string, string> } = { sha: 'aaa', byRepo: {} };
   const repoOf = overrides.repoOf ?? ((worktree: string) => `/repos${worktree}`);
   const commonDir = vi.fn((worktree: string) => Promise.resolve(repoOf(worktree)));
-  const run = vi.fn<Runner>((_cmd, _args, cwd) => {
-    const sha = main.byRepo[cwd ?? ''] ?? main.sha;
+  const originUrl = vi.fn((repo: string) => Promise.resolve(`https://example.test${repo}`));
+  const run = vi.fn<Runner>((_cmd, args) => {
+    const sha = main.byRepo[(args.at(-2) ?? '').replace('https://example.test', '')] ?? main.sha;
     return Promise.resolve({ code: 0, stdout: `${sha}\trefs/heads/main\n`, stderr: '' });
   });
   const auto = new AutoSync({
@@ -80,6 +81,7 @@ function setup(overrides: Overrides = {}) {
     prFor,
     run,
     commonDir,
+    originUrl,
     logger,
   });
   const emitted: TabStatus[] = [];
@@ -109,6 +111,7 @@ function setup(overrides: Overrides = {}) {
     emitted,
     syncOf,
     commonDir,
+    originUrl,
     lsRemoteCalls,
     lsRemotes,
     stop,
@@ -290,7 +293,7 @@ describe('AutoSync', () => {
     expect(sessions.sendPrompt).toHaveBeenCalledTimes(1);
   });
 
-  test('runs ls-remote once per repo in the repo dir for tabs that share a repo', async () => {
+  test('runs ls-remote once per repo from outside the repo for tabs that share a repo', async () => {
     // given
     const { auto, lsRemoteCalls } = setup({
       tabs: [cardTab('t1', 'DIG-44', '/wts/dig-44'), cardTab('t2', 'DIG-45', '/wts/dig-45')],
@@ -300,7 +303,7 @@ describe('AutoSync', () => {
     await auto.poll();
     await auto.poll();
     // then
-    expect(lsRemoteCalls().map(([, , cwd]) => cwd)).toEqual(['/repos/dig', '/repos/dig']);
+    expect(lsRemoteCalls().map(([, , cwd]) => cwd)).toEqual(['/', '/']);
   });
 
   test('looks up the repo once per worktree across polls', async () => {
@@ -328,7 +331,48 @@ describe('AutoSync', () => {
     // when
     await auto.poll();
     // then
-    expect(lsRemoteCalls()[0]?.[1]).toEqual(['-c', 'core.fsmonitor=false', 'ls-remote', 'origin', 'refs/heads/main']);
+    expect(lsRemoteCalls()[0]?.[1]).toEqual([
+      '-c',
+      'core.fsmonitor=false',
+      'ls-remote',
+      'https://example.test/repos/wts/dig-44',
+      'refs/heads/main',
+    ]);
+  });
+
+  test.each([
+    { url: 'https://github.com/taylor/maple.git' },
+    { url: 'ssh://git@github.com/taylor/maple.git' },
+    { url: 'git@github.com:taylor/maple.git' },
+  ])('runs ls-remote for origin $url', async ({ url }) => {
+    // given
+    const { auto, originUrl, lsRemoteCalls } = setup();
+    originUrl.mockResolvedValue(url);
+    // when
+    await auto.poll();
+    // then
+    expect(lsRemoteCalls()[0]?.[1]).toContain(url);
+  });
+
+  test.each([
+    { url: 'ext::sh -c touch% /tmp/x' },
+    { url: '/srv/git/maple.git' },
+    { url: 'file:///srv/git/maple.git' },
+    { url: '--upload-pack=touch@host:x' },
+    { url: 'http://example.test/maple.git' },
+  ])('skips ls-remote and warns for origin $url', async ({ url }) => {
+    // given
+    const { auto, originUrl, logger, lsRemotes } = setup();
+    originUrl.mockResolvedValue(url);
+    // when
+    await auto.poll();
+    // then
+    expect(lsRemotes()).toBe(0);
+    expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
+      operation: 'ls-remote',
+      repo: '/repos/wts/dig-44',
+      error: 'checking origin url: url is not https or ssh',
+    });
   });
 
   test('a waiting tab with a question prompt open is sent the prompt only after its turn stops', async () => {

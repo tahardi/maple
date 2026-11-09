@@ -23,6 +23,7 @@ import {
   mergeBase,
   readFilePair,
   gitCommonDir,
+  originUrl,
   repoName,
   searchFiles,
   writeWorktreeFile,
@@ -495,6 +496,36 @@ describe('git', () => {
     await call(worktree);
     // then
     expect(existsSync(marker)).toBe(false);
+  });
+
+  test.each([
+    { kind: 'clean', filter: 'plain' },
+    { kind: 'process', filter: 'plain' },
+    { kind: 'clean', filter: 'with=equals' },
+  ])('changes does not run a $kind command from repo filter $filter', async ({ kind, filter }) => {
+    // given
+    const marker = join(root, 'filter-ran');
+    const script = join(root, 'filter.sh');
+    writeFileSync(script, `#!/bin/sh\ntouch "${marker}"\ncat\n`, { mode: 0o755 });
+    git(worktree, 'config', `filter.${filter}.${kind}`, script);
+    git(worktree, 'config', `filter.${filter}.required`, 'true');
+    writeFileSync(join(worktree, '.gitattributes'), `keep.txt filter=${filter}\n`);
+    writeFileSync(join(worktree, 'keep.txt'), 'changed\n');
+    // when
+    const set = await changes(worktree);
+    // then
+    expect(existsSync(marker)).toBe(false);
+    expect(set?.files.map((file) => file.path)).toContain('keep.txt');
+  });
+
+  test('originUrl returns the configured url without applying insteadOf rewrites', async () => {
+    // given
+    git(worktree, 'remote', 'set-url', 'origin', 'https://github.com/taylor/maple.git');
+    git(worktree, 'config', 'url.ext::sh.insteadOf', 'https://github.com/');
+    // when
+    const url = await originUrl(worktree);
+    // then
+    expect(url).toBe('https://github.com/taylor/maple.git');
   });
 
   test('plain git diff runs the core.fsmonitor command from repo config', () => {
