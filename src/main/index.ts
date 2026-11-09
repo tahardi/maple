@@ -138,6 +138,7 @@ async function start(): Promise<() => number> {
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
     recorder.hook(e);
+    prEvents.hook(e);
   });
   const stopAutoSync = new AutoSync({
     sessions,

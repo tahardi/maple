@@ -124,7 +124,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         throw new Error('approving PR: branch has no open PR');
       }
       await approveAndMerge(run, pr.number, headSha, cardKey);
-      record(tabId, (tab) => events.approved(tab, pr.number));
+      record(tabId, (tab) => events.approved(tab, pr));
       logger.info('gh', 'merged', { tabId, repo: prRepo(pr.url), number: pr.number, headSha });
       deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
     } catch (err) {
@@ -160,7 +160,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
           throw new Error('commenting on line: branch has no open PR');
         }
         await commentOnLine(run, worktree, pr.number, headSha, { path, startLine, line, body });
-        record(tabId, (tab) => events.commented(tab, pr.number, body.length));
+        record(tabId, (tab) => events.commented(tab, pr, body.length));
       } catch (err) {
         logger.warn('gh', 'failed', {
           operation: 'pr:comment',
@@ -193,7 +193,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
           throw new Error('replying to comment: branch has no open PR');
         }
         await replyToComment(run, worktree, pr.number, commentId, body);
-        record(tabId, (tab) => events.replied(tab, pr.number, commentId, body.length));
+        record(tabId, (tab) => events.replied(tab, pr, commentId, body.length));
       } catch (err) {
         logger.warn('gh', 'failed', {
           operation: 'pr:reply',

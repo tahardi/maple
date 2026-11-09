@@ -3,7 +3,7 @@ import { eventSchemas, type EventRecord, type EventRefs } from '@shared/types/ev
 import type { ChecksSummary, PrInfo } from '@shared/types/github';
 import type { Card } from '@shared/types/jira';
 import type { TabState } from '@shared/types/tabs';
-import { PrEvents } from './prEvents';
+import { PrEvents, type PrEventsDeps } from './prEvents';
 
 const tab: TabState = {
   id: 't1',
@@ -13,6 +13,7 @@ const tab: TabState = {
   sessionId: 's1',
   worktreePath: '/wt',
 };
+const repo = 'tahardi/maple';
 const refs = { project: 'MPL', card: 'MPL-189', tab: 't1', session: 's1' };
 const pending: ChecksSummary = {
   passed: 0,
@@ -53,6 +54,16 @@ const twoFailing: ChecksSummary = {
     { name: 'lint', bucket: 'fail', link: '' },
   ],
 };
+const cancelled: ChecksSummary = {
+  passed: 4,
+  failed: 2,
+  pending: 0,
+  total: 6,
+  runs: [
+    { name: 'test', bucket: 'fail', link: '' },
+    { name: 'deploy', bucket: 'cancel', link: '' },
+  ],
+};
 const noChecks: ChecksSummary = { passed: 0, failed: 0, pending: 0, total: 0, runs: [] };
 
 const card = { key: 'MPL-189', status: 'In Review' } as Card;
@@ -67,7 +78,7 @@ function logged(type: string, data: Record<string, unknown>): EventRecord {
   return { v: 1, id: 'e1', at: '2026-11-07T12:00:00.000Z', type, ...refs, data };
 }
 
-function setup() {
+function setup(options: Partial<PrEventsDeps> = {}) {
   const fake = {
     append: vi.fn((type: string, _refs: EventRefs, data: unknown): Promise<void> => {
       sent.push({ type, data });
@@ -77,7 +88,7 @@ function setup() {
   };
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const log = vi.fn(() => fake);
-  const events = new PrEvents({ log, now: () => new Date('2026-11-08T12:00:00.000Z'), logger });
+  const events = new PrEvents({ log, now: () => new Date('2026-11-08T12:00:00.000Z'), logger, ...options });
   const appended = (type: string): unknown[] =>
     fake.append.mock.calls.filter(([name]) => name === type).map(([, , data]) => data);
   return { events, fake, log, logger, appended };
@@ -116,8 +127,8 @@ describe('PrEvents', () => {
     await events.pr(tab, pr34);
     // then
     expect(fake.append.mock.calls).toEqual([
-      ['pr.opened', refs, { pr: 33 }],
-      ['pr.opened', refs, { pr: 34 }],
+      ['pr.opened', refs, { repo, pr: 33 }],
+      ['pr.opened', refs, { repo, pr: 34 }],
     ]);
   });
 
@@ -125,40 +136,45 @@ describe('PrEvents', () => {
     {
       name: 'one run failed',
       seen: [failing],
-      want: [{ pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }],
+      want: [{ repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }],
     },
     {
       name: 'counts changed after a finished result',
       seen: [failing, { ...failing, passed: 6, failed: 0, runs: [] }],
       want: [
-        { pr: 33, passed: 5, failed: 1, failedChecks: ['test'] },
-        { pr: 33, passed: 6, failed: 0, failedChecks: [] },
+        { repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] },
+        { repo, pr: 33, passed: 6, failed: 0, failedChecks: [] },
       ],
     },
     {
       name: 'the same counts name a different failed run',
       seen: [failing, { ...failing, runs: [{ name: 'e2e', bucket: 'fail' as const, link: '' }] }],
       want: [
-        { pr: 33, passed: 5, failed: 1, failedChecks: ['test'] },
-        { pr: 33, passed: 5, failed: 1, failedChecks: ['e2e'] },
+        { repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] },
+        { repo, pr: 33, passed: 5, failed: 1, failedChecks: ['e2e'] },
       ],
     },
     {
       name: 'pending checks finish',
       seen: [pending, failing],
-      want: [{ pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }],
+      want: [{ repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }],
     },
     {
       name: 'finished, once when the failed runs come back in another order',
       seen: [twoFailing, { ...twoFailing, runs: [...twoFailing.runs].reverse() }],
-      want: [{ pr: 33, passed: 4, failed: 2, failedChecks: ['lint', 'test'] }],
+      want: [{ repo, pr: 33, passed: 4, failed: 2, failedChecks: ['lint', 'test'] }],
+    },
+    {
+      name: 'a cancelled run does not count as failed',
+      seen: [cancelled],
+      want: [{ repo, pr: 33, passed: 4, failed: 1, failedChecks: ['test'] }],
     },
     { name: 'finished, not while pending', seen: [pending], want: [] },
     { name: 'finished, not with no checks', seen: [noChecks], want: [] },
     {
       name: 'finished, once for the same result',
       seen: [failing, failing],
-      want: [{ pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }],
+      want: [{ repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }],
     },
   ])('records ci.result when $name', async ({ seen, want }) => {
     // given
@@ -180,7 +196,7 @@ describe('PrEvents', () => {
     await events.pr(tab, merged);
     await events.pr(tab, merged);
     // then
-    expect(appended('pr.merged')).toEqual([{ pr: 33 }]);
+    expect(appended('pr.merged')).toEqual([{ repo, pr: 33 }]);
   });
 
   test('skips tabs with no card', async () => {
@@ -212,8 +228,50 @@ describe('PrEvents', () => {
     await events.pr(tab, { ...pr34, checks: failing });
     // then
     expect(appended('ci.result')).toEqual([
-      { pr: 33, passed: 5, failed: 1, failedChecks: ['test'] },
-      { pr: 34, passed: 5, failed: 1, failedChecks: ['test'] },
+      { repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] },
+      { repo, pr: 34, passed: 5, failed: 1, failedChecks: ['test'] },
+    ]);
+  });
+
+  test('treats the same number in another repo as another PR', async () => {
+    // given
+    const { events, appended } = setup();
+    const otherRepo: PrInfo = {
+      ...pr33,
+      url: 'https://github.com/tahardi/other/pull/33',
+      state: 'MERGED',
+      checks: failing,
+    };
+    await events.pr(tab, { ...pr33, state: 'MERGED', checks: failing });
+    // when
+    await events.pr(tab, otherRepo);
+    // then
+    const other = 'tahardi/other';
+    expect(appended('pr.opened')).toEqual([
+      { repo, pr: 33 },
+      { repo: other, pr: 33 },
+    ]);
+    expect(appended('pr.merged')).toEqual([
+      { repo, pr: 33 },
+      { repo: other, pr: 33 },
+    ]);
+    expect(appended('ci.result')).toEqual([
+      { repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] },
+      { repo: other, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] },
+    ]);
+  });
+
+  test('records the session from the latest hook', async () => {
+    // given
+    const { events, fake } = setup();
+    events.hook({ tabId: 't1', event: 'SessionStart', notificationType: null, sessionId: 's2' });
+    events.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    events.hook({ tabId: 't2', event: 'SessionStart', notificationType: null, sessionId: 's3' });
+    // when
+    await events.commented(tab, pr33, 4);
+    // then
+    expect(fake.append.mock.calls).toEqual([
+      ['review.comment', { ...refs, session: 's2' }, { repo, pr: 33, length: 4 }],
     ]);
   });
 
@@ -232,9 +290,9 @@ describe('PrEvents', () => {
   });
 
   test.each([
-    { name: 'approved', call: (events: PrEvents, t: TabState) => events.approved(t, 33) },
-    { name: 'commented', call: (events: PrEvents, t: TabState) => events.commented(t, 33, 4) },
-    { name: 'replied', call: (events: PrEvents, t: TabState) => events.replied(t, 33, 101, 6) },
+    { name: 'approved', call: (events: PrEvents, t: TabState) => events.approved(t, pr33) },
+    { name: 'commented', call: (events: PrEvents, t: TabState) => events.commented(t, pr33, 4) },
+    { name: 'replied', call: (events: PrEvents, t: TabState) => events.replied(t, pr33, 101, 6) },
     { name: 'resolved', call: (events: PrEvents, t: TabState) => events.resolved(t, 'PRRT_101', true) },
   ])('$name skips a tab with no card', async ({ call }) => {
     // given
@@ -251,12 +309,12 @@ describe('PrEvents', () => {
     await events.pr(tab, pr33);
     fake.append.mockClear();
     // when
-    await events.approved(tab, 33);
+    await events.approved(tab, pr33);
     await events.pr(tab, { ...pr33, state: 'MERGED' });
     // then
     expect(fake.append.mock.calls).toEqual([
-      ['pr.approved', refs, { pr: 33 }],
-      ['pr.merged', refs, { pr: 33 }],
+      ['pr.approved', refs, { repo, pr: 33 }],
+      ['pr.merged', refs, { repo, pr: 33 }],
     ]);
   });
 
@@ -264,13 +322,13 @@ describe('PrEvents', () => {
     // given
     const { events, fake } = setup();
     // when
-    await events.commented(tab, 33, 4);
-    await events.replied(tab, 33, 101, 6);
+    await events.commented(tab, pr33, 4);
+    await events.replied(tab, pr33, 101, 6);
     await events.resolved(tab, 'PRRT_101', true);
     // then
     expect(fake.append.mock.calls).toEqual([
-      ['review.comment', refs, { pr: 33, length: 4 }],
-      ['review.reply', refs, { pr: 33, commentId: 101, length: 6 }],
+      ['review.comment', refs, { repo, pr: 33, length: 4 }],
+      ['review.reply', refs, { repo, pr: 33, commentId: 101, length: 6 }],
       ['review.resolve', refs, { threadId: 'PRRT_101', resolved: true }],
     ]);
   });
@@ -280,8 +338,8 @@ describe('PrEvents', () => {
     const { events, fake } = setup();
     fake.readEvents.mockResolvedValue([
       logged('card.status', { from: 'In Progress', to: 'In Review' }),
-      logged('pr.opened', { pr: 33 }),
-      logged('ci.result', { pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }),
+      logged('pr.opened', { repo, pr: 33 }),
+      logged('ci.result', { repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }),
     ]);
     // when
     await events.card(tab, 'In Review');
@@ -294,6 +352,15 @@ describe('PrEvents', () => {
       to: '2026-11-08T12:00:00.000Z',
       types: ['card.status', 'pr.opened', 'ci.result', 'pr.merged'],
     });
+  });
+
+  test('looks back as far as the log keeps records', async () => {
+    // given
+    const { events, fake } = setup({ keepDays: () => 30 });
+    // when
+    await events.card(tab, 'In Review');
+    // then
+    expect(fake.readEvents).toHaveBeenCalledWith(expect.objectContaining({ from: '2026-10-09T12:00:00.000Z' }));
   });
 
   test('starts from the latest log record of each type', async () => {
@@ -312,7 +379,7 @@ describe('PrEvents', () => {
   test('does not record a merge already in the log', async () => {
     // given
     const { events, appended, fake } = setup();
-    fake.readEvents.mockResolvedValue([logged('pr.merged', { pr: 33 })]);
+    fake.readEvents.mockResolvedValue([logged('pr.merged', { repo, pr: 33 })]);
     // when
     await events.pr(tab, { ...pr33, state: 'MERGED' });
     // then
@@ -326,7 +393,8 @@ describe('PrEvents', () => {
       { ...logged('card.status', { from: null, to: 'In Review' }), card: null },
       logged('card.status', { to: 7 }),
       logged('pr.opened', { pr: 'x' }),
-      logged('ci.result', { pr: 33 }),
+      logged('pr.opened', { pr: 33 }),
+      logged('ci.result', { repo, pr: 33 }),
       logged('pr.merged', {}),
     ]);
     // when
@@ -334,9 +402,9 @@ describe('PrEvents', () => {
     await events.pr(tab, { ...pr33, state: 'MERGED', checks: failing });
     // then
     expect(appended('card.status')).toEqual([{ from: null, to: 'In Review' }]);
-    expect(appended('pr.opened')).toEqual([{ pr: 33 }]);
+    expect(appended('pr.opened')).toEqual([{ repo, pr: 33 }]);
     expect(appended('ci.result')).toHaveLength(1);
-    expect(appended('pr.merged')).toEqual([{ pr: 33 }]);
+    expect(appended('pr.merged')).toEqual([{ repo, pr: 33 }]);
   });
 
   test('logs and drops a failed append', async () => {
@@ -406,7 +474,7 @@ describe('PrEvents', () => {
     // then
     expect(result).toBe(pr33);
     expect(prFor).toHaveBeenCalledWith('/wt', 'MPL');
-    expect(fake.append.mock.calls).toEqual([['pr.opened', refs, { pr: 33 }]]);
+    expect(fake.append.mock.calls).toEqual([['pr.opened', refs, { repo, pr: 33 }]]);
   });
 
   test.each([

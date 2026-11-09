@@ -318,7 +318,7 @@ describe('registerPr', () => {
     // when
     await approve('t1', head);
     // then
-    expect(events.approved).toHaveBeenCalledWith(eventTab, 33);
+    expect(events.approved).toHaveBeenCalledWith(eventTab, pr);
   });
 
   test('pr:approve records nothing when the merge fails', async () => {
@@ -606,7 +606,7 @@ describe('registerPr', () => {
     // when
     await comment('t1', 'src/a.ts', null, 3, 'why?', head);
     // then
-    expect(events.commented).toHaveBeenCalledWith(eventTab, 33, 4);
+    expect(events.commented).toHaveBeenCalledWith(eventTab, pr, 4);
   });
 
   test('comment records nothing when the post fails', async () => {
@@ -692,7 +692,7 @@ describe('registerPr', () => {
     // when
     await reply('t1', 101, 'thanks');
     // then
-    expect(events.replied).toHaveBeenCalledWith(eventTab, 33, 101, 6);
+    expect(events.replied).toHaveBeenCalledWith(eventTab, pr, 101, 6);
   });
 
   test('reply succeeds and records nothing when the tab closes during the post', async () => {
