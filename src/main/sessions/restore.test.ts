@@ -14,6 +14,7 @@ function saved(tabs: TabState[]): SavedState {
 
 function fakeSessions(projects: string[]) {
   const opened: TabState[] = [];
+  const release = vi.fn();
   const open = (
     projectKey: string,
     kind: TabState['kind'],
@@ -33,6 +34,8 @@ function fakeSessions(projects: string[]) {
     return tab;
   };
   const sessions = {
+    holdSaves: vi.fn(() => release),
+    keep: vi.fn(),
     hasProject: vi.fn((key: string) => projects.includes(key)),
     openCard: vi.fn((projectKey: string, cardKey: string, id: string | null, tabId: string | null = null) =>
       open(projectKey, 'card', cardKey, id, tabId),
@@ -43,6 +46,7 @@ function fakeSessions(projects: string[]) {
     openVault: vi.fn((projectKey: string, id: string | null, tabId: string | null = null) =>
       open(projectKey, 'vault', null, id, tabId),
     ),
+    get: vi.fn((tabId: string): TabState | null => opened.find((t) => t.id === tabId) ?? null),
     setWorktree: vi.fn((tabId: string, path: string) => {
       const tab = opened.find((t) => t.id === tabId);
       if (tab) {
@@ -50,7 +54,7 @@ function fakeSessions(projects: string[]) {
       }
     }),
   };
-  return { sessions, opened, manager: sessions as unknown as SessionManager };
+  return { sessions, opened, release, manager: sessions as unknown as SessionManager };
 }
 
 describe('restoreTabs', () => {
@@ -93,6 +97,7 @@ describe('restoreTabs', () => {
     expect(result).toEqual({ restored: 1, warnings: [warning] });
     expect(sessions.openCard.mock.calls).toEqual([['BEAR', 'BEAR-12', 's3', 'old-s3']]);
     expect(sessions.openPlanner).not.toHaveBeenCalled();
+    expect(sessions.keep).not.toHaveBeenCalled();
   });
 
   test('reopens a vault tab with its saved session id', async () => {
@@ -107,7 +112,7 @@ describe('restoreTabs', () => {
     expect(sessions.openVault.mock.calls).toEqual([['DIG', 's4', 'old-s4']]);
   });
 
-  test('drops a vault tab when the vault is not configured', async () => {
+  test('keeps a vault tab when the vault is not configured', async () => {
     // given
     const { sessions, manager } = fakeSessions(['DIG']);
     sessions.openVault.mockImplementation(() => {
@@ -122,11 +127,114 @@ describe('restoreTabs', () => {
       logger,
     );
     // then
-    expect(result).toEqual({ restored: 0, warnings: ['dropped DIG vault: opening vault: no vaultDir in config'] });
-    expect(logger.warn).toHaveBeenCalledWith('restore', 'dropped', {
+    expect(result).toEqual({
+      restored: 0,
+      warnings: ['kept DIG vault for the next launch: opening vault: no vaultDir in config'],
+    });
+    expect(logger.warn).toHaveBeenCalledWith('restore', 'kept', {
       tab: 'DIG vault',
       reason: 'opening vault: no vaultDir in config',
     });
+  });
+
+  test('holds saves until every tab is reopened', async () => {
+    // given
+    const { sessions, release, manager } = fakeSessions(['DIG']);
+    const state = saved([
+      savedTab('planner', 'DIG', null, 's2'),
+      savedTab('vault', 'DIG', null, 's4'),
+      savedTab('card', 'DIG', 'DIG-44', 's1'),
+    ]);
+    // when
+    await restoreTabs(state, manager, () => Promise.resolve('/wts/dig-44'));
+    // then
+    const [held] = sessions.holdSaves.mock.invocationCallOrder;
+    const [released] = release.mock.invocationCallOrder;
+    const opens = [sessions.openPlanner, sessions.openVault, sessions.openCard].flatMap(
+      (open) => open.mock.invocationCallOrder,
+    );
+    expect(sessions.holdSaves).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(held).toBeLessThan(Math.min(...opens));
+    expect(released).toBeGreaterThan(Math.max(...opens, ...sessions.setWorktree.mock.invocationCallOrder));
+  });
+
+  test.each([
+    { tab: savedTab('card', 'DIG', 'DIG-44', 's1'), method: 'openCard', name: 'DIG-44' },
+    { tab: savedTab('planner', 'DIG', null, 's2'), method: 'openPlanner', name: 'DIG planner' },
+    { tab: savedTab('vault', 'DIG', null, 's4'), method: 'openVault', name: 'DIG vault' },
+  ] as const)('keeps a $tab.kind tab that fails to launch and restores the rest', async ({ tab, method, name }) => {
+    // given
+    const { sessions, opened, manager } = fakeSessions(['DIG']);
+    sessions[method].mockImplementationOnce(() => {
+      throw new Error('starting session: spawn failed');
+    });
+    const state = saved([tab, savedTab('card', 'DIG', 'DIG-45', 's5')]);
+    const findWt = vi.fn(() => Promise.resolve('/wts/dig-45'));
+    // when
+    const result = await restoreTabs(state, manager, findWt);
+    // then
+    expect(result).toEqual({
+      restored: 1,
+      warnings: [`kept ${name} for the next launch: starting session: spawn failed`],
+    });
+    expect(sessions.keep.mock.calls).toEqual([[tab]]);
+    expect(opened.map((t) => t.cardKey)).toEqual(['DIG-45']);
+    expect(findWt.mock.calls).toEqual([['DIG-45']]);
+    expect(sessions.setWorktree.mock.calls).toEqual([['old-s5', '/wts/dig-45']]);
+  });
+
+  test('keeps a tab whose launch throws something other than an Error', async () => {
+    // given
+    const { sessions, manager } = fakeSessions(['DIG']);
+    sessions.openPlanner.mockImplementationOnce(() => {
+      const thrown: unknown = 'boom';
+      throw thrown;
+    });
+    // when
+    const result = await restoreTabs(saved([savedTab('planner', 'DIG', null, 's2')]), manager, () =>
+      Promise.resolve(null),
+    );
+    // then
+    expect(result).toEqual({ restored: 0, warnings: ['kept DIG planner for the next launch: boom'] });
+  });
+
+  test('holds and releases saves once when there are no tabs to restore', async () => {
+    // given
+    const { sessions, release, manager } = fakeSessions(['DIG']);
+    // when
+    const result = await restoreTabs(saved([]), manager, () => Promise.resolve(null));
+    // then
+    expect(result).toEqual({ restored: 0, warnings: [] });
+    expect(sessions.holdSaves).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  test('skips the worktree of a tab closed during its lookup and restores the rest', async () => {
+    // given
+    const { sessions, manager } = fakeSessions(['DIG']);
+    sessions.get.mockReturnValueOnce(null);
+    const state = saved([savedTab('card', 'DIG', 'DIG-44', 's1'), savedTab('card', 'DIG', 'DIG-45', 's5')]);
+    // when
+    const result = await restoreTabs(state, manager, () => Promise.resolve('/wts/dig'));
+    // then
+    expect(result).toEqual({ restored: 2, warnings: [] });
+    expect(sessions.setWorktree.mock.calls).toEqual([['old-s5', '/wts/dig']]);
+  });
+
+  test('releases the save hold when restore throws', async () => {
+    // given
+    const { sessions, release, manager } = fakeSessions(['DIG']);
+    sessions.setWorktree.mockImplementation(() => {
+      throw new Error('finding tab: old-s1 does not exist');
+    });
+    // when
+    const result = restoreTabs(saved([savedTab('card', 'DIG', 'DIG-44', 's1')]), manager, () =>
+      Promise.resolve('/wts/dig-44'),
+    );
+    // then
+    await expect(result).rejects.toThrow('finding tab: old-s1 does not exist');
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   test('keeps restoring tabs after a vault tab fails', async () => {
