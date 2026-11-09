@@ -2,11 +2,15 @@ import type { z } from 'zod';
 import type { EventRefs, eventSchemas } from '@shared/types/events';
 import type { HookEvent, TabState } from '@shared/types/tabs';
 import { appLogger, logFailure, type Logger } from '@main/app/log';
+import { withTimeout } from '@main/app/withTimeout';
 import type { SessionManager } from '@main/sessions/sessions';
 import type { StatusEngine } from '@main/sessions/status';
 import { eventLog, type EventLog } from './eventLog';
 
 type Schemas = typeof eventSchemas;
+
+const LOOKUP_TIMEOUT_MS = 15_000;
+const DRAIN_TIMEOUT_MS = 2_000;
 
 type Transcript = { session: string; offset: number } | null;
 
@@ -24,6 +28,8 @@ export class EventRecorder {
   private readonly log: Logger;
   private readonly tabs = new Map<string, TabState>();
   private readonly resumeFailures = new Set<string>();
+  private readonly hookSessions = new Map<string, string>();
+  private readonly running = new Set<string>();
   private queue: Promise<void> = Promise.resolve();
 
   constructor(private readonly deps: RecorderDeps) {
@@ -35,6 +41,8 @@ export class EventRecorder {
         this.tabs.set(tabId, tab);
       }
       this.resumeFailures.delete(tabId);
+      this.hookSessions.delete(tabId);
+      this.running.add(tabId);
       this.record('session.spawn', tabId, null, () => ({ prompted, resumed }));
     });
     deps.sessions.on('changed', (tabs) => {
@@ -44,6 +52,12 @@ export class EventRecorder {
     });
     deps.sessions.on('exit', (tabId, exitCode) => {
       this.record('session.exit', tabId, null, () => ({ exitCode }));
+      this.running.delete(tabId);
+      if (deps.sessions.get(tabId) === null) {
+        this.tabs.delete(tabId);
+        this.resumeFailures.delete(tabId);
+        this.hookSessions.delete(tabId);
+      }
     });
     deps.sessions.on('interrupt', (tabId) => {
       this.record('session.interrupt', tabId, null, () => ({}));
@@ -76,6 +90,22 @@ export class EventRecorder {
     }
   }
 
+  drain(): Promise<void> {
+    const exited = new Promise<void>((resolve) => {
+      const check = (): void => {
+        if (this.running.size === 0) {
+          resolve();
+        }
+      };
+      this.deps.sessions.on('exit', check);
+      check();
+    });
+    const finished = exited.then(() => this.queue);
+    return logFailure(this.log, 'events', { operation: 'draining events' }, () =>
+      withTimeout(finished, DRAIN_TIMEOUT_MS),
+    ).catch(() => undefined);
+  }
+
   private record<T extends keyof Schemas>(
     type: T,
     tabId: string,
@@ -86,7 +116,10 @@ export class EventRecorder {
     if (!tab) {
       return;
     }
-    const session = sessionId ?? tab.sessionId;
+    if (sessionId !== null) {
+      this.hookSessions.set(tabId, sessionId);
+    }
+    const session = sessionId ?? this.hookSessions.get(tabId) ?? tab.sessionId;
     const refs: EventRefs = { project: tab.projectKey, card: tab.cardKey, tab: tab.id, session };
     this.queue = this.queue.then(() =>
       logFailure(this.log, 'events', { operation: 'recording event', type }, async () => {
@@ -96,7 +129,7 @@ export class EventRecorder {
   }
 
   private async transcript(session: string): Promise<Transcript> {
-    const offset = await this.deps.transcriptOffset(session);
+    const offset = await withTimeout(this.deps.transcriptOffset(session), LOOKUP_TIMEOUT_MS);
     return offset === null ? null : { session, offset };
   }
 
@@ -105,6 +138,8 @@ export class EventRecorder {
       return null;
     }
     const fields = { operation: 'recording event', type: 'session.stop' };
-    return logFailure(this.log, 'events', fields, () => this.deps.headSha(worktree)).catch(() => null);
+    return logFailure(this.log, 'events', fields, () =>
+      withTimeout(this.deps.headSha(worktree), LOOKUP_TIMEOUT_MS),
+    ).catch(() => null);
   }
 }

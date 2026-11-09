@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { TabState, TabStatus } from '@shared/types/tabs';
 import type { SessionManager } from '@main/sessions/sessions';
 import type { StatusEngine } from '@main/sessions/status';
@@ -63,6 +63,10 @@ function types(log: Harness['log']): unknown[] {
 }
 
 describe('EventRecorder', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test.each([
     {
       type: 'session.spawn',
@@ -347,6 +351,150 @@ describe('EventRecorder', () => {
       'failed',
       expect.objectContaining({ operation: 'recording event', type: 'session.stop', error: 'reading' }),
     );
+  });
+
+  test.each([
+    { type: 'session.exit', act: ({ sessions }: Harness) => sessions.emit('exit', 't1', 1), data: { exitCode: 1 } },
+    { type: 'session.interrupt', act: ({ sessions }: Harness) => sessions.emit('interrupt', 't1'), data: {} },
+    {
+      type: 'session.resumeFailed',
+      act: ({ status }: Harness) => status.emit('status', failedStatus, 'working'),
+      data: { exitCode: 1 },
+    },
+  ])('records $type under the last session a hook reported', async ({ type, act, data }) => {
+    // given
+    const harness = setup();
+    harness.sessions.emit('spawn', 't1', false, false);
+    harness.recorder.hook({ tabId: 't1', event: 'SessionStart', notificationType: null, sessionId: 's2' });
+    // when
+    act(harness);
+    // then
+    await vi.waitFor(() => {
+      expect(harness.log.append).toHaveBeenCalledWith(type, { ...refs, session: 's2' }, data);
+    });
+  });
+
+  test('forgets the hook session on the next spawn', async () => {
+    // given
+    const { sessions, recorder, log } = setup();
+    sessions.emit('spawn', 't1', false, false);
+    recorder.hook({ tabId: 't1', event: 'SessionStart', notificationType: null, sessionId: 's2' });
+    sessions.emit('spawn', 't1', false, true);
+    // when
+    sessions.emit('exit', 't1', 0);
+    // then
+    await vi.waitFor(() => {
+      expect(log.append).toHaveBeenCalledWith('session.exit', refs, { exitCode: 0 });
+    });
+  });
+
+  test('forgets a closed tab after its exit', async () => {
+    // given
+    const { sessions, log } = setup();
+    sessions.emit('spawn', 't1', false, false);
+    sessions.get.mockReturnValue(null);
+    sessions.emit('exit', 't1', 0);
+    // when
+    sessions.emit('interrupt', 't1');
+    await settle();
+    // then
+    expect(types(log)).toEqual(['session.spawn', 'session.exit']);
+  });
+
+  test('keeps an open tab after its exit', async () => {
+    // given
+    const { sessions, log } = setup();
+    sessions.emit('spawn', 't1', false, false);
+    sessions.emit('exit', 't1', 0);
+    // when
+    sessions.emit('interrupt', 't1');
+    await settle();
+    // then
+    expect(types(log)).toEqual(['session.spawn', 'session.exit', 'session.interrupt']);
+  });
+
+  test('records a null head when git hangs', async () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, recorder, log, headSha, logger } = setup();
+    headSha.mockReturnValue(new Promise(() => undefined));
+    sessions.emit('spawn', 't1', false, false);
+    // when
+    recorder.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    await vi.advanceTimersByTimeAsync(15_000);
+    // then
+    expect(log.append).toHaveBeenCalledWith('session.stop', refs, {
+      transcript: null,
+      head: null,
+      backgroundTasks: [],
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      'events',
+      'failed',
+      expect.objectContaining({ type: 'session.stop', error: 'timing out after 15s' }),
+    );
+  });
+
+  test('keeps recording after a transcript lookup hangs', async () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, recorder, log, transcriptOffset, logger } = setup();
+    transcriptOffset.mockReturnValue(new Promise(() => undefined));
+    sessions.emit('spawn', 't1', false, false);
+    // when
+    recorder.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    sessions.emit('exit', 't1', 1);
+    await vi.advanceTimersByTimeAsync(15_000);
+    // then
+    expect(types(log)).toEqual(['session.spawn', 'session.exit']);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'events',
+      'failed',
+      expect.objectContaining({ type: 'session.stop', error: 'timing out after 15s' }),
+    );
+  });
+
+  test('drain waits for running sessions to exit and be recorded', async () => {
+    // given
+    const { sessions, recorder, log } = setup();
+    sessions.emit('spawn', 't1', false, false);
+    let drained = false;
+    const draining = recorder.drain().then(() => {
+      drained = true;
+    });
+    await settle();
+    const before = drained;
+    // when
+    sessions.emit('exit', 't1', 0);
+    await draining;
+    // then
+    expect(before).toBe(false);
+    expect(types(log)).toEqual(['session.spawn', 'session.exit']);
+  });
+
+  test('drain finishes when nothing is running', async () => {
+    // given
+    const { recorder, logger } = setup();
+    // when
+    await recorder.drain();
+    // then
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  test('drain logs and gives up after two seconds', async () => {
+    // given
+    vi.useFakeTimers();
+    const { sessions, recorder, logger } = setup();
+    sessions.emit('spawn', 't1', false, false);
+    // when
+    const draining = recorder.drain();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await draining;
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('events', 'failed', {
+      operation: 'draining events',
+      error: 'timing out after 2s',
+    });
   });
 
   test('skips events for a tab it never saw', async () => {

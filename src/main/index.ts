@@ -146,11 +146,15 @@ async function start(): Promise<() => number> {
     run: defaultRunner,
     commonDir: gitCommonDir,
   }).start();
-  app.on('will-quit', () => {
+  app.on('will-quit', (event) => {
+    event.preventDefault();
     stopAutoSync();
     sessions.killAll();
     terminals.closeAll();
     void stopHooks();
+    void recorder.drain().then(() => {
+      app.exit(0);
+    });
   });
   const restore = ({ worktreesDir }: MapleConfig) =>
     restoreTabs(state, sessions, (key) => findWorktree(worktreesDir, key));
