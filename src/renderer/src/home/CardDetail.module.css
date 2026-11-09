@@ -21,6 +21,23 @@
   font-size: var(--font-lg);
 }
 
+.close {
+  border: none;
+  padding: 0 4px;
+}
+
+.chip {
+  background: var(--bg-sunken);
+  border-radius: 8px;
+  padding: 0 6px;
+}
+
+.blockedBy {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
 .meta,
 .actions {
   display: flex;

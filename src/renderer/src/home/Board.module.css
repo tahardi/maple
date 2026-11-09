@@ -17,6 +17,10 @@
   font-size: var(--font-xl);
 }
 
+.header span {
+  color: var(--text-muted);
+}
+
 .columns {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
