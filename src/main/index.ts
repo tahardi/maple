@@ -24,6 +24,7 @@ import { checkNotifications } from '@main/app/menu';
 import { notifyTab, shouldNotify } from '@main/app/notify';
 import { restoreTabs } from '@main/sessions/restore';
 import { lockDown, webPreferences } from '@main/app/security';
+import { showStartupFailure } from '@main/app/startupFailure';
 import { SessionManager } from '@main/sessions/sessions';
 import { Terminals } from '@main/sessions/terminals';
 import { saveState, loadState, type SavedState } from '@main/app/state';
@@ -231,15 +232,27 @@ if (claimInstance(app)) {
     }
     mainWindow?.focus();
   });
-  void app.whenReady().then(async () => {
-    const zoom = await start();
-    createWindow(zoom);
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow(zoom);
-      }
+  void app
+    .whenReady()
+    .then(async () => {
+      const zoom = await start();
+      createWindow(zoom);
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+          createWindow(zoom);
+        }
+      });
+    })
+    .catch((err: unknown) => {
+      showStartupFailure(err, {
+        showErrorBox: (title, content) => {
+          dialog.showErrorBox(title, content);
+        },
+        quit: () => {
+          app.quit();
+        },
+      });
     });
-  });
 } else {
   app.quit();
 }
