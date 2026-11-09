@@ -1,6 +1,17 @@
 import { appLogger, type Logger } from '@main/app/log';
+import type { TabState } from '@shared/types/tabs';
 import type { SessionManager } from './sessions';
 import type { SavedState } from '@main/app/state';
+
+function reopen(tab: TabState, sessions: SessionManager): TabState {
+  if (tab.kind === 'vault') {
+    return sessions.openVault(tab.projectKey, tab.sessionId, tab.id);
+  }
+  if (tab.cardKey === null) {
+    return sessions.openPlanner(tab.projectKey, tab.sessionId, tab.id);
+  }
+  return sessions.openCard(tab.projectKey, tab.cardKey, tab.sessionId, tab.id);
+}
 
 export async function restoreTabs(
   saved: SavedState,
@@ -10,47 +21,46 @@ export async function restoreTabs(
 ): Promise<{ restored: number; warnings: string[] }> {
   const warnings: string[] = [];
   let restored = 0;
-  for (const tab of saved.tabs) {
-    if (!sessions.hasProject(tab.projectKey)) {
+  const release = sessions.holdSaves();
+  try {
+    for (const tab of saved.tabs) {
       const name = tab.cardKey ?? `${tab.projectKey} ${tab.kind}`;
-      warnings.push(`dropped ${name}: project ${tab.projectKey} is not in config`);
-      logger.warn('restore', 'dropped', { tab: name, reason: 'project not in config' });
-      continue;
-    }
-    if (tab.kind === 'vault') {
+      if (!sessions.hasProject(tab.projectKey)) {
+        warnings.push(`dropped ${name}: project ${tab.projectKey} is not in config`);
+        logger.warn('restore', 'dropped', { tab: name, reason: 'project not in config' });
+        continue;
+      }
+      let opened: TabState;
       try {
-        sessions.openVault(tab.projectKey, tab.sessionId, tab.id);
+        opened = reopen(tab, sessions);
       } catch (err) {
-        const name = `${tab.projectKey} vault`;
         const reason = err instanceof Error ? err.message : String(err);
-        warnings.push(`dropped ${name}: ${reason}`);
-        logger.warn('restore', 'dropped', { tab: name, reason });
+        sessions.keep(tab);
+        warnings.push(`kept ${name} for the next launch: ${reason}`);
+        logger.warn('restore', 'kept', { tab: name, reason });
         continue;
       }
       restored += 1;
-      logger.info('restore', 'restored', { projectKey: tab.projectKey, kind: 'vault' });
-      continue;
+      const { cardKey } = tab;
+      if (cardKey === null) {
+        logger.info('restore', 'restored', { projectKey: tab.projectKey, kind: opened.kind });
+        continue;
+      }
+      logger.info('restore', 'restored', { projectKey: tab.projectKey, cardKey });
+      const path = await findWt(cardKey).catch((err: unknown) => {
+        const error = err instanceof Error ? err.message : String(err);
+        logger.warn('worktree', 'failed', { operation: 'findWorktree', cardKey, error });
+        return null;
+      });
+      if (path === null) {
+        logger.info('worktree', 'gone', { cardKey });
+      } else {
+        logger.info('worktree', 'found', { cardKey, path });
+        sessions.setWorktree(opened.id, path);
+      }
     }
-    restored += 1;
-    if (tab.cardKey === null) {
-      sessions.openPlanner(tab.projectKey, tab.sessionId, tab.id);
-      logger.info('restore', 'restored', { projectKey: tab.projectKey, kind: 'planner' });
-      continue;
-    }
-    const opened = sessions.openCard(tab.projectKey, tab.cardKey, tab.sessionId, tab.id);
-    logger.info('restore', 'restored', { projectKey: tab.projectKey, cardKey: tab.cardKey });
-    const { cardKey } = tab;
-    const path = await findWt(cardKey).catch((err: unknown) => {
-      const error = err instanceof Error ? err.message : String(err);
-      logger.warn('worktree', 'failed', { operation: 'findWorktree', cardKey, error });
-      return null;
-    });
-    if (path === null) {
-      logger.info('worktree', 'gone', { cardKey: tab.cardKey });
-    } else {
-      logger.info('worktree', 'found', { cardKey: tab.cardKey, path });
-      sessions.setWorktree(opened.id, path);
-    }
+  } finally {
+    release();
   }
   return { restored, warnings };
 }
