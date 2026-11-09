@@ -66,7 +66,8 @@ describe('maple-hook', () => {
     // then
     expect(result).toEqual({ code: 0, stdout: '' });
     expect(received.join('')).toBe(
-      '{"tabId":"tab-1","event":"Notification","notificationType":"permission_prompt","backgroundTasks":[],"crons":0}\n',
+      '{"tabId":"tab-1","event":"Notification","notificationType":"permission_prompt",' +
+        '"backgroundTasks":[],"crons":0,"sessionId":null}\n',
     );
   });
 
@@ -94,7 +95,7 @@ describe('maple-hook', () => {
     // then
     expect(result).toEqual({ code: 0, stdout: '' });
     expect(received.join('')).toBe(
-      '{"tabId":"tab-2","event":"Stop","notificationType":null,"backgroundTasks":[],"crons":0}\n',
+      '{"tabId":"tab-2","event":"Stop","notificationType":null,"backgroundTasks":[],"crons":0,"sessionId":null}\n',
     );
   });
 
@@ -129,6 +130,63 @@ describe('maple-hook', () => {
     await runHook('Stop', { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-3' }, JSON.stringify(input));
     // then
     expect(JSON.parse(received.join(''))).toMatchObject({ event: 'Stop', ...want });
+  });
+
+  test.each([
+    {
+      name: 'a SessionStart payload',
+      event: 'SessionStart',
+      input: { session_id: 's1', source: 'clear' },
+      want: { event: 'SessionStart', sessionId: 's1', source: 'clear' },
+    },
+    {
+      name: 'a Stop payload, without the source',
+      event: 'Stop',
+      input: { session_id: 's1', source: 'clear' },
+      want: { event: 'Stop', sessionId: 's1' },
+    },
+    {
+      name: 'a SessionStart payload with neither field',
+      event: 'SessionStart',
+      input: {},
+      want: { event: 'SessionStart', sessionId: null, source: null },
+    },
+    {
+      name: 'a SessionStart payload with fields that are not strings',
+      event: 'SessionStart',
+      input: { session_id: 1, source: 2 },
+      want: { event: 'SessionStart', sessionId: null, source: null },
+    },
+  ])('sends the session id and source from $name', async ({ event, input, want }) => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const received: string[] = [];
+    server = await listen(socketPath, received);
+    // when
+    await runHook(event, { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-4' }, JSON.stringify(input));
+    // then
+    const { tabId, notificationType, backgroundTasks, crons, ...rest } = JSON.parse(received.join('')) as Record<
+      string,
+      unknown
+    >;
+    expect({ tabId, notificationType, backgroundTasks, crons }).toEqual({
+      tabId: 'tab-4',
+      notificationType: null,
+      backgroundTasks: [],
+      crons: 0,
+    });
+    expect(rest).toEqual(want);
+  });
+
+  test('sends a null session id and source when SessionStart stdin is not JSON', async () => {
+    // given
+    const socketPath = join(dir, 'maple.sock');
+    const received: string[] = [];
+    server = await listen(socketPath, received);
+    // when
+    await runHook('SessionStart', { MAPLE_SOCKET: socketPath, MAPLE_TAB_ID: 'tab-5' }, 'not json');
+    // then
+    expect(JSON.parse(received.join(''))).toMatchObject({ event: 'SessionStart', sessionId: null, source: null });
   });
 
   describe('PreToolUse', () => {

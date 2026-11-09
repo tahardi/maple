@@ -26,4 +26,19 @@ export type EventFilter = {
 
 export type EventSchemas = Record<string, z.ZodObject>;
 
-export const eventSchemas = {} satisfies EventSchemas;
+const transcriptSchema = z.object({ session: z.string(), offset: z.number() }).nullable();
+
+export const eventSchemas = {
+  'session.spawn': z.object({ prompted: z.boolean(), resumed: z.boolean() }),
+  'session.exit': z.object({ exitCode: z.number() }),
+  'session.interrupt': z.object({}),
+  'session.resumeFailed': z.object({ exitCode: z.number().nullable() }),
+  'prompt.submitted': z.object({}),
+  'permission.prompt': z.object({}),
+  'session.stop': z.object({
+    transcript: transcriptSchema,
+    head: z.string().nullable(),
+    backgroundTasks: z.array(z.string()),
+  }),
+  'session.start': z.object({ source: z.string().nullable(), transcript: transcriptSchema }),
+} satisfies EventSchemas;

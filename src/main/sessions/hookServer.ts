@@ -10,10 +10,12 @@ const MAX_LINE = 64 * 1024;
 
 const eventSchema = z.object({
   tabId: z.string(),
-  event: z.enum(['Stop', 'Notification', 'UserPromptSubmit']),
+  event: z.enum(['Stop', 'Notification', 'UserPromptSubmit', 'SessionStart']),
   notificationType: z.string().nullable(),
   backgroundTasks: z.array(z.string()).optional(),
   crons: z.number().optional(),
+  sessionId: z.string().nullable().optional(),
+  source: z.string().nullable().optional(),
 });
 
 export function hookSocketPath(): string {
