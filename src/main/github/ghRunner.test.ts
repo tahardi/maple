@@ -1,6 +1,10 @@
 import type { execFile } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import { ghRunner, projectRunner } from './ghRunner';
+
+const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');
 
 type Callback = (error: { code?: string | number } | null, stdout: string, stderr: string) => void;
 
@@ -102,11 +106,11 @@ describe('projectRunner', () => {
   });
 
   const branch = 'xena-92-go-caches';
-  const probe = ['pr', 'list', '--head', branch, '--state', 'all', '--limit', '1', '--json', 'number'];
+  const probe = ['pr', 'list', '--head', branch, '--state', 'all', '--limit', '100', '--json', 'isCrossRepository'];
   const xena = { ...project, jiraKey: 'XENA', repo: 'tahardi/xena', otherRepos: ['tahardi/dotclaude'] };
   const three = { ...xena, otherRepos: ['tahardi/dotclaude', 'tahardi/halo'] };
   const none = '[]';
-  const found = '[{"number":8}]';
+  const found = '[{"isCrossRepository":false}]';
 
   test.each([
     {
@@ -149,6 +153,26 @@ describe('projectRunner', () => {
       want: ['tahardi/xena', 'tahardi/xena'],
     },
     {
+      name: 'skips a repo whose only PR for the branch comes from a fork',
+      config: xena,
+      head: branch,
+      replies: {
+        'tahardi/xena': { stdout: fixture('pr-list-fork-only.json') },
+        'tahardi/dotclaude': { stdout: found },
+      },
+      want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/dotclaude'],
+    },
+    {
+      name: 'uses a repo with a same-repo PR listed behind a fork PR',
+      config: xena,
+      head: branch,
+      replies: {
+        'tahardi/xena': { stdout: fixture('pr-list-fork-first.json') },
+        'tahardi/dotclaude': { stdout: found },
+      },
+      want: ['tahardi/xena', 'tahardi/xena'],
+    },
+    {
       name: 'falls back to the project repo when no repo has a PR',
       config: xena,
       head: branch,
@@ -188,7 +212,8 @@ describe('projectRunner', () => {
 
   test.each([
     { name: 'invalid JSON', stdout: 'not json' },
-    { name: 'a non-array', stdout: '{"number":8}' },
+    { name: 'a non-array', stdout: '{"isCrossRepository":false}' },
+    { name: 'an entry without the fork flag', stdout: '[{"number":8}]' },
   ])('rejects a probe that prints $name', async ({ stdout }) => {
     // given
     const { repos, run } = fakeRepos({ 'tahardi/xena': { stdout }, 'tahardi/dotclaude': { stdout: found } });

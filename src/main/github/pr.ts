@@ -4,15 +4,15 @@ import type { ChecksSummary, PrInfo } from '@shared/types/github';
 import { z } from 'zod';
 import type { Runner } from '@main/app/preflight';
 
-const listSchema = z.array(
-  z.object({
-    number: z.number(),
-    url: z.string(),
-    title: z.string(),
-    state: z.enum(['OPEN', 'MERGED', 'CLOSED']),
-    body: z.string(),
-  }),
-);
+const prSchema = z.object({
+  number: z.number(),
+  url: z.string(),
+  title: z.string(),
+  state: z.enum(['OPEN', 'MERGED', 'CLOSED']),
+  body: z.string(),
+});
+
+const listSchema = z.array(prSchema.extend({ isCrossRepository: z.boolean() }));
 
 const checksSchema = z.array(
   z.object({
@@ -24,11 +24,18 @@ const checksSchema = z.array(
 
 const filesSchema = z.array(z.object({ filename: z.string(), patch: z.string().optional() }));
 
-const pinSchema = z.object({ headRefOid: z.string(), headRefName: z.string(), baseRefName: z.string() });
+const pinSchema = z.object({
+  headRefOid: z.string(),
+  headRefName: z.string(),
+  baseRefName: z.string(),
+  isCrossRepository: z.boolean(),
+});
 
 const pendingExitCode = 8;
 
 const SELF_APPROVAL = 'Can not approve your own pull request';
+
+export const PR_LIST_LIMIT = '100';
 
 async function checksFor(run: Runner, worktree: string, num: number): Promise<ChecksSummary> {
   const { code, stdout, stderr } = await run(
@@ -56,16 +63,28 @@ async function checksFor(run: Runner, worktree: string, num: number): Promise<Ch
 export async function prForBranch(run: Runner, worktree: string, branch: string): Promise<PrInfo | null> {
   const { code, stdout, stderr } = await run(
     'gh',
-    ['pr', 'list', '--head', branch, '--state', 'all', '--limit', '1', '--json', 'number,url,title,state,body'],
+    [
+      'pr',
+      'list',
+      '--head',
+      branch,
+      '--state',
+      'all',
+      '--limit',
+      PR_LIST_LIMIT,
+      '--json',
+      'number,url,title,state,body,isCrossRepository',
+    ],
     worktree,
   );
   if (code !== 0) {
     throw new Error(`listing PRs: ${stderr}`);
   }
-  const pr = listSchema.parse(JSON.parse(stdout)).at(0);
-  if (!pr) {
+  const listed = listSchema.parse(JSON.parse(stdout)).find((entry) => !entry.isCrossRepository);
+  if (!listed) {
     return null;
   }
+  const pr = prSchema.parse(listed);
   return { ...pr, ...parsePrBody(pr.body), checks: await checksFor(run, worktree, pr.number) };
 }
 
@@ -103,12 +122,19 @@ function isCardBranch(branch: string, cardKey: string): boolean {
 export async function approveAndMerge(run: Runner, num: number, headSha: string, cardKey: string): Promise<void> {
   const pinned = pinSchema.parse(
     JSON.parse(
-      await ghOut(run, ['pr', 'view', String(num), '--json', 'headRefOid,headRefName,baseRefName'], 'reading PR head'),
+      await ghOut(
+        run,
+        ['pr', 'view', String(num), '--json', 'headRefOid,headRefName,baseRefName,isCrossRepository'],
+        'reading PR head',
+      ),
     ),
   );
   const defaultBranch = (
     await ghOut(run, ['api', 'repos/{owner}/{repo}', '--jq', '.default_branch'], 'reading default branch')
   ).trim();
+  if (pinned.isCrossRepository) {
+    throw new Error('approving PR: PR comes from a fork');
+  }
   if (pinned.headRefOid !== headSha) {
     throw new Error('approving PR: the PR changed after the diff loaded; review it again');
   }

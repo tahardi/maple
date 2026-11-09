@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { z } from 'zod';
 import type { ProjectConfig } from '@shared/types/config';
 import type { Runner as CommandRunner } from '@main/app/preflight';
+import { PR_LIST_LIMIT } from '@main/github/pr';
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
@@ -54,12 +55,13 @@ async function hasPr(runner: CommandRunner, repo: string, branch: string): Promi
     '--state',
     'all',
     '--limit',
-    '1',
+    PR_LIST_LIMIT,
     '--json',
-    'number',
+    'isCrossRepository',
   ]);
   if (code !== 0) {
     throw new Error(`finding project repo: listing PRs in ${repo}: ${stderr}`);
   }
-  return z.array(z.unknown()).parse(JSON.parse(stdout)).length > 0;
+  const prs = z.array(z.object({ isCrossRepository: z.boolean() })).parse(JSON.parse(stdout));
+  return prs.some((pr) => !pr.isCrossRepository);
 }

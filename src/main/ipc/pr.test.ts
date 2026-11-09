@@ -148,10 +148,10 @@ function approver(
   return { approve: register('pr:approve', worktree, sessions), sendPrompt, calls };
 }
 
-const viewPin = 'pr view 33 --json headRefOid,headRefName,baseRefName';
+const viewPin = 'pr view 33 --json headRefOid,headRefName,baseRefName,isCrossRepository';
 const viewRepo = 'api repos/{owner}/{repo} --jq .default_branch';
 const pinned = (sha: string) =>
-  ok(JSON.stringify({ headRefOid: sha, headRefName: 'dig-44-trail', baseRefName: 'main' }));
+  ok(JSON.stringify({ headRefOid: sha, headRefName: 'dig-44-trail', baseRefName: 'main', isCrossRepository: false }));
 const postReview = `api --method POST repos/{owner}/{repo}/pulls/33/reviews -f event=APPROVE -f commit_id=${head}`;
 const merge = `pr merge 33 --squash --match-head-commit ${head}`;
 
