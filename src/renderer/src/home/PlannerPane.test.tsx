@@ -1,6 +1,6 @@
 import type { TabState } from '@shared/types/tabs';
 import { refinePrompt, suggestPrompt } from '@shared/prompts';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
 import { PlannerPane } from './PlannerPane';
@@ -212,6 +212,80 @@ describe('PlannerPane', () => {
       'Accept 1',
       'Accept 1 and start all',
     ]);
+  });
+
+  test('groups the planning and batch buttons', async () => {
+    // given
+    setup({ selected: ['DIG-41'], toAccept: ['DIG-50'], readyCount: 1, refineCount: 1 });
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    const buttonsIn = (name: string) =>
+      within(screen.getByRole('group', { name }))
+        .getAllByRole('button')
+        .map((b) => b.textContent);
+    expect(buttonsIn('Plan')).toEqual(['Suggest next batch', 'Refine (1)']);
+    expect(buttonsIn('Batch')).toEqual([
+      'Select ready (1)',
+      'Start (1)',
+      'Clear',
+      'Accept 1',
+      'Accept 1 and start all',
+    ]);
+  });
+
+  test('Start and Accept and start all are primary', async () => {
+    // given
+    setup({ selected: ['DIG-41'], toAccept: ['DIG-50'], readyCount: 1, refineCount: 1 });
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    const primary = screen.getAllByRole('button').filter((b) => b.dataset.variant === 'primary');
+    expect(primary.map((b) => b.textContent)).toEqual(['Start (1)', 'Accept 1 and start all']);
+    const others = screen.getAllByRole('button').filter((b) => !primary.includes(b));
+    others.forEach((b) => {
+      expect(b).not.toHaveAttribute('data-variant');
+    });
+  });
+
+  test('shows the failure outside the button groups', async () => {
+    // given
+    setup({ failure: 'starting DIG-41: boom' });
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.getByRole('alert').closest('[role="group"]')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Batch' }).parentElement).not.toContainElement(screen.getByRole('alert'));
+  });
+
+  test('shows Nothing to start outside the bar', async () => {
+    // given
+    const { emit } = setup();
+    await screen.findByTestId('claude-pane');
+    // when
+    emit([]);
+    // then
+    const nothing = screen.getByText('Nothing to start right now');
+    expect(screen.getByRole('group', { name: 'Batch' }).parentElement).not.toContainElement(nothing);
+  });
+
+  test('shows Nothing to start and a failure on the same status line', async () => {
+    // given
+    const { emit } = setup({ failure: 'starting DIG-41: boom' });
+    await screen.findByTestId('claude-pane');
+    // when
+    emit([]);
+    // then
+    expect(screen.getByRole('alert').parentElement).toContainElement(screen.getByText('Nothing to start right now'));
+  });
+
+  test('renders no status line when there is nothing to report', async () => {
+    // given
+    setup();
+    // when
+    const pane = await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.getByRole('group', { name: 'Batch' }).parentElement?.nextElementSibling).toBe(pane);
   });
 
   test('Accept N and Accept N and start all show the count and call their handlers', async () => {

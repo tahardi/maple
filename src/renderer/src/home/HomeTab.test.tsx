@@ -289,7 +289,7 @@ describe('HomeTab', () => {
     render(<HomeTab projectKey="DIG" />);
     await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Close details' }));
     // then
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   });

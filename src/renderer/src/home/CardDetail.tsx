@@ -36,30 +36,41 @@ export function CardDetail(props: Props) {
     <aside className={styles.detail}>
       <div className={styles.top}>
         <h3>{`${card.key} ${card.summary}`}</h3>
-        <button onClick={onClose}>Close</button>
+        <button className={styles.close} aria-label="Close details" title="Close details" onClick={onClose}>
+          ×
+        </button>
       </div>
       <div className={styles.meta}>
         {card.epic && <EpicLozenge epic={card.epic} />}
-        <span>{card.status}</span>
+        <span className={styles.chip}>{card.status}</span>
         {card.points !== null && <span>{`${String(card.points)} pts`}</span>}
         {card.labels.map((label) => (
-          <span key={label}>{label}</span>
+          <span key={label} className={styles.chip}>
+            {label}
+          </span>
         ))}
       </div>
       {card.blockedBy.length > 0 && (
-        <ul className={styles.blockers}>
-          {card.blockedBy.map((b) => (
-            <li key={b.key}>{`${b.key} ${b.status}`}</li>
-          ))}
-        </ul>
+        <>
+          <h4 className={styles.blockedBy}>Blocked by</h4>
+          <ul className={styles.blockers}>
+            {card.blockedBy.map((b) => (
+              <li key={b.key}>{`${b.key} ${b.status}`}</li>
+            ))}
+          </ul>
+        </>
       )}
       <div className={styles.actions}>
         {onAddToSprint !== undefined ? (
-          <button onClick={onAddToSprint ?? undefined} disabled={onAddToSprint === null}>
+          <button data-variant="primary" onClick={onAddToSprint ?? undefined} disabled={onAddToSprint === null}>
             Add to sprint
           </button>
         ) : (
-          next && <button onClick={next.run}>{next.label}</button>
+          next && (
+            <button data-variant="primary" onClick={next.run}>
+              {next.label}
+            </button>
+          )
         )}
         <a href={card.url} target="_blank" rel="noreferrer">
           Open in Jira
