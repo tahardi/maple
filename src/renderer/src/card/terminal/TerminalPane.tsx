@@ -2,7 +2,9 @@ import { useRef, useState } from 'react';
 import styles from './TerminalPane.module.css';
 import { TerminalView } from './TerminalView';
 
-export function TerminalPane({ tabId }: { tabId: string }) {
+const MAKE_TRY = 'make try';
+
+export function TerminalPane({ tabId, canTry }: { tabId: string; canTry: boolean }) {
   const [ids, setIds] = useState<readonly string[]>([tabId]);
   const [active, setActive] = useState(tabId);
   const [next, setNext] = useState(2);
@@ -26,6 +28,19 @@ export function TerminalPane({ tabId }: { tabId: string }) {
     setIds([...ids, id]);
     setActive(id);
     setNext(next + 1);
+    return id;
+  };
+
+  const runTry = async (): Promise<void> => {
+    const running = ids.find((id) => names[id] === MAKE_TRY);
+    if (running !== undefined) {
+      setActive(running);
+      return;
+    }
+    const id = add();
+    setNames({ ...names, [id]: MAKE_TRY });
+    await window.maple.terminal.open(tabId, id);
+    window.maple.terminal.write(id, `${MAKE_TRY}\r`);
   };
 
   const close = (id: string) => {
@@ -95,6 +110,11 @@ export function TerminalPane({ tabId }: { tabId: string }) {
         <button aria-label="New terminal" onClick={add}>
           +
         </button>
+        {canTry && (
+          <button aria-label="Run make try" onClick={() => void runTry()}>
+            {MAKE_TRY}
+          </button>
+        )}
       </div>
       <div className={styles.views}>
         {ids.map((id) => (

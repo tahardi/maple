@@ -321,7 +321,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-renamed' }),
+        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-renamed', hasTry: false }),
       },
     });
     // when
@@ -338,7 +338,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch }),
+        info: () => Promise.resolve({ name: 'maple', branch, hasTry: false }),
         onChanged: (_tabId, callback) => {
           listeners.push(callback);
           return () => undefined;
@@ -814,7 +814,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }),
+        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree', hasTry: false }),
       },
     });
     // when
@@ -831,7 +831,7 @@ describe('CardTab', () => {
     useMaple.setState({
       config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
     });
-    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }) } });
+    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree', hasTry: false }) } });
     render(<CardTab tab={tab} />);
     await screen.findByTestId('repo-branch');
     // when
@@ -1359,6 +1359,22 @@ describe('CardTab', () => {
     expect(screen.getByTestId('terminal-pane')).toBeVisible();
     expect(button).toHaveAttribute('aria-pressed', 'true');
     expect(mounts).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    { info: null, want: false },
+    { info: { name: 'maple', branch: 'mpl-1-x', hasTry: false }, want: false },
+    { info: { name: 'maple', branch: 'mpl-1-x', hasTry: true }, want: true },
+  ])('passes canTry $want to the terminal pane when repo info is $info', async ({ info, want }) => {
+    // given
+    fakeMaple({ repo: { info: () => Promise.resolve(info) } });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    // then
+    await vi.waitFor(() => {
+      expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ canTry: want });
+    });
   });
 
   test('a tab that stops being active stops toggling on Ctrl+backtick', async () => {

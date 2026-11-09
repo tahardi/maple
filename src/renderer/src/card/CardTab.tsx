@@ -308,7 +308,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           </div>
           {terminal !== 'closed' && (
             <div className={styles.terminal} hidden={terminal === 'hidden'}>
-              <TerminalPane tabId={tab.id} />
+              <TerminalPane tabId={tab.id} canTry={repo?.hasTry ?? false} />
             </div>
           )}
         </div>

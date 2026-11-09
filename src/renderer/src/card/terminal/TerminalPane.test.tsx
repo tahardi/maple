@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { TerminalPane } from './TerminalPane';
@@ -25,7 +25,7 @@ describe('TerminalPane', () => {
     // given
     fakeMaple();
     // when
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     // then
     expect(views()).toEqual([{ id: 'tab-1', hidden: false }]);
     expect(strip()).toEqual([{ name: '1', pressed: 'true' }]);
@@ -35,7 +35,7 @@ describe('TerminalPane', () => {
   test('+ adds a terminal and shows it', async () => {
     // given
     fakeMaple();
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
     // then
@@ -52,7 +52,7 @@ describe('TerminalPane', () => {
   test('clicking a terminal in the strip shows it', async () => {
     // given
     fakeMaple();
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
     // when
     await userEvent.click(screen.getByRole('button', { name: '1' }));
@@ -71,7 +71,7 @@ describe('TerminalPane', () => {
     // given
     const close = vi.fn(() => Promise.resolve());
     fakeMaple({ terminal: { close } });
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Close terminal 2' }));
@@ -90,7 +90,7 @@ describe('TerminalPane', () => {
     // given
     const closeFn = vi.fn(() => Promise.resolve());
     fakeMaple({ terminal: { close: closeFn } });
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     const add = screen.getByRole('button', { name: 'New terminal' });
     await userEvent.click(add);
     await userEvent.click(add);
@@ -113,7 +113,7 @@ describe('TerminalPane', () => {
   test('numbers keep counting after a close', async () => {
     // given
     fakeMaple();
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     const add = screen.getByRole('button', { name: 'New terminal' });
     await userEvent.click(add);
     await userEvent.click(screen.getByRole('button', { name: 'Close terminal 2' }));
@@ -133,7 +133,7 @@ describe('TerminalPane', () => {
   ])('double-click then $name', async ({ text, key, want }) => {
     // given
     fakeMaple();
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
     await userEvent.dblClick(screen.getByRole('button', { name: '2' }));
     const input = screen.getByRole('textbox', { name: 'Terminal name' });
@@ -154,7 +154,7 @@ describe('TerminalPane', () => {
     // given
     const close = vi.fn(() => Promise.resolve());
     fakeMaple({ terminal: { close } });
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
     await userEvent.dblClick(screen.getByRole('button', { name: '2' }));
     const input = screen.getByRole('textbox', { name: 'Terminal name' });
@@ -176,7 +176,7 @@ describe('TerminalPane', () => {
   test('double-click selects the current label for editing', async () => {
     // given
     fakeMaple();
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     // when
     await userEvent.dblClick(screen.getByRole('button', { name: '1' }));
     // then
@@ -190,7 +190,7 @@ describe('TerminalPane', () => {
   test('a renamed terminal starts its next edit from its name', async () => {
     // given
     fakeMaple();
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     await userEvent.dblClick(screen.getByRole('button', { name: '1' }));
     const input = screen.getByRole('textbox', { name: 'Terminal name' });
     await userEvent.clear(input);
@@ -206,7 +206,7 @@ describe('TerminalPane', () => {
   test('blur saves a rename that follows a cancelled one', async () => {
     // given
     fakeMaple();
-    render(<TerminalPane tabId="tab-1" />);
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
     await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
     await userEvent.dblClick(screen.getByRole('button', { name: '2' }));
     await userEvent.keyboard('{Escape}');
@@ -218,5 +218,131 @@ describe('TerminalPane', () => {
     await userEvent.click(screen.getByRole('button', { name: '1' }));
     // then
     expect(strip().map((b) => b.name)).toEqual(['1', 'logs']);
+  });
+
+  test('hides the make try button without a try target', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<TerminalPane tabId="tab-1" canTry={false} />);
+    // then
+    expect(screen.queryByRole('button', { name: 'Run make try' })).not.toBeInTheDocument();
+  });
+
+  test('make try opens a terminal named make try and runs it once the shell is open', async () => {
+    // given
+    let finishOpen: () => void = () => undefined;
+    const open = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishOpen = resolve;
+        }),
+    );
+    const write = vi.fn();
+    fakeMaple({ terminal: { open, write } });
+    render(<TerminalPane tabId="tab-1" canTry />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Run make try' }));
+    // then
+    expect(views()).toEqual([
+      { id: 'tab-1', hidden: true },
+      { id: 'tab-1:2', hidden: false },
+    ]);
+    expect(strip()).toEqual([
+      { name: '1', pressed: 'false' },
+      { name: 'make try', pressed: 'true' },
+    ]);
+    expect(open).toHaveBeenCalledWith('tab-1', 'tab-1:2');
+    expect(write).not.toHaveBeenCalled();
+    // when
+    finishOpen();
+    // then
+    await waitFor(() => {
+      expect(write).toHaveBeenCalledTimes(1);
+    });
+    expect(write).toHaveBeenCalledWith('tab-1:2', 'make try\r');
+  });
+
+  test('the make try terminal takes the next number', async () => {
+    // given
+    fakeMaple();
+    render(<TerminalPane tabId="tab-1" canTry />);
+    await userEvent.click(screen.getByRole('button', { name: 'Run make try' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
+    // then
+    expect(views().map((v) => v.id)).toEqual(['tab-1', 'tab-1:2', 'tab-1:3']);
+    expect(strip().map((b) => b.name)).toEqual(['1', 'make try', '3']);
+  });
+
+  test('make try shows the open make try terminal instead of opening another', async () => {
+    // given
+    const open = vi.fn(() => Promise.resolve());
+    const write = vi.fn();
+    fakeMaple({ terminal: { open, write } });
+    render(<TerminalPane tabId="tab-1" canTry />);
+    const runTry = screen.getByRole('button', { name: 'Run make try' });
+    await userEvent.click(runTry);
+    await userEvent.click(screen.getByRole('button', { name: 'New terminal' }));
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(views().map((v) => v.id)).toEqual(['tab-1', 'tab-1:2', 'tab-1:3']);
+    expect(
+      views()
+        .filter((v) => !v.hidden)
+        .map((v) => v.id),
+    ).toEqual(['tab-1:2']);
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith('tab-1', 'tab-1:2');
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  test('make try opens a new terminal after the old one is closed', async () => {
+    // given
+    const write = vi.fn();
+    fakeMaple({ terminal: { write } });
+    render(<TerminalPane tabId="tab-1" canTry />);
+    const runTry = screen.getByRole('button', { name: 'Run make try' });
+    await userEvent.click(runTry);
+    await userEvent.click(screen.getByRole('button', { name: 'Close terminal make try' }));
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(views().map((v) => v.id)).toEqual(['tab-1', 'tab-1:3']);
+    expect(strip().map((b) => b.name)).toEqual(['1', 'make try']);
+    await waitFor(() => {
+      expect(write).toHaveBeenCalledWith('tab-1:3', 'make try\r');
+    });
+  });
+
+  test('make try opens a new terminal after the old one is renamed', async () => {
+    // given
+    const write = vi.fn();
+    fakeMaple({ terminal: { write } });
+    render(<TerminalPane tabId="tab-1" canTry />);
+    const runTry = screen.getByRole('button', { name: 'Run make try' });
+    await userEvent.click(runTry);
+    await userEvent.dblClick(screen.getByRole('button', { name: 'make try' }));
+    const input = screen.getByRole('textbox', { name: 'Terminal name' });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'server{Enter}');
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(strip().map((b) => b.name)).toEqual(['1', 'server', 'make try']);
+    await waitFor(() => {
+      expect(write).toHaveBeenCalledWith('tab-1:3', 'make try\r');
+    });
+  });
+
+  test('the make try button comes right after +', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<TerminalPane tabId="tab-1" canTry />);
+    // then
+    const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent);
+    expect(names).toEqual(['1', 'New terminal', 'Run make try']);
   });
 });
