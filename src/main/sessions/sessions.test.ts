@@ -23,6 +23,7 @@ type FakePty = {
 const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
   vaultDir: null,
+  remote: null,
   notifications: true,
   backgroundWaitMinutes: 15,
   eventKeepDays: 365,
@@ -111,6 +112,8 @@ function setup(
     endTmux,
     sessionEnv: JIRA_ENV,
     logger,
+    runner: { exec: vi.fn(), spawnPty: vi.fn(), readFile: vi.fn(), follow: vi.fn() },
+    home: '/home/dev',
   });
   return { manager, ptys, save, spawnFn, logger, endTmux };
 }

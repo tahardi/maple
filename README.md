@@ -76,6 +76,26 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
 
 `vaultDir` is optional. When set, every card tab can switch its file tree to the Markdown notes in that Obsidian vault and open them read-only next to the card's Claude session. Notes the card's Claude session wrote show as changed.
 
+`remote` is optional and connects Maple to the Xena VM over SSH. Changing it needs a Maple restart.
+
+```json
+{
+  "remote": {
+    "host": "192.168.150.10",
+    "user": "dev",
+    "keyPath": "~/.ssh/id_ed25519_sk",
+    "knownHostsPath": "~/.config/xena/known_hosts",
+    "vaultSocket": "~/.local/state/xena/vault.sock"
+  }
+}
+```
+
+When `remote` is set, `worktreesDir` and every `plannerDir` must be absolute paths inside the VM, because `~` would expand to the desktop home.
+
+`knownHostsPath` is the host key Xena pinned when it built the VM.
+
+`vaultSocket` is the desktop vault gateway socket, forwarded into the VM. Omit it to skip the forward.
+
 ## Status
 
 Maple is a personal proof of concept and is under active development. Expect breaking changes between versions.

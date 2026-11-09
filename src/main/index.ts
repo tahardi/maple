@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, Notification } from 'electron';
 import { spawn } from 'node-pty';
 import type { MapleConfig } from '@shared/types/config';
 import { configDir, DEFAULT_WAIT_MINUTES, loadConfig } from '@main/app/config';
@@ -13,6 +13,9 @@ import { currentBranch, findWorktree, gitCommonDir } from '@main/git/git';
 import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { registerIpc } from '@main/ipc';
+import { LocalRunner } from '@main/remote/localRunner';
+import { type Runner, vmHome } from '@main/remote/runner';
+import { KEEP_ALIVE_MS, SshRunner } from '@main/remote/sshRunner';
 import { notificationsDefault, projectByKey } from '@main/ipc/config';
 import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/jira';
 import { appLogger, logUncaught, startLogging } from '@main/app/log';
@@ -79,6 +82,9 @@ async function start(): Promise<() => number> {
   });
   const [loaded, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
   let config = loaded.data;
+  const ssh = config?.remote ? new SshRunner(config.remote, configDir()) : null;
+  const runner: Runner = ssh ?? new LocalRunner();
+  const home = vmHome(config?.remote ?? null);
   startEventLog({
     limits: pruneLimits(config),
     askDeleteToday: (bytes) => askDeleteToday((options) => dialog.showMessageBox(options), bytes),
@@ -117,6 +123,8 @@ async function start(): Promise<() => number> {
     tmuxConf,
     endTmux,
     sessionEnv: jiraEnv,
+    runner,
+    home,
   });
   const terminals = new Terminals({ spawn });
   const jira = creds.then((c) => new JiraClient(c));
@@ -143,7 +151,9 @@ async function start(): Promise<() => number> {
     run: defaultRunner,
     commonDir: gitCommonDir,
   }).start();
+  let stopKeepAlive = (): void => undefined;
   app.on('will-quit', () => {
+    stopKeepAlive();
     stopAutoSync();
     sessions.killAll();
     terminals.closeAll();
@@ -156,6 +166,29 @@ async function start(): Promise<() => number> {
     appLogger.warn('restore', 'state unreadable', { warning });
   }
   const warnings = [...(warning === null ? [] : [warning]), ...restored.warnings];
+
+  if (ssh !== null) {
+    const announceTouch = () => {
+      new Notification({ title: 'Maple', body: 'Touch your YubiKey to connect Maple to the VM' }).show();
+    };
+    const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+    announceTouch();
+    try {
+      await ssh.start();
+    } catch (err) {
+      const error = errorText(err);
+      warnings.push(`connecting to VM: ${error}`);
+      appLogger.warn('remote', 'failed', { operation: 'start', error });
+    }
+    stopKeepAlive = ssh.keepAlive(
+      (err) => {
+        appLogger.warn('remote', 'failed', { operation: 'keepAlive', error: errorText(err) });
+      },
+      KEEP_ALIVE_MS,
+      announceTouch,
+    );
+  }
 
   let activeTabId: string | null = null;
   const enabled = async () => saved.notifications ?? (await notificationsDefault());
@@ -199,6 +232,8 @@ async function start(): Promise<() => number> {
     lastProject: () => Promise.resolve(saved.lastProject),
     setSeen: (seen) => persist({ seen }),
     seen: () => Promise.resolve(saved.seen),
+    runner,
+    home,
     setZoom: async (change) => {
       const contents = mainWindow?.webContents;
       if (!contents) {

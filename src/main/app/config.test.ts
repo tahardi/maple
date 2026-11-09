@@ -27,6 +27,30 @@ const withoutActions = { ...validConfig, actions: undefined };
 const withoutNotifications = { ...validConfig, notifications: undefined };
 const duplicateKey = { ...validConfig, projects: [validConfig.projects[0], validConfig.projects[0]] };
 const stringBoardId = { ...validConfig, projects: [{ ...validConfig.projects[0], jiraBoardId: '2' }] };
+const vmConfig = {
+  ...validConfig,
+  worktreesDir: '/home/dev/Documents/code/wts',
+  projects: [
+    { ...validConfig.projects[0], plannerDir: '/home/dev/Documents/code/dig-days' },
+    { ...validConfig.projects[1], plannerDir: '/home/dev/Documents/code/bearclave' },
+  ],
+};
+const remote = {
+  host: '192.168.150.10',
+  user: 'dev',
+  keyPath: '~/.ssh/id_ed25519_sk',
+  knownHostsPath: '~/.config/xena/known_hosts',
+  vaultSocket: '~/.local/state/xena/vault.sock',
+};
+const expandedRemote = {
+  ...remote,
+  keyPath: join(homedir(), '.ssh/id_ed25519_sk'),
+  knownHostsPath: join(homedir(), '.config/xena/known_hosts'),
+  vaultSocket: join(homedir(), '.local/state/xena/vault.sock'),
+};
+const noError = /^$/;
+
+const silentLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 describe('configDir', () => {
   afterEach(() => {
@@ -263,6 +287,84 @@ describe('loadConfig', () => {
     // then
     expect(result.data).toBeNull();
     expect(result.error).toBe(`reading config: ${path} does not exist`);
+  });
+
+  test.each([
+    { name: 'remote absent', config: vmConfig, expected: null, error: noError },
+    { name: 'remote set', config: { ...vmConfig, remote }, expected: expandedRemote, error: noError },
+    { name: 'remote null', config: { ...vmConfig, remote: null }, expected: null, error: noError },
+    {
+      name: 'vaultSocket null',
+      config: { ...vmConfig, remote: { ...remote, vaultSocket: null } },
+      expected: { ...expandedRemote, vaultSocket: null },
+      error: noError,
+    },
+    {
+      name: 'desktop paths without a tilde',
+      config: { ...vmConfig, remote: { ...remote, keyPath: '/k/id', knownHostsPath: '/k/hosts', vaultSocket: '/s' } },
+      expected: { ...remote, keyPath: '/k/id', knownHostsPath: '/k/hosts', vaultSocket: '/s' },
+      error: noError,
+    },
+    {
+      name: 'vaultSocket omitted',
+      config: { ...vmConfig, remote: { ...remote, vaultSocket: undefined } },
+      expected: { ...expandedRemote, vaultSocket: null },
+      error: noError,
+    },
+    {
+      name: 'host starting with a dash',
+      config: { ...vmConfig, remote: { ...remote, host: '-oProxyCommand=x' } },
+      expected: undefined,
+      error: /^reading config: remote\.host: /,
+    },
+    {
+      name: 'bad user',
+      config: { ...vmConfig, remote: { ...remote, user: 'Dev!' } },
+      expected: undefined,
+      error: /^reading config: remote\.user: /,
+    },
+    {
+      name: 'user starting with a dash',
+      config: { ...vmConfig, remote: { ...remote, user: '-oProxyCommand=x' } },
+      expected: undefined,
+      error: /^reading config: remote\.user: /,
+    },
+    {
+      name: 'empty keyPath',
+      config: { ...vmConfig, remote: { ...remote, keyPath: '' } },
+      expected: undefined,
+      error: /^reading config: remote\.keyPath: /,
+    },
+    {
+      name: 'empty knownHostsPath',
+      config: { ...vmConfig, remote: { ...remote, knownHostsPath: '' } },
+      expected: undefined,
+      error: /^reading config: remote\.knownHostsPath: /,
+    },
+    {
+      name: 'relative worktreesDir',
+      config: { ...vmConfig, remote, worktreesDir: '~/wts' },
+      expected: undefined,
+      error: /^reading config: worktreesDir: must be an absolute VM path when remote is set$/,
+    },
+    {
+      name: 'relative plannerDir',
+      config: {
+        ...vmConfig,
+        remote,
+        projects: [vmConfig.projects[0], { ...vmConfig.projects[1], plannerDir: 'code' }],
+      },
+      expected: undefined,
+      error: /^reading config: projects\.1\.plannerDir: must be an absolute VM path when remote is set$/,
+    },
+  ])('parses remote: $name', async ({ config, expected, error }) => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir, silentLogger);
+    // then
+    expect(result.error ?? '').toMatch(error);
+    expect(result.data?.remote).toEqual(expected);
   });
 
   test('logs the project count on load', async () => {

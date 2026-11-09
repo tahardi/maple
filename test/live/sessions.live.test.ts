@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node-pty';
 import type { HookEvent } from '@shared/types/tabs';
@@ -10,6 +10,7 @@ import { expandHome } from '../../src/main/app/config';
 import { startHookServer } from '../../src/main/sessions/hookServer';
 import { writeHooksFile } from '../../src/main/sessions/hooksFile';
 import { createLogger } from '../../src/main/app/log';
+import { LocalRunner } from '../../src/main/remote/localRunner';
 import { SessionManager } from '../../src/main/sessions/sessions';
 import { endTmux, writeTmuxConf } from '../../src/main/sessions/tmux';
 import { hasTranscript } from '../../src/main/sessions/transcripts';
@@ -55,6 +56,7 @@ describe('SessionManager with a real claude', () => {
     const config: MapleConfig = {
       worktreesDir: dir,
       vaultDir: null,
+      remote: null,
       notifications: false,
       backgroundWaitMinutes: 15,
       eventKeepDays: 365,
@@ -85,6 +87,8 @@ describe('SessionManager with a real claude', () => {
       endTmux,
       sessionEnv: {},
       logger: silent,
+      runner: new LocalRunner(),
+      home: homedir(),
     });
     sessions = manager;
     const resumed: boolean[] = [];

@@ -936,6 +936,7 @@ describe('CardTab', () => {
     const config = {
       worktreesDir: '',
       vaultDir: null,
+      remote: null,
       notifications: false,
       backgroundWaitMinutes: 15,
       eventKeepDays: 365,

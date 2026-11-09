@@ -51,6 +51,7 @@ const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleC
   data: {
     worktreesDir: '/tmp/wts',
     vaultDir: null,
+    remote: null,
     notifications,
     backgroundWaitMinutes: 15,
     eventKeepDays: 365,
@@ -87,6 +88,8 @@ function deps(window: () => BrowserWindow | null = () => null) {
     lastProject: () => Promise.resolve(null),
     setSeen: () => Promise.resolve(),
     seen: () => Promise.resolve({}),
+    runner: { exec: vi.fn(), spawnPty: vi.fn(), readFile: vi.fn(), follow: vi.fn() },
+    home: '/home/dev',
   };
 }
 

@@ -10,6 +10,7 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
   data: {
     worktreesDir: '/tmp/wts',
     vaultDir: null,
+    remote: null,
     notifications: false,
     backgroundWaitMinutes: 15,
     eventKeepDays: 365,

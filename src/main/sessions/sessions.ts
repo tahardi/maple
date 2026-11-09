@@ -7,6 +7,8 @@ import { cardPrompt } from '@shared/prompts';
 import type { MapleConfig } from '@shared/types/config';
 import type { TabState } from '@shared/types/tabs';
 import { findWorktree } from '@main/git/git';
+import { parentEnv } from '@main/remote/localRunner';
+import type { Runner } from '@main/remote/runner';
 import { appLogger, type Logger } from '@main/app/log';
 import { tmuxArgs } from './tmux';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
@@ -28,6 +30,8 @@ export type SessionDeps = {
   endTmux: (name: string | null) => void;
   sessionEnv: Record<string, string>;
   logger?: Logger;
+  runner: Runner;
+  home: string;
 };
 
 type Events = {
@@ -50,12 +54,6 @@ type Session = {
 };
 
 type Launch = { resume: boolean; prompt: string | null };
-
-export function parentEnv(): NodeJS.ProcessEnv {
-  const env = { ...process.env };
-  delete env.CLAUDE_CODE_CHILD_SESSION;
-  return env;
-}
 
 function tmuxName(tabId: string): string {
   return `maple-${tabId}`;

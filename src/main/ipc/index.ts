@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron';
 import type { MapleConfig, ProjectConfig } from '@shared/types/config';
 import type { Dot } from '@shared/types/tabs';
+import type { Runner } from '@main/remote/runner';
 import type { SessionManager } from '@main/sessions/sessions';
 import type { StatusEngine } from '@main/sessions/status';
 import type { Terminals } from '@main/sessions/terminals';
@@ -32,6 +33,8 @@ export type IpcDeps = {
   lastProject: () => Promise<string | null>;
   setSeen: (seen: Record<string, Dot>) => Promise<void>;
   seen: () => Promise<Record<string, Dot>>;
+  runner: Runner;
+  home: string;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [
