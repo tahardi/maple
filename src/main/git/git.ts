@@ -7,14 +7,19 @@ import { matchWorktree } from '@shared/worktree';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/app/paths';
 
 const execFileAsync = promisify(execFile);
+export const NO_FSMONITOR = ['-c', 'core.fsmonitor=false'];
 const SNIFF_BYTES = 8000;
 const MAX_HITS = 500;
 const MAX_HIT_TEXT = 200;
 const defaultBranches = new Map<string, string>();
 
-async function git(cwd: string, args: string[]): Promise<string> {
+async function git(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<string> {
   try {
-    const { stdout } = await execFileAsync('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 });
+    const { stdout } = await execFileAsync('git', [...NO_FSMONITOR, ...args], {
+      cwd,
+      env: { ...process.env, ...env },
+      maxBuffer: 64 * 1024 * 1024,
+    });
     return stdout;
   } catch (err) {
     throw new Error(`running git ${args.join(' ')}: ${err instanceof Error ? err.message : String(err)}`, {
@@ -96,7 +101,7 @@ async function stampOrNull(path: string): Promise<string | null> {
 
 async function showOrNull(worktree: string, base: string, path: string): Promise<Buffer | null> {
   try {
-    const { stdout } = await execFileAsync('git', ['show', `${base}:${path}`], {
+    const { stdout } = await execFileAsync('git', [...NO_FSMONITOR, 'show', `${base}:${path}`], {
       cwd: worktree,
       encoding: 'buffer',
       maxBuffer: 64 * 1024 * 1024,
@@ -126,6 +131,40 @@ export async function headSha(worktree: string): Promise<string> {
 
 export async function gitCommonDir(worktree: string): Promise<string> {
   return (await git(worktree, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).trim();
+}
+
+export async function originUrl(repo: string): Promise<string> {
+  return (await git(repo, ['config', '--get', 'remote.origin.url'])).trim();
+}
+
+async function filterKeys(worktree: string): Promise<string[]> {
+  try {
+    return splitZ(await git(worktree, ['config', '--null', '--name-only', '--get-regexp', '^filter\\..*\\.']));
+  } catch (err) {
+    if (err instanceof Error && err.cause instanceof Error && 'code' in err.cause && err.cause.code === 1) {
+      return [];
+    }
+    throw err;
+  }
+}
+
+async function noFiltersEnv(worktree: string): Promise<NodeJS.ProcessEnv> {
+  const names = new Set((await filterKeys(worktree)).map((key) => key.slice('filter.'.length, key.lastIndexOf('.'))));
+  const overrides = [...names].flatMap((name) => [
+    [`filter.${name}.clean`, ''],
+    [`filter.${name}.smudge`, ''],
+    [`filter.${name}.process`, ''],
+    [`filter.${name}.required`, 'false'],
+  ]);
+  return {
+    GIT_CONFIG_COUNT: String(overrides.length),
+    ...Object.fromEntries(
+      overrides.flatMap(([key, value], i) => [
+        [`GIT_CONFIG_KEY_${String(i)}`, key],
+        [`GIT_CONFIG_VALUE_${String(i)}`, value],
+      ]),
+    ),
+  };
 }
 
 export async function repoName(worktree: string): Promise<string> {
@@ -192,9 +231,10 @@ export async function changes(worktree: string): Promise<ChangeSet | null> {
   if (base === null) {
     return null;
   }
+  const noFilters = await noFiltersEnv(worktree);
   const [nameStatus, numstat, untracked] = await Promise.all([
-    git(worktree, ['diff', '--name-status', '-M', '-z', base]),
-    git(worktree, ['diff', '--numstat', '-M', base]),
+    git(worktree, ['diff', '--name-status', '-M', '-z', base], noFilters),
+    git(worktree, ['diff', '--numstat', '-M', base], noFilters),
     git(worktree, ['ls-files', '--others', '--exclude-standard', '-z']),
   ]);
   const untrackedPaths = splitZ(untracked);
