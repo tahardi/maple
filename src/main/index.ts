@@ -14,6 +14,7 @@ import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/ipc/config';
+import { closeNeedsConfirm } from '@main/ipc/closeNeedsConfirm';
 import { recordActions } from '@main/ipc/validated';
 import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/jira';
 import { appLogger, logUncaught, startLogging } from '@main/app/log';
@@ -186,6 +187,7 @@ async function start(): Promise<() => number> {
     uiActionRecorder({
       tab: (id) => sessions.get(id),
       actions: () => config?.actions ?? [],
+      closeNeedsConfirm: (tabId, force) => closeNeedsConfirm(status.statuses(), tabId, force),
       append: (refs, data) => eventLog().append('ui.action', refs, data),
     }),
   );

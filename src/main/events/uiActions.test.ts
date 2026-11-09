@@ -29,18 +29,18 @@ const actions: readonly ActionConfig[] = [
 function setup(fixture: TabState = cardTab) {
   const append = vi.fn<(refs: EventRefs, data: UiActionData) => Promise<void>>(() => Promise.resolve());
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  const closeNeedsConfirm = vi.fn<(tabId: string, force: boolean) => boolean>(() => false);
   const record = uiActionRecorder(
-    { tab: (id) => (id === 't1' ? fixture : null), actions: () => actions, append },
+    { tab: (id) => (id === 't1' ? fixture : null), actions: () => actions, closeNeedsConfirm, append },
     logger,
   );
-  return { append, logger, record };
+  return { append, closeNeedsConfirm, logger, record };
 }
 
 describe('uiActionRecorder', () => {
   test.each<{ channel: string; args: readonly unknown[]; refs: EventRefs }>([
     { channel: 'tabs:startCard', args: ['MPL', 'MPL-7'], refs: cardRefs },
     { channel: 'tabs:openCard', args: ['MPL', 'MPL-7'], refs: cardRefs },
-    { channel: 'tabs:openPlanner', args: ['MPL'], refs: projectRefs },
     { channel: 'tabs:openVault', args: ['MPL'], refs: projectRefs },
     { channel: 'tabs:close', args: ['t1', false], refs: tabRefs },
     { channel: 'tabs:resume', args: ['t1'], refs: tabRefs },
@@ -66,6 +66,7 @@ describe('uiActionRecorder', () => {
     { channel: 'terminal:resize' },
     { channel: 'terminal:open' },
     { channel: 'tabs:cost' },
+    { channel: 'tabs:openPlanner' },
     { channel: 'session:backlog' },
   ])('records nothing for $channel', ({ channel }) => {
     // given
@@ -95,6 +96,26 @@ describe('uiActionRecorder', () => {
     // then
     expect(append.mock.calls).toEqual([[tabRefs, { channel: 'session:sendPrompt', action, length: text.length }]]);
   });
+
+  test.each([
+    { force: false, needsConfirm: true, records: 0 },
+    { force: false, needsConfirm: false, records: 1 },
+    { force: true, needsConfirm: false, records: 1 },
+  ])(
+    'writes $records records for tabs:close with force $force and needsConfirm $needsConfirm',
+    ({ force, needsConfirm, records }) => {
+      // given
+      const { append, closeNeedsConfirm, record } = setup();
+      closeNeedsConfirm.mockReturnValue(needsConfirm);
+
+      // when
+      record('tabs:close', ['t1', force]);
+
+      // then
+      expect(closeNeedsConfirm.mock.calls).toEqual([['t1', force]]);
+      expect(append).toHaveBeenCalledTimes(records);
+    },
+  );
 
   test('records a planner prompt with no action', () => {
     // given
@@ -147,7 +168,10 @@ describe('uiActionRecorder', () => {
     // given
     const append = vi.fn<(refs: EventRefs, data: UiActionData) => Promise<void>>(() => Promise.resolve());
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const record = uiActionRecorder({ tab: () => cardTab, actions: () => prompts, append }, logger);
+    const record = uiActionRecorder(
+      { tab: () => cardTab, actions: () => prompts, closeNeedsConfirm: () => false, append },
+      logger,
+    );
 
     // when
     record('session:sendPrompt', ['t1', text]);
@@ -209,7 +233,7 @@ describe('uiActionRecorder', () => {
   ])('logs a warning and does not throw when $name throws synchronously', async ({ deps }) => {
     // given
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const record = uiActionRecorder(deps, logger);
+    const record = uiActionRecorder({ ...deps, closeNeedsConfirm: () => false }, logger);
 
     // when
     record('session:sendPrompt', ['t1', '/card MPL-7']);

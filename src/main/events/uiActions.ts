@@ -7,7 +7,6 @@ import type { ActionRecorder } from '@main/ipc/validated';
 const RECORDED_CHANNELS: ReadonlySet<string> = new Set([
   'tabs:startCard',
   'tabs:openCard',
-  'tabs:openPlanner',
   'tabs:openVault',
   'tabs:close',
   'tabs:resume',
@@ -53,6 +52,7 @@ export function uiActionRecorder(
   deps: {
     tab: (tabId: string) => TabState | null;
     actions: () => readonly ActionConfig[];
+    closeNeedsConfirm: (tabId: string, force: boolean) => boolean;
     append: (refs: EventRefs, data: UiActionData) => Promise<void>;
   },
   logger: Logger = appLogger,
@@ -75,7 +75,10 @@ export function uiActionRecorder(
     if (channel === 'tabs:startCard' || channel === 'tabs:openCard') {
       return [[{ ...NO_REFS, project: first, card: asString(args[1]) }, plain]];
     }
-    if (channel === 'tabs:openPlanner' || channel === 'tabs:openVault') {
+    if (channel === 'tabs:close' && first !== null && deps.closeNeedsConfirm(first, args[1] === true)) {
+      return [];
+    }
+    if (channel === 'tabs:openVault') {
       return [[{ ...NO_REFS, project: first }, plain]];
     }
     return [[channel === 'jira:report' ? NO_REFS : tabRefs(first, lookup(first)), plain]];
