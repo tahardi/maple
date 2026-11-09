@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { VaultSwitch } from './VaultSwitch';
 
@@ -14,6 +14,18 @@ describe('VaultSwitch', () => {
     // then
     expect(screen.getByRole('button', { name: pressed, pressed: true })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Refresh' }) !== null).toBe(refresh);
+  });
+
+  test('groups Worktree and Vault as one control and leaves Refresh out', () => {
+    // given
+    const props = { view: 'vault' as const, onChange: vi.fn(), onRefresh: vi.fn() };
+    // when
+    render(<VaultSwitch {...props} />);
+    // then
+    const group = within(screen.getByRole('group', { name: 'Tree view' }));
+    expect(group.getByRole('button', { name: 'Worktree' })).toBeInTheDocument();
+    expect(group.getByRole('button', { name: 'Vault' })).toBeInTheDocument();
+    expect(group.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
   });
 
   test('reports the chosen view and refreshes', async () => {

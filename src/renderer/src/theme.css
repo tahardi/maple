@@ -93,6 +93,26 @@ body {
   cursor: default;
 }
 
+:where([data-variant='segmented']) {
+  display: flex;
+}
+
+:where([data-variant='segmented'] button) {
+  border-radius: 0;
+}
+
+:where([data-variant='segmented'] button + button) {
+  border-left: none;
+}
+
+:where([data-variant='segmented'] button:first-child) {
+  border-radius: 4px 0 0 4px;
+}
+
+:where([data-variant='segmented'] button:last-child) {
+  border-radius: 0 4px 4px 0;
+}
+
 :where(input, textarea) {
   font: inherit;
 }
