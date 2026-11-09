@@ -72,37 +72,47 @@ export function PlannerPane({
     window.maple.session.sendPrompt(tabId, refinePrompt(projectKey));
   };
 
+  const nothingToStart = answered && selected.length === 0 && toAccept.length === 0;
+
   return (
     <div className={styles.planner}>
       <div className={styles.bar}>
-        <button onClick={suggest} disabled={tabId === null}>
-          Suggest next batch
-        </button>
-        <button onClick={refine} disabled={tabId === null || refineCount === 0}>
-          {`Refine (${String(refineCount)})`}
-        </button>
-        <button onClick={onSelectReady} disabled={readyCount === 0}>{`Select ready (${String(readyCount)})`}</button>
-        {selected.length > 0 && (
-          <>
-            <button onClick={onStart}>{`Start (${String(selected.length)})`}</button>
-            <button onClick={onClear}>Clear</button>
-          </>
-        )}
-        {toAccept.length > 0 && (
-          <>
-            <button onClick={onAccept}>{`Accept ${String(toAccept.length)}`}</button>
-            <button onClick={onAcceptAndStart}>{`Accept ${String(toAccept.length)} and start all`}</button>
-          </>
-        )}
-        {answered && selected.length === 0 && toAccept.length === 0 && (
-          <span className={styles.nothing}>Nothing to start right now</span>
-        )}
-        {failure !== null && (
-          <span role="alert" className={styles.failure}>
-            {failure}
-          </span>
-        )}
+        <div role="group" aria-label="Plan" className={styles.group}>
+          <button onClick={suggest} disabled={tabId === null}>
+            Suggest next batch
+          </button>
+          <button onClick={refine} disabled={tabId === null || refineCount === 0}>
+            {`Refine (${String(refineCount)})`}
+          </button>
+        </div>
+        <div role="group" aria-label="Batch" className={styles.group}>
+          <button onClick={onSelectReady} disabled={readyCount === 0}>{`Select ready (${String(readyCount)})`}</button>
+          {selected.length > 0 && (
+            <>
+              <button data-variant="primary" onClick={onStart}>{`Start (${String(selected.length)})`}</button>
+              <button onClick={onClear}>Clear</button>
+            </>
+          )}
+          {toAccept.length > 0 && (
+            <>
+              <button onClick={onAccept}>{`Accept ${String(toAccept.length)}`}</button>
+              <button data-variant="primary" onClick={onAcceptAndStart}>
+                {`Accept ${String(toAccept.length)} and start all`}
+              </button>
+            </>
+          )}
+        </div>
       </div>
+      {(nothingToStart || failure !== null) && (
+        <div className={styles.status}>
+          {nothingToStart && <span className={styles.nothing}>Nothing to start right now</span>}
+          {failure !== null && (
+            <span role="alert" className={styles.failure}>
+              {failure}
+            </span>
+          )}
+        </div>
+      )}
       {tabId !== null && <ClaudePane tabId={tabId} actions={[]} />}
     </div>
   );

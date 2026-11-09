@@ -8,9 +8,27 @@
 
 .bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
+}
+
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.group + .group {
+  border-left: 1px solid var(--border);
+  padding-left: 8px;
+}
+
+.status {
+  display: flex;
+  gap: 8px;
+  padding: 0 8px 6px;
 }
 
 .nothing {
