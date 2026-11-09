@@ -41,4 +41,24 @@ export const eventSchemas = {
     backgroundTasks: z.array(z.string()),
   }),
   'session.start': z.object({ source: z.string().nullable(), transcript: transcriptSchema }),
+
+  'card.status': z.object({ from: z.string().nullable(), to: z.string() }),
+  'pr.opened': z.object({ repo: z.string(), pr: z.number().int() }),
+  'ci.result': z.object({
+    repo: z.string(),
+    pr: z.number().int(),
+    passed: z.number().int(),
+    failed: z.number().int(),
+    failedChecks: z.array(z.string()),
+  }),
+  'pr.merged': z.object({ repo: z.string(), pr: z.number().int() }),
+  'pr.approved': z.object({ repo: z.string(), pr: z.number().int() }),
+  'review.comment': z.object({ repo: z.string(), pr: z.number().int(), length: z.number().int() }),
+  'review.reply': z.object({
+    repo: z.string(),
+    pr: z.number().int(),
+    commentId: z.number().int(),
+    length: z.number().int(),
+  }),
+  'review.resolve': z.object({ threadId: z.string(), resolved: z.boolean() }),
 } satisfies EventSchemas;
