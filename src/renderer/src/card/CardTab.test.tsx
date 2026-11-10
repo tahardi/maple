@@ -483,7 +483,7 @@ describe('CardTab', () => {
       },
       steps: async () => {
         await screen.findByRole('tab', { name: 'PR description' });
-        await userEvent.click(await screen.findByTitle('Open card description'));
+        await userEvent.click(await screen.findByTitle(/Click to open the card description/));
         await userEvent.click(screen.getByRole('button', { name: 'All files' }));
         await userEvent.click(screen.getByText('README.md', { selector: 'li span' }));
         await userEvent.click(screen.getByText('a.ts'));
@@ -701,7 +701,7 @@ describe('CardTab', () => {
     fakeRepo(true, [card('MPL-20', 'In Progress', { descriptionMd: '## Goal' })]);
     // when
     render(<CardTab tab={tab} />);
-    await screen.findByTitle('Open card description');
+    await screen.findByTitle(/Click to open the card description/);
     // then
     expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
     expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['PR description']);
@@ -713,12 +713,12 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByRole('tab', { name: 'PR description' });
     // when
-    await userEvent.click(await screen.findByTitle('Open card description'));
+    await userEvent.click(await screen.findByTitle(/Click to open the card description/));
     // then
     expect(screen.getByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Close Card description' }));
-    await userEvent.click(screen.getByTitle('Open card description'));
+    await userEvent.click(screen.getByTitle(/Click to open the card description/));
     // then
     expect(screen.getByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
   });
@@ -752,7 +752,7 @@ describe('CardTab', () => {
       });
     });
     // then
-    expect(await screen.findByTitle('Open card description')).toBeInTheDocument();
+    expect(await screen.findByTitle(/Click to open the card description/)).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Card description' })).not.toBeInTheDocument();
   });
 
@@ -774,7 +774,7 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByText('README.md');
     // then
-    expect(screen.queryByTitle('Open card description')).toBeNull();
+    expect(screen.queryByTitle(/Click to open the card description/)).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Card description' })).not.toBeInTheDocument();
   });
 
@@ -1221,7 +1221,7 @@ describe('CardTab', () => {
     // then
     expect(await screen.findByRole('checkbox', { name: 'Viewed src/b.ts' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: 'Viewed src/a.ts' })).not.toBeInTheDocument();
-    expect(screen.getByText('1 files')).toBeInTheDocument();
+    expect(screen.getByText('1 file')).toBeInTheDocument();
     expect(screen.getByText('+9')).toBeInTheDocument();
     expect(screen.getByText('−4')).toBeInTheDocument();
   });

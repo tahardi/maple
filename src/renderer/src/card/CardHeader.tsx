@@ -2,6 +2,7 @@ import type { Card } from '@shared/types/jira';
 import type { ChangeSet } from '@shared/types/files';
 import type { PrInfo } from '@shared/types/github';
 import type { SessionCost } from '@shared/types/tabs';
+import { prLabel } from './prLabel';
 import styles from './CardHeader.module.css';
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
   branch: string | null;
   changes: Pick<ChangeSet, 'files' | 'added' | 'removed'> | null;
   cost: SessionCost | null;
+  projectRepo: string | null;
   onOpenCard: () => void;
 };
 
@@ -31,11 +33,15 @@ function costBreakdown(cost: SessionCost): string {
   ].join(' · ');
 }
 
-export function CardHeader({ cardKey, card, pr, branch, changes, cost, onOpenCard }: Props) {
+export function CardHeader({ cardKey, card, pr, branch, changes, cost, projectRepo, onOpenCard }: Props) {
   return (
     <header className={styles.header}>
       {card ? (
-        <button className={styles.title} title="Open card description" onClick={onOpenCard}>
+        <button
+          className={styles.title}
+          title={`${cardKey} ${card.summary}\nClick to open the card description`}
+          onClick={onOpenCard}
+        >
           {`${cardKey} ${card.summary}`}
         </button>
       ) : (
@@ -44,13 +50,17 @@ export function CardHeader({ cardKey, card, pr, branch, changes, cost, onOpenCar
       {card && <span className={styles.pill}>{card.status}</span>}
       {pr && (
         <a href={pr.url} target="_blank" rel="noreferrer" title="Open on GitHub">
-          {`PR #${String(pr.number)} ↗`}
+          {`${prLabel(pr, projectRepo)} ↗`}
         </a>
       )}
-      {branch !== null && <span className={styles.branch}>{branch}</span>}
+      {branch !== null && (
+        <span className={styles.branch} title={branch}>
+          {branch}
+        </span>
+      )}
       {changes && (
         <span className={styles.changes}>
-          {`${String(changes.files.length)} files`}
+          {`${String(changes.files.length)} ${changes.files.length === 1 ? 'file' : 'files'}`}
           <span className={styles.added}>{`+${String(changes.added)}`}</span>
           <span className={styles.removed}>{`−${String(changes.removed)}`}</span>
         </span>

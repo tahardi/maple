@@ -49,6 +49,9 @@ button.title:hover {
 
 .branch {
   font-family: monospace;
+  max-width: 30ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .changes {
