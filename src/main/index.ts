@@ -43,7 +43,7 @@ import { zoomLevel } from '@main/app/zoom';
 let mainWindow: BrowserWindow | null = null;
 let quitting = false;
 
-function createWindow(zoom: () => number): void {
+function createWindow(zoom: () => number): Promise<void> {
   const window = new BrowserWindow({
     width: 1600,
     height: 1000,
@@ -71,11 +71,7 @@ function createWindow(zoom: () => number): void {
     mainWindow = null;
   });
 
-  if (rendererUrl) {
-    void window.loadURL(rendererUrl);
-  } else {
-    void window.loadFile(indexFile);
-  }
+  return rendererUrl ? window.loadURL(rendererUrl) : window.loadFile(indexFile);
 }
 
 async function start(): Promise<() => number> {
@@ -251,10 +247,10 @@ if (claimInstance(app)) {
     .whenReady()
     .then(async () => {
       const zoom = await start();
-      createWindow(zoom);
+      await createWindow(zoom);
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
-          createWindow(zoom);
+          void createWindow(zoom);
         }
       });
     })
