@@ -39,3 +39,8 @@
   flex: 1;
   min-height: 0;
 }
+
+.error {
+  margin-left: auto;
+  color: var(--danger);
+}

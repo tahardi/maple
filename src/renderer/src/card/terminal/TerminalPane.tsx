@@ -1,16 +1,18 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './TerminalPane.module.css';
 import { TerminalView } from './TerminalView';
 
 const MAKE_TRY = 'make try';
 
-export function TerminalPane({ tabId, canTry }: { tabId: string; canTry: boolean }) {
+export function TerminalPane({ tabId, tryRuns }: { tabId: string; tryRuns: number }) {
   const [ids, setIds] = useState<readonly string[]>([tabId]);
   const [active, setActive] = useState(tabId);
   const [next, setNext] = useState(2);
   const [names, setNames] = useState<Readonly<Record<string, string>>>({});
   const [editing, setEditing] = useState<string | null>(null);
+  const [tryError, setTryError] = useState<string | null>(null);
   const cancelled = useRef(false);
+  const handledRuns = useRef(0);
 
   const label = (id: string) => names[id] ?? (id === tabId ? '1' : id.slice(tabId.length + 1));
 
@@ -32,6 +34,7 @@ export function TerminalPane({ tabId, canTry }: { tabId: string; canTry: boolean
   };
 
   const runTry = async (): Promise<void> => {
+    setTryError(null);
     const running = ids.find((id) => names[id] === MAKE_TRY);
     if (running !== undefined) {
       setActive(running);
@@ -39,9 +42,25 @@ export function TerminalPane({ tabId, canTry }: { tabId: string; canTry: boolean
     }
     const id = add();
     setNames({ ...names, [id]: MAKE_TRY });
-    await window.maple.terminal.open(tabId, id);
+    try {
+      await window.maple.terminal.open(tabId, id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setIds((now) => now.filter((other) => other !== id));
+      setNames((now) => Object.fromEntries(Object.entries(now).filter(([other]) => other !== id)));
+      setActive((now) => (now === id ? tabId : now));
+      setTryError(message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
+      return;
+    }
     window.maple.terminal.write(id, `${MAKE_TRY}\r`);
   };
+
+  useEffect(() => {
+    if (tryRuns !== handledRuns.current) {
+      handledRuns.current = tryRuns;
+      void runTry();
+    }
+  });
 
   const close = (id: string) => {
     const index = ids.indexOf(id);
@@ -110,10 +129,10 @@ export function TerminalPane({ tabId, canTry }: { tabId: string; canTry: boolean
         <button aria-label="New terminal" onClick={add}>
           +
         </button>
-        {canTry && (
-          <button aria-label="Run make try" onClick={() => void runTry()}>
-            {MAKE_TRY}
-          </button>
+        {tryError !== null && (
+          <span role="alert" className={styles.error}>
+            {MAKE_TRY} did not start: {tryError}
+          </span>
         )}
       </div>
       <div className={styles.views}>

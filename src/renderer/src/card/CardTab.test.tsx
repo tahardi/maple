@@ -1365,16 +1365,39 @@ describe('CardTab', () => {
     { info: null, want: false },
     { info: { name: 'maple', branch: 'mpl-1-x', hasTry: false }, want: false },
     { info: { name: 'maple', branch: 'mpl-1-x', hasTry: true }, want: true },
-  ])('passes canTry $want to the terminal pane when repo info is $info', async ({ info, want }) => {
+  ])('shows the make try button $want when repo info is $info', async ({ info, want }) => {
     // given
-    fakeMaple({ repo: { info: () => Promise.resolve(info) } });
-    render(<CardTab tab={tab} />);
+    const repoInfo = vi.fn(() => Promise.resolve(info));
+    fakeMaple({ repo: { info: repoInfo } });
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    render(<CardTab tab={tab} />);
     // then
     await vi.waitFor(() => {
-      expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ canTry: want });
+      expect(repoInfo).toHaveBeenCalled();
     });
+    await act(() => Promise.resolve());
+    expect(screen.queryByRole('button', { name: 'Run make try' }) !== null).toBe(want);
+    expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument();
+  });
+
+  test('make try shows a hidden terminal panel and asks the pane for one more run each click', async () => {
+    // given
+    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-1-x', hasTry: true }) } });
+    render(<CardTab tab={tab} />);
+    const terminal = screen.getByRole('button', { name: 'Terminal' });
+    await userEvent.click(terminal);
+    await userEvent.click(terminal);
+    const runTry = await screen.findByRole('button', { name: 'Run make try' });
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(screen.getByTestId('terminal-pane')).toBeVisible();
+    expect(terminal).toHaveAttribute('aria-pressed', 'true');
+    expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 1 });
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 2 });
   });
 
   test('a tab that stops being active stops toggling on Ctrl+backtick', async () => {
