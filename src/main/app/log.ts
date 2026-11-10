@@ -13,6 +13,7 @@ export type LogScope =
   | 'config'
   | 'preflight'
   | 'repo'
+  | 'terminal'
   | 'vault'
   | 'events'
   | 'app';

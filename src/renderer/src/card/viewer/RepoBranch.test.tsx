@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { RepoBranch } from './RepoBranch';
 
-const repo = { name: 'maple', branch: 'mpl-20-file-tree' };
+const repo = { name: 'maple', branch: 'mpl-20-file-tree', hasTry: false };
 
 describe('RepoBranch', () => {
   test('labels the repo and the branch', () => {

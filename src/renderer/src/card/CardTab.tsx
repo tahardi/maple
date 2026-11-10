@@ -55,6 +55,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [descriptionOpened, setDescriptionOpened] = useState(false);
   const [cardOpened, setCardOpened] = useState(false);
   const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
+  const [tryRuns, setTryRuns] = useState(0);
   const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
   const [vaultChangedOnly, setVaultChangedOnly] = useState(true);
   const body = useRef<HTMLDivElement>(null);
@@ -217,6 +218,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         branch={repo?.branch ?? null}
         changes={pinned ?? changes}
         cost={cost}
+        projectRepo={project?.repo ?? null}
         onOpenCard={() => {
           openFile(CARD_DESCRIPTION, null, true);
         }}
@@ -302,13 +304,24 @@ export function CardTab({ tab }: { tab: TabState }) {
             )}
           </div>
           <div className={styles.terminalBar}>
+            {repo?.hasTry === true && (
+              <button
+                aria-label="Run make try"
+                onClick={() => {
+                  setTerminal('shown');
+                  setTryRuns((n) => n + 1);
+                }}
+              >
+                make try
+              </button>
+            )}
             <button aria-pressed={terminal === 'shown'} onClick={toggleTerminal}>
               Terminal
             </button>
           </div>
           {terminal !== 'closed' && (
             <div className={styles.terminal} hidden={terminal === 'hidden'}>
-              <TerminalPane tabId={tab.id} />
+              <TerminalPane tabId={tab.id} tryRuns={tryRuns} />
             </div>
           )}
         </div>

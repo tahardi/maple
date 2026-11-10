@@ -35,6 +35,7 @@
 
 .terminalBar {
   display: flex;
+  gap: 4px;
   justify-content: flex-end;
   padding: 2px 8px;
   background: var(--bg-raised);
