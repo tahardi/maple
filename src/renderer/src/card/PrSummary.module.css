@@ -54,6 +54,14 @@
   color: var(--danger);
 }
 
+.banner {
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
 .muted {
   color: var(--text-muted);
 }

@@ -26,7 +26,10 @@ function approveBlocker({ dot, pr, review }: CardActionsInput): string | null {
   if (pr.checks.failed > 0) {
     return 'Checks are failing';
   }
-  return review === null ? 'Review not loaded' : null;
+  if (review === null) {
+    return 'Review not loaded';
+  }
+  return pr.headSha !== review.headSha ? 'PR has new commits' : null;
 }
 
 function closeBlocker({ dot, pr }: CardActionsInput): string | null {

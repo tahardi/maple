@@ -39,6 +39,7 @@ const pr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
+  headSha: 'a'.repeat(40),
   checks: { passed: 0, failed: 0, pending: 0, total: 0, runs: [] },
 };
 

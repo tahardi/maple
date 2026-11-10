@@ -1,6 +1,7 @@
 [
   {
     "body": "## Describe your changes\n\nFrom a fork.\n",
+    "headRefOid": "0123456789abcdef0123456789abcdef01234567",
     "isCrossRepository": true,
     "number": 41,
     "state": "OPEN",

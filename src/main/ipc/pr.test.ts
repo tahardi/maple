@@ -75,6 +75,7 @@ const pr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
+  headSha: 'a'.repeat(40),
   checks: { passed: 1, failed: 0, pending: 0, total: 1, runs: [] },
 };
 
@@ -373,7 +374,9 @@ describe('registerPr', () => {
     // when
     const result = approve('t1', head);
     // then
-    await expect(result).rejects.toThrow(/^approving PR: the PR changed after the diff loaded; review it again$/);
+    await expect(result).rejects.toThrow(
+      /^approving PR: the PR has new commits since the review loaded; click Reload review$/,
+    );
     expect(calls).toEqual([viewPin, viewRepo]);
     expect(sendPrompt).not.toHaveBeenCalled();
   });
