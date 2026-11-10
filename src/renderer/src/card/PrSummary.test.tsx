@@ -142,25 +142,28 @@ describe('PrSummary', () => {
     );
   });
 
-  test('shows no new commits banner for a merged PR', () => {
-    // given
-    const pr = fetched({ ...info, state: 'MERGED' });
-    // when
-    render(
-      <PrSummary
-        pr={pr}
-        onOpenDescription={vi.fn()}
-        onReloadReview={vi.fn()}
-        reviewError={null}
-        findings={[]}
-        projectRepo="tahardi/maple"
-        headSha={'d'.repeat(40)}
-        searchedRepos={[]}
-      />,
-    );
-    // then
-    expect(screen.queryByRole('status')).toBeNull();
-  });
+  test.each<{ state: PrInfo['state'] }>([{ state: 'MERGED' }, { state: 'CLOSED' }])(
+    'shows no new commits banner for a $state PR',
+    ({ state }) => {
+      // given
+      const pr = fetched({ ...info, state });
+      // when
+      render(
+        <PrSummary
+          pr={pr}
+          onOpenDescription={vi.fn()}
+          onReloadReview={vi.fn()}
+          reviewError={null}
+          findings={[]}
+          projectRepo="tahardi/maple"
+          headSha={'d'.repeat(40)}
+          searchedRepos={[]}
+        />,
+      );
+      // then
+      expect(screen.queryByRole('status')).toBeNull();
+    },
+  );
 
   test('shows markup in a title as text', () => {
     // given

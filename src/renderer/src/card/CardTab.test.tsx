@@ -1048,7 +1048,9 @@ describe('CardTab', () => {
         review,
       },
     });
+    // when
     render(<CardTab tab={tab} />);
+    // then
     const tree = within(screen.getByTestId('tree-slot'));
     const claude = within(screen.getByTestId('claude-slot'));
     expect(await tree.findByRole('status')).toHaveTextContent('This PR has new commits');
