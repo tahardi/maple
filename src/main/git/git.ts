@@ -3,7 +3,7 @@ import { lstat, readdir, readFile, realpath, stat, writeFile } from 'node:fs/pro
 import { basename, dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { ChangeSet, FileChange, FilePair, SearchHit } from '@shared/types/files';
-import { matchWorktree } from '@shared/worktree';
+import { matchWorktrees } from '@shared/worktree';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/app/paths';
 
 const execFileAsync = promisify(execFile);
@@ -112,13 +112,12 @@ async function showOrNull(worktree: string, base: string, path: string): Promise
   }
 }
 
-export async function findWorktree(worktreesDir: string, cardKey: string): Promise<string | null> {
+export async function findWorktrees(worktreesDir: string, cardKey: string): Promise<string[]> {
   const dirs = (await readdir(worktreesDir, { withFileTypes: true })).filter((entry) => entry.isDirectory());
   const entries = await Promise.all(
     dirs.map(async (entry) => ({ name: entry.name, mtimeMs: (await stat(join(worktreesDir, entry.name))).mtimeMs })),
   );
-  const name = matchWorktree(entries, cardKey);
-  return name === null ? null : join(worktreesDir, name);
+  return matchWorktrees(entries, cardKey).map((name) => join(worktreesDir, name));
 }
 
 export async function currentBranch(worktree: string): Promise<string> {

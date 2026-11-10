@@ -12,6 +12,7 @@ const tab: TabState = {
   cardKey: 'DIG-41',
   sessionId: 's1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 function renderDetail(c: Card, t: TabState | null) {

@@ -13,6 +13,7 @@ const tab = (id: string, projectKey: string, kind: TabState['kind'], cardKey: st
   cardKey,
   sessionId: `s-${id}`,
   worktreePath: null,
+  worktreePaths: [],
 });
 const status = (tabId: string, dot: Dot): TabStatus => ({
   tabId,

@@ -9,6 +9,7 @@ const card = (id: string, projectKey: string, cardKey: string): TabState => ({
   cardKey,
   sessionId: `s-${id}`,
   worktreePath: null,
+  worktreePaths: [],
 });
 const planner = (id: string, projectKey: string): TabState => ({
   id,
@@ -17,6 +18,7 @@ const planner = (id: string, projectKey: string): TabState => ({
   cardKey: null,
   sessionId: `s-${id}`,
   worktreePath: null,
+  worktreePaths: [],
 });
 const status = (tabId: string, dot: Dot): TabStatus => ({
   tabId,

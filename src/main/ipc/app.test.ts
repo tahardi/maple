@@ -19,10 +19,42 @@ const { handle, on, appOn, quit } = vi.hoisted(() => ({
 vi.mock('electron', () => ({ ipcMain: { handle, on }, app: { on: appOn, quit } }));
 
 const tabs: Record<string, TabState> = {
-  t1: { id: 't1', projectKey: 'DIG', kind: 'card', cardKey: 'DIG-44', sessionId: 's1', worktreePath: null },
-  t2: { id: 't2', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-12', sessionId: 's2', worktreePath: null },
-  t3: { id: 't3', projectKey: 'DIG', kind: 'card', cardKey: 'DIG-45', sessionId: 's3', worktreePath: null },
-  t4: { id: 't4', projectKey: 'DIG', kind: 'planner', cardKey: null, sessionId: 's4', worktreePath: null },
+  t1: {
+    id: 't1',
+    projectKey: 'DIG',
+    kind: 'card',
+    cardKey: 'DIG-44',
+    sessionId: 's1',
+    worktreePath: null,
+    worktreePaths: [],
+  },
+  t2: {
+    id: 't2',
+    projectKey: 'BEAR',
+    kind: 'card',
+    cardKey: 'BEAR-12',
+    sessionId: 's2',
+    worktreePath: null,
+    worktreePaths: [],
+  },
+  t3: {
+    id: 't3',
+    projectKey: 'DIG',
+    kind: 'card',
+    cardKey: 'DIG-45',
+    sessionId: 's3',
+    worktreePath: null,
+    worktreePaths: [],
+  },
+  t4: {
+    id: 't4',
+    projectKey: 'DIG',
+    kind: 'planner',
+    cardKey: null,
+    sessionId: 's4',
+    worktreePath: null,
+    worktreePaths: [],
+  },
 };
 
 function setup(

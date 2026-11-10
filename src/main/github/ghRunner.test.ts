@@ -85,7 +85,7 @@ describe('projectRunner', () => {
     const { fake, run } = fakeExecFile(null);
     // when
     await (
-      await projectRunner(byKey, 'DIG', null, run)
+      await projectRunner(byKey, 'DIG', null, null, run)
     )('gh', ['pr', 'list']);
     // then
     expect(fake.mock.calls[0]?.[2]).toMatchObject({ env: { GH_REPO: 'tahardi/dig-days' } });
@@ -99,7 +99,7 @@ describe('projectRunner', () => {
     // given
     const { fake, run } = fakeExecFile(null);
     // when
-    const result = projectRunner(byKey, key, branch, run);
+    const result = projectRunner(byKey, key, branch, null, run);
     // then
     await expect(result).rejects.toThrow(new RegExp(`^${want}$`));
     expect(fake).not.toHaveBeenCalled();
@@ -117,6 +117,7 @@ describe('projectRunner', () => {
       name: 'uses the project repo when the branch is null',
       config: xena,
       head: null,
+      worktree: null,
       replies: {},
       want: ['tahardi/xena'],
     },
@@ -124,6 +125,7 @@ describe('projectRunner', () => {
       name: 'uses the project repo when it has no other repos',
       config: project,
       head: branch,
+      worktree: null,
       replies: {},
       want: ['tahardi/dig-days'],
     },
@@ -131,6 +133,7 @@ describe('projectRunner', () => {
       name: 'uses the first listed repo with a PR for the branch',
       config: xena,
       head: branch,
+      worktree: null,
       replies: { 'tahardi/xena': { stdout: none }, 'tahardi/dotclaude': { stdout: found } },
       want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/dotclaude'],
     },
@@ -138,6 +141,7 @@ describe('projectRunner', () => {
       name: 'stops probing at the first other repo with a PR',
       config: three,
       head: branch,
+      worktree: null,
       replies: {
         'tahardi/xena': { stdout: none },
         'tahardi/dotclaude': { stdout: found },
@@ -149,6 +153,7 @@ describe('projectRunner', () => {
       name: 'prefers the project repo when both have a PR',
       config: xena,
       head: branch,
+      worktree: null,
       replies: { 'tahardi/xena': { stdout: found }, 'tahardi/dotclaude': { stdout: found } },
       want: ['tahardi/xena', 'tahardi/xena'],
     },
@@ -156,6 +161,7 @@ describe('projectRunner', () => {
       name: 'skips a repo whose only PR for the branch comes from a fork',
       config: xena,
       head: branch,
+      worktree: null,
       replies: {
         'tahardi/xena': { stdout: fixture('pr-list-fork-only.json') },
         'tahardi/dotclaude': { stdout: found },
@@ -166,6 +172,7 @@ describe('projectRunner', () => {
       name: 'uses a repo with a same-repo PR listed behind a fork PR',
       config: xena,
       head: branch,
+      worktree: null,
       replies: {
         'tahardi/xena': { stdout: fixture('pr-list-fork-first.json') },
         'tahardi/dotclaude': { stdout: found },
@@ -176,14 +183,39 @@ describe('projectRunner', () => {
       name: 'falls back to the project repo when no repo has a PR',
       config: xena,
       head: branch,
+      worktree: null,
       replies: { 'tahardi/xena': { stdout: none }, 'tahardi/dotclaude': { stdout: none } },
       want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/xena'],
     },
-  ])('$name', async ({ config, head, replies, want }) => {
+    {
+      name: 'uses the repo named by the worktree folder without probing',
+      config: three,
+      head: branch,
+      worktree: '/wts/halo-xena-92-go-caches',
+      replies: { 'tahardi/xena': { stdout: found }, 'tahardi/halo': { stdout: found } },
+      want: ['tahardi/halo'],
+    },
+    {
+      name: 'uses the project repo when the worktree folder names it',
+      config: three,
+      head: branch,
+      worktree: '/wts/xena-xena-92-go-caches',
+      replies: { 'tahardi/xena': { stdout: found }, 'tahardi/halo': { stdout: found } },
+      want: ['tahardi/xena'],
+    },
+    {
+      name: 'probes every repo when the worktree folder names none of them',
+      config: xena,
+      head: branch,
+      worktree: '/wts/other-xena-92-x',
+      replies: { 'tahardi/xena': { stdout: none }, 'tahardi/dotclaude': { stdout: found } },
+      want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/dotclaude'],
+    },
+  ])('$name', async ({ config, head, worktree, replies, want }) => {
     // given
     const { fake, repos, run } = fakeRepos(replies);
     // when
-    const runner = await projectRunner(() => Promise.resolve(config), config.jiraKey, head, run);
+    const runner = await projectRunner(() => Promise.resolve(config), config.jiraKey, head, worktree, run);
     await runner('gh', ['pr', 'view']);
     // then
     expect(repos()).toEqual(want);
@@ -205,7 +237,7 @@ describe('projectRunner', () => {
     // given
     const { run } = fakeRepos(replies);
     // when
-    const result = projectRunner(() => Promise.resolve(xena), 'XENA', branch, run);
+    const result = projectRunner(() => Promise.resolve(xena), 'XENA', branch, null, run);
     // then
     await expect(result).rejects.toThrow(want);
   });
@@ -218,7 +250,7 @@ describe('projectRunner', () => {
     // given
     const { repos, run } = fakeRepos({ 'tahardi/xena': { stdout }, 'tahardi/dotclaude': { stdout: found } });
     // when
-    const result = projectRunner(() => Promise.resolve(xena), 'XENA', branch, run);
+    const result = projectRunner(() => Promise.resolve(xena), 'XENA', branch, null, run);
     // then
     await expect(result).rejects.toThrow();
     expect(repos()).toEqual(['tahardi/xena']);

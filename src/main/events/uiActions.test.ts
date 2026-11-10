@@ -12,6 +12,7 @@ const cardTab: TabState = {
   cardKey: 'MPL-7',
   sessionId: 's1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 const plannerTab: TabState = { ...cardTab, kind: 'planner', cardKey: null };
@@ -45,6 +46,7 @@ describe('uiActionRecorder', () => {
     { channel: 'tabs:close', args: ['t1', false], refs: tabRefs },
     { channel: 'tabs:resume', args: ['t1'], refs: tabRefs },
     { channel: 'tabs:startFresh', args: ['t1'], refs: tabRefs },
+    { channel: 'tabs:selectWorktree', args: ['t1', '/wts/a'], refs: tabRefs },
     { channel: 'tabs:setActive', args: ['t1'], refs: tabRefs },
     { channel: 'tabs:setActive', args: [null], refs: noRefs },
     { channel: 'jira:report', args: [{ kind: 'bug', title: 'x', description: 'y' }], refs: noRefs },

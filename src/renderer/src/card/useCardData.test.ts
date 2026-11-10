@@ -25,6 +25,7 @@ const tab: TabState = {
   cardKey: 'BEAR-1',
   sessionId: 's1',
   worktreePath: '/tmp/wts/bearclave-bear-1-thing',
+  worktreePaths: [],
 };
 
 const openPr: PrInfo = {

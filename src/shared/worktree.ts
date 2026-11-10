@@ -1,9 +1,17 @@
-export function matchWorktree(entries: { name: string; mtimeMs: number }[], cardKey: string): string | null {
+export function matchWorktrees(entries: { name: string; mtimeMs: number }[], cardKey: string): string[] {
   const key = `-${cardKey.toLowerCase()}`;
-  const matches = entries.filter((entry) => entry.name.includes(`${key}-`) || entry.name.endsWith(key));
-  const newest = matches.reduce<{ name: string; mtimeMs: number } | null>(
-    (best, entry) => (best === null || entry.mtimeMs > best.mtimeMs ? entry : best),
+  return entries
+    .filter((entry) => entry.name.includes(`${key}-`) || entry.name.endsWith(key))
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+    .map((entry) => entry.name);
+}
+
+export function worktreeRepo(worktree: string, repos: string[]): string | null {
+  const folder = (worktree.split('/').at(-1) ?? '').toLowerCase();
+  const nameOf = (repo: string) => (repo.split('/')[1] ?? '').toLowerCase();
+  const named = repos.filter((repo) => folder.startsWith(`${nameOf(repo)}-`));
+  return named.reduce<string | null>(
+    (best, repo) => (best === null || nameOf(repo).length > nameOf(best).length ? repo : best),
     null,
   );
-  return newest?.name ?? null;
 }

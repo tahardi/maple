@@ -16,7 +16,7 @@ function reopen(tab: TabState, sessions: SessionManager): TabState {
 export async function restoreTabs(
   saved: SavedState,
   sessions: SessionManager,
-  findWt: (key: string) => Promise<string | null>,
+  findWt: (key: string) => Promise<string[]>,
   logger: Logger = appLogger,
 ): Promise<{ restored: number; warnings: string[] }> {
   const warnings: string[] = [];
@@ -47,17 +47,20 @@ export async function restoreTabs(
         continue;
       }
       logger.info('restore', 'restored', { projectKey: tab.projectKey, cardKey });
-      const path = await findWt(cardKey).catch((err: unknown) => {
+      const paths = await findWt(cardKey).catch((err: unknown): string[] => {
         const error = err instanceof Error ? err.message : String(err);
-        logger.warn('worktree', 'failed', { operation: 'findWorktree', cardKey, error });
-        return null;
+        logger.warn('worktree', 'failed', { operation: 'findWorktrees', cardKey, error });
+        return [];
       });
-      if (path === null) {
+      if (paths.length === 0) {
         logger.info('worktree', 'gone', { cardKey });
       } else {
-        logger.info('worktree', 'found', { cardKey, path });
+        logger.info('worktree', 'found', { cardKey, paths });
         if (sessions.get(opened.id) !== null) {
-          sessions.setWorktree(opened.id, path);
+          sessions.setWorktrees(opened.id, paths);
+          if (tab.worktreePath !== null && paths.includes(tab.worktreePath)) {
+            sessions.selectWorktree(opened.id, tab.worktreePath);
+          }
         }
       }
     }

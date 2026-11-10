@@ -12,6 +12,7 @@ const tab = (id: string, projectKey: string): TabState => ({
   cardKey: id.toUpperCase(),
   sessionId: `s-${id}`,
   worktreePath: null,
+  worktreePaths: [],
 });
 
 const status = (tabId: string, dot: TabStatus['dot']): TabStatus => ({

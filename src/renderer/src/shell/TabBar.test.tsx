@@ -12,6 +12,7 @@ const tab = (id: string, projectKey: string, kind: TabState['kind'], cardKey: st
   cardKey,
   sessionId: `s-${id}`,
   worktreePath: null,
+  worktreePaths: [],
 });
 
 const VAULT_CONFIG = { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } };

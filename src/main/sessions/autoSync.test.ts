@@ -16,6 +16,7 @@ const cardTab = (id: string, cardKey: string, worktreePath: string | null): TabS
   cardKey,
   sessionId: `s-${id}`,
   worktreePath,
+  worktreePaths: [],
 });
 
 const card = (key: string, status: Card['status'] = 'In Review'): Card => ({

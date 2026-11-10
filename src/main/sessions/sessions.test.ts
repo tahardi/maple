@@ -2,12 +2,12 @@ import type { IPty, spawn } from 'node-pty';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MapleConfig } from '@shared/types/config';
 import type { TabState } from '@shared/types/tabs';
-import { findWorktree } from '@main/git/git';
+import { findWorktrees } from '@main/git/git';
 import { SessionManager } from './sessions';
 import { tmuxArgs } from './tmux';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
 
-vi.mock('@main/git/git', () => ({ findWorktree: vi.fn() }));
+vi.mock('@main/git/git', () => ({ findWorktrees: vi.fn() }));
 vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktrees: vi.fn() }));
 
 type FakePty = {
@@ -127,7 +127,7 @@ function resumed(manager: SessionManager, tab: TabState): TabState {
 }
 
 function keptTab(kind: TabState['kind'], projectKey: string, cardKey: string | null): TabState {
-  return { id: 'old-1', projectKey, kind, cardKey, sessionId: 's-old', worktreePath: null };
+  return { id: 'old-1', projectKey, kind, cardKey, sessionId: 's-old', worktreePath: null, worktreePaths: [] };
 }
 
 const base = ['--dangerously-skip-permissions', '--settings', '/tmp/maple/hooksFile.json'];
@@ -149,7 +149,7 @@ function wrappedCard(tabId: string, claude: string[]): string[] {
 
 describe('SessionManager', () => {
   beforeEach(() => {
-    vi.mocked(findWorktree).mockReset().mockResolvedValue(null);
+    vi.mocked(findWorktrees).mockReset().mockResolvedValue([]);
     vi.mocked(watchWorktrees)
       .mockReset()
       .mockReturnValue(() => undefined);
@@ -552,11 +552,15 @@ describe('SessionManager', () => {
     // when
     const card = manager.startCard('DIG', 'DIG-44');
     const planner = manager.openPlanner('DIG', null);
-    manager.setWorktree(card.id, '/tmp/wts/dig-days-dig-44');
+    manager.setWorktrees(card.id, ['/tmp/wts/dig-days-dig-44']);
     manager.close(planner.id);
     manager.close(card.id);
     // then
-    const withWorktree = { ...card, worktreePath: '/tmp/wts/dig-days-dig-44' };
+    const withWorktree = {
+      ...card,
+      worktreePath: '/tmp/wts/dig-days-dig-44',
+      worktreePaths: ['/tmp/wts/dig-days-dig-44'],
+    };
     expect(save.mock.calls).toEqual([
       [[card], { 'DIG-1': 'old' }],
       [[card, planner], { 'DIG-1': 'old' }],
@@ -677,7 +681,7 @@ describe('SessionManager', () => {
     });
     // when
     expect(() => manager.startCard('DIG', 'DIG-44')).toThrow('starting session: spawn failed');
-    manager.setWorktree(card.id, null);
+    manager.setWorktrees(card.id, []);
     // then
     expect(save).toHaveBeenLastCalledWith([card, kept], {});
   });
@@ -696,18 +700,18 @@ describe('SessionManager', () => {
     expect(save).toHaveBeenLastCalledWith([tab, kept], {});
   });
 
-  test('startCard sets the worktree once findWorktree finds it', async () => {
+  test('startCard sets the worktrees once findWorktrees finds them', async () => {
     // given
     let onChange: () => void = () => undefined;
     vi.mocked(watchWorktrees).mockImplementation((_dir, cb) => {
       onChange = cb;
       return () => undefined;
     });
-    vi.mocked(findWorktree).mockResolvedValueOnce(null).mockResolvedValueOnce('/tmp/wts/dig-days-dig-44');
+    vi.mocked(findWorktrees).mockResolvedValueOnce([]).mockResolvedValueOnce(['/tmp/wts/dig-days-dig-44']);
     const { manager } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
     await vi.waitFor(() => {
-      expect(findWorktree).toHaveBeenCalledTimes(1);
+      expect(findWorktrees).toHaveBeenCalledTimes(1);
     });
     // when
     onChange();
@@ -715,7 +719,7 @@ describe('SessionManager', () => {
     await vi.waitFor(() => {
       expect(manager.get(tab.id)?.worktreePath).toBe('/tmp/wts/dig-days-dig-44');
     });
-    expect(findWorktree).toHaveBeenCalledWith('/tmp/wts', 'DIG-44');
+    expect(findWorktrees).toHaveBeenCalledWith('/tmp/wts', 'DIG-44');
   });
 
   test.each([
@@ -923,6 +927,75 @@ describe('SessionManager', () => {
     expect(batch).not.toHaveBeenCalled();
   });
 
+  test.each([
+    { before: [], after: ['/wts/a'], selected: null, want: '/wts/a' },
+    { before: ['/wts/a'], after: ['/wts/b', '/wts/a'], selected: '/wts/a', want: '/wts/b' },
+    { before: ['/wts/b', '/wts/a'], after: ['/wts/b', '/wts/a'], selected: '/wts/a', want: '/wts/a' },
+    { before: ['/wts/b', '/wts/a'], after: ['/wts/b'], selected: '/wts/a', want: '/wts/b' },
+    { before: ['/wts/a'], after: [], selected: '/wts/a', want: null },
+    { before: ['/wts/b', '/wts/a'], after: ['/wts/a', '/wts/b'], selected: '/wts/b', want: '/wts/b' },
+  ])(
+    'setWorktrees selects $want when the list goes from $before to $after with $selected selected',
+    ({ before, after, selected, want }) => {
+      // given
+      vi.mocked(findWorktrees).mockReturnValue(new Promise(() => undefined));
+      const { manager } = setup();
+      const tab = manager.startCard('DIG', 'DIG-44');
+      manager.setWorktrees(tab.id, before);
+      if (selected !== null) {
+        manager.selectWorktree(tab.id, selected);
+      }
+      // when
+      manager.setWorktrees(tab.id, after);
+      // then
+      expect(manager.get(tab.id)?.worktreePath).toBe(want);
+      expect(manager.get(tab.id)?.worktreePaths).toEqual(after);
+    },
+  );
+
+  test("selectWorktree selects a worktree from the tab's list and saves it", () => {
+    // given
+    vi.mocked(findWorktrees).mockReturnValue(new Promise(() => undefined));
+    const { manager, save } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    manager.setWorktrees(tab.id, ['/wts/b', '/wts/a']);
+    // when
+    manager.selectWorktree(tab.id, '/wts/a');
+    // then
+    expect(manager.get(tab.id)?.worktreePath).toBe('/wts/a');
+    expect(save).toHaveBeenLastCalledWith(
+      [{ ...tab, worktreePath: '/wts/a', worktreePaths: ['/wts/b', '/wts/a'] }],
+      {},
+    );
+  });
+
+  test('logs a selected worktree', () => {
+    // given
+    vi.mocked(findWorktrees).mockReturnValue(new Promise(() => undefined));
+    const { manager, logger } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    manager.setWorktrees(tab.id, ['/wts/b', '/wts/a']);
+    // when
+    manager.selectWorktree(tab.id, '/wts/a');
+    // then
+    expect(logger.info).toHaveBeenCalledWith('worktree', 'selected', { cardKey: 'DIG-44', path: '/wts/a' });
+  });
+
+  test("selectWorktree rejects a path that is not one of the tab's worktrees", () => {
+    // given
+    vi.mocked(findWorktrees).mockReturnValue(new Promise(() => undefined));
+    const { manager } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    manager.setWorktrees(tab.id, ['/wts/a']);
+    // when
+    const select = () => {
+      manager.selectWorktree(tab.id, '/etc');
+    };
+    // then
+    expect(select).toThrow('selecting worktree: /etc is not a worktree of DIG-44');
+    expect(manager.get(tab.id)?.worktreePath).toBe('/wts/a');
+  });
+
   test('close stops watching for the worktree', async () => {
     // given
     const stop = vi.fn();
@@ -930,7 +1003,7 @@ describe('SessionManager', () => {
     const { manager } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
     await vi.waitFor(() => {
-      expect(findWorktree).toHaveBeenCalledTimes(1);
+      expect(findWorktrees).toHaveBeenCalledTimes(1);
     });
     // when
     manager.close(tab.id);
@@ -942,7 +1015,7 @@ describe('SessionManager', () => {
     // given
     const stop = vi.fn();
     vi.mocked(watchWorktrees).mockReturnValue(stop);
-    vi.mocked(findWorktree).mockResolvedValue('/tmp/wts/dig-days-dig-44');
+    vi.mocked(findWorktrees).mockResolvedValue(['/tmp/wts/dig-days-dig-44']);
     const { manager } = setup();
     // when
     const tab = manager.startCard('DIG', 'DIG-44');
@@ -953,14 +1026,14 @@ describe('SessionManager', () => {
     expect(stop).not.toHaveBeenCalled();
   });
 
-  test('clears the worktree once it is removed', async () => {
+  test('clears the worktrees once they are removed', async () => {
     // given
     let onChange: () => void = () => undefined;
     vi.mocked(watchWorktrees).mockImplementation((_dir, cb) => {
       onChange = cb;
       return () => undefined;
     });
-    vi.mocked(findWorktree).mockResolvedValueOnce('/tmp/wts/dig-days-dig-44').mockResolvedValueOnce(null);
+    vi.mocked(findWorktrees).mockResolvedValueOnce(['/tmp/wts/dig-days-dig-44']).mockResolvedValueOnce([]);
     const { manager, logger, save } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
     await vi.waitFor(() => {
@@ -976,15 +1049,15 @@ describe('SessionManager', () => {
     expect(logger.info).toHaveBeenCalledWith('worktree', 'gone', { cardKey: 'DIG-44' });
   });
 
-  test('keeps the worktree when a later lookup fails', async () => {
+  test('keeps the worktrees when a later lookup fails', async () => {
     // given
     let onChange: () => void = () => undefined;
     vi.mocked(watchWorktrees).mockImplementation((_dir, cb) => {
       onChange = cb;
       return () => undefined;
     });
-    vi.mocked(findWorktree)
-      .mockResolvedValueOnce('/tmp/wts/dig-days-dig-44')
+    vi.mocked(findWorktrees)
+      .mockResolvedValueOnce(['/tmp/wts/dig-days-dig-44'])
       .mockRejectedValueOnce(new Error('listing worktrees: denied'));
     const { manager, logger } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
@@ -1007,7 +1080,7 @@ describe('SessionManager', () => {
       onChange = cb;
       return () => undefined;
     });
-    vi.mocked(findWorktree).mockResolvedValue('/tmp/wts/dig-days-dig-44');
+    vi.mocked(findWorktrees).mockResolvedValue(['/tmp/wts/dig-days-dig-44']);
     const { manager, save } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
     await vi.waitFor(() => {
@@ -1018,22 +1091,22 @@ describe('SessionManager', () => {
     onChange();
     // then
     await vi.waitFor(() => {
-      expect(findWorktree).toHaveBeenCalledTimes(2);
+      expect(findWorktrees).toHaveBeenCalledTimes(2);
     });
     expect(save).toHaveBeenCalledTimes(saves);
   });
 
-  test('sets the worktree again when it comes back', async () => {
+  test('sets the worktrees again when they come back', async () => {
     // given
     let onChange: () => void = () => undefined;
     vi.mocked(watchWorktrees).mockImplementation((_dir, cb) => {
       onChange = cb;
       return () => undefined;
     });
-    vi.mocked(findWorktree)
-      .mockResolvedValueOnce('/tmp/wts/dig-days-dig-44')
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce('/tmp/wts/dig-days-dig-44-again');
+    vi.mocked(findWorktrees)
+      .mockResolvedValueOnce(['/tmp/wts/dig-days-dig-44'])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(['/tmp/wts/dig-days-dig-44-again']);
     const { manager } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
     await vi.waitFor(() => {
@@ -1053,8 +1126,8 @@ describe('SessionManager', () => {
 
   test('a lookup that finishes after close changes nothing', async () => {
     // given
-    let resolve: (path: string | null) => void = () => undefined;
-    vi.mocked(findWorktree).mockReturnValue(
+    let resolve: (paths: string[]) => void = () => undefined;
+    vi.mocked(findWorktrees).mockReturnValue(
       new Promise((r) => {
         resolve = r;
       }),
@@ -1064,7 +1137,7 @@ describe('SessionManager', () => {
     manager.close(tab.id);
     const saves = save.mock.calls.length;
     // when
-    resolve('/tmp/wts/dig-days-dig-44');
+    resolve(['/tmp/wts/dig-days-dig-44']);
     await Promise.resolve();
     await Promise.resolve();
     // then
@@ -1114,7 +1187,7 @@ describe('SessionManager', () => {
 
   test('logs a found worktree', async () => {
     // given
-    vi.mocked(findWorktree).mockResolvedValue('/tmp/wts/dig-days-dig-44');
+    vi.mocked(findWorktrees).mockResolvedValue(['/tmp/wts/dig-days-dig-44']);
     const { manager, logger } = setup();
     // when
     manager.startCard('DIG', 'DIG-44');
@@ -1122,21 +1195,21 @@ describe('SessionManager', () => {
     await vi.waitFor(() => {
       expect(logger.info).toHaveBeenCalledWith('worktree', 'found', {
         cardKey: 'DIG-44',
-        path: '/tmp/wts/dig-days-dig-44',
+        paths: ['/tmp/wts/dig-days-dig-44'],
       });
     });
   });
 
   test('logs a failed worktree lookup at warn', async () => {
     // given
-    vi.mocked(findWorktree).mockRejectedValue(new Error('listing worktrees: denied'));
+    vi.mocked(findWorktrees).mockRejectedValue(new Error('listing worktrees: denied'));
     const { manager, logger } = setup();
     // when
     manager.startCard('DIG', 'DIG-44');
     // then
     await vi.waitFor(() => {
       expect(logger.warn).toHaveBeenCalledWith('worktree', 'failed', {
-        operation: 'findWorktree',
+        operation: 'findWorktrees',
         cardKey: 'DIG-44',
         error: 'listing worktrees: denied',
       });

@@ -25,6 +25,7 @@ const tab: TabState = {
   cardKey: 'DIG-44',
   sessionId: 's1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 const project: ProjectConfig = {
