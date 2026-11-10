@@ -6,6 +6,7 @@ import { syncPrompt } from '@shared/prompts';
 import type { MapleConfig } from '@shared/types/config';
 import { z } from 'zod';
 import { KEEP_DAYS, MAX_MEGABYTES } from '@main/events/pruneEvents';
+import { STATE_BACKUPS } from './backupState';
 import { appLogger, type Logger } from './log';
 
 const defaultActions = [
@@ -28,6 +29,7 @@ const configSchema = z
     backgroundWaitMinutes: z.number().positive().default(DEFAULT_WAIT_MINUTES),
     eventKeepDays: z.number().int().positive().default(KEEP_DAYS),
     eventMaxMegabytes: z.number().positive().default(MAX_MEGABYTES),
+    stateBackups: z.number().int().positive().default(STATE_BACKUPS),
     projects: z.array(
       z.object({
         name: z.string(),

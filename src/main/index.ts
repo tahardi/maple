@@ -31,6 +31,7 @@ import { lockDown, webPreferences } from '@main/app/security';
 import { showStartupFailure } from '@main/app/startupFailure';
 import { SessionManager } from '@main/sessions/sessions';
 import { Terminals } from '@main/sessions/terminals';
+import { STATE_BACKUPS } from '@main/app/backupState';
 import { saveState, loadState, type SavedState } from '@main/app/state';
 import { StatusEngine } from '@main/sessions/status';
 import { AutoSync } from '@main/sessions/autoSync';
@@ -83,8 +84,9 @@ async function start(): Promise<() => number> {
   process.on('uncaughtException', (err) => {
     dialog.showErrorBox('A JavaScript error occurred in the main process', err.stack ?? err.message);
   });
-  const [loaded, { state, warning }] = await Promise.all([loadConfig(), loadState()]);
+  const loaded = await loadConfig();
   let config = loaded.data;
+  const { state, warning } = await loadState(configDir(), config?.stateBackups ?? STATE_BACKUPS);
   startEventLog({
     limits: pruneLimits(config),
     askDeleteToday: (bytes) => askDeleteToday((options) => dialog.showMessageBox(options), bytes),
@@ -167,7 +169,7 @@ async function start(): Promise<() => number> {
     restoreTabs(state, sessions, (key) => findWorktree(worktreesDir, key));
   const restored = config ? await restore(config) : { restored: 0, warnings: [] };
   if (warning !== null) {
-    appLogger.warn('restore', 'state unreadable', { warning });
+    appLogger.warn('restore', 'loading state', { warning });
   }
   const warnings = [...(warning === null ? [] : [warning]), ...restored.warnings];
 
