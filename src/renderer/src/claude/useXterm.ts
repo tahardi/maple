@@ -4,7 +4,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
-import { useEffect, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 
 export type XtermIo = {
   write(data: string): void;
@@ -56,7 +56,8 @@ function wheelReports(term: Terminal, host: HTMLElement, lines: () => number, wr
   };
 }
 
-export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): void {
+export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): () => void {
+  const terminal = useRef<Terminal | null>(null);
   useEffect(() => {
     const el = host.current;
     if (el === null) {
@@ -74,6 +75,7 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): v
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = '11';
     term.open(el);
+    terminal.current = term;
     loadWebgl(term);
     term.attachCustomKeyEventHandler(clipboardKeys(term));
     term.attachCustomWheelEventHandler(
@@ -119,6 +121,10 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): v
       observer.disconnect();
       typing.dispose();
       term.dispose();
+      terminal.current = null;
     };
   }, [host, io]);
+  return useCallback(() => {
+    terminal.current?.focus();
+  }, []);
 }

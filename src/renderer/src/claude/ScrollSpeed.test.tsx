@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ScrollSpeed } from './ScrollSpeed';
 
 function openSettings() {
@@ -8,7 +9,7 @@ function openSettings() {
 describe('ScrollSpeed', () => {
   test('hides the speed until Pane settings opens', () => {
     // given
-    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    render(<ScrollSpeed value={4} onChange={vi.fn()} onClose={vi.fn()} />);
     const inputBeforeOpening = screen.queryByLabelText('Scroll speed');
     // when
     openSettings();
@@ -20,7 +21,7 @@ describe('ScrollSpeed', () => {
 
   test('Escape closes the settings', () => {
     // given
-    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    render(<ScrollSpeed value={4} onChange={vi.fn()} onClose={vi.fn()} />);
     openSettings();
     // when
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -31,7 +32,7 @@ describe('ScrollSpeed', () => {
 
   test('a click outside closes the settings', () => {
     // given
-    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    render(<ScrollSpeed value={4} onChange={vi.fn()} onClose={vi.fn()} />);
     openSettings();
     // when
     fireEvent.pointerDown(document.body);
@@ -44,7 +45,7 @@ describe('ScrollSpeed', () => {
     { name: 'focus', act: (input: HTMLElement) => fireEvent.focusIn(input) },
   ])('$name inside the panel keeps the settings open', ({ act }) => {
     // given
-    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    render(<ScrollSpeed value={4} onChange={vi.fn()} onClose={vi.fn()} />);
     openSettings();
     // when
     act(screen.getByLabelText('Scroll speed'));
@@ -54,7 +55,7 @@ describe('ScrollSpeed', () => {
 
   test('a second click on Pane settings closes the settings', () => {
     // given
-    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    render(<ScrollSpeed value={4} onChange={vi.fn()} onClose={vi.fn()} />);
     const button = screen.getByRole('button', { name: 'Pane settings' });
     const expandedBeforeOpening = button.getAttribute('aria-expanded');
     openSettings();
@@ -68,7 +69,7 @@ describe('ScrollSpeed', () => {
 
   test('shows the unit next to the speed', () => {
     // given
-    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    render(<ScrollSpeed value={4} onChange={vi.fn()} onClose={vi.fn()} />);
     // when
     openSettings();
     // then
@@ -77,9 +78,9 @@ describe('ScrollSpeed', () => {
 
   test('reopening shows the latest saved speed', () => {
     // given
-    const { rerender } = render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    const { rerender } = render(<ScrollSpeed value={4} onChange={vi.fn()} onClose={vi.fn()} />);
     openSettings();
-    rerender(<ScrollSpeed value={9} onChange={vi.fn()} />);
+    rerender(<ScrollSpeed value={9} onChange={vi.fn()} onClose={vi.fn()} />);
     openSettings();
     // when
     openSettings();
@@ -89,7 +90,7 @@ describe('ScrollSpeed', () => {
 
   test('reopening drops a speed that was never saved', () => {
     // given
-    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    render(<ScrollSpeed value={4} onChange={vi.fn()} onClose={vi.fn()} />);
     openSettings();
     fireEvent.change(screen.getByLabelText('Scroll speed'), { target: { value: '99' } });
     openSettings();
@@ -99,9 +100,43 @@ describe('ScrollSpeed', () => {
     expect(screen.getByLabelText('Scroll speed')).toHaveValue(4);
   });
 
+  test.each([
+    { name: 'Escape', close: () => fireEvent.keyDown(document, { key: 'Escape' }) },
+    { name: 'a second click on Pane settings', close: openSettings },
+  ])('$name hands focus back through onClose', ({ close }) => {
+    // given
+    const onClose = vi.fn();
+    render(<ScrollSpeed value={4} onChange={vi.fn()} onClose={onClose} />);
+    openSettings();
+    screen.getByLabelText('Scroll speed').focus();
+    // when
+    close();
+    // then
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test('tabbing out closes the settings without onClose', async () => {
+    // given
+    const onClose = vi.fn();
+    render(
+      <>
+        <ScrollSpeed value={4} onChange={vi.fn()} onClose={onClose} />
+        <button>Elsewhere</button>
+      </>,
+    );
+    openSettings();
+    screen.getByLabelText('Scroll speed').focus();
+    // when
+    await userEvent.tab();
+    // then
+    expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
+    expect(screen.queryByLabelText('Scroll speed')).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   test('shows the current speed', () => {
     // given
-    render(<ScrollSpeed value={4} onChange={vi.fn()} />);
+    render(<ScrollSpeed value={4} onChange={vi.fn()} onClose={vi.fn()} />);
     // when
     openSettings();
     // then
@@ -119,7 +154,7 @@ describe('ScrollSpeed', () => {
   ])('typing $name saves only valid speeds', ({ typed, saved }) => {
     // given
     const onChange = vi.fn();
-    render(<ScrollSpeed value={3} onChange={onChange} />);
+    render(<ScrollSpeed value={3} onChange={onChange} onClose={vi.fn()} />);
     openSettings();
     // when
     fireEvent.change(screen.getByLabelText('Scroll speed'), { target: { value: typed } });

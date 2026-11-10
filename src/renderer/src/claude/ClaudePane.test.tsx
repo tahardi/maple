@@ -39,6 +39,7 @@ const xterm = vi.hoisted(() => {
     modes: { mouseTrackingMode: 'none' },
     unicode: { activeVersion: '6' },
     getSelection: vi.fn(() => 'selected'),
+    focus: vi.fn(),
     paste,
     dispose,
   };
@@ -447,6 +448,19 @@ describe('ClaudePane', () => {
     send();
     // then
     expect(write).toHaveBeenCalledWith('t1', '\x1b[<65;11;3M'.repeat(5));
+  });
+
+  test('closing pane settings with Escape focuses the terminal', () => {
+    // given
+    fakeMaple();
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    xterm.terminal.focus.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Pane settings' }));
+    screen.getByLabelText('Scroll speed').focus();
+    // when
+    fireEvent.keyDown(document, { key: 'Escape' });
+    // then
+    expect(xterm.terminal.focus).toHaveBeenCalledTimes(1);
   });
 
   test('shows the action bar', () => {
