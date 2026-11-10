@@ -61,4 +61,12 @@ export const eventSchemas = {
     length: z.number().int(),
   }),
   'review.resolve': z.object({ threadId: z.string(), resolved: z.boolean() }),
+
+  'ui.action': z.object({
+    channel: z.string(),
+    action: z.string().nullable(),
+    length: z.number().int().nonnegative().nullable(),
+  }),
 } satisfies EventSchemas;
+
+export type UiActionData = z.infer<(typeof eventSchemas)['ui.action']>;
