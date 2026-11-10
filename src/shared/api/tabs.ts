@@ -11,6 +11,7 @@ export type TabsApi = {
   close(tabId: string, force: boolean): Promise<CloseResult>;
   resume(tabId: string): Promise<void>;
   startFresh(tabId: string): Promise<void>;
+  selectWorktree(tabId: string, path: string): Promise<void>;
   setActive(tabId: string | null): void;
   statuses(): Promise<TabStatus[]>;
   cost(tabId: string): Promise<SessionCost | null>;
@@ -28,6 +29,7 @@ export const TABS_CHANNELS = {
   close: 'invoke',
   resume: 'invoke',
   startFresh: 'invoke',
+  selectWorktree: 'invoke',
   setActive: 'send',
   statuses: 'invoke',
   cost: 'invoke',

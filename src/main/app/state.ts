@@ -26,6 +26,7 @@ const stateSchema = z.object({
       cardKey: z.string().nullable(),
       sessionId: z.string(),
       worktreePath: z.string().nullable(),
+      worktreePaths: z.array(z.string()).default([]),
     }),
   ),
   closedSessions: z.record(z.string(), z.string()).default({}),

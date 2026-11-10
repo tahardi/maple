@@ -23,6 +23,7 @@ const tab: TabState = {
   cardKey: 'DIG-44',
   sessionId: 's1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 function fakeSessions() {
@@ -35,6 +36,7 @@ function fakeSessions() {
     close: vi.fn(),
     resume: vi.fn(),
     startFresh: vi.fn(),
+    selectWorktree: vi.fn(),
     get: vi.fn((tabId: string) => (tabId === 't1' ? tab : null)),
   });
 }
@@ -117,6 +119,13 @@ describe('registerTabs', () => {
     { channel: 'tabs:openVault', args: ['DIG'], method: 'openVault', want: ['DIG', null], result: tab },
     { channel: 'tabs:resume', args: ['t1'], method: 'resume', want: ['t1'], result: undefined },
     { channel: 'tabs:startFresh', args: ['t1'], method: 'startFresh', want: ['t1'], result: undefined },
+    {
+      channel: 'tabs:selectWorktree',
+      args: ['t1', '/wts/a'],
+      method: 'selectWorktree',
+      want: ['t1', '/wts/a'],
+      result: undefined,
+    },
   ] as const)('$channel calls $method', ({ channel, args, method, want, result }) => {
     // given
     const { sessions } = setup();
@@ -125,6 +134,16 @@ describe('registerTabs', () => {
     // then
     expect(sessions[method]).toHaveBeenCalledWith(...want);
     expect(got).toEqual(result);
+  });
+
+  test('tabs:selectWorktree rejects an empty path', () => {
+    // given
+    const { sessions } = setup();
+    // when
+    const run = () => invoke('tabs:selectWorktree', 't1', '');
+    // then
+    expect(run).toThrow('handling tabs:selectWorktree: arguments are invalid');
+    expect(sessions.selectWorktree).not.toHaveBeenCalled();
   });
 
   test('tabs:close asks to confirm when the tab is working and not forced', () => {

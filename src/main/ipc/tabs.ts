@@ -45,6 +45,11 @@ export function registerTabs(
       sessions.startFresh(tabId);
     });
   });
+  handle('tabs:selectWorktree', z.tuple([tabIdArg, z.string().min(1).max(4096)]), (tabId, path) => {
+    logged('tabs:selectWorktree', [tabId, path], () => {
+      sessions.selectWorktree(tabId, path);
+    });
+  });
   on('tabs:setActive', z.tuple([tabIdArg.nullable()]), (tabId) => {
     setActiveTab(tabId);
   });

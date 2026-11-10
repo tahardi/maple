@@ -12,6 +12,7 @@ const cardTab: TabState = {
   cardKey: 'MPL-1',
   sessionId: 's1',
   worktreePath: '/wts/mpl-1',
+  worktreePaths: [],
 };
 
 const plannerTab: TabState = {
@@ -21,6 +22,7 @@ const plannerTab: TabState = {
   cardKey: null,
   sessionId: 's1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 const refs = { project: 'MPL', card: 'MPL-1', tab: 't1', session: 's1' };

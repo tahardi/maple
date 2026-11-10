@@ -95,13 +95,13 @@ function tabSessions(cardKey: string | null = 'DIG-44', projectKey = 'DIG', send
 
 function register(
   channel: string,
-  worktree: string | null,
+  worktree: string | null | (() => string | null),
   sessions: SessionManager = tabSessions(),
 ): (...args: unknown[]) => Promise<unknown> {
   registerPr(
     {
       window: () => null,
-      worktreeFor: () => worktree,
+      worktreeFor: typeof worktree === 'function' ? worktree : () => worktree,
       project: (key) => Promise.resolve(key === project.jiraKey ? project : null),
       sessions,
       terminals: {} as Terminals,
@@ -184,14 +184,14 @@ describe('registerPr', () => {
     expect(prForBranch).toHaveBeenCalledWith(gh, '/wt', 'mpl-13-github-client');
   });
 
-  test('get finds the runner with the tab worktree branch', async () => {
+  test('get finds the runner with the tab worktree and its branch', async () => {
     // given
     prForBranch.mockResolvedValue(pr);
     const prGet = get('/wt');
     // when
     await prGet('t1');
     // then
-    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', 'mpl-13-github-client');
+    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', 'mpl-13-github-client', '/wt');
   });
 
   test.each([
@@ -266,6 +266,19 @@ describe('registerPr', () => {
     await prGet('t1');
     // when
     const result = await prGet('t2');
+    // then
+    expect(result).toEqual({ data: null, error: 'listing PRs: offline', fetchedAt: null });
+  });
+
+  test('get never serves one worktree the cached PR of another worktree', async () => {
+    // given
+    prForBranch.mockResolvedValueOnce(pr).mockRejectedValueOnce(new Error('listing PRs: offline'));
+    let worktree = '/wts/a';
+    const prGet = register('pr:get', () => worktree);
+    await prGet('t1');
+    worktree = '/wts/b';
+    // when
+    const result = await prGet('t1');
     // then
     expect(result).toEqual({ data: null, error: 'listing PRs: offline', fetchedAt: null });
   });
@@ -556,7 +569,7 @@ describe('registerPr', () => {
     // then
     expect(result).toEqual(pair);
     expect(reviewFilePair).toHaveBeenCalledWith(gh, 'src/a.ts', 'src/old.ts', base, head);
-    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', 'mpl-13-github-client');
+    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', 'mpl-13-github-client', '/wt');
   });
 
   test('readFile finds the runner with a null branch when the tab has no worktree', async () => {
@@ -566,7 +579,7 @@ describe('registerPr', () => {
     // when
     await readFile('t1', 'src/a.ts', null, base, head);
     // then
-    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', null);
+    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', null, null);
   });
 
   test.each([

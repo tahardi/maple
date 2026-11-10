@@ -31,7 +31,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
   async function runnerFor(tabId: string): Promise<CommandRunner> {
     const worktree = deps.worktreeFor(tabId);
     const branch = worktree === null ? null : await currentBranch(worktree);
-    return projectRunner(deps.project, deps.sessions.get(tabId)?.projectKey ?? null, branch);
+    return projectRunner(deps.project, deps.sessions.get(tabId)?.projectKey ?? null, branch, worktree);
   }
 
   async function lookup(run: CommandRunner, worktree: string): Promise<PrInfo | null> {
@@ -64,10 +64,10 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         error: null,
         fetchedAt: new Date().toISOString(),
       };
-      lastGood.set(tabId, fetched);
+      lastGood.set(`${tabId}:${worktree}`, fetched);
       return fetched;
     } catch (err) {
-      const cached = lastGood.get(tabId);
+      const cached = lastGood.get(`${tabId}:${worktree}`);
       const error = message(err);
       logger.warn('gh', 'failed', { operation: 'pr:get', tabId, error });
       return { data: cached?.data ?? null, error, fetchedAt: cached?.fetchedAt ?? null };

@@ -9,7 +9,7 @@ import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
 import { defaultRunner } from '@main/app/preflight';
 import { writeHooksFile } from '@main/sessions/hooksFile';
-import { currentBranch, findWorktree, gitCommonDir, headSha, originUrl } from '@main/git/git';
+import { currentBranch, findWorktrees, gitCommonDir, headSha, originUrl } from '@main/git/git';
 import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { registerIpc } from '@main/ipc';
@@ -128,7 +128,7 @@ async function start(): Promise<() => number> {
   const getCard = async (key: string) => (await jira).getCard(key);
   const prFor = async (worktree: string, projectKey: string) => {
     const branch = await currentBranch(worktree);
-    return prForBranch(await projectRunner(projectByKey, projectKey, branch), worktree, branch);
+    return prForBranch(await projectRunner(projectByKey, projectKey, branch, worktree), worktree, branch);
   };
   const status = new StatusEngine({
     sessions,
@@ -162,7 +162,7 @@ async function start(): Promise<() => number> {
     });
   });
   const restore = ({ worktreesDir }: MapleConfig) =>
-    restoreTabs(state, sessions, (key) => findWorktree(worktreesDir, key));
+    restoreTabs(state, sessions, (key) => findWorktrees(worktreesDir, key));
   const restored = config ? await restore(config) : { restored: 0, warnings: [] };
   if (warning !== null) {
     appLogger.warn('restore', 'loading state', { warning });

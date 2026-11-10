@@ -55,6 +55,7 @@ const savedState: SavedState = {
       cardKey: 'DIG-44',
       sessionId: 'session-1',
       worktreePath: '/tmp/wts/dig-44',
+      worktreePaths: ['/wts/a', '/wts/b'],
     },
   ],
   closedSessions: { 'DIG-40': 'session-0' },
@@ -101,6 +102,16 @@ describe('state', () => {
     const result = await loadState(dir);
     // then
     expect(result).toEqual({ state, warning: null });
+  });
+
+  test('defaults worktreePaths to an empty list when missing', async () => {
+    // given
+    const withoutPaths = { ...savedState, tabs: [{ ...savedState.tabs[0], worktreePaths: undefined }] };
+    await writeFile(join(dir, 'state.json'), JSON.stringify(withoutPaths));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result.state.tabs[0]?.worktreePaths).toEqual([]);
   });
 
   test('defaults closedSessions when missing', async () => {

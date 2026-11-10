@@ -49,6 +49,7 @@ const tab: TabState = {
   cardKey: 'MPL-20',
   sessionId: 's1',
   worktreePath: '/home/me/wts/maple-mpl-20-file-tree/',
+  worktreePaths: [],
 };
 
 const pr: PrInfo = {

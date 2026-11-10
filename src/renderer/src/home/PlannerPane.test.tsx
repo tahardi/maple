@@ -16,6 +16,7 @@ const PLANNER: TabState = {
   cardKey: null,
   sessionId: 's-p1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 type Options = {

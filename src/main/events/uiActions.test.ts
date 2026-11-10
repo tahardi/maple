@@ -12,6 +12,7 @@ const cardTab: TabState = {
   cardKey: 'MPL-7',
   sessionId: 's1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 const plannerTab: TabState = { ...cardTab, kind: 'planner', cardKey: null };

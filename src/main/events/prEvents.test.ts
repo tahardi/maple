@@ -12,6 +12,7 @@ const tab: TabState = {
   cardKey: 'MPL-189',
   sessionId: 's1',
   worktreePath: '/wt',
+  worktreePaths: [],
 };
 const repo = 'tahardi/maple';
 const refs = { project: 'MPL', card: 'MPL-189', tab: 't1', session: 's1' };

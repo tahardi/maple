@@ -132,7 +132,15 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -149,8 +157,24 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
-            { id: 't2', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-2', sessionId: 's2', worktreePath: null },
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
+            {
+              id: 't2',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-2',
+              sessionId: 's2',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -175,7 +199,15 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -197,7 +229,15 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 'v1', projectKey: 'BEAR', kind: 'vault', cardKey: null, sessionId: 's1', worktreePath: null },
+            {
+              id: 'v1',
+              projectKey: 'BEAR',
+              kind: 'vault',
+              cardKey: null,
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -218,7 +258,15 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 'v1', projectKey: 'BEAR', kind: 'vault', cardKey: null, sessionId: 's1', worktreePath: null },
+            {
+              id: 'v1',
+              projectKey: 'BEAR',
+              kind: 'vault',
+              cardKey: null,
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -251,8 +299,24 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
-            { id: 't2', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-2', sessionId: 's2', worktreePath: null },
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
+            {
+              id: 't2',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-2',
+              sessionId: 's2',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -286,6 +350,7 @@ describe('App', () => {
         cardKey: null,
         sessionId: `s-planner-${projectKey}`,
         worktreePath: null,
+        worktreePaths: [],
       }),
     );
     fakeMaple({
@@ -293,7 +358,15 @@ describe('App', () => {
         openPlanner,
         list: () =>
           Promise.resolve([
-            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -322,6 +395,7 @@ describe('App', () => {
         cardKey: null,
         sessionId: `s-planner-${projectKey}`,
         worktreePath: null,
+        worktreePaths: [],
       }),
     );
     fakeMaple({ tabs: { openPlanner } });

@@ -30,6 +30,7 @@ const cardTab: TabState = {
   cardKey: 'DIG-44',
   sessionId: 's1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 function fakeWindow(destroyed: boolean) {

@@ -109,6 +109,7 @@ const tab = (id: string, projectKey: string): TabState => ({
   cardKey: `${projectKey}-${id}`,
   sessionId: id,
   worktreePath: null,
+  worktreePaths: [],
 });
 const status = (tabId: string, dot: Dot): TabStatus => ({
   tabId,

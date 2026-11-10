@@ -23,6 +23,7 @@ const vaultTab: TabState = {
   cardKey: null,
   sessionId: 's-v1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 function fakeVault() {

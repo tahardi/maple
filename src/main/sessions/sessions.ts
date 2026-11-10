@@ -6,7 +6,7 @@ import { parseBatch } from '@shared/batch';
 import { cardPrompt } from '@shared/prompts';
 import type { MapleConfig } from '@shared/types/config';
 import type { TabState } from '@shared/types/tabs';
-import { findWorktree } from '@main/git/git';
+import { findWorktrees } from '@main/git/git';
 import { appLogger, type Logger } from '@main/app/log';
 import { tmuxArgs } from './tmux';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
@@ -163,8 +163,21 @@ export class SessionManager extends EventEmitter<Events> {
     return [...this.sessions.values()].map((session) => session.tab);
   }
 
-  setWorktree(tabId: string, path: string | null): void {
+  setWorktrees(tabId: string, paths: string[]): void {
     const session = this.require(tabId);
+    const { worktreePath, worktreePaths } = session.tab;
+    const newest = paths.at(0) ?? null;
+    const kept = worktreePath !== null && paths.includes(worktreePath) ? worktreePath : newest;
+    const selected = newest !== null && !worktreePaths.includes(newest) ? newest : kept;
+    session.tab = { ...session.tab, worktreePath: selected, worktreePaths: paths };
+    this.changed();
+  }
+
+  selectWorktree(tabId: string, path: string): void {
+    const session = this.require(tabId);
+    if (!session.tab.worktreePaths.includes(path)) {
+      throw new Error(`selecting worktree: ${path} is not a worktree of ${session.tab.cardKey ?? tabId}`);
+    }
     session.tab = { ...session.tab, worktreePath: path };
     this.changed();
   }
@@ -257,6 +270,7 @@ export class SessionManager extends EventEmitter<Events> {
       cardKey,
       sessionId: resumeId ?? this.deps.uuid(),
       worktreePath: null,
+      worktreePaths: [],
     };
     const session: Session = { tab, pty: null, alive: false, backlog: '', line: '', stopWatch: () => undefined };
     this.sessions.set(tab.id, session);
@@ -356,20 +370,21 @@ export class SessionManager extends EventEmitter<Events> {
     let done = false;
     let stop: () => void = () => undefined;
     const check = async () => {
-      const path = await findWorktree(worktreesDir, cardKey).catch((err: unknown) => {
-        this.log.warn('worktree', 'failed', { operation: 'findWorktree', cardKey, error: message(err) });
+      const paths = await findWorktrees(worktreesDir, cardKey).catch((err: unknown) => {
+        this.log.warn('worktree', 'failed', { operation: 'findWorktrees', cardKey, error: message(err) });
         return undefined;
       });
-      const current = session.tab.worktreePath;
-      if (done || path === undefined || path === current || this.sessions.get(session.tab.id) !== session) {
+      const current = session.tab.worktreePaths;
+      const unchanged = paths?.length === current.length && paths.every((path, i) => path === current[i]);
+      if (done || paths === undefined || unchanged || this.sessions.get(session.tab.id) !== session) {
         return;
       }
-      if (path === null) {
+      if (paths.length === 0) {
         this.log.info('worktree', 'gone', { cardKey });
       } else {
-        this.log.info('worktree', 'found', { cardKey, path });
+        this.log.info('worktree', 'found', { cardKey, paths });
       }
-      this.setWorktree(session.tab.id, path);
+      this.setWorktrees(session.tab.id, paths);
     };
     try {
       stop = watchWorktrees(worktreesDir, () => void check());

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ProjectConfig } from '@shared/types/config';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 import { PR_LIST_LIMIT } from '@main/github/pr';
+import { worktreeRepo } from '@shared/worktree';
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
@@ -25,6 +26,7 @@ export async function projectRunner(
   projectByKey: (key: string) => Promise<ProjectConfig | null>,
   projectKey: string | null,
   branch: string | null,
+  worktree: string | null,
   run: typeof execFile = execFile,
 ): Promise<CommandRunner> {
   if (projectKey === null) {
@@ -37,7 +39,12 @@ export async function projectRunner(
   if (branch === null || project.otherRepos.length === 0) {
     return ghRunner(project.repo, run);
   }
-  for (const repo of [project.repo, ...project.otherRepos]) {
+  const repos = [project.repo, ...project.otherRepos];
+  const named = worktree === null ? null : worktreeRepo(worktree, repos);
+  if (named !== null) {
+    return ghRunner(named, run);
+  }
+  for (const repo of repos) {
     const runner = ghRunner(repo, run);
     if (await hasPr(runner, repo, branch)) {
       return runner;

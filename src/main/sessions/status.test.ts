@@ -13,6 +13,7 @@ const cardTab: TabState = {
   cardKey: 'DIG-44',
   sessionId: 's1',
   worktreePath: '/wts/dig-44',
+  worktreePaths: [],
 };
 
 const card: Card = {

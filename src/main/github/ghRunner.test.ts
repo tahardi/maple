@@ -85,7 +85,7 @@ describe('projectRunner', () => {
     const { fake, run } = fakeExecFile(null);
     // when
     await (
-      await projectRunner(byKey, 'DIG', null, run)
+      await projectRunner(byKey, 'DIG', null, null, run)
     )('gh', ['pr', 'list']);
     // then
     expect(fake.mock.calls[0]?.[2]).toMatchObject({ env: { GH_REPO: 'tahardi/dig-days' } });
@@ -99,7 +99,7 @@ describe('projectRunner', () => {
     // given
     const { fake, run } = fakeExecFile(null);
     // when
-    const result = projectRunner(byKey, key, branch, run);
+    const result = projectRunner(byKey, key, branch, null, run);
     // then
     await expect(result).rejects.toThrow(new RegExp(`^${want}$`));
     expect(fake).not.toHaveBeenCalled();
@@ -183,11 +183,34 @@ describe('projectRunner', () => {
     // given
     const { fake, repos, run } = fakeRepos(replies);
     // when
-    const runner = await projectRunner(() => Promise.resolve(config), config.jiraKey, head, run);
+    const runner = await projectRunner(() => Promise.resolve(config), config.jiraKey, head, null, run);
     await runner('gh', ['pr', 'view']);
     // then
     expect(repos()).toEqual(want);
     expect(fake.mock.calls.slice(0, -1).map(([, args]) => args)).toEqual(want.slice(0, -1).map(() => probe));
+  });
+
+  test.each([
+    { worktree: '/wts/halo-xena-92-go-caches', want: ['tahardi/halo'] },
+    { worktree: '/wts/xena-xena-92-go-caches', want: ['tahardi/xena'] },
+  ])('uses the repo named by worktree $worktree without probing', async ({ worktree, want }) => {
+    // given
+    const { repos, run } = fakeRepos({ 'tahardi/xena': { stdout: found }, 'tahardi/halo': { stdout: found } });
+    // when
+    const runner = await projectRunner(() => Promise.resolve(three), 'XENA', branch, worktree, run);
+    await runner('gh', ['pr', 'view']);
+    // then
+    expect(repos()).toEqual(want);
+  });
+
+  test('probes every repo when the worktree names none of them', async () => {
+    // given
+    const { repos, run } = fakeRepos({ 'tahardi/xena': { stdout: none }, 'tahardi/dotclaude': { stdout: found } });
+    // when
+    const runner = await projectRunner(() => Promise.resolve(xena), 'XENA', branch, '/wts/other-xena-92-x', run);
+    await runner('gh', ['pr', 'view']);
+    // then
+    expect(repos()).toEqual(['tahardi/xena', 'tahardi/dotclaude', 'tahardi/dotclaude']);
   });
 
   test.each([
@@ -205,7 +228,7 @@ describe('projectRunner', () => {
     // given
     const { run } = fakeRepos(replies);
     // when
-    const result = projectRunner(() => Promise.resolve(xena), 'XENA', branch, run);
+    const result = projectRunner(() => Promise.resolve(xena), 'XENA', branch, null, run);
     // then
     await expect(result).rejects.toThrow(want);
   });
@@ -218,7 +241,7 @@ describe('projectRunner', () => {
     // given
     const { repos, run } = fakeRepos({ 'tahardi/xena': { stdout }, 'tahardi/dotclaude': { stdout: found } });
     // when
-    const result = projectRunner(() => Promise.resolve(xena), 'XENA', branch, run);
+    const result = projectRunner(() => Promise.resolve(xena), 'XENA', branch, null, run);
     // then
     await expect(result).rejects.toThrow();
     expect(repos()).toEqual(['tahardi/xena']);

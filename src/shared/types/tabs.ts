@@ -6,6 +6,7 @@ export type TabState = {
   cardKey: string | null;
   sessionId: string;
   worktreePath: string | null;
+  worktreePaths: string[];
 };
 export type SessionCost = {
   inputTokens: number;

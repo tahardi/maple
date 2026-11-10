@@ -17,6 +17,7 @@ const tab = (id: string, cardKey: string): TabState => ({
   cardKey,
   sessionId: `s-${id}`,
   worktreePath: null,
+  worktreePaths: [],
 });
 
 const WITH_DIG_46 = { ...SPRINT, cards: [...SPRINT.cards, card('DIG-46', 'To Do')] };

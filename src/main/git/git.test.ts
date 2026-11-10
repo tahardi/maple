@@ -18,7 +18,7 @@ import {
   changes,
   currentBranch,
   defaultBranch,
-  findWorktree,
+  findWorktrees,
   listFiles,
   mergeBase,
   readFilePair,
@@ -256,13 +256,26 @@ describe('git', () => {
     expect(pair).toEqual({ kind: 'text', path: 'alias.txt', base: null, current: 'a\nb\nc\n' });
   });
 
-  test('findWorktree finds the worktree dir by card key', async () => {
+  test('findWorktrees lists every worktree dir for the card key', async () => {
     // given
     const worktreesDir = join(root, 'wts');
     // when
-    const found = await findWorktree(worktreesDir, 'MPL-1');
+    const found = await findWorktrees(worktreesDir, 'MPL-1');
     // then
-    expect(found).toBe(worktree);
+    expect(found).toEqual([worktree]);
+  });
+
+  test('findWorktrees lists the newest worktree first', async () => {
+    // given
+    const worktreesDir = join(root, 'wts');
+    const other = join(worktreesDir, 'other-mpl-1-x');
+    mkdirSync(other);
+    const later = new Date(Date.now() + 60_000);
+    utimesSync(other, later, later);
+    // when
+    const found = await findWorktrees(worktreesDir, 'MPL-1');
+    // then
+    expect(found).toEqual([other, worktree]);
   });
 
   test('changes is empty on a branch with no edits', async () => {
@@ -555,13 +568,13 @@ describe('git', () => {
     expect(readFileSync(log, 'utf8')).toBe('-c core.fsmonitor=false show HEAD:keep.txt\n');
   });
 
-  test('findWorktree returns null when no dir matches the key', async () => {
+  test('findWorktrees returns no dirs when none match the key', async () => {
     // given
     const worktreesDir = join(root, 'wts');
     // when
-    const found = await findWorktree(worktreesDir, 'MPL-2');
+    const found = await findWorktrees(worktreesDir, 'MPL-2');
     // then
-    expect(found).toBeNull();
+    expect(found).toEqual([]);
   });
 
   test('headSha returns the commit HEAD points at', async () => {

@@ -132,6 +132,7 @@ describe('ProjectMenu', () => {
       cardKey: `${projectKey}-${id}`,
       sessionId: id,
       worktreePath: null,
+      worktreePaths: [],
     });
     const status = (tabId: string, dot: Dot) => ({
       tabId,
@@ -165,6 +166,7 @@ describe('ProjectMenu', () => {
       cardKey: `DIG-${id}`,
       sessionId: id,
       worktreePath: null,
+      worktreePaths: [],
     });
     useMaple.setState({
       tabs: [tab('1'), tab('2')],
