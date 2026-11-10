@@ -109,6 +109,7 @@ describe('loadConfig', () => {
     { name: 'backgroundWaitMinutes missing', config: validConfig, check: { backgroundWaitMinutes: 10 } },
     { name: 'eventKeepDays missing', config: validConfig, check: { eventKeepDays: 365 } },
     { name: 'eventMaxMegabytes missing', config: validConfig, check: { eventMaxMegabytes: 200 } },
+    { name: 'stateBackups missing', config: validConfig, check: { stateBackups: 3 } },
   ])('defaults when $name', async ({ config, check }) => {
     // given
     await writeFile(join(dir, 'config.json'), JSON.stringify(config));
@@ -155,6 +156,16 @@ describe('loadConfig', () => {
       name: 'an eventMaxMegabytes of zero',
       content: JSON.stringify({ ...validConfig, eventMaxMegabytes: 0 }),
       error: /^reading config: eventMaxMegabytes:/,
+    },
+    {
+      name: 'a stateBackups of zero',
+      content: JSON.stringify({ ...validConfig, stateBackups: 0 }),
+      error: /^reading config: stateBackups:/,
+    },
+    {
+      name: 'a fractional stateBackups',
+      content: JSON.stringify({ ...validConfig, stateBackups: 1.5 }),
+      error: /^reading config: stateBackups:/,
     },
     {
       name: 'string jiraBoardId',

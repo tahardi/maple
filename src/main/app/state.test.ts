@@ -196,17 +196,44 @@ describe('state', () => {
     expect(await readFile(join(dir, 'state.json'), 'utf8')).toBe('"old"');
   });
 
-  test('backs up a valid state.json on load', async () => {
+  test('backs up a changed state.json on each load', async () => {
+    // given
+    const zooms = [1, 2, 3];
+    // when
+    for (const zoom of zooms) {
+      await saveState({ ...savedState, zoom }, dir);
+      await loadState(dir);
+    }
+    // then
+    for (const [n, zoom] of [
+      ['1', 3],
+      ['2', 2],
+      ['3', 1],
+    ] as const) {
+      expect(JSON.parse(await readFile(join(dir, `state.json.${n}`), 'utf8'))).toEqual({ ...savedState, zoom });
+    }
+  });
+
+  test('keeps the given number of backups on load', async () => {
     // given
     await saveState(savedState, dir);
+    await loadState(dir, 1);
     // when
-    await loadState(dir);
-    await loadState(dir);
-    await loadState(dir);
+    await saveState({ ...savedState, zoom: 3 }, dir);
+    await loadState(dir, 1);
     // then
-    for (const n of ['1', '2', '3']) {
-      expect(JSON.parse(await readFile(join(dir, `state.json.${n}`), 'utf8'))).toEqual(savedState);
-    }
+    expect(await readdir(dir)).not.toContain('state.json.2');
+  });
+
+  test('names the newest backup when state.json is unreadable', async () => {
+    // given
+    await saveState(savedState, dir);
+    await loadState(dir);
+    await writeFile(join(dir, 'state.json'), '{');
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result.warning).toBe(`${keptWarning(dir)} (newest backup: ${join(dir, 'state.json.1')})`);
   });
 
   test.each([{ name: 'missing' }])('starts empty with no warning when the file is $name', async () => {

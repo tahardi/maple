@@ -73,4 +73,29 @@ describe('backupState', () => {
     // then
     await expect(backingUp).rejects.toMatchObject({ code: 'ENOENT' });
   });
+
+  test('keeps only the given number of backups', async () => {
+    // given
+    const contents = ['"a"', '"b"', '"c"'];
+    // when
+    for (const content of contents) {
+      await writeFile(path, content);
+      await backupState(path, 2);
+    }
+    // then
+    expect(await readFile(`${path}.1`, 'utf8')).toBe('"c"');
+    expect(await readFile(`${path}.2`, 'utf8')).toBe('"b"');
+    expect(await readdir(dir)).not.toContain('state.json.3');
+  });
+
+  test('skips the backup when state.json matches state.json.1', async () => {
+    // given
+    await writeFile(path, '"a"');
+    await backupState(path);
+    // when
+    await backupState(path);
+    // then
+    expect(await readFile(`${path}.1`, 'utf8')).toBe('"a"');
+    expect(await readdir(dir)).not.toContain('state.json.2');
+  });
 });

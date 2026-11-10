@@ -1,8 +1,8 @@
-import { mkdir, open, readFile, rename } from 'node:fs/promises';
+import { access, mkdir, open, readFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Dot, TabState } from '@shared/types/tabs';
 import { z } from 'zod';
-import { backupState } from './backupState';
+import { backupState, STATE_BACKUPS } from './backupState';
 import { configDir } from './config';
 import { dotSchema } from './dotSchema';
 
@@ -50,7 +50,10 @@ async function keepCorrupt(path: string): Promise<string> {
   }
 }
 
-export async function loadState(dir: string = configDir()): Promise<{ state: SavedState; warning: string | null }> {
+export async function loadState(
+  dir: string = configDir(),
+  keep: number = STATE_BACKUPS,
+): Promise<{ state: SavedState; warning: string | null }> {
   const path = join(dir, 'state.json');
   let state: SavedState;
   try {
@@ -61,10 +64,16 @@ export async function loadState(dir: string = configDir()): Promise<{ state: Sav
     if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
       return { state: emptyState(), warning: null };
     }
-    return { state: emptyState(), warning: await keepCorrupt(path) };
+    const warning = await keepCorrupt(path);
+    const backup = `${path}.1`;
+    const hasBackup = await access(backup).then(
+      () => true,
+      () => false,
+    );
+    return { state: emptyState(), warning: hasBackup ? `${warning} (newest backup: ${backup})` : warning };
   }
   try {
-    await backupState(path);
+    await backupState(path, keep);
     return { state, warning: null };
   } catch (err) {
     return { state, warning: `backing up state: ${err instanceof Error ? err.message : String(err)}` };

@@ -56,6 +56,7 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
   "backgroundWaitMinutes": 10,
   "eventKeepDays": 365,
   "eventMaxMegabytes": 200,
+  "stateBackups": 3,
   "projects": [
     {
       "name": "Maple",
@@ -70,13 +71,13 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
 
 `eventKeepDays` and `eventMaxMegabytes` limit how much event history Maple keeps. On startup Maple deletes older days past these limits, and asks first if today's log would be deleted.
 
-Maple saves open tabs in `state.json` in the same dir. It keeps the last three good copies as `state.json.1` (newest) to `state.json.3`, and moves a file it cannot read to `state.json.corrupt`. To restore, quit Maple, copy a backup over `state.json`, and start Maple again.
-
 `repo` is the project's GitHub repository as `owner/name`. Maple runs each `gh` call for the project's PRs on the desktop, against `repo` or the `otherRepos` entry that has the card's PR. The review diff and the merge read from GitHub, and the worktree supplies only the branch name, so they never depend on the contents of a local checkout.
 
 `otherRepos` is optional and lists more `owner/name` repos the project's cards may open PRs in. Maple uses the first repo in `[repo, ...otherRepos]` that has a PR for the card's branch.
 
 `vaultDir` is optional. When set, every card tab can switch its file tree to the Markdown notes in that Obsidian vault and open them read-only next to the card's Claude session. Notes the card's Claude session wrote show as changed.
+
+Maple saves open tabs in `state.json` in `MAPLE_CONFIG_DIR`. At each launch, if `state.json` changed since the last backup, Maple copies it to `state.json.1` and moves older copies up, keeping `stateBackups` copies (default 3) with the newest in `state.json.1`. A `state.json` Maple cannot read moves to `state.json.corrupt`, and the banner names the newest backup. To restore, quit Maple, copy a backup over `state.json`, and start Maple again.
 
 ## Status
 
