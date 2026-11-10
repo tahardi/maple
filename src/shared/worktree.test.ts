@@ -52,29 +52,24 @@ describe('worktreeRepo', () => {
   const repos = ['tahardi/xena', 'tahardi/halo', 'tahardi/bearclave', 'tahardi/bearclave-zkvm'];
 
   test.each([
-    { worktree: '/wts/halo-xena-62-config', want: 'tahardi/halo' },
-    { worktree: '/wts/xena-xena-62-vm-net', want: 'tahardi/xena' },
-    { worktree: '/wts/bearclave-zkvm-bear-25-groth16', want: 'tahardi/bearclave-zkvm' },
-    { worktree: '/wts/bearclave-bear-26-attest', want: 'tahardi/bearclave' },
-    { worktree: '/wts/Halo-xena-62-config', want: 'tahardi/halo' },
-    { worktree: '/wts/dotclaude-xena-62-skills', want: null },
-    { worktree: '/wts/halo', want: null },
-  ])('picks $want for $worktree', ({ worktree, want }) => {
+    { worktree: '/wts/halo-xena-62-config', repos, want: 'tahardi/halo' },
+    { worktree: '/wts/xena-xena-62-vm-net', repos, want: 'tahardi/xena' },
+    { worktree: '/wts/bearclave-zkvm-bear-25-groth16', repos, want: 'tahardi/bearclave-zkvm' },
+    { worktree: '/wts/bearclave-bear-26-attest', repos, want: 'tahardi/bearclave' },
+    { worktree: '/wts/Halo-xena-62-config', repos, want: 'tahardi/halo' },
+    { worktree: '/wts/dotclaude-xena-62-skills', repos, want: null },
+    { worktree: '/wts/halo', repos, want: null },
+    {
+      worktree: '/wts/bearclave-zkvm-bear-25-groth16',
+      repos: ['a-much-longer-owner/bearclave', 'x/bearclave-zkvm'],
+      want: 'x/bearclave-zkvm',
+    },
+  ])('picks $want for $worktree from $repos', ({ worktree, repos: configured, want }) => {
     // given
-    const configured = repos;
+    const path = worktree;
     // when
-    const repo = worktreeRepo(worktree, configured);
+    const repo = worktreeRepo(path, configured);
     // then
     expect(repo).toBe(want);
-  });
-
-  test('picks the longest repo name whatever the owner length', () => {
-    // given
-    const configured = ['a-much-longer-owner/bearclave', 'x/bearclave-zkvm'];
-    const worktree = '/wts/bearclave-zkvm-bear-25-groth16';
-    // when
-    const repo = worktreeRepo(worktree, configured);
-    // then
-    expect(repo).toBe('x/bearclave-zkvm');
   });
 });
