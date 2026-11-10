@@ -13,6 +13,7 @@ const info: PrInfo = {
   needsTaylor: '- Try it on device',
   cardImpacts: '- MPL-21: rename foo to bar',
   body: '',
+  headSha: '0123456789abcdef0123456789abcdef01234567',
   checks: { passed: 5, failed: 0, pending: 0, total: 5, runs: [] },
 };
 
@@ -88,6 +89,77 @@ describe('PrSummary', () => {
     const title = screen.getByText(info.title);
     expect(title.previousElementSibling).toContainElement(screen.getByRole('button', { name: 'PR #33' }));
     expect(title.nextElementSibling).toContainElement(screen.getByText('Reviewing 0123456'));
+  });
+
+  test.each<{ name: string; headSha: string | null; shown: boolean }>([
+    { name: 'the PR moved past the reviewed commit', headSha: 'd'.repeat(40), shown: true },
+    { name: 'the PR is at the reviewed commit', headSha: info.headSha, shown: false },
+    { name: 'no review is loaded', headSha: null, shown: false },
+  ])('shows the new commits banner: $name', ({ headSha, shown }) => {
+    // given
+    const pr = fetched(info);
+    // when
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        projectRepo="tahardi/maple"
+        headSha={headSha}
+        searchedRepos={[]}
+      />,
+    );
+    // then
+    const banner = screen.queryByRole('status');
+    if (shown) {
+      expect(banner).toHaveTextContent('This PR has new commits');
+    } else {
+      expect(banner).toBeNull();
+    }
+  });
+
+  test('shows the new commits banner above the reviewed commit row', () => {
+    // given
+    const pr = fetched(info);
+    // when
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        projectRepo="tahardi/maple"
+        headSha={'d'.repeat(40)}
+        searchedRepos={[]}
+      />,
+    );
+    // then
+    expect(screen.getByRole('status').nextElementSibling).toContainElement(
+      screen.getByRole('button', { name: 'Reload review' }),
+    );
+  });
+
+  test('shows no new commits banner for a merged PR', () => {
+    // given
+    const pr = fetched({ ...info, state: 'MERGED' });
+    // when
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        projectRepo="tahardi/maple"
+        headSha={'d'.repeat(40)}
+        searchedRepos={[]}
+      />,
+    );
+    // then
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   test('shows markup in a title as text', () => {

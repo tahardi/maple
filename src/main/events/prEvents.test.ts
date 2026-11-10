@@ -31,6 +31,7 @@ const pr33: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
+  headSha: 'a'.repeat(40),
   checks: pending,
 };
 const pr34: PrInfo = { ...pr33, number: 34 };

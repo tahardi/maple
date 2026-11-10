@@ -12,7 +12,7 @@ const prSchema = z.object({
   body: z.string(),
 });
 
-const listSchema = z.array(prSchema.extend({ isCrossRepository: z.boolean() }));
+const listSchema = z.array(prSchema.extend({ headRefOid: z.string(), isCrossRepository: z.boolean() }));
 
 const checksSchema = z.array(
   z.object({
@@ -73,7 +73,7 @@ export async function prForBranch(run: Runner, worktree: string, branch: string)
       '--limit',
       PR_LIST_LIMIT,
       '--json',
-      'number,url,title,state,body,isCrossRepository',
+      'number,url,title,state,body,headRefOid,isCrossRepository',
     ],
     worktree,
   );
@@ -85,7 +85,12 @@ export async function prForBranch(run: Runner, worktree: string, branch: string)
     return null;
   }
   const pr = prSchema.parse(listed);
-  return { ...pr, ...parsePrBody(pr.body), checks: await checksFor(run, worktree, pr.number) };
+  return {
+    ...pr,
+    headSha: listed.headRefOid,
+    ...parsePrBody(pr.body),
+    checks: await checksFor(run, worktree, pr.number),
+  };
 }
 
 export async function diffLines(
@@ -136,7 +141,7 @@ export async function approveAndMerge(run: Runner, num: number, headSha: string,
     throw new Error('approving PR: PR comes from a fork');
   }
   if (pinned.headRefOid !== headSha) {
-    throw new Error('approving PR: the PR changed after the diff loaded; review it again');
+    throw new Error('approving PR: the PR has new commits since the review loaded; click Reload review');
   }
   if (pinned.baseRefName !== defaultBranch) {
     throw new Error(`approving PR: PR targets ${pinned.baseRefName}, not ${defaultBranch}`);
