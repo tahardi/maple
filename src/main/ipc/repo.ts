@@ -10,6 +10,7 @@ import {
   writeWorktreeFile,
 } from '@main/git/git';
 import { appLogger, logFailure, type Logger } from '@main/app/log';
+import { hasTryTarget } from '@main/git/makeTarget';
 import { watchWorktree } from '@main/git/worktreeWatcher';
 import { send, type IpcDeps } from './index';
 import { handle, tabIdArg } from './validated';
@@ -51,8 +52,8 @@ export function registerRepo(deps: IpcDeps, logger: Logger = appLogger): void {
       if (path === null) {
         return null;
       }
-      const [name, branch] = await Promise.all([repoName(path), currentBranch(path)]);
-      return { name, branch };
+      const [name, branch, hasTry] = await Promise.all([repoName(path), currentBranch(path), hasTryTarget(path)]);
+      return { name, branch, hasTry };
     }),
   );
   handle('repo:readFile', z.tuple([tabIdArg, z.string().max(4096)]), (tabId, file) =>

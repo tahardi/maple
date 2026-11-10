@@ -1,22 +1,25 @@
 import { z } from 'zod';
+import { appLogger, logFailure, type Logger } from '@main/app/log';
 import { send, type IpcDeps } from './index';
 import { handle, on, sizeArg, tabIdArg } from './validated';
 
-export function registerTerminal({ sessions, terminals, project, window }: IpcDeps): void {
-  handle('terminal:open', z.tuple([tabIdArg, tabIdArg]), async (tabId, terminalId) => {
-    if (terminalId !== tabId && !terminalId.startsWith(`${tabId}:`)) {
-      throw new Error(`opening terminal: ${terminalId} is not a terminal of ${tabId}`);
-    }
-    const tab = sessions.get(tabId);
-    if (tab === null) {
-      throw new Error(`opening terminal: unknown tab ${tabId}`);
-    }
-    const cwd = tab.worktreePath ?? (await project(tab.projectKey))?.plannerDir;
-    if (cwd === undefined) {
-      throw new Error(`opening terminal: unknown project ${tab.projectKey}`);
-    }
-    terminals.open(terminalId, cwd);
-  });
+export function registerTerminal({ sessions, terminals, project, window }: IpcDeps, logger: Logger = appLogger): void {
+  handle('terminal:open', z.tuple([tabIdArg, tabIdArg]), (tabId, terminalId) =>
+    logFailure(logger, 'terminal', { operation: 'terminal:open', args: [tabId, terminalId] }, async () => {
+      if (terminalId !== tabId && !terminalId.startsWith(`${tabId}:`)) {
+        throw new Error(`opening terminal: ${terminalId} is not a terminal of ${tabId}`);
+      }
+      const tab = sessions.get(tabId);
+      if (tab === null) {
+        throw new Error(`opening terminal: unknown tab ${tabId}`);
+      }
+      const cwd = tab.worktreePath ?? (await project(tab.projectKey))?.plannerDir;
+      if (cwd === undefined) {
+        throw new Error(`opening terminal: unknown project ${tab.projectKey}`);
+      }
+      terminals.open(terminalId, cwd);
+    }),
+  );
   handle('terminal:close', z.tuple([tabIdArg]), (terminalId) => {
     terminals.close(terminalId);
   });

@@ -36,6 +36,8 @@ const project: ProjectConfig = {
   otherRepos: [],
 };
 
+const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+
 function setup(tabs: TabState[] = [tab]) {
   const sessions = { get: vi.fn((tabId: string) => tabs.find((t) => t.id === tabId) ?? null) };
   const terminals = Object.assign(new EventEmitter(), {
@@ -47,23 +49,26 @@ function setup(tabs: TabState[] = [tab]) {
   });
   const sendToWindow = vi.fn();
   const win = { isDestroyed: () => false, webContents: { send: sendToWindow } } as unknown as BrowserWindow;
-  registerTerminal({
-    window: () => win,
-    worktreeFor: () => null,
-    project: (key) => Promise.resolve(key === 'DIG' ? project : null),
-    sessions: sessions as unknown as SessionManager,
-    terminals: terminals as unknown as Terminals,
-    status: {} as StatusEngine,
-    setActiveTab: () => undefined,
-    warnings: () => [],
-    setNotifications: () => Promise.resolve(),
-    setZoom: () => Promise.resolve(),
-    configLoaded: () => Promise.resolve(),
-    setLastProject: () => Promise.resolve(),
-    lastProject: () => Promise.resolve(null),
-    setSeen: () => Promise.resolve(),
-    seen: () => Promise.resolve({}),
-  });
+  registerTerminal(
+    {
+      window: () => win,
+      worktreeFor: () => null,
+      project: (key) => Promise.resolve(key === 'DIG' ? project : null),
+      sessions: sessions as unknown as SessionManager,
+      terminals: terminals as unknown as Terminals,
+      status: {} as StatusEngine,
+      setActiveTab: () => undefined,
+      warnings: () => [],
+      setNotifications: () => Promise.resolve(),
+      setZoom: () => Promise.resolve(),
+      configLoaded: () => Promise.resolve(),
+      setLastProject: () => Promise.resolve(),
+      lastProject: () => Promise.resolve(null),
+      setSeen: () => Promise.resolve(),
+      seen: () => Promise.resolve({}),
+    },
+    logger,
+  );
   return { terminals, sendToWindow };
 }
 
@@ -136,6 +141,33 @@ describe('registerTerminal', () => {
     // then
     expect(got).toThrow('handling terminal:close: arguments are invalid');
     expect(terminals.close).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'an unknown tab', tabs: [], spawn: null, error: 'opening terminal: unknown tab t1' },
+    {
+      name: 'a shell that fails to start',
+      tabs: [tab],
+      spawn: 'spawning shell: no pty',
+      error: 'spawning shell: no pty',
+    },
+  ])('terminal:open logs $name at warn and rethrows', async ({ tabs, spawn, error }) => {
+    // given
+    const { terminals } = setup(tabs);
+    if (spawn !== null) {
+      terminals.open.mockImplementation(() => {
+        throw new Error(spawn);
+      });
+    }
+    // when
+    const got = invoke('terminal:open', 't1', 't1:2');
+    // then
+    await expect(got).rejects.toThrow(error);
+    expect(logger.warn).toHaveBeenCalledWith('terminal', 'failed', {
+      operation: 'terminal:open',
+      args: ['t1', 't1:2'],
+      error,
+    });
   });
 
   test('terminal:open rejects an unknown tab', async () => {

@@ -42,12 +42,12 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       wheelLines: () => wheelLinesRef.current,
     };
   }, [tabId]);
-  useXterm(host, io);
+  const focusTerminal = useXterm(host, io);
 
   return (
     <div className={styles.pane}>
       <ActionBar actions={actions}>
-        <ScrollSpeed value={wheelLines} onChange={setWheelLines} />
+        <ScrollSpeed value={wheelLines} onChange={setWheelLines} onClose={focusTerminal} />
       </ActionBar>
       <div className={styles.body}>
         <div ref={host} className={styles.terminal} />

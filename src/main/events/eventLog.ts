@@ -17,7 +17,7 @@ import { appLogger, logFailure, redact, type Logger } from '@main/app/log';
 import { closeTornLine } from './closeTornLine';
 import { dayFiles } from './dayFiles';
 import { dayName } from './dayName';
-import { pruneEvents, type PruneLimits } from './pruneEvents';
+import { KEEP_DAYS, pruneEvents, type PruneLimits } from './pruneEvents';
 
 export type EventLog<S extends EventSchemas> = {
   append<T extends keyof S & string>(type: T, refs: EventRefs, data: z.input<S[T]>): Promise<void>;
@@ -118,10 +118,18 @@ export function createEventLog<S extends EventSchemas = typeof eventSchemas>(
 }
 
 let current: EventLog<typeof eventSchemas> | null = null;
+let keepDays = KEEP_DAYS;
 
 export function startEventLog(options: PruneOptions = {}): EventLog<typeof eventSchemas> {
-  current ??= createEventLog(options);
+  if (!current) {
+    keepDays = options.limits?.keepDays ?? KEEP_DAYS;
+    current = createEventLog(options);
+  }
   return current;
+}
+
+export function eventKeepDays(): number {
+  return keepDays;
 }
 
 export function eventLog(): EventLog<typeof eventSchemas> {

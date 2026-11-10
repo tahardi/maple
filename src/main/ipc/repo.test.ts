@@ -7,20 +7,32 @@ import { registerRepo } from './repo';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, changes, currentBranch, listFiles, mergeBase, readFilePair, repoName, searchFiles, writeWorktreeFile } =
-  vi.hoisted(() => ({
-    handle: vi.fn<(channel: string, handler: Handler) => void>(),
-    changes: vi.fn(),
-    currentBranch: vi.fn(),
-    listFiles: vi.fn(),
-    mergeBase: vi.fn(),
-    readFilePair: vi.fn(),
-    repoName: vi.fn(),
-    searchFiles: vi.fn(),
-    writeWorktreeFile: vi.fn(),
-  }));
+const {
+  handle,
+  changes,
+  currentBranch,
+  hasTryTarget,
+  listFiles,
+  mergeBase,
+  readFilePair,
+  repoName,
+  searchFiles,
+  writeWorktreeFile,
+} = vi.hoisted(() => ({
+  handle: vi.fn<(channel: string, handler: Handler) => void>(),
+  changes: vi.fn(),
+  currentBranch: vi.fn(),
+  hasTryTarget: vi.fn(),
+  listFiles: vi.fn(),
+  mergeBase: vi.fn(),
+  readFilePair: vi.fn(),
+  repoName: vi.fn(),
+  searchFiles: vi.fn(),
+  writeWorktreeFile: vi.fn(),
+}));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
+vi.mock('@main/git/makeTarget', () => ({ hasTryTarget }));
 vi.mock('@main/git/git', () => ({
   changes,
   currentBranch,
@@ -71,12 +83,14 @@ describe('registerRepo', () => {
     mergeBase.mockResolvedValue('base');
     repoName.mockResolvedValue('maple');
     currentBranch.mockResolvedValue('mpl-155-repo-name');
+    hasTryTarget.mockResolvedValue(true);
   });
 
   test.each([
     { channel: 'repo:changes', args: ['t1'], fail: changes },
     { channel: 'repo:info', args: ['t1'], fail: repoName },
     { channel: 'repo:info', args: ['t1'], fail: currentBranch },
+    { channel: 'repo:info', args: ['t1'], fail: hasTryTarget },
     { channel: 'repo:listFiles', args: ['t1'], fail: listFiles },
     { channel: 'repo:readFile', args: ['t1', 'a.ts'], fail: readFilePair },
     { channel: 'repo:search', args: ['t1', 'needle'], fail: searchFiles },
@@ -112,9 +126,10 @@ describe('registerRepo', () => {
     // when
     const got = await invoke('repo:info', 't1');
     // then
-    expect(got).toEqual({ name: 'maple', branch: 'mpl-155-repo-name' });
+    expect(got).toEqual({ name: 'maple', branch: 'mpl-155-repo-name', hasTry: true });
     expect(repoName).toHaveBeenCalledWith('/wt');
     expect(currentBranch).toHaveBeenCalledWith('/wt');
+    expect(hasTryTarget).toHaveBeenCalledWith('/wt');
   });
 
   test('repo:info returns null for a tab without a worktree', async () => {
@@ -125,6 +140,7 @@ describe('registerRepo', () => {
     // then
     expect(got).toBeNull();
     expect(repoName).not.toHaveBeenCalled();
+    expect(hasTryTarget).not.toHaveBeenCalled();
   });
 
   test('repo:writeFile writes the file in the tab worktree', async () => {

@@ -321,7 +321,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-renamed' }),
+        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-renamed', hasTry: false }),
       },
     });
     // when
@@ -338,7 +338,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch }),
+        info: () => Promise.resolve({ name: 'maple', branch, hasTry: false }),
         onChanged: (_tabId, callback) => {
           listeners.push(callback);
           return () => undefined;
@@ -365,7 +365,7 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={tab} />);
     // then
-    await screen.findByRole('link', { name: '#13 ↗' });
+    await screen.findByRole('link', { name: 'PR #13 ↗' });
     expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
   });
 
@@ -483,7 +483,7 @@ describe('CardTab', () => {
       },
       steps: async () => {
         await screen.findByRole('tab', { name: 'PR description' });
-        await userEvent.click(await screen.findByTitle('Open card description'));
+        await userEvent.click(await screen.findByTitle(/Click to open the card description/));
         await userEvent.click(screen.getByRole('button', { name: 'All files' }));
         await userEvent.click(screen.getByText('README.md', { selector: 'li span' }));
         await userEvent.click(screen.getByText('a.ts'));
@@ -701,7 +701,7 @@ describe('CardTab', () => {
     fakeRepo(true, [card('MPL-20', 'In Progress', { descriptionMd: '## Goal' })]);
     // when
     render(<CardTab tab={tab} />);
-    await screen.findByTitle('Open card description');
+    await screen.findByTitle(/Click to open the card description/);
     // then
     expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
     expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['PR description']);
@@ -713,12 +713,12 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByRole('tab', { name: 'PR description' });
     // when
-    await userEvent.click(await screen.findByTitle('Open card description'));
+    await userEvent.click(await screen.findByTitle(/Click to open the card description/));
     // then
     expect(screen.getByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Close Card description' }));
-    await userEvent.click(screen.getByTitle('Open card description'));
+    await userEvent.click(screen.getByTitle(/Click to open the card description/));
     // then
     expect(screen.getByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
   });
@@ -752,7 +752,7 @@ describe('CardTab', () => {
       });
     });
     // then
-    expect(await screen.findByTitle('Open card description')).toBeInTheDocument();
+    expect(await screen.findByTitle(/Click to open the card description/)).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Card description' })).not.toBeInTheDocument();
   });
 
@@ -774,7 +774,7 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByText('README.md');
     // then
-    expect(screen.queryByTitle('Open card description')).toBeNull();
+    expect(screen.queryByTitle(/Click to open the card description/)).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Card description' })).not.toBeInTheDocument();
   });
 
@@ -814,7 +814,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }),
+        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree', hasTry: false }),
       },
     });
     // when
@@ -831,7 +831,7 @@ describe('CardTab', () => {
     useMaple.setState({
       config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
     });
-    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }) } });
+    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree', hasTry: false }) } });
     render(<CardTab tab={tab} />);
     await screen.findByTestId('repo-branch');
     // when
@@ -1221,7 +1221,9 @@ describe('CardTab', () => {
     // then
     expect(await screen.findByRole('checkbox', { name: 'Viewed src/b.ts' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: 'Viewed src/a.ts' })).not.toBeInTheDocument();
-    expect(screen.getByText('1 files · +9 −4')).toBeInTheDocument();
+    expect(screen.getByText('1 file')).toBeInTheDocument();
+    expect(screen.getByText('+9')).toBeInTheDocument();
+    expect(screen.getByText('−4')).toBeInTheDocument();
   });
 
   test('shows the reviewed commit and findings in the PR summary', async () => {
@@ -1359,6 +1361,45 @@ describe('CardTab', () => {
     expect(screen.getByTestId('terminal-pane')).toBeVisible();
     expect(button).toHaveAttribute('aria-pressed', 'true');
     expect(mounts).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    { info: null, want: false },
+    { info: { name: 'maple', branch: 'mpl-1-x', hasTry: false }, want: false },
+    { info: { name: 'maple', branch: 'mpl-1-x', hasTry: true }, want: true },
+  ])('shows the make try button $want when repo info is $info', async ({ info, want }) => {
+    // given
+    const repoInfo = vi.fn(() => Promise.resolve(info));
+    fakeMaple({ repo: { info: repoInfo } });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    await vi.waitFor(() => {
+      expect(repoInfo).toHaveBeenCalled();
+    });
+    await act(() => Promise.resolve());
+    expect(screen.queryByRole('button', { name: 'Run make try' }) !== null).toBe(want);
+    expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument();
+  });
+
+  test('make try shows a hidden terminal panel and asks the pane for one more run each click', async () => {
+    // given
+    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-1-x', hasTry: true }) } });
+    render(<CardTab tab={tab} />);
+    const terminal = screen.getByRole('button', { name: 'Terminal' });
+    await userEvent.click(terminal);
+    await userEvent.click(terminal);
+    const runTry = await screen.findByRole('button', { name: 'Run make try' });
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(screen.getByTestId('terminal-pane')).toBeVisible();
+    expect(terminal).toHaveAttribute('aria-pressed', 'true');
+    expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 1 });
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 2 });
   });
 
   test('a tab that stops being active stops toggling on Ctrl+backtick', async () => {

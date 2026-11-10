@@ -41,4 +41,14 @@ describe('SessionEnded', () => {
     expect(calls[called]).toHaveBeenCalledWith('t1');
     expect(calls[called === 'resume' ? 'startFresh' : 'resume']).not.toHaveBeenCalled();
   });
+
+  test('Resume is the primary button', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<SessionEnded tabId="t1" exitCode={0} resumeFailed={false} />);
+    // then
+    expect(screen.getByRole('button', { name: 'Resume' })).toHaveAttribute('data-variant', 'primary');
+    expect(screen.getByRole('button', { name: 'Start fresh' })).not.toHaveAttribute('data-variant');
+  });
 });
