@@ -49,6 +49,7 @@ export function PrSummary({
   searchedRepos,
 }: PrSummaryProps) {
   const info = pr.data;
+  const behind = info?.state === 'OPEN' && headSha !== null && headSha !== info.headSha;
   return (
     <section className={styles.summary}>
       {pr.error !== null && <div className={styles.error}>GitHub unreachable</div>}
@@ -69,6 +70,11 @@ export function PrSummary({
             </span>
           </div>
           <div className={styles.title}>{info.title}</div>
+          {behind && (
+            <div className={styles.banner} role="status">
+              This PR has new commits
+            </div>
+          )}
           {(headSha !== null || info.state === 'OPEN') && (
             <div className={styles.row}>
               {headSha !== null && <span className={styles.muted}>{`Reviewing ${headSha.slice(0, 7)}`}</span>}

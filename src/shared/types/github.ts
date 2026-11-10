@@ -22,6 +22,7 @@ export type PrInfo = {
   needsTaylor: string | null;
   cardImpacts: string | null;
   body: string;
+  headSha: string;
   checks: ChecksSummary;
 };
 export type FindingSeverity = 'high' | 'medium' | 'low';

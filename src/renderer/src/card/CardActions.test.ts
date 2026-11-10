@@ -27,6 +27,7 @@ const pr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
+  headSha: 'a'.repeat(40),
   checks: { passed: 3, failed: 0, pending: 0, total: 3, runs: [] },
 };
 
@@ -152,6 +153,11 @@ describe('cardActions', () => {
       title: 'Checks are failing',
     },
     { name: 'the review is not loaded', overrides: { review: null }, title: 'Review not loaded' },
+    {
+      name: 'the PR has new commits',
+      overrides: { pr: { ...pr, headSha: 'c'.repeat(40) } },
+      title: 'PR has new commits',
+    },
   ])('Approve is disabled when $name', ({ overrides, title }) => {
     // given
     const { list } = actions(overrides);

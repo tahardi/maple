@@ -4,7 +4,7 @@ import type { PrInfo, Review, SecurityFinding } from '@shared/types/github';
 import type { TabState } from '@shared/types/tabs';
 import type { VaultNote } from '@shared/types/files';
 import type { PaneAction } from '../claude/ClaudePane';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useEffect } from 'react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
@@ -60,6 +60,7 @@ const pr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
+  headSha: 'a'.repeat(40),
   checks: { passed: 4, failed: 0, pending: 0, total: 4, runs: [] },
 };
 
@@ -1028,6 +1029,63 @@ describe('CardTab', () => {
     await userEvent.click(slot.getByRole('button', { name: 'Approve' }));
     // then
     expect(slot.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('a PR with new commits shows the banner and disables Approve until the review reloads', async () => {
+    // given
+    const moved = 'd'.repeat(40);
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockImplementationOnce(reviewOf([]))
+      .mockResolvedValue({
+        data: { number: 13, headSha: moved, baseSha: 'c'.repeat(40), added: 9, removed: 4, files: [], findings: [] },
+        error: null,
+        fetchedAt: null,
+      });
+    fakeMaple({
+      pr: {
+        get: () => Promise.resolve({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null }),
+        review,
+      },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const tree = within(screen.getByTestId('tree-slot'));
+    const claude = within(screen.getByTestId('claude-slot'));
+    expect(await tree.findByRole('status')).toHaveTextContent('This PR has new commits');
+    expect(claude.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    expect(claude.getByRole('button', { name: 'Approve' })).toHaveAttribute('title', 'PR has new commits');
+    // when
+    await userEvent.click(tree.getByRole('button', { name: 'Reload review' }));
+    // then
+    await waitFor(() => {
+      expect(tree.queryByRole('status')).not.toBeInTheDocument();
+    });
+    expect(claude.getByRole('button', { name: 'Approve' })).toBeEnabled();
+  });
+
+  test('Reload review clears the Approve error', async () => {
+    // given
+    fakeMaple({
+      pr: {
+        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
+        review: reviewOf([]),
+        approve: vi
+          .fn<() => Promise<void>>()
+          .mockRejectedValue(
+            new Error('approving PR: the PR has new commits since the review loaded; click Reload review'),
+          ),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    const claude = within(screen.getByTestId('claude-slot'));
+    await userEvent.click(await claude.findByRole('button', { name: 'Approve' }));
+    await claude.findByRole('alert');
+    // when
+    await userEvent.click(within(screen.getByTestId('tree-slot')).getByRole('button', { name: 'Reload review' }));
+    // then
+    expect(claude.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   test.each([

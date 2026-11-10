@@ -266,7 +266,10 @@ export function CardTab({ tab }: { tab: TabState }) {
           {pr && (
             <PrSummary
               pr={pr}
-              onReloadReview={reloadReview}
+              onReloadReview={() => {
+                setApproveError(null);
+                reloadReview();
+              }}
               reviewError={review?.error ?? null}
               findings={pinned?.findings ?? []}
               projectRepo={project?.repo ?? null}

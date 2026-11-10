@@ -33,6 +33,7 @@ describe('prForBranch', () => {
       body:
         '## Describe your changes\n\nAdds the GitHub client.\n\n## Deviations from the card\n\nNone\n\n' +
         '## Needs Taylor\n\n- Try it on device\n\n## Card impacts\n\n- MPL-15: rename foo to bar\n',
+      headSha: '0123456789abcdef0123456789abcdef01234567',
       checks: {
         passed: 4,
         failed: 0,
@@ -59,7 +60,7 @@ describe('prForBranch', () => {
         '--limit',
         '100',
         '--json',
-        'number,url,title,state,body,isCrossRepository',
+        'number,url,title,state,body,headRefOid,isCrossRepository',
       ],
       '/wt',
     );
@@ -113,6 +114,7 @@ describe('prForBranch', () => {
       title: '[MPL-13] GitHub Client',
       state: 'OPEN',
       body: '',
+      headRefOid: 'a'.repeat(40),
       isCrossRepository,
     });
     const run = fakeRunner(ok(JSON.stringify([row(41, true), row(35, false), row(33, false)])), ok('[]'));
@@ -281,7 +283,7 @@ describe('approveAndMerge', () => {
     {
       name: 'the head moved',
       reply: pin('d'.repeat(40)),
-      want: 'the PR changed after the diff loaded; review it again',
+      want: 'the PR has new commits since the review loaded; click Reload review',
     },
     { name: 'the PR targets another branch', reply: pin(sha, 'dig-44-x', 'dev'), want: 'PR targets dev, not main' },
     {
