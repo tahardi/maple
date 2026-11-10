@@ -57,9 +57,9 @@ describe('prForBranch', () => {
         '--state',
         'all',
         '--limit',
-        '1',
+        '100',
         '--json',
-        'number,url,title,state,body',
+        'number,url,title,state,body,isCrossRepository',
       ],
       '/wt',
     );
@@ -91,6 +91,58 @@ describe('prForBranch', () => {
     const pr = await prForBranch(run, '/wt', 'b');
     // then
     expect(pr?.checks).toEqual({ passed: 0, failed: 0, pending: 0, total: 0, runs: [] });
+  });
+
+  test('returns the same-repo PR when a newer fork PR is listed first', async () => {
+    // given
+    const run = fakeRunner(ok(fixture('pr-list-fork-first.json')), ok('[]'));
+    // when
+    const pr = await prForBranch(run, '/wt', 'mpl-13-github-client');
+    // then
+    expect(pr?.number).toBe(33);
+    expect(pr?.url).toBe('https://github.com/tahardi/maple/pull/33');
+    expect(run).toHaveBeenCalledWith('gh', ['pr', 'checks', '33', '--json', 'name,bucket,link'], '/wt');
+    expect(run).not.toHaveBeenCalledWith('gh', ['pr', 'checks', '41', '--json', 'name,bucket,link'], '/wt');
+  });
+
+  test('returns the newest same-repo PR when several are listed behind a fork PR', async () => {
+    // given
+    const row = (number: number, isCrossRepository: boolean) => ({
+      number,
+      url: `https://github.com/tahardi/maple/pull/${String(number)}`,
+      title: '[MPL-13] GitHub Client',
+      state: 'OPEN',
+      body: '',
+      isCrossRepository,
+    });
+    const run = fakeRunner(ok(JSON.stringify([row(41, true), row(35, false), row(33, false)])), ok('[]'));
+    // when
+    const pr = await prForBranch(run, '/wt', 'mpl-13-github-client');
+    // then
+    expect(pr?.number).toBe(35);
+  });
+
+  test('rejects a listed PR that does not say whether it comes from a fork', async () => {
+    // given
+    const listed = [
+      { number: 33, url: 'https://github.com/tahardi/maple/pull/33', title: 't', state: 'OPEN', body: '' },
+    ];
+    const run = fakeRunner(ok(JSON.stringify(listed)), ok('[]'));
+    // when
+    const result = prForBranch(run, '/wt', 'mpl-13-github-client');
+    // then
+    await expect(result).rejects.toThrow();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  test('returns null when only a fork PR exists', async () => {
+    // given
+    const run = fakeRunner(ok(fixture('pr-list-fork-only.json')), ok('[]'));
+    // when
+    const pr = await prForBranch(run, '/wt', 'mpl-13-github-client');
+    // then
+    expect(pr).toBeNull();
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   test('returns null when the branch has no PR', async () => {
@@ -176,12 +228,12 @@ describe('diffLines', () => {
 
 describe('approveAndMerge', () => {
   const sha = 'a'.repeat(40);
-  const viewPin = 'pr view 33 --json headRefOid,headRefName,baseRefName';
+  const viewPin = 'pr view 33 --json headRefOid,headRefName,baseRefName,isCrossRepository';
   const viewRepo = 'api repos/{owner}/{repo} --jq .default_branch';
   const review = `api --method POST repos/{owner}/{repo}/pulls/33/reviews -f event=APPROVE -f commit_id=${sha}`;
   const merge = `pr merge 33 --squash --match-head-commit ${sha}`;
-  const pin = (head = sha, branch = 'dig-44-trail-map', target = 'main') =>
-    ok(JSON.stringify({ headRefOid: head, headRefName: branch, baseRefName: target }));
+  const pin = (head = sha, branch = 'dig-44-trail-map', target = 'main', isCrossRepository = false) =>
+    ok(JSON.stringify({ headRefOid: head, headRefName: branch, baseRefName: target, isCrossRepository }));
 
   function runner(answers: Record<string, Reply>) {
     return vi.fn<Runner>((_cmd, args) => Promise.resolve(answers[args.join(' ')] ?? ok('')));
@@ -237,6 +289,11 @@ describe('approveAndMerge', () => {
       reply: pin(sha, 'dig-440-trail'),
       want: 'branch dig-440-trail is not for DIG-44',
     },
+    {
+      name: 'the PR comes from a fork',
+      reply: pin(sha, 'dig-44-trail-map', 'main', true),
+      want: 'PR comes from a fork',
+    },
   ])('refuses to merge when $name', async ({ reply, want }) => {
     // given
     const run = runner({ [viewPin]: reply, [viewRepo]: ok('main\n') });
@@ -245,6 +302,17 @@ describe('approveAndMerge', () => {
     // then
     await expect(result).rejects.toThrow(`approving PR: ${want}`);
     expect(run.mock.calls.map(([, args]) => args.join(' '))).toEqual([viewPin, viewRepo]);
+  });
+
+  test('refuses to merge when the PR does not say whether it comes from a fork', async () => {
+    // given
+    const reply = ok(JSON.stringify({ headRefOid: sha, headRefName: 'dig-44-trail-map', baseRefName: 'main' }));
+    const run = runner({ [viewPin]: reply, [viewRepo]: ok('main\n') });
+    // when
+    const result = approveAndMerge(run, 33, sha, 'DIG-44');
+    // then
+    await expect(result).rejects.toThrow();
+    expect(run.mock.calls.map(([, args]) => args.join(' '))).toEqual([viewPin]);
   });
 
   test.each([
