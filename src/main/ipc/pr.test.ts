@@ -283,6 +283,24 @@ describe('registerPr', () => {
     expect(result).toEqual({ data: null, error: 'listing PRs: offline', fetchedAt: null });
   });
 
+  test('get serves each worktree its own cached PR after a switch back', async () => {
+    // given
+    prForBranch
+      .mockResolvedValueOnce(pr)
+      .mockRejectedValueOnce(new Error('listing PRs: offline'))
+      .mockRejectedValueOnce(new Error('listing PRs: offline'));
+    let worktree = '/wts/a';
+    const prGet = register('pr:get', () => worktree);
+    await prGet('t1');
+    worktree = '/wts/b';
+    await prGet('t1');
+    worktree = '/wts/a';
+    // when
+    const result = await prGet('t1');
+    // then
+    expect(result).toEqual({ data: pr, error: 'listing PRs: offline', fetchedAt: expect.any(String) as string });
+  });
+
   test('get clears the error once a lookup succeeds again', async () => {
     // given
     prForBranch.mockRejectedValueOnce(new Error('listing PRs: offline')).mockResolvedValueOnce(pr);

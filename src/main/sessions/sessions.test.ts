@@ -933,6 +933,7 @@ describe('SessionManager', () => {
     { before: ['/wts/b', '/wts/a'], after: ['/wts/b', '/wts/a'], selected: '/wts/a', want: '/wts/a' },
     { before: ['/wts/b', '/wts/a'], after: ['/wts/b'], selected: '/wts/a', want: '/wts/b' },
     { before: ['/wts/a'], after: [], selected: '/wts/a', want: null },
+    { before: ['/wts/b', '/wts/a'], after: ['/wts/a', '/wts/b'], selected: '/wts/b', want: '/wts/b' },
   ])(
     'setWorktrees selects $want when the list goes from $before to $after with $selected selected',
     ({ before, after, selected, want }) => {
@@ -966,6 +967,18 @@ describe('SessionManager', () => {
       [{ ...tab, worktreePath: '/wts/a', worktreePaths: ['/wts/b', '/wts/a'] }],
       {},
     );
+  });
+
+  test('logs a selected worktree', () => {
+    // given
+    vi.mocked(findWorktrees).mockReturnValue(new Promise(() => undefined));
+    const { manager, logger } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    manager.setWorktrees(tab.id, ['/wts/b', '/wts/a']);
+    // when
+    manager.selectWorktree(tab.id, '/wts/a');
+    // then
+    expect(logger.info).toHaveBeenCalledWith('worktree', 'selected', { cardKey: 'DIG-44', path: '/wts/a' });
   });
 
   test("selectWorktree rejects a path that is not one of the tab's worktrees", () => {

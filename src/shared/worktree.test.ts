@@ -67,4 +67,14 @@ describe('worktreeRepo', () => {
     // then
     expect(repo).toBe(want);
   });
+
+  test('picks the longest repo name whatever the owner length', () => {
+    // given
+    const configured = ['a-much-longer-owner/bearclave', 'x/bearclave-zkvm'];
+    const worktree = '/wts/bearclave-zkvm-bear-25-groth16';
+    // when
+    const repo = worktreeRepo(worktree, configured);
+    // then
+    expect(repo).toBe('x/bearclave-zkvm');
+  });
 });

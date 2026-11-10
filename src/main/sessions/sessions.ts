@@ -179,6 +179,7 @@ export class SessionManager extends EventEmitter<Events> {
       throw new Error(`selecting worktree: ${path} is not a worktree of ${session.tab.cardKey ?? tabId}`);
     }
     session.tab = { ...session.tab, worktreePath: path };
+    this.log.info('worktree', 'selected', { cardKey: session.tab.cardKey, path });
     this.changed();
   }
 

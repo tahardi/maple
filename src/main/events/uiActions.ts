@@ -11,6 +11,7 @@ const RECORDED_CHANNELS: ReadonlySet<string> = new Set([
   'tabs:close',
   'tabs:resume',
   'tabs:startFresh',
+  'tabs:selectWorktree',
   'tabs:setActive',
   'session:sendPrompt',
   'jira:moveToSprint',
