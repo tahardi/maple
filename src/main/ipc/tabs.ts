@@ -4,6 +4,7 @@ import type { CloseResult } from '@shared/types/tabs';
 import { appLogger, logFailure, type Logger } from '@main/app/log';
 import { sessionCost } from '@main/sessions/sessionCost';
 import { send, type IpcDeps } from './index';
+import { closeNeedsConfirm } from './closeNeedsConfirm';
 import { cardKeyArg, handle, on, projectKeyArg, tabIdArg } from './validated';
 
 export function registerTabs(
@@ -27,8 +28,7 @@ export function registerTabs(
     logged('tabs:openVault', [projectKey], () => sessions.openVault(projectKey, null)),
   );
   handle('tabs:close', z.tuple([tabIdArg, z.boolean()]), (tabId, force): CloseResult => {
-    const working = status.statuses().some((s) => s.tabId === tabId && s.dot === 'working');
-    if (working && !force) {
+    if (closeNeedsConfirm(status.statuses(), tabId, force)) {
       return { closed: false, needsConfirm: true };
     }
     sessions.close(tabId);
