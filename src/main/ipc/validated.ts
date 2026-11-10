@@ -6,12 +6,21 @@ export const projectKeyArg = z.string().regex(/^[A-Z][A-Z0-9]+$/);
 export const cardKeyArg = z.string().regex(/^[A-Z][A-Z0-9]+-\d+$/);
 export const sizeArg = z.number().int().min(1).max(10_000);
 
+export type ActionRecorder = (channel: string, args: readonly unknown[]) => void;
+
+let recorder: ActionRecorder = () => undefined;
+
+export function recordActions(record: ActionRecorder): void {
+  recorder = record;
+}
+
 export function handle<A extends unknown[]>(channel: string, args: z.ZodType<A>, run: (...args: A) => unknown): void {
   ipcMain.handle(channel, (_event, ...raw: unknown[]) => {
     const parsed = args.safeParse(raw);
     if (!parsed.success) {
       throw new Error(`handling ${channel}: arguments are invalid`);
     }
+    recorder(channel, parsed.data);
     return run(...parsed.data);
   });
 }
@@ -20,6 +29,7 @@ export function on<A extends unknown[]>(channel: string, args: z.ZodType<A>, run
   ipcMain.on(channel, (_event, ...raw: unknown[]) => {
     const parsed = args.safeParse(raw);
     if (parsed.success) {
+      recorder(channel, parsed.data);
       run(...parsed.data);
     }
   });
