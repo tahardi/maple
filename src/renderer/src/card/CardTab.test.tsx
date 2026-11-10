@@ -321,7 +321,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-renamed' }),
+        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-renamed', hasTry: false }),
       },
     });
     // when
@@ -338,7 +338,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch }),
+        info: () => Promise.resolve({ name: 'maple', branch, hasTry: false }),
         onChanged: (_tabId, callback) => {
           listeners.push(callback);
           return () => undefined;
@@ -814,7 +814,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }),
+        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree', hasTry: false }),
       },
     });
     // when
@@ -831,7 +831,7 @@ describe('CardTab', () => {
     useMaple.setState({
       config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
     });
-    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }) } });
+    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree', hasTry: false }) } });
     render(<CardTab tab={tab} />);
     await screen.findByTestId('repo-branch');
     // when
@@ -1361,6 +1361,45 @@ describe('CardTab', () => {
     expect(screen.getByTestId('terminal-pane')).toBeVisible();
     expect(button).toHaveAttribute('aria-pressed', 'true');
     expect(mounts).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    { info: null, want: false },
+    { info: { name: 'maple', branch: 'mpl-1-x', hasTry: false }, want: false },
+    { info: { name: 'maple', branch: 'mpl-1-x', hasTry: true }, want: true },
+  ])('shows the make try button $want when repo info is $info', async ({ info, want }) => {
+    // given
+    const repoInfo = vi.fn(() => Promise.resolve(info));
+    fakeMaple({ repo: { info: repoInfo } });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    await vi.waitFor(() => {
+      expect(repoInfo).toHaveBeenCalled();
+    });
+    await act(() => Promise.resolve());
+    expect(screen.queryByRole('button', { name: 'Run make try' }) !== null).toBe(want);
+    expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument();
+  });
+
+  test('make try shows a hidden terminal panel and asks the pane for one more run each click', async () => {
+    // given
+    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-1-x', hasTry: true }) } });
+    render(<CardTab tab={tab} />);
+    const terminal = screen.getByRole('button', { name: 'Terminal' });
+    await userEvent.click(terminal);
+    await userEvent.click(terminal);
+    const runTry = await screen.findByRole('button', { name: 'Run make try' });
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(screen.getByTestId('terminal-pane')).toBeVisible();
+    expect(terminal).toHaveAttribute('aria-pressed', 'true');
+    expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 1 });
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 2 });
   });
 
   test('a tab that stops being active stops toggling on Ctrl+backtick', async () => {
