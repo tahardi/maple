@@ -1,6 +1,6 @@
 import type { CheckRun, ChecksSummary, PrInfo, SecurityFinding } from '@shared/types/github';
 import type { Fetched } from '@shared/types/app';
-import { prRepo } from '@shared/prRepo';
+import { prLabel } from './prLabel';
 import styles from './PrSummary.module.css';
 
 const runSymbols: Record<CheckRun['bucket'], string> = {
@@ -25,12 +25,6 @@ const stateLabels: Record<PrInfo['state'], string> = { OPEN: 'Open', MERGED: 'Me
 
 function stateLabel(state: PrInfo['state']): string {
   return stateLabels[state];
-}
-
-function prLabel(info: PrInfo, projectRepo: string | null): string {
-  const repo = prRepo(info.url);
-  const number = `PR #${String(info.number)}`;
-  return projectRepo === null || repo === projectRepo ? number : `${repo} ${number}`;
 }
 
 type PrSummaryProps = {
