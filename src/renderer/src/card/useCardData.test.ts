@@ -92,7 +92,7 @@ describe('useCardData', () => {
 
   test('loads the repo name and branch for a tab with a worktree', async () => {
     // given
-    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing' };
+    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing', hasTry: false };
     const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(() => Promise.resolve(want));
     fakeMaple({ repo: { info } });
     // when
@@ -127,7 +127,7 @@ describe('useCardData', () => {
 
   test('loads the repo info and files when the changes fail', async () => {
     // given
-    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing' };
+    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing', hasTry: false };
     const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(() => Promise.resolve(want));
     const changes = vi.fn(() => Promise.reject(new Error('running git merge-base: no origin/main')));
     const listFiles = vi.fn(() => Promise.resolve(['a.go']));
@@ -156,7 +156,7 @@ describe('useCardData', () => {
       name: 'the file list',
       fail: 'listFiles' as const,
       check: (current: ReturnType<typeof useCardData>) => {
-        expect(current.repo).toEqual({ name: 'bearclave', branch: 'bear-1-thing' });
+        expect(current.repo).toEqual({ name: 'bearclave', branch: 'bear-1-thing', hasTry: false });
       },
     },
   ])('loads the changes when $name fails', async ({ fail, check }) => {
@@ -165,7 +165,7 @@ describe('useCardData', () => {
     fakeMaple({
       repo: {
         changes: () => Promise.resolve(want),
-        info: () => Promise.resolve({ name: 'bearclave', branch: 'bear-1-thing' }),
+        info: () => Promise.resolve({ name: 'bearclave', branch: 'bear-1-thing', hasTry: false }),
         listFiles: () => Promise.resolve(['a.go']),
         [fail]: () => Promise.reject(new Error('running git: not a repo')),
       },
@@ -187,7 +187,7 @@ describe('useCardData', () => {
     { name: 'the cost', fail: { tabs: { cost: () => Promise.reject(new Error('reading transcript: gone')) } } },
   ])('loads the repo info when $name fails', async ({ fail }) => {
     // given
-    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing' };
+    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing', hasTry: false };
     fakeMaple({ ...fail, repo: { info: () => Promise.resolve(want) } });
     const rejected = watchRejections();
     // when
@@ -204,8 +204,8 @@ describe('useCardData', () => {
     let changed: () => void = vi.fn();
     const info = vi
       .fn<(tabId: string) => Promise<RepoInfo | null>>()
-      .mockResolvedValueOnce({ name: 'bearclave', branch: 'old' })
-      .mockResolvedValue({ name: 'bearclave', branch: 'new' });
+      .mockResolvedValueOnce({ name: 'bearclave', branch: 'old', hasTry: false })
+      .mockResolvedValue({ name: 'bearclave', branch: 'new', hasTry: false });
     fakeMaple({
       repo: {
         info,
