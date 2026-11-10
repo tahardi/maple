@@ -55,6 +55,7 @@ const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleC
     backgroundWaitMinutes: 15,
     eventKeepDays: 365,
     eventMaxMegabytes: 200,
+    stateBackups: 3,
     projects,
     actions: [],
   },

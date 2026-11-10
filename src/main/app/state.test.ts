@@ -1,8 +1,39 @@
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { loadState, saveState, type SavedState } from './state';
+
+const calls = vi.hoisted((): string[] => []);
+const flush = vi.hoisted(() => ({ error: null as Error | null, closed: 0 }));
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    open: async (...args: Parameters<typeof actual.open>) => {
+      const handle = await actual.open(...args);
+      const sync = handle.sync.bind(handle);
+      handle.sync = async () => {
+        calls.push('sync');
+        if (flush.error) {
+          throw flush.error;
+        }
+        await sync();
+      };
+      const close = handle.close.bind(handle);
+      handle.close = async () => {
+        flush.closed += 1;
+        await close();
+      };
+      return handle;
+    },
+    rename: async (...args: Parameters<typeof actual.rename>) => {
+      calls.push('rename');
+      await actual.rename(...args);
+    },
+  };
+});
 
 const emptyState: SavedState = {
   version: 1,
@@ -33,11 +64,19 @@ const savedState: SavedState = {
   seen: { 'tab-1': 'waiting' },
 };
 
+function keptWarning(dir: string): string {
+  const kept = join(dir, 'state.json.corrupt');
+  return `reading state: state.json is unreadable, kept it as ${kept}, starting with no tabs`;
+}
+
 describe('state', () => {
   let dir = '';
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'maple-state-'));
+    calls.length = 0;
+    flush.error = null;
+    flush.closed = 0;
   });
 
   afterEach(async () => {
@@ -135,22 +174,144 @@ describe('state', () => {
     expect(await readdir(nested)).toEqual(['state.json']);
   });
 
-  test.each([
-    { name: 'missing', content: null, warning: null },
-    { name: 'corrupt', content: '{', warning: 'reading state: state.json is unreadable, starting with no tabs' },
-    {
-      name: 'holding a non-string lastProject',
-      content: JSON.stringify({ ...savedState, lastProject: 42 }),
-      warning: 'reading state: state.json is unreadable, starting with no tabs',
-    },
-  ])('starts empty when the file is $name', async ({ content, warning }) => {
+  test('flushes the temp file before renaming it', async () => {
     // given
-    if (content !== null) {
-      await writeFile(join(dir, 'state.json'), content);
+    await writeFile(join(dir, 'state.json'), '"old"');
+    // when
+    await saveState(savedState, dir);
+    // then
+    expect(calls).toEqual(['sync', 'rename']);
+  });
+
+  test('keeps the old file and closes the temp file when the flush fails', async () => {
+    // given
+    await writeFile(join(dir, 'state.json'), '"old"');
+    flush.error = new Error('disk full');
+    // when
+    const saving = saveState(savedState, dir);
+    // then
+    await expect(saving).rejects.toThrow('disk full');
+    expect(calls).not.toContain('rename');
+    expect(flush.closed).toBe(1);
+    expect(await readFile(join(dir, 'state.json'), 'utf8')).toBe('"old"');
+  });
+
+  test('backs up a changed state.json on each load', async () => {
+    // given
+    const zooms = [1, 2, 3];
+    // when
+    for (const zoom of zooms) {
+      await saveState({ ...savedState, zoom }, dir);
+      await loadState(dir);
     }
+    // then
+    for (const [n, zoom] of [
+      ['1', 3],
+      ['2', 2],
+      ['3', 1],
+    ] as const) {
+      expect(JSON.parse(await readFile(join(dir, `state.json.${n}`), 'utf8'))).toEqual({ ...savedState, zoom });
+    }
+  });
+
+  test('keeps the given number of backups on load', async () => {
+    // given
+    await saveState(savedState, dir);
+    await loadState(dir, 1);
+    // when
+    await saveState({ ...savedState, zoom: 3 }, dir);
+    await loadState(dir, 1);
+    // then
+    expect(await readdir(dir)).not.toContain('state.json.2');
+  });
+
+  test('names the newest backup when state.json is unreadable', async () => {
+    // given
+    await saveState(savedState, dir);
+    await loadState(dir);
+    await writeFile(join(dir, 'state.json'), '{');
     // when
     const result = await loadState(dir);
     // then
-    expect(result).toEqual({ state: emptyState, warning });
+    expect(result.warning).toBe(`${keptWarning(dir)} (newest backup: ${join(dir, 'state.json.1')})`);
+  });
+
+  test.each([{ name: 'missing' }])('starts empty with no warning when the file is $name', async () => {
+    // given
+    await rm(join(dir, 'state.json'), { force: true });
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state: emptyState, warning: null });
+    expect(await readdir(dir)).not.toContain('state.json.1');
+  });
+
+  test.each([
+    { name: 'corrupt', content: '{' },
+    { name: 'holding a non-string lastProject', content: JSON.stringify({ ...savedState, lastProject: 42 }) },
+  ])('keeps a $name file as state.json.corrupt', async ({ content }) => {
+    // given
+    await writeFile(join(dir, 'state.json'), content);
+    // when
+    const result = await loadState(dir);
+    await saveState(savedState, dir);
+    // then
+    expect(result).toEqual({ state: emptyState, warning: keptWarning(dir) });
+    expect(await readFile(join(dir, 'state.json.corrupt'), 'utf8')).toBe(content);
+    expect(await readdir(dir)).not.toContain('state.json.1');
+  });
+
+  test('keeps the backup when a later save replaces state.json', async () => {
+    // given
+    await saveState(savedState, dir);
+    await loadState(dir);
+    // when
+    await saveState({ ...savedState, zoom: 3 }, dir);
+    // then
+    expect(JSON.parse(await readFile(join(dir, 'state.json.1'), 'utf8'))).toEqual(savedState);
+  });
+
+  test('still loads the state when the backup fails', async () => {
+    // given
+    await saveState(savedState, dir);
+    await writeFile(join(dir, 'state.json.2'), '"two"');
+    await mkdir(join(dir, 'state.json.3', 'blocker'), { recursive: true });
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state: savedState, warning: expect.stringMatching(/^backing up state: /) as string });
+  });
+
+  test('replaces an older corrupt copy', async () => {
+    // given
+    await writeFile(join(dir, 'state.json.corrupt'), 'older');
+    await writeFile(join(dir, 'state.json'), '{');
+    // when
+    await loadState(dir);
+    // then
+    expect(await readFile(join(dir, 'state.json.corrupt'), 'utf8')).toBe('{');
+  });
+
+  test('warns when a corrupt file cannot be kept', async () => {
+    // given
+    await writeFile(join(dir, 'state.json'), '{');
+    await mkdir(join(dir, 'state.json.corrupt', 'blocker'), { recursive: true });
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({
+      state: emptyState,
+      warning: expect.stringMatching(/^reading state: state\.json is unreadable and could not be kept: /) as string,
+    });
+  });
+
+  test('warns when state.json cannot be read', async () => {
+    // given
+    await mkdir(join(dir, 'state.json'));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state: emptyState, warning: keptWarning(dir) });
+    expect((await stat(join(dir, 'state.json.corrupt'))).isDirectory()).toBe(true);
   });
 });

@@ -59,6 +59,7 @@ describe('SessionManager with a real claude', () => {
       backgroundWaitMinutes: 15,
       eventKeepDays: 365,
       eventMaxMegabytes: 200,
+      stateBackups: 3,
       actions: [],
       projects: [
         {
