@@ -14,6 +14,7 @@ export type MapleConfig = {
   backgroundWaitMinutes: number;
   eventKeepDays: number;
   eventMaxMegabytes: number;
+  stateBackups: number;
   projects: ProjectConfig[];
   actions: ActionConfig[];
 };

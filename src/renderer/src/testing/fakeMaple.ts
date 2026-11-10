@@ -14,6 +14,7 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
     backgroundWaitMinutes: 15,
     eventKeepDays: 365,
     eventMaxMegabytes: 200,
+    stateBackups: 3,
     projects: [
       {
         name: 'Bearclave',

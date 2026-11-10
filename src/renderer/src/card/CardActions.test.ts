@@ -10,6 +10,7 @@ const config: MapleConfig = {
   backgroundWaitMinutes: 15,
   eventKeepDays: 365,
   eventMaxMegabytes: 200,
+  stateBackups: 3,
   projects: [],
   actions: [
     { label: 'Address review', prompt: '/card {key}' },
