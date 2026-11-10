@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
 import type { Logger } from '@main/app/log';
 import { createEventLog } from './eventLog';
+import { KEEP_DAYS } from './pruneEvents';
 
 const schemas = {
   'test.ping': z.object({ n: z.number() }),
@@ -274,6 +275,20 @@ describe('eventLog', () => {
 
     // then
     expect(eventLog()).toBe(started);
+  });
+
+  test.each([
+    { name: 'the default before the log is started', limits: null, want: KEEP_DAYS },
+    { name: 'the limit the log started with', limits: { keepDays: 30, maxBytes: 1 }, want: 30 },
+  ])('eventKeepDays returns $name', async ({ limits, want }) => {
+    // given
+    const { eventKeepDays, startEventLog } = await freshModule();
+    // when
+    if (limits) {
+      await startEventLog({ limits }).readEvents(range);
+    }
+    // then
+    expect(eventKeepDays()).toBe(want);
   });
 
   test('creates the log only once', async () => {
