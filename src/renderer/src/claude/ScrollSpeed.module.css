@@ -1,7 +1,25 @@
-.speed {
+.settings {
   margin-left: auto;
+  position: relative;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  white-space: nowrap;
 }
 
 .speed input {
   width: 4em;
+}
+
+.hint {
+  color: var(--text-muted);
+  margin-left: 6px;
 }
