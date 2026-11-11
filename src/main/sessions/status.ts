@@ -1,7 +1,8 @@
 import { EventEmitter } from 'node:events';
 import { nextDot, type DotInput } from '@shared/dots';
+import { tabWorktrees } from '@shared/tabWorktrees';
 import type { Card } from '@shared/types/jira';
-import type { Dot, HookEvent, SyncState, TabStatus } from '@shared/types/tabs';
+import type { Dot, HookEvent, SyncState, TabState, TabStatus } from '@shared/types/tabs';
 import type { PrInfo } from '@shared/types/github';
 import { appLogger, type Logger } from '@main/app/log';
 import { withTimeout } from '@main/app/withTimeout';
@@ -164,23 +165,18 @@ export class StatusEngine extends EventEmitter<Events> {
       return;
     }
     if (tab.kind === 'planner' || tab.cardKey === null) {
-      this.apply(tabId, { type: 'stop', kind: 'planner', cardStatus: null, pr: null });
+      this.apply(tabId, { type: 'stop', kind: 'planner', cardStatus: null, prs: [] });
       return;
     }
-    const { worktreePath } = tab;
     let input: DotInput | null;
     try {
-      const [card, pr] = await Promise.all([
+      const [card, prs] = await Promise.all([
         withTimeout(this.deps.getCard(tab.cardKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
           this.fail('jira', 'getCard', err),
         ),
-        worktreePath === null
-          ? null
-          : withTimeout(this.deps.prFor(worktreePath, tab.projectKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
-              this.fail('gh', 'prFor', err),
-            ),
+        this.prsFor(tab),
       ]);
-      input = { type: 'stop', kind: 'card', cardStatus: card.status, pr };
+      input = { type: 'stop', kind: 'card', cardStatus: card.status, prs };
     } catch {
       input = null;
     }
@@ -201,14 +197,9 @@ export class StatusEngine extends EventEmitter<Events> {
       const card = await withTimeout(this.deps.getCard(tab.cardKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
         this.fail('jira', 'getCard', err),
       );
-      const worktreePath = this.deps.sessions.get(tabId)?.worktreePath ?? null;
-      const pr =
-        card.status === 'In Review' && worktreePath !== null
-          ? await withTimeout(this.deps.prFor(worktreePath, tab.projectKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
-              this.fail('gh', 'prFor', err),
-            )
-          : null;
-      input = { type: 'stop', kind: 'card', cardStatus: card.status, pr };
+      const fresh = this.deps.sessions.get(tabId);
+      const prs = card.status === 'In Review' && fresh !== null ? await this.prsFor(fresh) : [];
+      input = { type: 'stop', kind: 'card', cardStatus: card.status, prs };
     } catch {
       return;
     }
@@ -217,6 +208,17 @@ export class StatusEngine extends EventEmitter<Events> {
     if ((resumed || dot === 'merged') && tracked?.seq === seq) {
       this.setDot(tracked, dot, { ...this.inputFields(input), input: 'spawn' }, dot);
     }
+  }
+
+  private async prsFor(tab: TabState): Promise<PrInfo[]> {
+    const prs = await Promise.all(
+      tabWorktrees(tab).map((path) =>
+        withTimeout(this.deps.prFor(path, tab.projectKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
+          this.fail('gh', 'prFor', err),
+        ),
+      ),
+    );
+    return prs.filter((pr) => pr !== null);
   }
 
   private fail(scope: 'jira' | 'gh', operation: string, err: unknown): never {
@@ -228,8 +230,9 @@ export class StatusEngine extends EventEmitter<Events> {
     if (input?.type !== 'stop') {
       return { input: input?.type ?? 'stop' };
     }
-    const { cardStatus, pr } = input;
-    return { input: 'stop', cardStatus, pr: pr?.state ?? null, failedChecks: pr?.checks.failed ?? null };
+    const { cardStatus, prs } = input;
+    const failedChecks = prs.reduce((sum, p) => sum + p.checks.failed, 0);
+    return { input: 'stop', cardStatus, prs: prs.map((p) => p.state), failedChecks };
   }
 
   private bump(tabId: string): number | null {

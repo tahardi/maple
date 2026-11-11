@@ -73,7 +73,7 @@ vi.mock('@main/github/securityFindings', () => ({ openFindings, ghLogin }));
 const event = {} as IpcMainInvokeEvent;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const events = { approved: vi.fn(), commented: vi.fn(), replied: vi.fn(), resolved: vi.fn() };
-const eventTab = { projectKey: 'DIG', cardKey: 'DIG-44' };
+const eventTab = { projectKey: 'DIG', cardKey: 'DIG-44', worktreePath: '/wt', worktreePaths: ['/wt'] };
 const pr: PrInfo = {
   number: 33,
   url: 'https://github.com/tahardi/maple/pull/33',
@@ -98,8 +98,16 @@ const project: ProjectConfig = {
 const head = 'a'.repeat(40);
 const base = 'c'.repeat(40);
 
-function tabSessions(cardKey: string | null = 'DIG-44', projectKey = 'DIG', sendPrompt = vi.fn()) {
-  return { get: () => ({ projectKey, cardKey }), sendPrompt } as unknown as SessionManager;
+function tabSessions(
+  cardKey: string | null = 'DIG-44',
+  projectKey = 'DIG',
+  sendPrompt = vi.fn(),
+  worktreePaths: readonly string[] = ['/wt'],
+) {
+  return {
+    get: () => ({ projectKey, cardKey, worktreePath: '/wt', worktreePaths }),
+    sendPrompt,
+  } as unknown as SessionManager;
 }
 
 function register(
@@ -149,6 +157,7 @@ function approver(
   answers: Record<string, Reply> = {},
   worktree: string | null = '/wt',
   cardKey: string | null = 'DIG-44',
+  worktreePaths: readonly string[] = ['/wt'],
 ) {
   const calls: string[] = [];
   gh.mockImplementation((_cmd, args) => {
@@ -159,7 +168,7 @@ function approver(
   const sendPrompt = vi.fn(() => {
     calls.push('prompt');
   });
-  const sessions = tabSessions(cardKey, 'DIG', sendPrompt);
+  const sessions = tabSessions(cardKey, 'DIG', sendPrompt, worktreePaths);
   return { approve: register('pr:approve', worktree, sessions), sendPrompt, calls };
 }
 
@@ -277,6 +286,64 @@ describe('registerPr', () => {
       repo: 'tahardi/maple',
       number: 33,
       headSha: head,
+    });
+  });
+
+  test('pr:approve merges the selected PR but holds /card while another worktree has an open PR', async () => {
+    // given
+    prForBranch.mockResolvedValue(pr);
+    const { approve, sendPrompt, calls } = approver({ [viewPin]: pinned(head) }, '/wt', 'DIG-44', ['/wt', '/wt2']);
+    // when
+    await approve('t1', head);
+    // then
+    expect(calls).toContain(merge);
+    expect(sendPrompt).not.toHaveBeenCalled();
+    expect(prForBranch).toHaveBeenCalledWith(gh, '/wt2', 'mpl-13-github-client');
+    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', 'mpl-13-github-client', '/wt2');
+    expect(logger.info).toHaveBeenCalledWith('gh', 'waiting for other PRs', { tabId: 't1', open: [33] });
+  });
+
+  test('pr:approve prompts /card once every other worktree PR is merged', async () => {
+    // given
+    prForBranch.mockImplementation((_run, worktree) =>
+      Promise.resolve(worktree === '/wt2' ? { ...pr, state: 'MERGED' } : pr),
+    );
+    const { approve, sendPrompt } = approver({ [viewPin]: pinned(head) }, '/wt', 'DIG-44', ['/wt', '/wt2']);
+    // when
+    await approve('t1', head);
+    // then
+    expect(sendPrompt).toHaveBeenCalledWith('t1', '/card DIG-44');
+  });
+
+  test.each([
+    { name: 'another worktree has no PR', worktreePaths: ['/wt', '/wt2'] },
+    { name: 'the tab lists no worktrees', worktreePaths: [] },
+  ])('pr:approve prompts /card when $name', async ({ worktreePaths }) => {
+    // given
+    prForBranch.mockImplementation((_run, worktree) => Promise.resolve(worktree === '/wt2' ? null : pr));
+    const { approve, sendPrompt } = approver({ [viewPin]: pinned(head) }, '/wt', 'DIG-44', worktreePaths);
+    // when
+    await approve('t1', head);
+    // then
+    expect(sendPrompt).toHaveBeenCalledWith('t1', '/card DIG-44');
+  });
+
+  test("pr:approve holds /card when another worktree's PR lookup fails", async () => {
+    // given
+    prForBranch.mockImplementation((_run, worktree) =>
+      worktree === '/wt2' ? Promise.reject(new Error('listing PRs: offline')) : Promise.resolve(pr),
+    );
+    const { approve, sendPrompt, calls } = approver({ [viewPin]: pinned(head) }, '/wt', 'DIG-44', ['/wt', '/wt2']);
+    // when
+    const result = approve('t1', head);
+    // then
+    await expect(result).resolves.toBeUndefined();
+    expect(calls).toContain(merge);
+    expect(sendPrompt).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:approve',
+      tabId: 't1',
+      error: 'listing PRs: offline',
     });
   });
 

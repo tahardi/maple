@@ -23,74 +23,82 @@ describe('nextDot', () => {
     { name: 'a background agent keeps working', input: { type: 'background' }, want: 'working' },
     {
       name: 'planner stop is idle',
-
-      input: { type: 'stop', kind: 'planner', cardStatus: null, pr: null },
+      input: { type: 'stop', kind: 'planner', cardStatus: null, prs: [] },
       want: 'idle',
     },
     {
       name: 'planner stop with a done status is idle',
-
-      input: { type: 'stop', kind: 'planner', cardStatus: 'Done', pr: null },
+      input: { type: 'stop', kind: 'planner', cardStatus: 'Done', prs: [] },
       want: 'idle',
     },
     {
       name: 'done card is merged',
-
-      input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: null },
+      input: { type: 'stop', kind: 'card', cardStatus: 'Done', prs: [] },
       want: 'merged',
     },
     {
       name: 'done card with a merged PR is merged',
-
-      input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: pr('MERGED', 0) },
+      input: { type: 'stop', kind: 'card', cardStatus: 'Done', prs: [pr('MERGED', 0)] },
       want: 'merged',
     },
     {
       name: 'done card with failing checks is merged',
-
-      input: { type: 'stop', kind: 'card', cardStatus: 'Done', pr: pr('OPEN', 2) },
+      input: { type: 'stop', kind: 'card', cardStatus: 'Done', prs: [pr('OPEN', 2)] },
       want: 'merged',
     },
     {
       name: 'reviewable card is ready',
-
-      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: pr('OPEN', 0) },
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', prs: [pr('OPEN', 0)] },
       want: 'ready',
     },
     {
       name: 'failing checks wait',
-
-      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: pr('OPEN', 1) },
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', prs: [pr('OPEN', 1)] },
       want: 'waiting',
     },
     {
       name: 'to do card waits',
-
-      input: { type: 'stop', kind: 'card', cardStatus: 'To Do', pr: null },
+      input: { type: 'stop', kind: 'card', cardStatus: 'To Do', prs: [] },
       want: 'waiting',
     },
     {
       name: 'in progress card waits',
-
-      input: { type: 'stop', kind: 'card', cardStatus: 'In Progress', pr: pr('OPEN', 0) },
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Progress', prs: [pr('OPEN', 0)] },
       want: 'waiting',
     },
     {
       name: 'in review without a PR waits',
-
-      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: null },
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', prs: [] },
       want: 'waiting',
     },
     {
       name: 'in review with a merged PR waits',
-
-      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: pr('MERGED', 0) },
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', prs: [pr('MERGED', 0)] },
       want: 'waiting',
     },
     {
       name: 'in review with a closed PR waits',
-
-      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', pr: pr('CLOSED', 0) },
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', prs: [pr('CLOSED', 0)] },
+      want: 'waiting',
+    },
+    {
+      name: 'in review with two green open PRs is ready',
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', prs: [pr('OPEN', 0), pr('OPEN', 0)] },
+      want: 'ready',
+    },
+    {
+      name: 'in review with one failing open PR waits',
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', prs: [pr('OPEN', 0), pr('OPEN', 1)] },
+      want: 'waiting',
+    },
+    {
+      name: 'in review with a merged PR and a green open PR is ready',
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', prs: [pr('MERGED', 0), pr('OPEN', 0)] },
+      want: 'ready',
+    },
+    {
+      name: 'in review with only merged PRs waits',
+      input: { type: 'stop', kind: 'card', cardStatus: 'In Review', prs: [pr('MERGED', 0), pr('MERGED', 0)] },
       want: 'waiting',
     },
   ])('$name', ({ input, want }) => {

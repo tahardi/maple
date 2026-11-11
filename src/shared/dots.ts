@@ -6,13 +6,14 @@ export type DotInput =
   | { type: 'prompt' }
   | { type: 'permission' }
   | { type: 'background' }
-  | { type: 'stop'; kind: TabKind; cardStatus: JiraStatus | null; pr: PrInfo | null };
+  | { type: 'stop'; kind: TabKind; cardStatus: JiraStatus | null; prs: readonly PrInfo[] };
 
-function stopDot(cardStatus: JiraStatus | null, pr: PrInfo | null): Dot {
+function stopDot(cardStatus: JiraStatus | null, prs: readonly PrInfo[]): Dot {
   if (cardStatus === 'Done') {
     return 'merged';
   }
-  const reviewable = cardStatus === 'In Review' && pr?.state === 'OPEN' && pr.checks.failed === 0;
+  const open = prs.filter((p) => p.state === 'OPEN');
+  const reviewable = cardStatus === 'In Review' && open.length > 0 && open.every((p) => p.checks.failed === 0);
   return reviewable ? 'ready' : 'waiting';
 }
 
@@ -24,7 +25,7 @@ export function nextDot(input: DotInput): Dot {
     case 'permission':
       return 'waiting';
     case 'stop':
-      return input.kind === 'planner' ? 'idle' : stopDot(input.cardStatus, input.pr);
+      return input.kind === 'planner' ? 'idle' : stopDot(input.cardStatus, input.prs);
   }
 }
 

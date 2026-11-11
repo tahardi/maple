@@ -3,6 +3,7 @@ import type { ProjectConfig } from '@shared/types/config';
 import type { PrInfo } from '@shared/types/github';
 import type { Dot, TabState } from '@shared/types/tabs';
 import { worktreeRepo } from '@shared/worktree';
+import { tabWorktrees } from '@shared/tabWorktrees';
 import { appLogger, type Logger } from '@main/app/log';
 import type { Runner } from '@main/app/preflight';
 import { batchKey, fetchPrs, type BatchResult } from './prBatch';
@@ -112,11 +113,7 @@ export class PrPoller {
       this.deps
         .tabs()
         .filter((tab) => tab.kind === 'card')
-        .flatMap((tab) =>
-          [...new Set([...tab.worktreePaths, ...(tab.worktreePath === null ? [] : [tab.worktreePath])])].map(
-            (worktree) => this.target(tab, worktree),
-          ),
-        ),
+        .flatMap((tab) => tabWorktrees(tab).map((worktree) => this.target(tab, worktree))),
     );
     const targets = outcomes.filter((o): o is Target => !('error' in o));
     const pairs = new Map(

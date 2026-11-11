@@ -12,7 +12,7 @@ const tab: TabState = {
   cardKey: 'MPL-189',
   sessionId: 's1',
   worktreePath: '/wt',
-  worktreePaths: [],
+  worktreePaths: ['/wt'],
 };
 const repo = 'tahardi/maple';
 const refs = { project: 'MPL', card: 'MPL-189', tab: 't1', session: 's1' };
@@ -479,6 +479,89 @@ describe('PrEvents', () => {
     expect(fake.append.mock.calls).toEqual([['pr.opened', refs, { repo, pr: 33 }]]);
   });
 
+  test('tapPr records the PR for an unselected worktree of the tab', async () => {
+    // given
+    const { events, fake } = setup();
+    const twoRepos: TabState = { ...tab, worktreePaths: ['/wt', '/wt2'] };
+    const tapped = events.tapPr(
+      () => Promise.resolve(pr33),
+      () => [twoRepos],
+    );
+    // when
+    await tapped('/wt2', 'MPL');
+    await settle();
+    // then
+    expect(fake.append.mock.calls).toEqual([['pr.opened', refs, { repo, pr: 33 }]]);
+  });
+
+  test('tapPr records the PR for a restored tab with only a selected worktree', async () => {
+    // given
+    const { events, fake } = setup();
+    const tapped = events.tapPr(
+      () => Promise.resolve(pr33),
+      () => [{ ...tab, worktreePaths: [] }],
+    );
+    // when
+    await tapped('/wt', 'MPL');
+    await settle();
+    // then
+    expect(fake.append.mock.calls).toEqual([['pr.opened', refs, { repo, pr: 33 }]]);
+  });
+
+  test('records each repo once when lookups alternate between two repos', async () => {
+    // given
+    const { events, appended } = setup();
+    const ours: PrInfo = { ...pr33, checks: failing };
+    const theirs: PrInfo = { ...pr33, number: 7, url: 'https://github.com/tahardi/other/pull/7', checks: failing };
+    // when
+    await events.pr(tab, ours);
+    await events.pr(tab, theirs);
+    await events.pr(tab, ours);
+    await events.pr(tab, theirs);
+    // then
+    const other = 'tahardi/other';
+    expect(appended('pr.opened')).toEqual([
+      { repo, pr: 33 },
+      { repo: other, pr: 7 },
+    ]);
+    expect(appended('ci.result')).toEqual([
+      { repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] },
+      { repo: other, pr: 7, passed: 5, failed: 1, failedChecks: ['test'] },
+    ]);
+  });
+
+  test('starts each repo from its own values in the log', async () => {
+    // given
+    const { events, fake, appended } = setup();
+    fake.readEvents.mockResolvedValue([
+      logged('pr.opened', { repo, pr: 33 }),
+      logged('pr.opened', { repo: 'tahardi/other', pr: 7 }),
+    ]);
+    // when
+    await events.pr(tab, pr33);
+    await events.pr(tab, { ...pr33, number: 7, url: 'https://github.com/tahardi/other/pull/7' });
+    // then
+    expect(appended('pr.opened')).toEqual([]);
+  });
+
+  test('restores merges and CI results per repo', async () => {
+    // given
+    const { events, fake, appended } = setup();
+    const other = 'tahardi/other';
+    fake.readEvents.mockResolvedValue([
+      logged('pr.opened', { repo, pr: 33 }),
+      logged('ci.result', { repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }),
+      logged('pr.merged', { repo, pr: 33 }),
+    ]);
+    const merged: PrInfo = { ...pr33, state: 'MERGED', checks: failing };
+    // when
+    await events.pr(tab, merged);
+    await events.pr(tab, { ...merged, url: `https://github.com/${other}/pull/33` });
+    // then
+    expect(appended('pr.merged')).toEqual([{ repo: other, pr: 33 }]);
+    expect(appended('ci.result')).toEqual([{ repo: other, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }]);
+  });
+
   test.each([
     {
       name: 'tapCard',
@@ -510,7 +593,7 @@ describe('PrEvents', () => {
   test('records nothing when no open tab matches', async () => {
     // given
     const { events, fake } = setup();
-    const other: TabState = { ...tab, cardKey: 'MPL-1', worktreePath: '/other' };
+    const other: TabState = { ...tab, cardKey: 'MPL-1', worktreePath: '/other', worktreePaths: ['/other'] };
     const tappedCard = events.tapCard(
       () => Promise.resolve(card),
       () => [other],
