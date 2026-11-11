@@ -94,7 +94,7 @@ function setup(
     setSeen,
     seen: () => Promise.resolve(seen),
     startQueue: new EventEmitter() as StartQueue,
-    latestPr: () => Promise.resolve({ data: null, error: null, fetchedAt: null }),
+    prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];
   const confirmQuit = on.mock.calls.find(([name]) => name === 'app:confirmQuit')?.[1];

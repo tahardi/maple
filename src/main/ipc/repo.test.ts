@@ -69,7 +69,7 @@ function invoke(channel: string, ...args: unknown[]): unknown {
       setSeen: () => Promise.resolve(),
       seen: () => Promise.resolve({}),
       startQueue: new EventEmitter() as StartQueue,
-      latestPr: () => Promise.resolve({ data: null, error: null, fetchedAt: null }),
+      prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
     },
     logger,
   );

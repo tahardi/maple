@@ -57,7 +57,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
     if (!worktree) {
       return { data: null, error: null, fetchedAt: null };
     }
-    return deps.latestPr(tabId, worktree);
+    return deps.prs.latest(tabId, worktree);
   });
   handle('pr:review', z.tuple([tabIdArg]), async (tabId): Promise<Fetched<Review>> => {
     const worktree = deps.worktreeFor(tabId);
@@ -65,11 +65,14 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       return { data: null, error: null, fetchedAt: null };
     }
     try {
-      const run = await runnerFor(tabId);
-      const pr = await lookup(run, worktree);
+      const { data: pr, error } = await deps.prs.latest(tabId, worktree);
+      if (pr === null && error !== null) {
+        throw new Error(error);
+      }
       if (pr?.state !== 'OPEN') {
         return { data: null, error: null, fetchedAt: null };
       }
+      const run = ghRunner(prRepo(pr.url));
       const [review, findings] = await Promise.all([
         reviewFiles(run, pr.number),
         myLogin(run).then((me) => openFindings(run, pr.number, me)),
@@ -110,6 +113,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         throw new Error('approving PR: branch has no open PR');
       }
       await approveAndMerge(run, pr.number, headSha, cardKey);
+      deps.prs.refresh();
       record(tabId, (tab) => events.approved(tab, pr));
       logger.info('gh', 'merged', { tabId, repo: prRepo(pr.url), number: pr.number, headSha });
       deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
@@ -224,7 +228,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       return [];
     }
     try {
-      const { data: pr, error } = await deps.latestPr(tabId, worktree);
+      const { data: pr, error } = await deps.prs.latest(tabId, worktree);
       if (pr === null && error !== null) {
         throw new Error(error);
       }

@@ -14,6 +14,7 @@ const checkRunSchema = z.object({
   status: z.string(),
   conclusion: z.string().nullable(),
   detailsUrl: z.string().nullable(),
+  startedAt: z.string().nullable(),
 });
 
 const statusContextSchema = z.object({
@@ -54,7 +55,7 @@ function alias({ repo, branch }: RepoBranch, index: number): string {
     `pullRequests(headRefName: ${JSON.stringify(branch)}, first: 5, states: [OPEN, MERGED, CLOSED], ` +
     'orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title state body isCrossRepository ' +
     'headRefName headRefOid statusCheckRollup { contexts(first: 100) { nodes { __typename ' +
-    '... on CheckRun { name status conclusion detailsUrl } ... on StatusContext { context state targetUrl } ' +
+    '... on CheckRun { name status conclusion detailsUrl startedAt } ... on StatusContext { context state targetUrl } ' +
     '} } } } } }'
   );
 }
@@ -111,6 +112,22 @@ function summary(runs: CheckRun[]): ChecksSummary {
   };
 }
 
+function newest(contexts: z.infer<typeof contextSchema>[]): z.infer<typeof contextSchema>[] {
+  const kept = new Map<string, z.infer<typeof contextSchema>>();
+  for (const context of contexts) {
+    const name = context.__typename === 'CheckRun' ? `run:${context.name}` : `status:${context.context}`;
+    const seen = kept.get(name);
+    const later =
+      seen?.__typename === 'CheckRun' && context.__typename === 'CheckRun'
+        ? (context.startedAt ?? '') > (seen.startedAt ?? '')
+        : false;
+    if (seen === undefined || later) {
+      kept.set(name, context);
+    }
+  }
+  return [...kept.values()];
+}
+
 function prInfo(node: z.infer<typeof nodeSchema>): PrInfo {
   return {
     number: node.number,
@@ -120,7 +137,7 @@ function prInfo(node: z.infer<typeof nodeSchema>): PrInfo {
     body: node.body,
     ...parsePrBody(node.body),
     headSha: node.headRefOid,
-    checks: summary((node.statusCheckRollup?.contexts.nodes ?? []).map(checkRun)),
+    checks: summary(newest(node.statusCheckRollup?.contexts.nodes ?? []).map(checkRun)),
   };
 }
 

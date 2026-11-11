@@ -160,14 +160,74 @@ describe('parseBatch', () => {
     expect(result.get(batchKey(one[0]))).toEqual([expect.objectContaining({ number: 7 })]);
   });
 
+  test('keeps only the newest run of a check that was re-run', () => {
+    // given
+    const contexts = [
+      {
+        __typename: 'CheckRun',
+        name: 'lint',
+        status: 'COMPLETED',
+        conclusion: 'FAILURE',
+        detailsUrl: 'old',
+        startedAt: '2026-11-11T10:00:00Z',
+      },
+      {
+        __typename: 'CheckRun',
+        name: 'lint',
+        status: 'COMPLETED',
+        conclusion: 'SUCCESS',
+        detailsUrl: 'new',
+        startedAt: '2026-11-11T11:00:00Z',
+      },
+    ];
+    const rollup = { contexts: { nodes: contexts } };
+    const stdout = response({ p0: { pullRequests: { nodes: [node({ statusCheckRollup: rollup })] } } });
+    // when
+    const result = parseBatch(one, stdout);
+    // then
+    expect(result.get(batchKey(one[0]))).toEqual([
+      expect.objectContaining({
+        checks: { passed: 1, failed: 0, pending: 0, total: 1, runs: [{ name: 'lint', bucket: 'pass', link: 'new' }] },
+      }),
+    ]);
+  });
+
   test('counts check buckets the way gh pr checks does', () => {
     // given
     const contexts = [
-      { __typename: 'CheckRun', name: 'a', status: 'COMPLETED', conclusion: 'SUCCESS', detailsUrl: 'u' },
-      { __typename: 'CheckRun', name: 'b', status: 'COMPLETED', conclusion: 'SKIPPED', detailsUrl: 'u' },
-      { __typename: 'CheckRun', name: 'c', status: 'COMPLETED', conclusion: 'FAILURE', detailsUrl: 'u' },
-      { __typename: 'CheckRun', name: 'd', status: 'COMPLETED', conclusion: 'CANCELLED', detailsUrl: 'u' },
-      { __typename: 'CheckRun', name: 'e', status: 'IN_PROGRESS', conclusion: null, detailsUrl: 'u' },
+      {
+        __typename: 'CheckRun',
+        name: 'a',
+        status: 'COMPLETED',
+        conclusion: 'SUCCESS',
+        detailsUrl: 'u',
+        startedAt: null,
+      },
+      {
+        __typename: 'CheckRun',
+        name: 'b',
+        status: 'COMPLETED',
+        conclusion: 'SKIPPED',
+        detailsUrl: 'u',
+        startedAt: null,
+      },
+      {
+        __typename: 'CheckRun',
+        name: 'c',
+        status: 'COMPLETED',
+        conclusion: 'FAILURE',
+        detailsUrl: 'u',
+        startedAt: null,
+      },
+      {
+        __typename: 'CheckRun',
+        name: 'd',
+        status: 'COMPLETED',
+        conclusion: 'CANCELLED',
+        detailsUrl: 'u',
+        startedAt: null,
+      },
+      { __typename: 'CheckRun', name: 'e', status: 'IN_PROGRESS', conclusion: null, detailsUrl: 'u', startedAt: null },
     ];
     const rollup = { contexts: { nodes: contexts } };
     const stdout = response({ p0: { pullRequests: { nodes: [node({ statusCheckRollup: rollup })] } } });
@@ -206,7 +266,14 @@ describe('checkRun', () => {
     { status: 'QUEUED', conclusion: null, bucket: 'pending' },
   ])('maps a $status $conclusion check run to $bucket', ({ status, conclusion, bucket }) => {
     // given
-    const run = { __typename: 'CheckRun' as const, name: 'ci', status, conclusion, detailsUrl: 'https://ci/1' };
+    const run = {
+      __typename: 'CheckRun' as const,
+      name: 'ci',
+      status,
+      conclusion,
+      detailsUrl: 'https://ci/1',
+      startedAt: null,
+    };
     // when
     const result = checkRun(run);
     // then
@@ -230,7 +297,14 @@ describe('checkRun', () => {
 
   test('uses an empty link when the check has none', () => {
     // given
-    const run = { __typename: 'CheckRun' as const, name: 'ci', status: 'QUEUED', conclusion: null, detailsUrl: null };
+    const run = {
+      __typename: 'CheckRun' as const,
+      name: 'ci',
+      status: 'QUEUED',
+      conclusion: null,
+      detailsUrl: null,
+      startedAt: null,
+    };
     // when
     const result = checkRun(run);
     // then
@@ -270,6 +344,40 @@ describe('fetchPrs', () => {
     const result = await fetchPrs(run, one);
     // then
     expect(result.get(batchKey(one[0]))).toHaveProperty('message', 'listing PRs: gh: offline');
+  });
+
+  test('runs one call per query and keys every result by its own pair', async () => {
+    // given
+    const pairs = Array.from({ length: 101 }, (_, i) => ({ repo: 'tahardi/maple', branch: `b-${String(i)}` }));
+    const run = vi.fn<Runner>((_cmd, args) => {
+      const branches = [...(args[3] ?? '').matchAll(/p(\d+): repository.*?headRefName: "([^"]*)"/g)];
+      const data = Object.fromEntries(
+        branches.map(([, index, branch]) => [
+          `p${index}`,
+          { pullRequests: { nodes: [node({ number: Number(branch.slice(2)) + 1000 })] } },
+        ]),
+      );
+      return Promise.resolve({ code: 0, stdout: JSON.stringify({ data }), stderr: '' });
+    });
+    // when
+    const result = await fetchPrs(run, pairs);
+    // then
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(result.size).toBe(101);
+    expect(result.get(batchKey(pairs[0]))).toEqual([expect.objectContaining({ number: 1000 })]);
+    expect(result.get(batchKey(pairs[100]))).toEqual([expect.objectContaining({ number: 1100 })]);
+  });
+
+  test.each([
+    { name: 'is not JSON', stdout: 'oops' },
+    { name: 'has the wrong shape', stdout: JSON.stringify({ data: { p0: { pullRequests: 'x' } } }) },
+  ])('gives every pair a listing error when gh exits cleanly but its output $name', async ({ stdout }) => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 0, stdout, stderr: '' }));
+    // when
+    const result = await fetchPrs(run, one);
+    // then
+    expect(result.get(batchKey(one[0]))).toHaveProperty('message', expect.stringMatching(/^listing PRs: /) as unknown);
   });
 
   test('runs no gh call for no pairs', async () => {

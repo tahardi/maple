@@ -47,6 +47,7 @@ function choose(target: Target, batch: BatchResult): PrInfo | null | Error {
 export class PrPoller {
   private results = new Map<string, Fetched<PrInfo>>();
   private running: Promise<void> | null = null;
+  private again = false;
   private readonly log: Logger;
   private readonly now: () => Date;
 
@@ -70,13 +71,25 @@ export class PrPoller {
   poll(): Promise<void> {
     this.running ??= this.pollOnce().finally(() => {
       this.running = null;
+      if (this.again) {
+        this.again = false;
+        void this.poll();
+      }
     });
     return this.running;
   }
 
+  refresh(): void {
+    if (this.running === null) {
+      void this.poll();
+      return;
+    }
+    this.again = true;
+  }
+
   async latest(tabId: string, worktree: string): Promise<Fetched<PrInfo>> {
     const key = keyOf(tabId, worktree);
-    if (!this.results.has(key) && this.running !== null) {
+    while (this.running !== null) {
       await this.running;
     }
     if (!this.results.has(key)) {

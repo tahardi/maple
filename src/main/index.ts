@@ -181,6 +181,9 @@ async function start(): Promise<() => number> {
     run: defaultRunner,
   });
   const stopPrPoller = prPoller.start();
+  status.on('status', () => {
+    prPoller.refresh();
+  });
   app.on('will-quit', (event) => {
     event.preventDefault();
     stopQueue();
@@ -233,7 +236,7 @@ async function start(): Promise<() => number> {
     terminals,
     status,
     startQueue,
-    latestPr: (tabId, worktree) => prPoller.latest(tabId, worktree),
+    prs: prPoller,
     setActiveTab: (tabId) => {
       activeTabId = tabId;
     },

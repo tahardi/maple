@@ -20,35 +20,40 @@
                     "name": "format",
                     "status": "COMPLETED",
                     "conclusion": "SUCCESS",
-                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685528"
+                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685528",
+                    "startedAt": "2026-11-11T11:37:39Z"
                   },
                   {
                     "__typename": "CheckRun",
                     "name": "lint",
                     "status": "COMPLETED",
                     "conclusion": "SUCCESS",
-                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685520"
+                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685520",
+                    "startedAt": "2026-11-11T11:37:38Z"
                   },
                   {
                     "__typename": "CheckRun",
                     "name": "typecheck",
                     "status": "COMPLETED",
                     "conclusion": "SUCCESS",
-                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685436"
+                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685436",
+                    "startedAt": "2026-11-11T11:37:38Z"
                   },
                   {
                     "__typename": "CheckRun",
                     "name": "unit-test",
                     "status": "COMPLETED",
                     "conclusion": "SUCCESS",
-                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685188"
+                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685188",
+                    "startedAt": "2026-11-11T11:37:38Z"
                   },
                   {
                     "__typename": "CheckRun",
                     "name": "e2e",
                     "status": "COMPLETED",
                     "conclusion": "SUCCESS",
-                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685424"
+                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685424",
+                    "startedAt": "2026-11-11T11:37:38Z"
                   }
                 ]
               }
@@ -71,7 +76,7 @@
       "locations": [
         {
           "line": 1,
-          "column": 458
+          "column": 468
         }
       ],
       "message": "Could not resolve to a Repository with the name 'tahardi/no-such-repo'."

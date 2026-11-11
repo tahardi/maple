@@ -362,6 +362,96 @@ describe('PrPoller', () => {
     expect(queried).toEqual([['tahardi/xena@b/wts/x-1', 'tahardi/dotclaude@b/wts/x-1']]);
   });
 
+  test('drops the result of a closed tab after the next poll', async () => {
+    // given
+    const tabs = [tab('1', ['/a'])];
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 5, state: 'OPEN' }] });
+    const prs = poller(() => tabs, run);
+    await prs.poll();
+    tabs.pop();
+    await prs.poll();
+    // when
+    const result = await prs.latest('1', '/a');
+    // then
+    expect(result).toEqual({ data: null, error: null, fetchedAt: null });
+  });
+
+  test('asks once for a repo and branch two tabs share', async () => {
+    // given
+    const { run, queried } = github({});
+    const prs = poller(() => [tab('1', ['/a']), tab('2', ['/a'])], run);
+    // when
+    await prs.poll();
+    // then
+    expect(queried).toEqual([['tahardi/maple@b/a']]);
+  });
+
+  test('polls the selected worktree even when the worktree list misses it', async () => {
+    // given
+    const { run, queried } = github({});
+    const prs = poller(() => [tab('1', ['/a'], { worktreePath: '/b' })], run);
+    // when
+    await prs.poll();
+    // then
+    expect(queried).toEqual([['tahardi/maple@b/a', 'tahardi/maple@b/b']]);
+  });
+
+  test('serves other tabs their PR when one tab fails', async () => {
+    // given
+    const branch = (path: string) =>
+      path === '/bad' ? Promise.reject(new Error('listing branch: git down')) : Promise.resolve(`b${path}`);
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 5, state: 'OPEN' }] });
+    const prs = poller(() => [tab('1', ['/bad']), tab('2', ['/a'])], run, branch);
+    await prs.poll();
+    // when
+    const [bad, good] = await Promise.all([prs.latest('1', '/bad'), prs.latest('2', '/a')]);
+    // then
+    expect(bad.error).toBe('listing branch: git down');
+    expect(good).toEqual({
+      data: expect.objectContaining({ number: 5 }) as unknown,
+      error: null,
+      fetchedAt: '2026-11-11T12:00:00.000Z',
+    });
+  });
+
+  test('waits for a running poll before serving a known tab', async () => {
+    // given
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 5, state: 'OPEN' }] });
+    const prs = poller(() => [tab('1', ['/a'])], run);
+    run.mockResolvedValueOnce({ code: 0, stdout: JSON.stringify({ data: { p0: null } }), stderr: '' });
+    await prs.poll();
+    prs.refresh();
+    // when
+    const result = await prs.latest('1', '/a');
+    // then
+    expect(result.data?.number).toBe(5);
+  });
+
+  test('polls right away on refresh', async () => {
+    // given
+    const { run } = github({});
+    const prs = poller(() => [tab('1', ['/a'])], run);
+    // when
+    prs.refresh();
+    await vi.advanceTimersByTimeAsync(0);
+    // then
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  test('runs one more poll after the running one when refreshed during it', async () => {
+    // given
+    const { run } = github({});
+    const prs = poller(() => [tab('1', ['/a'])], run);
+    const running = prs.poll();
+    // when
+    prs.refresh();
+    prs.refresh();
+    await running;
+    await vi.advanceTimersByTimeAsync(0);
+    // then
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
   test('reports an error when one of the probed repos fails', async () => {
     // given
     const run = vi.fn<Runner>(() =>
