@@ -453,6 +453,82 @@ describe('useCardData', () => {
     expect(result.current.review).toBeNull();
   });
 
+  test('hides the old worktree repo, files, changes and PR until the new worktree loads', async () => {
+    // given
+    let finish: () => void = () => undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    let calls = 0;
+    const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(async () => {
+      calls += 1;
+      if (calls > 1) {
+        await pending;
+        return { name: 'b', branch: 'b-1', hasTry: false };
+      }
+      return { name: 'a', branch: 'a-1', hasTry: false };
+    });
+    fakeMaple({
+      repo: { info, listFiles: () => Promise.resolve(['README.md']) },
+      pr: { get: () => Promise.resolve({ data: openPr, error: null, fetchedAt: null }) },
+    });
+    const { result, rerender } = renderHook(({ t }) => useCardData(t), {
+      initialProps: { t: { ...tab, worktreePath: '/wts/a' } },
+    });
+    await waitFor(() => {
+      expect(result.current.repo?.name).toBe('a');
+    });
+    // when
+    rerender({ t: { ...tab, worktreePath: '/wts/b' } });
+    // then
+    expect(result.current.repo).toBeNull();
+    expect(result.current.pr).toBeNull();
+    expect(result.current.files).toEqual([]);
+    expect(result.current.changes).toBeNull();
+    // when
+    finish();
+    // then
+    await waitFor(() => {
+      expect(result.current.repo?.name).toBe('b');
+    });
+    expect(result.current.pr?.data).toEqual(openPr);
+  });
+
+  test('drops the loaded review when the worktree changes to a PR with the same number', async () => {
+    // given
+    const reviewA: Fetched<Review> = { ...fetchedReview, data: { ...reviewData, number: 12 } };
+    const reviewB: Fetched<Review> = { ...reviewA, data: { ...reviewData, number: 12, headSha: 'd'.repeat(40) } };
+    let finishB: (review: Fetched<Review>) => void = () => undefined;
+    const review = vi
+      .fn<(tabId: string) => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(reviewA)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishB = resolve;
+        }),
+      );
+    const pr12 = { ...openPr, number: 12 };
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr12, error: null, fetchedAt: null }), review } });
+    const { result, rerender } = renderHook(({ t }) => useCardData(t), {
+      initialProps: { t: { ...tab, worktreePath: '/wts/a' } },
+    });
+    await waitFor(() => {
+      expect(result.current.review).toEqual(reviewA);
+    });
+    // when
+    rerender({ t: { ...tab, worktreePath: '/wts/b' } });
+    // then
+    expect(result.current.review).toBeNull();
+    // when
+    act(() => {
+      finishB(reviewB);
+    });
+    // then
+    await waitFor(() => {
+      expect(result.current.review).toEqual(reviewB);
+    });
+  });
+
   test('reloadReview loads the review again', async () => {
     // given
     const later: Fetched<Review> = { ...fetchedReview, data: { ...reviewData, headSha: 'd'.repeat(40) } };
