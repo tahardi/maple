@@ -181,8 +181,8 @@ async function start(): Promise<() => number> {
     run: defaultRunner,
   });
   const stopPrPoller = prPoller.start();
-  status.on('status', () => {
-    prPoller.refresh();
+  status.on('status', (s, prev) => {
+    prPoller.dotChanged(s.dot, prev);
   });
   app.on('will-quit', (event) => {
     event.preventDefault();

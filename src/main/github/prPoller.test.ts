@@ -438,6 +438,24 @@ describe('PrPoller', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
+  test.each([
+    { prev: 'working', dot: 'idle', polls: 1 },
+    { prev: 'working', dot: 'ready', polls: 1 },
+    { prev: 'working', dot: 'merged', polls: 1 },
+    { prev: 'working', dot: 'waiting', polls: 1 },
+    { prev: 'idle', dot: 'working', polls: 0 },
+    { prev: 'idle', dot: 'idle', polls: 0 },
+  ] as const)('polls $polls times when a dot goes from $prev to $dot', async ({ prev, dot, polls }) => {
+    // given
+    const { run } = github({});
+    const prs = poller(() => [tab('1', ['/a'])], run);
+    // when
+    prs.dotChanged(dot, prev);
+    await vi.advanceTimersByTimeAsync(0);
+    // then
+    expect(run).toHaveBeenCalledTimes(polls);
+  });
+
   test('runs one more poll after the running one when refreshed during it', async () => {
     // given
     const { run } = github({});

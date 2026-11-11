@@ -55,8 +55,8 @@ function alias({ repo, branch }: RepoBranch, index: number): string {
     `pullRequests(headRefName: ${JSON.stringify(branch)}, first: 5, states: [OPEN, MERGED, CLOSED], ` +
     'orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title state body isCrossRepository ' +
     'headRefName headRefOid statusCheckRollup { contexts(first: 100) { nodes { __typename ' +
-    '... on CheckRun { name status conclusion detailsUrl startedAt } ... on StatusContext { context state targetUrl } ' +
-    '} } } } } }'
+    '... on CheckRun { name status conclusion detailsUrl startedAt } ' +
+    '... on StatusContext { context state targetUrl } } } } } } }'
   );
 }
 

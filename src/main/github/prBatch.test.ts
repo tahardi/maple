@@ -192,6 +192,29 @@ describe('parseBatch', () => {
     ]);
   });
 
+  test('keeps a check run and a status context that share a name', () => {
+    // given
+    const contexts = [
+      {
+        __typename: 'CheckRun',
+        name: 'ci',
+        status: 'COMPLETED',
+        conclusion: 'SUCCESS',
+        detailsUrl: 'a',
+        startedAt: null,
+      },
+      { __typename: 'StatusContext', context: 'ci', state: 'FAILURE', targetUrl: 'b' },
+    ];
+    const rollup = { contexts: { nodes: contexts } };
+    const stdout = response({ p0: { pullRequests: { nodes: [node({ statusCheckRollup: rollup })] } } });
+    // when
+    const result = parseBatch(one, stdout);
+    // then
+    expect(result.get(batchKey(one[0]))).toEqual([
+      expect.objectContaining({ checks: expect.objectContaining({ passed: 1, failed: 1, total: 2 }) as unknown }),
+    ]);
+  });
+
   test('counts check buckets the way gh pr checks does', () => {
     // given
     const contexts = [

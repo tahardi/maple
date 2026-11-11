@@ -1,7 +1,7 @@
 import type { Fetched } from '@shared/types/app';
 import type { ProjectConfig } from '@shared/types/config';
 import type { PrInfo } from '@shared/types/github';
-import type { TabState } from '@shared/types/tabs';
+import type { Dot, TabState } from '@shared/types/tabs';
 import { worktreeRepo } from '@shared/worktree';
 import { appLogger, type Logger } from '@main/app/log';
 import type { Runner } from '@main/app/preflight';
@@ -20,6 +20,8 @@ export type PrPollerDeps = {
 
 type Target = { tabId: string; worktree: string; branch: string; repos: string[] };
 type Outcome = Target | { tabId: string; worktree: string; error: Error };
+
+const SETTLED: readonly Dot[] = ['idle', 'ready', 'merged', 'waiting'];
 
 const EMPTY: Fetched<PrInfo> = { data: null, error: null, fetchedAt: null };
 
@@ -85,6 +87,12 @@ export class PrPoller {
       return;
     }
     this.again = true;
+  }
+
+  dotChanged(dot: Dot, prev: Dot): void {
+    if (dot !== prev && SETTLED.includes(dot)) {
+      this.refresh();
+    }
   }
 
   async latest(tabId: string, worktree: string): Promise<Fetched<PrInfo>> {
