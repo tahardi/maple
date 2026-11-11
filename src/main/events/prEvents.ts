@@ -13,7 +13,8 @@ type Schemas = typeof eventSchemas;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DIFFED_TYPES = ['card.status', 'pr.opened', 'ci.result', 'pr.merged'];
 
-type Recorded = { status: string | null; opened: string | null; ci: string | null; merged: string | null };
+type RepoRecord = { opened: string | null; ci: string | null; merged: string | null };
+type Recorded = { status: string | null; repos: Map<string, RepoRecord> };
 
 export type PrEventsDeps = {
   log: () => Pick<EventLog<Schemas>, 'append' | 'readEvents'>;
@@ -30,23 +31,30 @@ function ciKey(repo: string, pr: number, passed: number, failed: number, failedC
   return JSON.stringify([repo, pr, passed, failed, failedChecks]);
 }
 
-function restoredPr(data: unknown): string | null {
-  const pr = eventSchemas['pr.opened'].safeParse(data);
-  return pr.success ? prKey(pr.data.repo, pr.data.pr) : null;
+function repoRecord(state: Recorded, repo: string): RepoRecord {
+  const found = state.repos.get(repo);
+  if (found) {
+    return found;
+  }
+  const fresh: RepoRecord = { opened: null, ci: null, merged: null };
+  state.repos.set(repo, fresh);
+  return fresh;
 }
 
 function restore(state: Recorded, { type, data }: EventRecord): void {
   if (type === 'card.status' && typeof data.to === 'string') {
     state.status = data.to;
-  } else if (type === 'pr.opened') {
-    state.opened = restoredPr(data) ?? state.opened;
-  } else if (type === 'pr.merged') {
-    state.merged = restoredPr(data) ?? state.merged;
+  } else if (type === 'pr.opened' || type === 'pr.merged') {
+    const pr = eventSchemas['pr.opened'].safeParse(data);
+    if (pr.success) {
+      repoRecord(state, pr.data.repo)[type === 'pr.opened' ? 'opened' : 'merged'] = prKey(pr.data.repo, pr.data.pr);
+    }
   } else if (type === 'ci.result') {
     const ci = eventSchemas['ci.result'].safeParse(data);
-    state.ci = ci.success
-      ? ciKey(ci.data.repo, ci.data.pr, ci.data.passed, ci.data.failed, ci.data.failedChecks)
-      : state.ci;
+    if (ci.success) {
+      const { repo, pr, passed, failed, failedChecks } = ci.data;
+      repoRecord(state, repo).ci = ciKey(repo, pr, passed, failed, failedChecks);
+    }
   }
 }
 
@@ -86,14 +94,15 @@ export class PrEvents {
       return;
     }
     const repo = prRepo(pr.url);
+    const record = repoRecord(state, repo);
     const key = prKey(repo, pr.number);
-    if (state.opened !== key) {
-      state.opened = key;
+    if (record.opened !== key) {
+      record.opened = key;
       await this.append('pr.opened', tab, { repo, pr: pr.number });
     }
-    await this.ci(state, tab, repo, pr);
+    await this.ci(record, tab, repo, pr);
     if (pr.state === 'MERGED') {
-      await this.merged(state, tab, repo, pr.number);
+      await this.merged(record, tab, repo, pr.number);
     }
   }
 
@@ -104,7 +113,7 @@ export class PrEvents {
     }
     const repo = prRepo(pr.url);
     await this.append('pr.approved', tab, { repo, pr: pr.number });
-    await this.merged(state, tab, repo, pr.number);
+    await this.merged(repoRecord(state, repo), tab, repo, pr.number);
   }
 
   async commented(tab: TabState, pr: PrInfo, length: number): Promise<void> {
@@ -142,7 +151,7 @@ export class PrEvents {
   ): (worktree: string, projectKey: string) => Promise<PrInfo | null> {
     return async (worktree, projectKey) => {
       const pr = await prFor(worktree, projectKey);
-      const tab = tabs().find((t) => t.worktreePath === worktree);
+      const tab = tabs().find((t) => t.worktreePath === worktree || t.worktreePaths.includes(worktree));
       if (tab) {
         void this.pr(tab, pr);
       }
@@ -150,7 +159,7 @@ export class PrEvents {
     };
   }
 
-  private async ci(state: Recorded, tab: TabState, repo: string, pr: PrInfo): Promise<void> {
+  private async ci(state: RepoRecord, tab: TabState, repo: string, pr: PrInfo): Promise<void> {
     const { passed, pending, total, runs } = pr.checks;
     const failedChecks = runs
       .filter((run) => run.bucket === 'fail')
@@ -165,7 +174,7 @@ export class PrEvents {
     await this.append('ci.result', tab, { repo, pr: pr.number, passed, failed, failedChecks });
   }
 
-  private async merged(state: Recorded, tab: TabState, repo: string, pr: number): Promise<void> {
+  private async merged(state: RepoRecord, tab: TabState, repo: string, pr: number): Promise<void> {
     const key = prKey(repo, pr);
     if (state.merged === key) {
       return;
@@ -202,7 +211,7 @@ export class PrEvents {
     if (found) {
       return found;
     }
-    const fresh: Recorded = { status: null, opened: null, ci: null, merged: null };
+    const fresh: Recorded = { status: null, repos: new Map() };
     this.recorded.set(card, fresh);
     return fresh;
   }

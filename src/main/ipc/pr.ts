@@ -37,6 +37,27 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
     return prForBranch(run, worktree, await currentBranch(worktree));
   }
 
+  async function prAt(tabId: string, worktree: string): Promise<PrInfo | null> {
+    const branch = await currentBranch(worktree);
+    const projectKey = deps.sessions.get(tabId)?.projectKey ?? null;
+    return prForBranch(await projectRunner(deps.project, projectKey, branch, worktree), worktree, branch);
+  }
+
+  async function holdsCard(tabId: string, worktree: string): Promise<boolean> {
+    const others = (deps.sessions.get(tabId)?.worktreePaths ?? []).filter((path) => path !== worktree);
+    try {
+      const prs = await Promise.all(others.map((path) => prAt(tabId, path)));
+      const open = prs.flatMap((p) => (p?.state === 'OPEN' ? [p.number] : []));
+      if (open.length > 0) {
+        logger.info('gh', 'waiting for other PRs', { tabId, open });
+      }
+      return open.length > 0;
+    } catch (err) {
+      logger.warn('gh', 'failed', { operation: 'pr:approve', tabId, error: message(err) });
+      return true;
+    }
+  }
+
   function myLogin(run: CommandRunner): Promise<string> {
     login ??= ghLogin(run).catch((err: unknown) => {
       login = null;
@@ -116,7 +137,9 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       deps.prs.refresh();
       record(tabId, (tab) => events.approved(tab, pr));
       logger.info('gh', 'merged', { tabId, repo: prRepo(pr.url), number: pr.number, headSha });
-      deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
+      if (!(await holdsCard(tabId, worktree))) {
+        deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
+      }
     } catch (err) {
       logger.warn('gh', 'failed', { operation: 'pr:approve', tabId, error: message(err) });
       throw err;

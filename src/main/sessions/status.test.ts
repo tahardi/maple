@@ -13,7 +13,7 @@ const cardTab: TabState = {
   cardKey: 'DIG-44',
   sessionId: 's1',
   worktreePath: '/wts/dig-44',
-  worktreePaths: [],
+  worktreePaths: ['/wts/dig-44'],
 };
 
 const card: Card = {
@@ -40,6 +40,19 @@ const openPr: PrInfo = {
   headSha: 'a'.repeat(40),
   checks: { passed: 2, failed: 0, pending: 0, total: 2, runs: [] },
 };
+
+const noWorktreeTab: TabState = { ...cardTab, worktreePath: null, worktreePaths: [] };
+const failingPr: PrInfo = { ...openPr, number: 4, checks: { ...openPr.checks, failed: 1 } };
+const mergedPr: PrInfo = { ...openPr, number: 5, state: 'MERGED' };
+const twoRepoTab: TabState = {
+  ...cardTab,
+  worktreePath: '/wts/dig-days-dig-44',
+  worktreePaths: ['/wts/dig-days-dig-44', '/wts/halo-dig-44'],
+};
+
+function perWorktree(a: PrInfo | null, b: PrInfo | null) {
+  return (worktree: string) => Promise.resolve(worktree === '/wts/dig-days-dig-44' ? a : b);
+}
 
 const WAIT_LIMIT_MS = 60_000;
 
@@ -204,7 +217,7 @@ describe('StatusEngine', () => {
     {
       status: 'In Review',
       name: 'no worktree',
-      tab: { ...cardTab, worktreePath: null },
+      tab: noWorktreeTab,
       pr: openPr,
       want: 'waiting',
       prCalls: 0,
@@ -232,7 +245,7 @@ describe('StatusEngine', () => {
   test('a resumed spawn reads the worktree after the card lookup', async () => {
     // given
     const { sessions, emitted, prFor } = setup();
-    sessions.get.mockReturnValueOnce({ ...cardTab, worktreePath: null });
+    sessions.get.mockReturnValueOnce({ ...cardTab, worktreePath: null, worktreePaths: [] });
     // when
     sessions.emit('spawn', 't1', false, true);
     // then
@@ -343,8 +356,8 @@ describe('StatusEngine', () => {
         to: 'merged',
         input: 'spawn',
         cardStatus: 'Done',
-        pr: null,
-        failedChecks: null,
+        prs: [],
+        failedChecks: 0,
       });
     });
   });
@@ -1011,7 +1024,7 @@ describe('StatusEngine', () => {
     expect(engine.statuses()).toEqual([]);
   });
 
-  test('a Stop hook for a card tab looks up the card and its worktree PR', async () => {
+  test('a Stop hook for a card tab looks up the card and every worktree PR', async () => {
     // given
     const { sessions, engine, emitted, getCard, prFor } = setup();
     sessions.emit('spawn', 't1', true);
@@ -1040,9 +1053,54 @@ describe('StatusEngine', () => {
     });
   });
 
+  test.each([
+    { name: 'both PRs are green', a: openPr, b: openPr, want: 'ready' },
+    { name: 'the unselected PR fails checks', a: openPr, b: failingPr, want: 'waiting' },
+    { name: 'one PR is merged', a: mergedPr, b: openPr, want: 'ready' },
+  ])('a Stop hook for a card with two worktrees emits $want when $name', async ({ a, b, want }) => {
+    // given
+    const { sessions, engine, emitted, prFor } = setup({ tab: twoRepoTab, prFor: perWorktree(a, b) });
+    sessions.emit('spawn', 't1', true);
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    // then
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe(want);
+    });
+    expect(prFor).toHaveBeenCalledWith('/wts/dig-days-dig-44', 'DIG');
+    expect(prFor).toHaveBeenCalledWith('/wts/halo-dig-44', 'DIG');
+  });
+
+  test('a Stop hook for a restored tab with only a selected worktree looks up its PR', async () => {
+    // given
+    const { sessions, engine, emitted, prFor } = setup({ tab: { ...cardTab, worktreePaths: [] } });
+    sessions.emit('spawn', 't1', true);
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    // then
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe('ready');
+    });
+    expect(prFor).toHaveBeenCalledTimes(1);
+  });
+
+  test('a resumed spawn checks the PR of every worktree', async () => {
+    // given
+    const { sessions, engine, prFor } = setup({ tab: twoRepoTab, prFor: perWorktree(openPr, failingPr) });
+    // when
+    sessions.emit('spawn', 't1', false, true);
+    // then
+    await vi.waitFor(() => {
+      expect(prFor).toHaveBeenCalledWith('/wts/halo-dig-44', 'DIG');
+    });
+    await vi.waitFor(() => {
+      expect(engine.statuses()[0]?.dot).toBe('waiting');
+    });
+  });
+
   test('a Stop hook for a card tab without a worktree skips the PR and waits', async () => {
     // given
-    const { sessions, engine, emitted, prFor } = setup({ tab: { ...cardTab, worktreePath: null } });
+    const { sessions, engine, emitted, prFor } = setup({ tab: { ...cardTab, worktreePath: null, worktreePaths: [] } });
     sessions.emit('spawn', 't1', true);
     // when
     engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
@@ -1156,7 +1214,7 @@ describe('StatusEngine', () => {
         to: 'ready',
         input: 'stop',
         cardStatus: 'In Review',
-        pr: 'OPEN',
+        prs: ['OPEN'],
         failedChecks: 0,
       });
     });
