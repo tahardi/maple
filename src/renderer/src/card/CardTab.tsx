@@ -39,7 +39,7 @@ const CLOSE_WARNING =
   'wont-do label. This cannot be undone.';
 
 export function CardTab({ tab }: { tab: TabState }) {
-  const { changes, files, repo, pr, review, reloadReview, card, cost, outsideSprint } = useCardData(tab);
+  const { changes, files, repo, pr, review, reviewUpdated, reloadReview, card, cost, outsideSprint } = useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
@@ -50,9 +50,9 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [line, setLine] = useState<number | null>(null);
   const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
-  const [approveError, setApproveError] = useState<string | null>(null);
-  const [confirmApprove, setConfirmApprove] = useState(false);
-  const [confirmFindings, setConfirmFindings] = useState(false);
+  const [approveError, setApproveError] = useState<{ headSha: string; message: string } | null>(null);
+  const [confirmApprove, setConfirmApprove] = useState<string | null>(null);
+  const [confirmFindings, setConfirmFindings] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
   const [cardOpened, setCardOpened] = useState(false);
@@ -98,16 +98,17 @@ export function CardTab({ tab }: { tab: TabState }) {
       return;
     }
     setApproveError(null);
-    window.maple.pr.approve(tab.id, pinned.headSha).catch((err: unknown) => {
+    const { headSha } = pinned;
+    window.maple.pr.approve(tab.id, headSha).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
-      setApproveError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
+      setApproveError({ headSha, message: message.replace(/^Error invoking remote method '[^']+': Error: /, '') });
     });
   };
   const findingNoun = highFindings === 1 ? 'finding' : 'findings';
   const findingsWarning = `${String(highFindings)} open high-severity ${findingNoun}. Approve anyway?`;
   const confirmViewed = () => {
-    if (unviewed > 0) {
-      setConfirmApprove(true);
+    if (unviewed > 0 && pinned !== null) {
+      setConfirmApprove(pinned.headSha);
     } else {
       approvePr();
     }
@@ -126,8 +127,8 @@ export function CardTab({ tab }: { tab: TabState }) {
             window.maple.session.sendPrompt(tab.id, text);
           },
           approve: () => {
-            if (highFindings > 0) {
-              setConfirmFindings(true);
+            if (highFindings > 0 && pinned !== null) {
+              setConfirmFindings(pinned.headSha);
             } else {
               confirmViewed();
             }
@@ -302,6 +303,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               findings={pinned?.findings ?? []}
               projectRepo={project?.repo ?? null}
               headSha={pinned?.headSha ?? null}
+              updated={reviewUpdated}
               searchedRepos={searchedRepos}
               onOpenDescription={() => {
                 openFile(PR_DESCRIPTION, null, true);
@@ -361,41 +363,41 @@ export function CardTab({ tab }: { tab: TabState }) {
           {card?.status === 'Done' && !worktreeExists && (
             <MergedNotice label={wontDo ? 'Closed' : 'Merged'} onClose={() => void closeTab(tab.id, false)} />
           )}
-          {approveError !== null && (
+          {approveError !== null && approveError.headSha === pinned?.headSha && (
             <div className={styles.approveError} role="alert">
-              {approveError}
+              {approveError.message}
             </div>
           )}
           <ClaudePane tabId={tab.id} actions={actions} />
         </div>
       </div>
-      {confirmFindings && (
+      {confirmFindings !== null && confirmFindings === pinned?.headSha && (
         <ConfirmDialog
           title="Open security findings"
           body={findingsWarning}
           confirmLabel="Approve anyway"
           danger
           onConfirm={() => {
-            setConfirmFindings(false);
+            setConfirmFindings(null);
             confirmViewed();
           }}
           onCancel={() => {
-            setConfirmFindings(false);
+            setConfirmFindings(null);
           }}
         />
       )}
-      {confirmApprove && (
+      {confirmApprove !== null && confirmApprove === pinned?.headSha && (
         <ConfirmDialog
           title="Unviewed files"
           body={`${String(unviewed)} changed ${unviewed === 1 ? 'file' : 'files'} not viewed. Approve anyway?`}
           confirmLabel="Approve anyway"
           danger
           onConfirm={() => {
-            setConfirmApprove(false);
+            setConfirmApprove(null);
             approvePr();
           }}
           onCancel={() => {
-            setConfirmApprove(false);
+            setConfirmApprove(null);
           }}
         />
       )}
