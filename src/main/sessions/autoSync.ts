@@ -3,11 +3,13 @@ import { tabWorktrees } from '@shared/tabWorktrees';
 import type { Card } from '@shared/types/jira';
 import type { Dot, TabState } from '@shared/types/tabs';
 import { appLogger, type Logger } from '@main/app/log';
+import { withTimeout } from '@main/app/withTimeout';
 import type { MergeState } from '@main/github/mergeState';
 import type { SessionManager } from './sessions';
 import type { StatusEngine } from './status';
 
 export const POLL_MS = 120_000;
+export const LOOKUP_TIMEOUT_MS = 30_000;
 
 export type AutoSyncDeps = {
   sessions: SessionManager;
@@ -91,10 +93,8 @@ export class AutoSync {
     for (const { worktree, headSha } of conflicting) {
       this.prompted.set(worktree, headSha);
     }
-    this.pending.set(
-      tab.id,
-      conflicting.map(({ worktree }) => worktree),
-    );
+    const queued = [...(this.pending.get(tab.id) ?? []), ...conflicting.map(({ worktree }) => worktree)];
+    this.pending.set(tab.id, [...new Set(queued)]);
     this.deps.status.setSync(tab.id, 'queued');
   }
 
@@ -104,6 +104,9 @@ export class AutoSync {
       return;
     }
     if (!s.sessionAlive) {
+      for (const worktree of this.pending.get(s.tabId) ?? []) {
+        this.prompted.delete(worktree);
+      }
       this.pending.delete(s.tabId);
       this.deps.status.setSync(s.tabId, null);
     } else if (s.sync === 'queued' && s.dot !== 'working' && !this.deps.status.asking(s.tabId)) {
@@ -127,7 +130,7 @@ export class AutoSync {
     step: () => Promise<T>,
   ): Promise<T | null> {
     try {
-      return await step();
+      return await withTimeout(step(), LOOKUP_TIMEOUT_MS);
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       this.log.warn('session', 'auto-sync failed', { operation, ...where, error });

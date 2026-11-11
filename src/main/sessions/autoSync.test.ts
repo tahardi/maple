@@ -5,7 +5,7 @@ import type { Card } from '@shared/types/jira';
 import type { PrInfo } from '@shared/types/github';
 import type { TabState, TabStatus } from '@shared/types/tabs';
 import type { MergeState } from '@main/github/mergeState';
-import { AutoSync, POLL_MS } from './autoSync';
+import { AutoSync, LOOKUP_TIMEOUT_MS, POLL_MS } from './autoSync';
 import type { SessionManager } from './sessions';
 import { StatusEngine } from './status';
 
@@ -284,6 +284,71 @@ describe('AutoSync', () => {
     await vi.advanceTimersByTimeAsync(POLL_MS);
     // then
     expect([first, second, mergeState.mock.calls.length]).toEqual([1, 2, 2]);
+  });
+
+  test('a failed card lookup warns and sends nothing', async () => {
+    // given
+    const { sessions, mergeState, logger, activate, stop } = setup({
+      getCard: () => Promise.reject(new Error('boom')),
+    });
+    await stop('t1');
+    // when
+    await activate('t1');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
+      operation: 'getCard',
+      card: 'DIG-44',
+      error: 'boom',
+    });
+    expect(mergeState).not.toHaveBeenCalled();
+    expect(sessions.sendPrompt).not.toHaveBeenCalled();
+  });
+
+  test('a merge state lookup that never settles times out and later checks still run', async () => {
+    // given
+    const { auto, mergeState, logger, activate } = setup();
+    mergeState.mockImplementationOnce(() => new Promise(() => undefined));
+    await activate('t1');
+    // when
+    await vi.advanceTimersByTimeAsync(LOOKUP_TIMEOUT_MS);
+    await auto.check();
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
+      operation: 'mergeState',
+      worktree: '/wts/dig-44',
+      error: `timing out after ${String(LOOKUP_TIMEOUT_MS / 1000)}s`,
+    });
+    expect(mergeState).toHaveBeenCalledTimes(2);
+  });
+
+  test('a second conflict found while queued is added to the prompt', async () => {
+    // given
+    const tab = { ...cardTab('t1', 'DIG-44', null), worktreePaths: ['/wts/a', '/wts/b'] };
+    const { auto, sessions, status, states, activate, stop } = setup({ tabs: [tab] });
+    states['/wts/b'] = { ...conflicting, mergeable: 'MERGEABLE' };
+    status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    await activate('t1');
+    states['/wts/b'] = conflicting;
+    await auto.check();
+    // when
+    await stop('t1');
+    // then
+    expect(sessions.sendPrompt.mock.calls).toEqual([['t1', syncPrompt('DIG-44', ['/wts/a', '/wts/b'])]]);
+  });
+
+  test('a queued tab whose session exits is prompted after it respawns', async () => {
+    // given
+    const { auto, sessions, status, activate, stop } = setup();
+    status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    await activate('t1');
+    sessions.emit('exit', 't1', 0);
+    await vi.advanceTimersByTimeAsync(0);
+    sessions.emit('spawn', 't1', true, false);
+    await stop('t1');
+    // when
+    await auto.check();
+    // then
+    expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44', ['/wts/dig-44']));
   });
 
   test('a check that starts while another runs does nothing', async () => {
