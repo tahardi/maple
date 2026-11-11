@@ -34,7 +34,8 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
   private started = false;
   private pumping = false;
   private sent = '';
-  private lastExtraStart: number | null = null;
+  private lastStart: number | null = null;
+  private paceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly log: Logger;
 
   constructor(private readonly deps: StartQueueDeps) {
@@ -109,6 +110,10 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     return () => {
       this.started = false;
       clearInterval(timer);
+      if (this.paceTimer !== null) {
+        clearTimeout(this.paceTimer);
+        this.paceTimer = null;
+      }
       this.deps.status.off('status', pump);
       this.deps.sessions.off('changed', pump);
     };
@@ -141,12 +146,24 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     } else if (JSON.stringify(this.state()) !== this.sent) {
       this.changed(false);
     }
+    this.schedulePace();
+  }
+
+  private schedulePace(): void {
+    if (this.paceTimer !== null || this.lastStart === null || this.cards.length === 0 || this.waitingFor() !== 'pace') {
+      return;
+    }
+    this.paceTimer = setTimeout(
+      () => {
+        this.paceTimer = null;
+        this.pump();
+      },
+      this.lastStart + RECHECK_MS - Date.now(),
+    );
   }
 
   private startNow(card: QueuedCard): TabState {
-    if (this.working() >= this.deps.limits().maxWorking) {
-      this.lastExtraStart = Date.now();
-    }
+    this.lastStart = Date.now();
     return this.deps.sessions.startCard(card.projectKey, card.cardKey);
   }
 
@@ -167,7 +184,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     if (load.freeBytes < limits.minFreeMegabytes * 1024 * 1024) {
       return 'memory';
     }
-    if (working >= limits.maxWorking && this.lastExtraStart !== null && Date.now() - this.lastExtraStart < RECHECK_MS) {
+    if (working >= limits.maxWorking && this.lastStart !== null && Date.now() - this.lastStart < RECHECK_MS) {
       return 'pace';
     }
     return null;

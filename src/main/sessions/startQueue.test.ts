@@ -182,6 +182,50 @@ describe('StartQueue', () => {
     expect(queue.state()).toMatchObject({ cards: queued('DIG-47'), waitingFor: 'pace' });
   });
 
+  test('starts a batch of 8 four at once and then one every 15 seconds', () => {
+    // given
+    const { queue, startCard } = setup({
+      queued: queued('DIG-41', 'DIG-42', 'DIG-43', 'DIG-44', 'DIG-45', 'DIG-46', 'DIG-47', 'DIG-48'),
+    });
+    // when
+    queue.start();
+    // then
+    expect(startCard).toHaveBeenCalledTimes(4);
+    expect(queue.state().waitingFor).toBe('pace');
+    // when
+    vi.advanceTimersByTime(14_999);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(4);
+    // when
+    vi.advanceTimersByTime(1);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(5);
+    // when
+    vi.advanceTimersByTime(15_000);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(6);
+  });
+
+  test('starts the next card 15 seconds after an extra start made partway through a timer period', () => {
+    // given
+    const { queue, startCard } = setup({ working: 4 });
+    queue.start();
+    vi.advanceTimersByTime(5_000);
+    queue.add('DIG', 'DIG-45');
+    queue.add('DIG', 'DIG-46');
+    // when
+    vi.advanceTimersByTime(14_999);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(1);
+    // when
+    vi.advanceTimersByTime(1);
+    // then
+    expect(startCard.mock.calls).toEqual([
+      ['DIG', 'DIG-45'],
+      ['DIG', 'DIG-46'],
+    ]);
+  });
+
   test.each([
     { name: 'the load average is at 0.8 per core', load: { loadAverage: 6.4, cores: 8 }, waitingFor: 'cpu' },
     { name: 'free memory is under the floor', load: { freeBytes: 1 * GIB }, waitingFor: 'memory' },
@@ -501,5 +545,19 @@ describe('StartQueue', () => {
     // then
     expect(startCard).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  test('stop clears a pending pace recheck', () => {
+    // given
+    const { queue, startCard } = setup({ working: 4 });
+    const stop = queue.start();
+    vi.advanceTimersByTime(5_000);
+    queue.add('DIG', 'DIG-45');
+    queue.add('DIG', 'DIG-46');
+    // when
+    stop();
+    // then
+    expect(vi.getTimerCount()).toBe(0);
+    expect(startCard).toHaveBeenCalledTimes(1);
   });
 });
