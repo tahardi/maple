@@ -4,13 +4,22 @@ import { TerminalView } from './TerminalView';
 
 const MAKE_TRY = 'make try';
 
-export function TerminalPane({ tabId, tryRuns }: { tabId: string; tryRuns: number }) {
+export function TerminalPane({
+  tabId,
+  worktreePath,
+  tryRuns,
+}: {
+  tabId: string;
+  worktreePath: string | null;
+  tryRuns: number;
+}) {
   const [ids, setIds] = useState<readonly string[]>([tabId]);
   const [active, setActive] = useState(tabId);
   const [next, setNext] = useState(2);
   const [names, setNames] = useState<Readonly<Record<string, string>>>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [tryError, setTryError] = useState<string | null>(null);
+  const [tryPaths, setTryPaths] = useState<Readonly<Record<string, string | null>>>({});
   const cancelled = useRef(false);
   const handledRuns = useRef(0);
 
@@ -35,13 +44,14 @@ export function TerminalPane({ tabId, tryRuns }: { tabId: string; tryRuns: numbe
 
   const runTry = async (): Promise<void> => {
     setTryError(null);
-    const running = ids.find((id) => names[id] === MAKE_TRY);
+    const running = ids.find((id) => names[id] === MAKE_TRY && tryPaths[id] === worktreePath);
     if (running !== undefined) {
       setActive(running);
       return;
     }
     const id = add();
     setNames({ ...names, [id]: MAKE_TRY });
+    setTryPaths({ ...tryPaths, [id]: worktreePath });
     try {
       await window.maple.terminal.open(tabId, id);
     } catch (err) {
