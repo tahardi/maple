@@ -43,6 +43,7 @@ const emptyState: SavedState = {
   zoom: 0,
   lastProject: null,
   seen: {},
+  queue: [],
 };
 
 const savedState: SavedState = {
@@ -63,6 +64,7 @@ const savedState: SavedState = {
   zoom: 1.5,
   lastProject: 'MPL',
   seen: { 'tab-1': 'waiting' },
+  queue: [{ projectKey: 'DIG', cardKey: 'DIG-45' }],
 };
 
 function keptWarning(dir: string): string {
@@ -122,6 +124,15 @@ describe('state', () => {
     const result = await loadState(dir);
     // then
     expect(result.state.closedSessions).toEqual({});
+  });
+
+  test('defaults queue to empty when missing', async () => {
+    // given
+    await writeFile(join(dir, 'state.json'), JSON.stringify({ ...savedState, queue: undefined }));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result.state.queue).toEqual([]);
   });
 
   test('defaults zoom to 0 when missing', async () => {

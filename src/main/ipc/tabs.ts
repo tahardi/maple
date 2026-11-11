@@ -8,7 +8,7 @@ import { closeNeedsConfirm } from './closeNeedsConfirm';
 import { cardKeyArg, handle, on, projectKeyArg, tabIdArg } from './validated';
 
 export function registerTabs(
-  { sessions, terminals, status, window, setActiveTab }: IpcDeps,
+  { sessions, terminals, status, window, setActiveTab, startQueue }: IpcDeps,
   logger: Logger = appLogger,
   costOf: typeof sessionCost = sessionCost,
 ): void {
@@ -16,7 +16,7 @@ export function registerTabs(
     logFailure(logger, 'session', { operation, args }, run);
   ipcMain.handle('tabs:list', () => sessions.list());
   handle('tabs:startCard', z.tuple([projectKeyArg, cardKeyArg]), (projectKey, cardKey) =>
-    logged('tabs:startCard', [projectKey, cardKey], () => sessions.startCard(projectKey, cardKey)),
+    logged('tabs:startCard', [projectKey, cardKey], () => startQueue.add(projectKey, cardKey)),
   );
   handle('tabs:openCard', z.tuple([projectKeyArg, cardKeyArg]), (projectKey, cardKey) =>
     logged('tabs:openCard', [projectKey, cardKey], () => sessions.openCard(projectKey, cardKey, null)),
@@ -59,11 +59,21 @@ export function registerTabs(
       return tab ? costOf(tab.sessionId) : null;
     }),
   );
+  ipcMain.handle('tabs:startQueue', () => startQueue.state());
+  handle('tabs:unqueue', z.tuple([cardKeyArg]), (cardKey) => {
+    startQueue.remove(cardKey);
+  });
+  handle('tabs:moveQueued', z.tuple([cardKeyArg, z.union([z.literal(-1), z.literal(1)])]), (cardKey, offset) => {
+    startQueue.move(cardKey, offset);
+  });
   ipcMain.handle('tabs:statuses', () => status.statuses());
   status.on('status', (s) => {
     send(window(), 'tabs:status', s);
   });
   sessions.on('changed', (tabs) => {
     send(window(), 'tabs:changed', tabs);
+  });
+  startQueue.on('changed', (state) => {
+    send(window(), 'tabs:queue', state);
   });
 }

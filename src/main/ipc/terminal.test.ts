@@ -7,6 +7,7 @@ import type { SessionManager } from '@main/sessions/sessions';
 import type { StatusEngine } from '@main/sessions/status';
 import type { Terminals } from '@main/sessions/terminals';
 import { registerTerminal } from './terminal';
+import type { StartQueue } from '@main/sessions/startQueue';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 type Listener = (event: IpcMainEvent, ...args: unknown[]) => void;
@@ -67,6 +68,7 @@ function setup(tabs: TabState[] = [tab]) {
       lastProject: () => Promise.resolve(null),
       setSeen: () => Promise.resolve(),
       seen: () => Promise.resolve({}),
+      startQueue: new EventEmitter() as StartQueue,
     },
     logger,
   );

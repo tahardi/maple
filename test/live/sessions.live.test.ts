@@ -60,6 +60,9 @@ describe('SessionManager with a real claude', () => {
       eventKeepDays: 365,
       eventMaxMegabytes: 200,
       stateBackups: 3,
+      maxWorking: 4,
+      maxLoadPerCore: 0.8,
+      minFreeMegabytes: 2048,
       actions: [],
       projects: [
         {

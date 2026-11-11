@@ -1,3 +1,4 @@
+import type { QueueState } from '@shared/types/queue';
 import type { TabState } from '@shared/types/tabs';
 import { refinePrompt, suggestPrompt } from '@shared/prompts';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
@@ -25,10 +26,13 @@ type Options = {
   readyCount?: number;
   refineCount?: number;
   failure?: string | null;
+  queue?: QueueState;
 };
 
+const EMPTY_QUEUE: QueueState = { cards: [], working: 0, limit: 4, waitingFor: null, failure: null };
+
 function setup(
-  { selected = [], toAccept = [], readyCount = 0, refineCount = 0, failure = null }: Options = {},
+  { selected = [], toAccept = [], readyCount = 0, refineCount = 0, failure = null, queue = EMPTY_QUEUE }: Options = {},
   planner: Promise<TabState> = Promise.resolve(PLANNER),
 ) {
   let emit: (keys: string[]) => void = () => undefined;
@@ -60,6 +64,7 @@ function setup(
       onAccept={onAccept}
       onAcceptAndStart={onAcceptAndStart}
       failure={failure}
+      queue={queue}
     />,
   );
   return {
@@ -247,6 +252,25 @@ describe('PlannerPane', () => {
     others.forEach((b) => {
       expect(b).not.toHaveAttribute('data-variant');
     });
+  });
+
+  test('shows the start queue under the bar', async () => {
+    // given
+    const queue: QueueState = {
+      cards: [{ projectKey: 'DIG', cardKey: 'DIG-45' }],
+      working: 2,
+      limit: 2,
+      waitingFor: 'room',
+      failure: null,
+    };
+    // when
+    setup({ queue });
+    // then
+    const list = await screen.findByRole('list', { name: 'Start queue' });
+    expect(within(list).getByText('DIG-45')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for room: 2 of 2 working')).toBeInTheDocument();
+    const bar = screen.getByRole('group', { name: 'Batch' });
+    expect(bar.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test('shows the failure outside the button groups', async () => {

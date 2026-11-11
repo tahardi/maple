@@ -11,6 +11,7 @@ import { PlannerPane } from './PlannerPane';
 import { readyToStart } from './readyToStart';
 import { useBacklog } from './useBacklog';
 import { useSprint } from './useSprint';
+import { useStartQueue } from './useStartQueue';
 
 type Props = { projectKey: string };
 
@@ -38,6 +39,7 @@ export function HomeTab({ projectKey }: Props) {
   const { sprint, refresh: refreshSprint } = useSprint(projectKey);
   const { backlog, refresh: refreshBacklog } = useBacklog(projectKey);
   const tabs = useMaple((s) => s.tabs);
+  const queue = useStartQueue();
   const activate = useMaple((s) => s.activate);
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -56,7 +58,10 @@ export function HomeTab({ projectKey }: Props) {
   ).length;
   const toDo = sprint?.data?.cards.filter((c) => c.status === 'To Do') ?? [];
   const selected = toDo.map((c) => c.key).filter((key) => picked.includes(key));
-  const openKeys = new Set(tabs.filter((t) => t.projectKey === projectKey).flatMap((t) => t.cardKey ?? []));
+  const openKeys = new Set([
+    ...tabs.filter((t) => t.projectKey === projectKey).flatMap((t) => t.cardKey ?? []),
+    ...queue.cards.map((c) => c.cardKey),
+  ]);
   const ready = readyToStart(toDo, openKeys);
   const sprintCard = sprint?.data?.cards.find((c) => c.key === detailKey) ?? null;
   const backlogCard = sprintCard ? null : (backlogCards.find((c) => c.key === detailKey) ?? null);
@@ -72,11 +77,13 @@ export function HomeTab({ projectKey }: Props) {
     setDetailKey(key);
     setFailure(null);
   };
-  const run = (action: Promise<TabState>) => {
+  const run = (action: Promise<TabState | null>) => {
     action
       .then((tab) => {
         setFailure(null);
-        activateTab(tab);
+        if (tab) {
+          activateTab(tab);
+        }
       })
       .catch((err: unknown) => {
         setFailure(failureMessage(err));
@@ -90,7 +97,10 @@ export function HomeTab({ projectKey }: Props) {
     const started: TabState[] = [];
     for (const [i, key] of keys.entries()) {
       try {
-        started.push(await window.maple.tabs.startCard(projectKey, key));
+        const tab = await window.maple.tabs.startCard(projectKey, key);
+        if (tab) {
+          started.push(tab);
+        }
       } catch (err: unknown) {
         setStartFailure(`starting ${key}: ${failureMessage(err)}`);
         setPicked(keys.slice(i));
@@ -207,6 +217,7 @@ export function HomeTab({ projectKey }: Props) {
           setConfirming('acceptAndStart');
         }}
         failure={moveFailure ?? startFailure}
+        queue={queue}
       />
       {confirming && (
         <ConfirmDialog

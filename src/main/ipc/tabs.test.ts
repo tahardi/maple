@@ -2,7 +2,9 @@ import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionCost, TabState, TabStatus } from '@shared/types/tabs';
+import type { QueueState } from '@shared/types/queue';
 import type { SessionManager } from '@main/sessions/sessions';
+import type { StartQueue } from '@main/sessions/startQueue';
 import type { StatusEngine } from '@main/sessions/status';
 import type { Terminals } from '@main/sessions/terminals';
 import { registerTabs } from './tabs';
@@ -61,8 +63,26 @@ const status: TabStatus = {
   sync: null,
 };
 
+const queueState: QueueState = {
+  cards: [{ projectKey: 'DIG', cardKey: 'DIG-45' }],
+  working: 4,
+  limit: 4,
+  waitingFor: 'room',
+  failure: null,
+};
+
+function fakeQueue() {
+  return Object.assign(new EventEmitter(), {
+    add: vi.fn((): TabState | null => tab),
+    remove: vi.fn(),
+    move: vi.fn(),
+    state: vi.fn(() => queueState),
+  });
+}
+
 function setup() {
   const sessions = fakeSessions();
+  const startQueue = fakeQueue();
   const engine = Object.assign(new EventEmitter(), { statuses: vi.fn(() => [status]) });
   const terminals = { closeTab: vi.fn() };
   const setActiveTab = vi.fn();
@@ -84,12 +104,13 @@ function setup() {
       lastProject: () => Promise.resolve(null),
       setSeen: () => Promise.resolve(),
       seen: () => Promise.resolve({}),
+      startQueue: startQueue as unknown as StartQueue,
       warnings: () => [],
     },
     logger,
     sessionCost,
   );
-  return { sessions, terminals, engine, setActiveTab, sendToWindow };
+  return { sessions, terminals, engine, setActiveTab, sendToWindow, startQueue };
 }
 
 function invoke(channel: string, ...args: unknown[]): unknown {
@@ -107,7 +128,6 @@ describe('registerTabs', () => {
 
   test.each([
     { channel: 'tabs:list', args: [], method: 'list', want: [], result: [tab] },
-    { channel: 'tabs:startCard', args: ['DIG', 'DIG-44'], method: 'startCard', want: ['DIG', 'DIG-44'], result: tab },
     {
       channel: 'tabs:openCard',
       args: ['DIG', 'DIG-44'],
@@ -134,6 +154,84 @@ describe('registerTabs', () => {
     // then
     expect(sessions[method]).toHaveBeenCalledWith(...want);
     expect(got).toEqual(result);
+  });
+
+  test.each([
+    { name: 'a tab', result: tab },
+    { name: 'null', result: null },
+  ])('tabs:startCard adds the card to the start queue and returns its result: $name', ({ result }) => {
+    // given
+    const { sessions, startQueue } = setup();
+    startQueue.add.mockReturnValue(result);
+    // when
+    const got = invoke('tabs:startCard', 'DIG', 'DIG-44');
+    // then
+    expect(startQueue.add).toHaveBeenCalledWith('DIG', 'DIG-44');
+    expect(sessions.startCard).not.toHaveBeenCalled();
+    expect(got).toEqual(result);
+  });
+
+  test('tabs:startCard logs a failed start at warn and rethrows', () => {
+    // given
+    const { startQueue } = setup();
+    startQueue.add.mockImplementation(() => {
+      throw new Error('finding project: NOPE');
+    });
+    // when
+    const run = () => invoke('tabs:startCard', 'NOPE', 'NOPE-1');
+    // then
+    expect(run).toThrow('finding project: NOPE');
+    expect(logger.warn).toHaveBeenCalledWith('session', 'failed', {
+      operation: 'tabs:startCard',
+      args: ['NOPE', 'NOPE-1'],
+      error: 'finding project: NOPE',
+    });
+  });
+
+  test('tabs:startQueue returns the queue state', () => {
+    // given
+    setup();
+    // when
+    const got = invoke('tabs:startQueue');
+    // then
+    expect(got).toEqual(queueState);
+  });
+
+  test('tabs:unqueue removes the card from the queue', () => {
+    // given
+    const { startQueue } = setup();
+    // when
+    invoke('tabs:unqueue', 'DIG-45');
+    // then
+    expect(startQueue.remove).toHaveBeenCalledWith('DIG-45');
+  });
+
+  test('tabs:moveQueued moves the card by the offset', () => {
+    // given
+    const { startQueue } = setup();
+    // when
+    invoke('tabs:moveQueued', 'DIG-45', -1);
+    // then
+    expect(startQueue.move).toHaveBeenCalledWith('DIG-45', -1);
+  });
+
+  test('tabs:moveQueued rejects an offset other than -1 or 1', () => {
+    // given
+    const { startQueue } = setup();
+    // when
+    const run = () => invoke('tabs:moveQueued', 'DIG-45', 2);
+    // then
+    expect(run).toThrow('handling tabs:moveQueued: arguments are invalid');
+    expect(startQueue.move).not.toHaveBeenCalled();
+  });
+
+  test('a queue change is sent to the window', () => {
+    // given
+    const { startQueue, sendToWindow } = setup();
+    // when
+    startQueue.emit('changed', queueState);
+    // then
+    expect(sendToWindow).toHaveBeenCalledWith('tabs:queue', queueState);
   });
 
   test('tabs:selectWorktree rejects an empty path', () => {
@@ -277,7 +375,6 @@ describe('registerTabs', () => {
   });
 
   test.each([
-    { channel: 'tabs:startCard', args: ['NOPE', 'NOPE-1'], method: 'startCard' },
     { channel: 'tabs:openCard', args: ['NOPE', 'NOPE-1'], method: 'openCard' },
     { channel: 'tabs:openPlanner', args: ['NOPE'], method: 'openPlanner' },
     { channel: 'tabs:openVault', args: ['NOPE'], method: 'openVault' },

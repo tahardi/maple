@@ -1,5 +1,6 @@
 import { access, mkdir, open, readFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { QueuedCard } from '@shared/types/queue';
 import type { Dot, TabState } from '@shared/types/tabs';
 import { z } from 'zod';
 import { backupState, STATE_BACKUPS } from './backupState';
@@ -14,6 +15,7 @@ export type SavedState = {
   zoom: number;
   lastProject: string | null;
   seen: Record<string, Dot>;
+  queue: QueuedCard[];
 };
 
 const stateSchema = z.object({
@@ -34,10 +36,20 @@ const stateSchema = z.object({
   zoom: z.number().default(0),
   lastProject: z.string().nullable().default(null),
   seen: z.record(z.string(), dotSchema).catch({}),
+  queue: z.array(z.object({ projectKey: z.string(), cardKey: z.string() })).default([]),
 });
 
 function emptyState(): SavedState {
-  return { version: 1, tabs: [], closedSessions: {}, notifications: null, zoom: 0, lastProject: null, seen: {} };
+  return {
+    version: 1,
+    tabs: [],
+    closedSessions: {},
+    notifications: null,
+    zoom: 0,
+    lastProject: null,
+    seen: {},
+    queue: [],
+  };
 }
 
 async function keepCorrupt(path: string): Promise<string> {

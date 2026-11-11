@@ -485,6 +485,74 @@ describe('HomeTab', () => {
     expect(screen.getByRole('button', { name: /^DIG-46/ })).not.toHaveAttribute('data-highlighted');
   });
 
+  test('a queued Start activates no tab', async () => {
+    // given
+    const startCard = vi.fn(() => Promise.resolve(null));
+    const activate = vi.fn();
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    useMaple.setState({ activate });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    // then
+    await waitFor(() => {
+      expect(startCard).toHaveBeenCalledWith('DIG', 'DIG-41');
+    });
+    expect(activate).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('a batch Start activates the first card that started and skips queued ones', async () => {
+    // given
+    const startCard = vi.fn<Window['maple']['tabs']['startCard']>((_projectKey, cardKey) =>
+      Promise.resolve(cardKey === 'DIG-41' ? null : tab(`t-${cardKey}`, cardKey)),
+    );
+    const activate = vi.fn();
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    useMaple.setState({ activate });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Select ready (2)' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start (2)' }));
+    // then
+    await waitFor(() => {
+      expect(startCard).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(activate).toHaveBeenCalledWith('t-DIG-42');
+    });
+    expect(activate).toHaveBeenCalledTimes(1);
+  });
+
+  test('Select ready skips queued cards', async () => {
+    // given
+    const queue = {
+      cards: [{ projectKey: 'DIG', cardKey: 'DIG-41' }],
+      working: 4,
+      limit: 4,
+      waitingFor: 'room' as const,
+      failure: null,
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByRole('list', { name: 'Start queue' });
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Select ready (1)' }));
+    // then
+    expect(screen.getByRole('button', { name: /^DIG-41/ })).not.toHaveAttribute('data-highlighted');
+    expect(screen.getByRole('button', { name: /^DIG-42/ })).toHaveAttribute('data-highlighted', 'true');
+  });
+
   test('Select ready selects the ready cards', async () => {
     // given
     fakeMaple({ jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) } });

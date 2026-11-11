@@ -1,10 +1,18 @@
 import { randomUUID } from 'node:crypto';
+import { cpus, freemem, loadavg } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog } from 'electron';
 import { spawn } from 'node-pty';
 import type { MapleConfig } from '@shared/types/config';
-import { configDir, DEFAULT_WAIT_MINUTES, loadConfig } from '@main/app/config';
+import {
+  configDir,
+  DEFAULT_MAX_LOAD_PER_CORE,
+  DEFAULT_MAX_WORKING,
+  DEFAULT_MIN_FREE_MEGABYTES,
+  DEFAULT_WAIT_MINUTES,
+  loadConfig,
+} from '@main/app/config';
 import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
 import { defaultRunner } from '@main/app/preflight';
@@ -33,6 +41,7 @@ import { SessionManager } from '@main/sessions/sessions';
 import { Terminals } from '@main/sessions/terminals';
 import { STATE_BACKUPS } from '@main/app/backupState';
 import { saveState, loadState, type SavedState } from '@main/app/state';
+import { StartQueue } from '@main/sessions/startQueue';
 import { StatusEngine } from '@main/sessions/status';
 import { AutoSync } from '@main/sessions/autoSync';
 import { endTmux, writeTmuxConf } from '@main/sessions/tmux';
@@ -136,6 +145,19 @@ async function start(): Promise<() => number> {
     prFor: prEvents.tapPr(prFor, () => sessions.list()),
     waitLimitMs: () => (config?.backgroundWaitMinutes ?? DEFAULT_WAIT_MINUTES) * 60_000,
   });
+  const startQueue = new StartQueue({
+    sessions,
+    status,
+    limits: () => ({
+      maxWorking: config?.maxWorking ?? DEFAULT_MAX_WORKING,
+      maxLoadPerCore: config?.maxLoadPerCore ?? DEFAULT_MAX_LOAD_PER_CORE,
+      minFreeMegabytes: config?.minFreeMegabytes ?? DEFAULT_MIN_FREE_MEGABYTES,
+    }),
+    load: () => ({ loadAverage: loadavg()[0], cores: cpus().length, freeBytes: freemem() }),
+    queued: state.queue,
+    save: (queue) => persist({ queue }),
+  });
+  let stopQueue: () => void = () => undefined;
   const recorder = new EventRecorder({ sessions, status, transcriptOffset: (id) => transcriptOffset(id), headSha });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
@@ -153,6 +175,7 @@ async function start(): Promise<() => number> {
   }).start();
   app.on('will-quit', (event) => {
     event.preventDefault();
+    stopQueue();
     stopAutoSync();
     sessions.killAll();
     terminals.closeAll();
@@ -164,6 +187,9 @@ async function start(): Promise<() => number> {
   const restore = ({ worktreesDir }: MapleConfig) =>
     restoreTabs(state, sessions, (key) => findWorktrees(worktreesDir, key));
   const restored = config ? await restore(config) : { restored: 0, warnings: [] };
+  if (config) {
+    stopQueue = startQueue.start();
+  }
   if (warning !== null) {
     appLogger.warn('restore', 'loading state', { warning });
   }
@@ -197,6 +223,7 @@ async function start(): Promise<() => number> {
     sessions,
     terminals,
     status,
+    startQueue,
     setActiveTab: (tabId) => {
       activeTabId = tabId;
     },
@@ -213,6 +240,7 @@ async function start(): Promise<() => number> {
       config = next;
       if (firstLoad) {
         warnings.push(...(await restore(next)).warnings);
+        stopQueue = startQueue.start();
       }
     },
     setLastProject: (key) => persist({ lastProject: key }),
