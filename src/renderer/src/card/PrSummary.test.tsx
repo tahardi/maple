@@ -37,6 +37,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -61,6 +62,7 @@ describe('PrSummary', () => {
           findings={[]}
           projectRepo="tahardi/maple"
           headSha={null}
+          updated={false}
           searchedRepos={[]}
         />,
       );
@@ -82,6 +84,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={headSha}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -91,13 +94,13 @@ describe('PrSummary', () => {
     expect(title.nextElementSibling).toContainElement(screen.getByText('Reviewing 0123456'));
   });
 
-  test.each<{ name: string; headSha: string | null; shown: boolean }>([
-    { name: 'the PR moved past the reviewed commit', headSha: 'd'.repeat(40), shown: true },
-    { name: 'the PR is at the reviewed commit', headSha: info.headSha, shown: false },
-    { name: 'no review is loaded', headSha: null, shown: false },
-  ])('shows the new commits banner: $name', ({ headSha, shown }) => {
+  test.each<{ name: string; updated: boolean; headSha: string | null; want: string | null }>([
+    { name: 'the review updated to a new commit', updated: true, headSha: 'd'.repeat(40), want: 'Updated to ddddddd' },
+    { name: 'the review did not update', updated: false, headSha: 'd'.repeat(40), want: null },
+    { name: 'no review is loaded', updated: true, headSha: null, want: null },
+  ])('shows the updated notice: $name', ({ updated, headSha, want }) => {
     // given
-    const pr = fetched(info);
+    const pr = fetched({ ...info, headSha: 'd'.repeat(40) });
     // when
     render(
       <PrSummary
@@ -108,19 +111,20 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={headSha}
+        updated={updated}
         searchedRepos={[]}
       />,
     );
     // then
-    const banner = screen.queryByRole('status');
-    if (shown) {
-      expect(banner).toHaveTextContent('This PR has new commits');
+    const notice = screen.queryByRole('status');
+    if (want === null) {
+      expect(notice).toBeNull();
     } else {
-      expect(banner).toBeNull();
+      expect(notice).toHaveTextContent(want);
     }
   });
 
-  test('shows the new commits banner above the reviewed commit row', () => {
+  test('shows no new commits banner when the PR moved past the reviewed commit', () => {
     // given
     const pr = fetched(info);
     // when
@@ -133,6 +137,29 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={'d'.repeat(40)}
+        updated={false}
+        searchedRepos={[]}
+      />,
+    );
+    // then
+    expect(screen.queryByText('This PR has new commits')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  test('shows the updated notice above the reviewed commit row', () => {
+    // given
+    const pr = fetched(info);
+    // when
+    render(
+      <PrSummary
+        pr={pr}
+        onOpenDescription={vi.fn()}
+        onReloadReview={vi.fn()}
+        reviewError={null}
+        findings={[]}
+        projectRepo="tahardi/maple"
+        headSha={'d'.repeat(40)}
+        updated={true}
         searchedRepos={[]}
       />,
     );
@@ -143,7 +170,7 @@ describe('PrSummary', () => {
   });
 
   test.each<{ state: PrInfo['state'] }>([{ state: 'MERGED' }, { state: 'CLOSED' }])(
-    'shows no new commits banner for a $state PR',
+    'shows no updated notice for a $state PR',
     ({ state }) => {
       // given
       const pr = fetched({ ...info, state });
@@ -157,6 +184,7 @@ describe('PrSummary', () => {
           findings={[]}
           projectRepo="tahardi/maple"
           headSha={'d'.repeat(40)}
+          updated={true}
           searchedRepos={[]}
         />,
       );
@@ -178,6 +206,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -208,6 +237,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo={projectRepo}
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -232,6 +262,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -252,6 +283,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -271,6 +303,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -300,6 +333,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -327,6 +361,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -357,6 +392,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -377,6 +413,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -397,6 +434,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -422,6 +460,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -445,6 +484,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/xena"
         headSha={null}
+        updated={false}
         searchedRepos={['tahardi/xena', 'tahardi/dotclaude']}
       />,
     );
@@ -475,6 +515,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/xena"
         headSha={null}
+        updated={false}
         searchedRepos={searchedRepos}
       />,
     );
@@ -498,6 +539,7 @@ describe('PrSummary', () => {
         findings={findings}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -523,6 +565,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -543,6 +586,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={headSha}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -563,6 +607,7 @@ describe('PrSummary', () => {
         findings={findings}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -584,6 +629,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );
@@ -606,6 +652,7 @@ describe('PrSummary', () => {
         findings={[]}
         projectRepo="tahardi/maple"
         headSha={null}
+        updated={false}
         searchedRepos={[]}
       />,
     );

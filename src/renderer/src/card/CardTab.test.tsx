@@ -101,6 +101,20 @@ function fakeRepo(withPr: boolean, cards: readonly Card[] = []) {
   });
 }
 
+function captureRepoChanged(overrides: Parameters<typeof fakeMaple>[0]): { value: () => void } {
+  const changed: { value: () => void } = { value: () => undefined };
+  fakeMaple({
+    ...overrides,
+    repo: {
+      onChanged: vi.fn((_tabId: string, cb: () => void) => {
+        changed.value = cb;
+        return vi.fn();
+      }),
+    },
+  });
+  return changed;
+}
+
 function fakeNoPr(status: Card['status']) {
   const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card('MPL-20', status)] };
   fakeMaple({
@@ -1173,7 +1187,7 @@ describe('CardTab', () => {
     expect(slot.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  test('a PR with new commits shows the banner and disables Approve until the review reloads', async () => {
+  test('a PR with new commits reloads the review by itself and enables Approve', async () => {
     // given
     const moved = 'd'.repeat(40);
     const review = vi
@@ -1184,27 +1198,151 @@ describe('CardTab', () => {
         error: null,
         fetchedAt: null,
       });
-    fakeMaple({
-      pr: {
-        get: () => Promise.resolve({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null }),
-        review,
-      },
-    });
-    // when
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
+    const changed = captureRepoChanged({ pr: { get, review } });
     render(<CardTab tab={tab} />);
-    // then
     const tree = within(screen.getByTestId('tree-slot'));
     const claude = within(screen.getByTestId('claude-slot'));
-    expect(await tree.findByRole('status')).toHaveTextContent('This PR has new commits');
-    expect(claude.getByRole('button', { name: 'Approve' })).toBeDisabled();
-    expect(claude.getByRole('button', { name: 'Approve' })).toHaveAttribute('title', 'PR has new commits');
+    expect(await tree.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
     // when
-    await userEvent.click(tree.getByRole('button', { name: 'Reload review' }));
-    // then
-    await waitFor(() => {
-      expect(tree.queryByRole('status')).not.toBeInTheDocument();
+    act(() => {
+      changed.value();
     });
+    // then
+    expect(await tree.findByRole('status')).toHaveTextContent('Updated to ddddddd');
     expect(claude.getByRole('button', { name: 'Approve' })).toBeEnabled();
+  });
+
+  test('keeps the Viewed check only on files the new commits did not change', async () => {
+    // given
+    const moved = 'd'.repeat(40);
+    const file = (path: string, stamp: string) => ({ path, status: 'M' as const, oldPath: null, stamp });
+    const reviewAt = (headSha: string, bStamp: string): Fetched<Review> => ({
+      data: {
+        number: 13,
+        headSha,
+        baseSha: 'c'.repeat(40),
+        added: 9,
+        removed: 4,
+        files: [file('a.ts', 'f'.repeat(40)), file('b.ts', bStamp)],
+        findings: [],
+      },
+      error: null,
+      fetchedAt: null,
+    });
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(reviewAt(head, 'f'.repeat(40)))
+      .mockResolvedValue(reviewAt(moved, 'e'.repeat(40)));
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
+    const changed = captureRepoChanged({ pr: { get, review } });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Viewed a.ts' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Viewed b.ts' }));
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await within(screen.getByTestId('tree-slot')).findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(screen.getByRole('checkbox', { name: 'Viewed a.ts' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Viewed b.ts' })).not.toBeChecked();
+  });
+
+  test('an Approve error goes away when the review reloads at a new commit', async () => {
+    // given
+    const moved = 'd'.repeat(40);
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockImplementationOnce(reviewOf([]))
+      .mockResolvedValue({
+        data: { number: 13, headSha: moved, baseSha: 'c'.repeat(40), added: 9, removed: 4, files: [], findings: [] },
+        error: null,
+        fetchedAt: null,
+      });
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
+    const approve = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('approving PR: offline'));
+    const changed = captureRepoChanged({ pr: { get, review, approve } });
+    render(<CardTab tab={tab} />);
+    const claude = within(screen.getByTestId('claude-slot'));
+    await userEvent.click(await claude.findByRole('button', { name: 'Approve' }));
+    expect(await claude.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await within(screen.getByTestId('tree-slot')).findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(claude.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('an Approve error stays when a refresh finds the same head commit', async () => {
+    // given
+    const review = vi.fn<() => Promise<Fetched<Review>>>(reviewOf([]));
+    const approve = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('approving PR: offline'));
+    const changed = captureRepoChanged({
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review, approve },
+    });
+    render(<CardTab tab={tab} />);
+    const claude = within(screen.getByTestId('claude-slot'));
+    await userEvent.click(await claude.findByRole('button', { name: 'Approve' }));
+    expect(await claude.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    // when
+    act(() => {
+      changed.value();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // then
+    expect(review).toHaveBeenCalledTimes(1);
+    expect(claude.getByRole('alert')).toHaveTextContent('approving PR: offline');
+  });
+
+  test.each<{ name: string; findings: SecurityFinding[] }>([
+    { name: 'unviewed files', findings: [] },
+    {
+      name: 'open security findings',
+      findings: [{ id: 'F1', severity: 'high', summary: 'Shell injection', url: 'https://example.com/f1' }],
+    },
+  ])('a review reload at a new commit closes the $name confirm without approving', async ({ findings }) => {
+    // given
+    const moved = 'd'.repeat(40);
+    const files = [{ path: 'src/a.ts', status: 'M' as const, oldPath: null, stamp: 'f'.repeat(40) }];
+    const reviewAt = (headSha: string): Fetched<Review> => ({
+      data: { number: 13, headSha, baseSha: 'c'.repeat(40), added: 9, removed: 4, files, findings },
+      error: null,
+      fetchedAt: null,
+    });
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(reviewAt(head))
+      .mockResolvedValue(reviewAt(moved));
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
+    const approve = vi.fn<() => Promise<void>>(() => Promise.resolve());
+    const changed = captureRepoChanged({ pr: { get, review, approve } });
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await within(screen.getByTestId('tree-slot')).findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(approve).not.toHaveBeenCalled();
   });
 
   test('Reload review clears the Approve error', async () => {
@@ -1216,7 +1354,9 @@ describe('CardTab', () => {
         approve: vi
           .fn<() => Promise<void>>()
           .mockRejectedValue(
-            new Error('approving PR: the PR has new commits since the review loaded; click Reload review'),
+            new Error(
+              'approving PR: the PR has new commits since the review loaded; Approve again once the review updates',
+            ),
           ),
       },
     });

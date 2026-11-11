@@ -141,7 +141,9 @@ export async function approveAndMerge(run: Runner, num: number, headSha: string,
     throw new Error('approving PR: PR comes from a fork');
   }
   if (pinned.headRefOid !== headSha) {
-    throw new Error('approving PR: the PR has new commits since the review loaded; click Reload review');
+    throw new Error(
+      'approving PR: the PR has new commits since the review loaded; Approve again once the review updates',
+    );
   }
   if (pinned.baseRefName !== defaultBranch) {
     throw new Error(`approving PR: PR targets ${pinned.baseRefName}, not ${defaultBranch}`);
