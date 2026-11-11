@@ -253,7 +253,9 @@ describe('StartQueue', () => {
 
   test('a start that emits status during a pass starts each card once up to the limit', () => {
     // given
-    const { queue, engine, startCard } = setup({ working: 2, queued: queued('DIG-45', 'DIG-46', 'DIG-47') });
+    const { queue, engine, startCard, save } = setup({ working: 2, queued: queued('DIG-45', 'DIG-46', 'DIG-47') });
+    const changed = vi.fn();
+    queue.on('changed', changed);
     const spawn = startCard.getMockImplementation();
     startCard.mockImplementation((projectKey: string, cardKey: string) => {
       const opened = spawn?.(projectKey, cardKey) ?? tab(projectKey, cardKey);
@@ -268,6 +270,8 @@ describe('StartQueue', () => {
       ['DIG', 'DIG-46'],
     ]);
     expect(queue.state().cards).toEqual(queued('DIG-47'));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(changed).toHaveBeenCalledTimes(1);
   });
 
   test('a failed save is logged at error', async () => {
