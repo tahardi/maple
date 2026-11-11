@@ -58,7 +58,11 @@ export async function projectRunner(
   return withPr ?? ghRunner(project.repo, run);
 }
 
-async function prStates(runner: CommandRunner, repo: string, branch: string): Promise<string[]> {
+async function prStates(
+  runner: CommandRunner,
+  repo: string,
+  branch: string,
+): Promise<Array<'OPEN' | 'MERGED' | 'CLOSED'>> {
   const { code, stdout, stderr } = await runner('gh', [
     'pr',
     'list',
@@ -74,6 +78,8 @@ async function prStates(runner: CommandRunner, repo: string, branch: string): Pr
   if (code !== 0) {
     throw new Error(`finding project repo: listing PRs in ${repo}: ${stderr}`);
   }
-  const prs = z.array(z.object({ isCrossRepository: z.boolean(), state: z.string() })).parse(JSON.parse(stdout));
+  const prs = z
+    .array(z.object({ isCrossRepository: z.boolean(), state: z.enum(['OPEN', 'MERGED', 'CLOSED']) }))
+    .parse(JSON.parse(stdout));
   return prs.filter((pr) => !pr.isCrossRepository).map((pr) => pr.state);
 }

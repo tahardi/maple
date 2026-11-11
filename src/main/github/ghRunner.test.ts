@@ -123,6 +123,7 @@ describe('projectRunner', () => {
   const none = '[]';
   const found = '[{"isCrossRepository":false,"state":"OPEN"}]';
   const merged = '[{"isCrossRepository":false,"state":"MERGED"}]';
+  const closed = '[{"isCrossRepository":false,"state":"CLOSED"}]';
   const forkOpenOwnMerged = '[{"isCrossRepository":true,"state":"OPEN"},{"isCrossRepository":false,"state":"MERGED"}]';
 
   test.each([
@@ -225,6 +226,18 @@ describe('projectRunner', () => {
       want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/halo', 'tahardi/dotclaude'],
     },
     {
+      name: 'uses a repo whose only PR is closed over the project repo fallback',
+      config: three,
+      head: branch,
+      worktree: null,
+      replies: {
+        'tahardi/xena': { stdout: none },
+        'tahardi/dotclaude': { stdout: closed },
+        'tahardi/halo': { stdout: none },
+      },
+      want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/halo', 'tahardi/dotclaude'],
+    },
+    {
       name: 'ignores an open fork PR when choosing between merged PRs',
       config: three,
       head: branch,
@@ -295,6 +308,8 @@ describe('projectRunner', () => {
     { name: 'invalid JSON', stdout: 'not json' },
     { name: 'a non-array', stdout: '{"isCrossRepository":false}' },
     { name: 'an entry without the fork flag', stdout: '[{"number":8}]' },
+    { name: 'an entry without a state', stdout: '[{"isCrossRepository":false}]' },
+    { name: 'an entry with an unknown state', stdout: '[{"isCrossRepository":false,"state":"DRAFT"}]' },
   ])('rejects a probe that prints $name', async ({ stdout }) => {
     // given
     const { repos, run } = fakeRepos({ 'tahardi/xena': { stdout }, 'tahardi/dotclaude': { stdout: found } });
