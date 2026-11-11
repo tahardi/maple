@@ -53,6 +53,10 @@ const reviewData: Review = {
 
 const fetchedReview: Fetched<Review> = { data: reviewData, error: null, fetchedAt: '2026-10-28T12:00:00.000Z' };
 
+const moved = 'd'.repeat(40);
+
+const atMoved: Fetched<Review> = { ...fetchedReview, data: { ...reviewData, headSha: moved } };
+
 function watchRejections(): RejectionListener {
   const rejected = vi.fn();
   const listeners = process.listeners('unhandledRejection');
@@ -435,11 +439,15 @@ describe('useCardData', () => {
     expect(review).toHaveBeenCalledWith('t1');
   });
 
-  test('reloads the review once when the open PR gets a new head commit', async () => {
+  test.each<{ name: string; second: Fetched<Review> }>([
+    { name: 'reloads the review once when the open PR gets a new head commit', second: atMoved },
+    {
+      name: 'does not retry a failed review load while the head stays the same',
+      second: { data: null, error: 'fetching review: the PR head moved, try again', fetchedAt: null },
+    },
+  ])('$name', async ({ second }) => {
     // given
     let changed: () => void = vi.fn();
-    const moved = 'd'.repeat(40);
-    const later: Fetched<Review> = { ...fetchedReview, data: { ...reviewData, headSha: moved } };
     const get = vi
       .fn()
       .mockResolvedValueOnce({ data: openPr, error: null, fetchedAt: null })
@@ -447,7 +455,7 @@ describe('useCardData', () => {
     const review = vi
       .fn<(tabId: string) => Promise<Fetched<Review>>>()
       .mockResolvedValueOnce(fetchedReview)
-      .mockResolvedValue(later);
+      .mockResolvedValue(second);
     fakeMaple({
       pr: { get, review },
       repo: {
@@ -466,7 +474,7 @@ describe('useCardData', () => {
       changed();
     });
     await waitFor(() => {
-      expect(result.current.review?.data?.headSha).toBe(moved);
+      expect(result.current.review).toEqual(second);
     });
     act(() => {
       changed();
@@ -477,59 +485,9 @@ describe('useCardData', () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(review).toHaveBeenCalledTimes(2);
-    expect(result.current.review?.data?.headSha).toBe(moved);
+    expect(result.current.review).toEqual(second);
   });
 
-  test('does not retry a failed review load while the head stays the same', async () => {
-    // given
-    let changed: () => void = vi.fn();
-    const moved = 'd'.repeat(40);
-    const failed: Fetched<Review> = {
-      data: null,
-      error: 'fetching review: the PR head moved, try again',
-      fetchedAt: null,
-    };
-    const get = vi
-      .fn()
-      .mockResolvedValueOnce({ data: openPr, error: null, fetchedAt: null })
-      .mockResolvedValue({ data: { ...openPr, headSha: moved }, error: null, fetchedAt: null });
-    const review = vi
-      .fn<(tabId: string) => Promise<Fetched<Review>>>()
-      .mockResolvedValueOnce(fetchedReview)
-      .mockResolvedValue(failed);
-    fakeMaple({
-      pr: { get, review },
-      repo: {
-        onChanged: vi.fn((_tabId: string, cb: () => void) => {
-          changed = cb;
-          return vi.fn();
-        }),
-      },
-    });
-    const { result } = renderHook(() => useCardData(tab));
-    await waitFor(() => {
-      expect(result.current.review).toEqual(fetchedReview);
-    });
-    // when
-    act(() => {
-      changed();
-    });
-    await waitFor(() => {
-      expect(result.current.review).toEqual(failed);
-    });
-    act(() => {
-      changed();
-    });
-    // then
-    await waitFor(() => {
-      expect(get).toHaveBeenCalledTimes(3);
-    });
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(review).toHaveBeenCalledTimes(2);
-  });
-
-  const moved = 'd'.repeat(40);
-  const atMoved: Fetched<Review> = { ...fetchedReview, data: { ...reviewData, headSha: moved } };
   test.each<{
     name: string;
     first: Fetched<Review>;
