@@ -1306,6 +1306,45 @@ describe('CardTab', () => {
     expect(claude.getByRole('alert')).toHaveTextContent('approving PR: offline');
   });
 
+  test.each<{ name: string; findings: SecurityFinding[] }>([
+    { name: 'unviewed files', findings: [] },
+    {
+      name: 'open security findings',
+      findings: [{ id: 'F1', severity: 'high', summary: 'Shell injection', url: 'https://example.com/f1' }],
+    },
+  ])('a review reload at a new commit closes the $name confirm without approving', async ({ findings }) => {
+    // given
+    const moved = 'd'.repeat(40);
+    const files = [{ path: 'src/a.ts', status: 'M' as const, oldPath: null, stamp: 'f'.repeat(40) }];
+    const reviewAt = (headSha: string): Fetched<Review> => ({
+      data: { number: 13, headSha, baseSha: 'c'.repeat(40), added: 9, removed: 4, files, findings },
+      error: null,
+      fetchedAt: null,
+    });
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(reviewAt(head))
+      .mockResolvedValue(reviewAt(moved));
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
+    const approve = vi.fn<() => Promise<void>>(() => Promise.resolve());
+    const changed = captureRepoChanged({ pr: { get, review, approve } });
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
+    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await within(screen.getByTestId('tree-slot')).findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(approve).not.toHaveBeenCalled();
+  });
+
   test('Reload review clears the Approve error', async () => {
     // given
     fakeMaple({

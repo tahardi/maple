@@ -51,8 +51,8 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [line, setLine] = useState<number | null>(null);
   const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
   const [approveError, setApproveError] = useState<{ headSha: string; message: string } | null>(null);
-  const [confirmApprove, setConfirmApprove] = useState(false);
-  const [confirmFindings, setConfirmFindings] = useState(false);
+  const [confirmApprove, setConfirmApprove] = useState<string | null>(null);
+  const [confirmFindings, setConfirmFindings] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
   const [cardOpened, setCardOpened] = useState(false);
@@ -107,8 +107,8 @@ export function CardTab({ tab }: { tab: TabState }) {
   const findingNoun = highFindings === 1 ? 'finding' : 'findings';
   const findingsWarning = `${String(highFindings)} open high-severity ${findingNoun}. Approve anyway?`;
   const confirmViewed = () => {
-    if (unviewed > 0) {
-      setConfirmApprove(true);
+    if (unviewed > 0 && pinned !== null) {
+      setConfirmApprove(pinned.headSha);
     } else {
       approvePr();
     }
@@ -127,8 +127,8 @@ export function CardTab({ tab }: { tab: TabState }) {
             window.maple.session.sendPrompt(tab.id, text);
           },
           approve: () => {
-            if (highFindings > 0) {
-              setConfirmFindings(true);
+            if (highFindings > 0 && pinned !== null) {
+              setConfirmFindings(pinned.headSha);
             } else {
               confirmViewed();
             }
@@ -371,33 +371,33 @@ export function CardTab({ tab }: { tab: TabState }) {
           <ClaudePane tabId={tab.id} actions={actions} />
         </div>
       </div>
-      {confirmFindings && (
+      {confirmFindings !== null && confirmFindings === pinned?.headSha && (
         <ConfirmDialog
           title="Open security findings"
           body={findingsWarning}
           confirmLabel="Approve anyway"
           danger
           onConfirm={() => {
-            setConfirmFindings(false);
+            setConfirmFindings(null);
             confirmViewed();
           }}
           onCancel={() => {
-            setConfirmFindings(false);
+            setConfirmFindings(null);
           }}
         />
       )}
-      {confirmApprove && (
+      {confirmApprove !== null && confirmApprove === pinned?.headSha && (
         <ConfirmDialog
           title="Unviewed files"
           body={`${String(unviewed)} changed ${unviewed === 1 ? 'file' : 'files'} not viewed. Approve anyway?`}
           confirmLabel="Approve anyway"
           danger
           onConfirm={() => {
-            setConfirmApprove(false);
+            setConfirmApprove(null);
             approvePr();
           }}
           onCancel={() => {
-            setConfirmApprove(false);
+            setConfirmApprove(null);
           }}
         />
       )}
