@@ -49,12 +49,15 @@ import { AutoSync } from '@main/sessions/autoSync';
 import { endTmux, writeTmuxConf } from '@main/sessions/tmux';
 import { hasTranscript, transcriptOffset } from '@main/sessions/transcripts';
 import { windowTitle } from '@main/app/windowTitle';
-import { zoomLevel } from '@main/app/zoom';
+import { zoomLevel, type ZoomChange } from '@main/app/zoom';
+import { zoomKey } from '@main/app/zoomKey';
 
 let mainWindow: BrowserWindow | null = null;
 let quitting = false;
 
-function createWindow(zoom: () => number): Promise<void> {
+type Zoom = { level: () => number; set: (change: ZoomChange) => Promise<void> };
+
+function createWindow(zoom: Zoom): Promise<void> {
   const window = new BrowserWindow({
     width: 1600,
     height: 1000,
@@ -70,7 +73,14 @@ function createWindow(zoom: () => number): Promise<void> {
     event.preventDefault();
   });
   window.webContents.on('did-finish-load', () => {
-    window.webContents.setZoomLevel(zoom());
+    window.webContents.setZoomLevel(zoom.level());
+  });
+  window.webContents.on('before-input-event', (event, input) => {
+    const change = zoomKey(input);
+    if (change) {
+      event.preventDefault();
+      void zoom.set(change);
+    }
   });
   window.on('close', (event) => {
     if (!quitting && process.platform !== 'darwin') {
@@ -85,7 +95,7 @@ function createWindow(zoom: () => number): Promise<void> {
   return rendererUrl ? window.loadURL(rendererUrl) : window.loadFile(indexFile);
 }
 
-async function start(): Promise<() => number> {
+async function start(): Promise<Zoom> {
   startLogging(!app.isPackaged);
   logUncaught();
   process.on('uncaughtException', (err) => {
@@ -230,6 +240,15 @@ async function start(): Promise<() => number> {
       append: (refs, data) => eventLog().append('ui.action', refs, data),
     }),
   );
+  const setZoom = async (change: ZoomChange) => {
+    const contents = mainWindow?.webContents;
+    if (!contents) {
+      return;
+    }
+    const zoom = zoomLevel(contents.getZoomLevel(), change);
+    contents.setZoomLevel(zoom);
+    await persist({ zoom });
+  };
   registerIpc({
     window: () => mainWindow,
     worktreeFor: (tabId) => sessions.get(tabId)?.worktreePath ?? null,
@@ -262,21 +281,13 @@ async function start(): Promise<() => number> {
     lastProject: () => Promise.resolve(saved.lastProject),
     setSeen: (seen) => persist({ seen }),
     seen: () => Promise.resolve(saved.seen),
-    setZoom: async (change) => {
-      const contents = mainWindow?.webContents;
-      if (!contents) {
-        return;
-      }
-      const zoom = zoomLevel(contents.getZoomLevel(), change);
-      contents.setZoomLevel(zoom);
-      await persist({ zoom });
-    },
+    setZoom,
   });
   app.on('before-quit', (event) => {
     quitting = !event.defaultPrevented;
   });
   checkNotifications(await enabled());
-  return () => saved.zoom;
+  return { level: () => saved.zoom, set: setZoom };
 }
 
 if (claimInstance(app)) {
