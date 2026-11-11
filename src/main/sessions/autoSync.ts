@@ -22,6 +22,7 @@ export type AutoSyncDeps = {
 export class AutoSync {
   private readonly prompted = new Map<string, string>();
   private readonly pending = new Map<string, string[]>();
+  private readonly sent = new Map<string, string[]>();
   private readonly log: Logger;
   private active: string | null = null;
   private polling = false;
@@ -104,10 +105,11 @@ export class AutoSync {
       return;
     }
     if (!s.sessionAlive) {
-      for (const worktree of this.pending.get(s.tabId) ?? []) {
+      for (const worktree of [...(this.pending.get(s.tabId) ?? []), ...(this.sent.get(s.tabId) ?? [])]) {
         this.prompted.delete(worktree);
       }
       this.pending.delete(s.tabId);
+      this.sent.delete(s.tabId);
       this.deps.status.setSync(s.tabId, null);
     } else if (s.sync === 'queued' && s.dot !== 'working' && !this.deps.status.asking(s.tabId)) {
       const cardKey = this.deps.sessions.get(s.tabId)?.cardKey ?? null;
@@ -117,9 +119,11 @@ export class AutoSync {
         this.deps.status.setSync(s.tabId, null);
         return;
       }
+      this.sent.set(s.tabId, worktrees);
       this.deps.sessions.sendPrompt(s.tabId, syncPrompt(cardKey, worktrees));
       this.deps.status.setSync(s.tabId, 'syncing');
     } else if (s.sync === 'syncing' && prev === 'working' && s.dot !== 'working') {
+      this.sent.delete(s.tabId);
       this.deps.status.setSync(s.tabId, null);
     }
   }

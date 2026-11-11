@@ -351,6 +351,22 @@ describe('AutoSync', () => {
     expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44', ['/wts/dig-44']));
   });
 
+  test('a syncing tab whose session exits is prompted after it respawns', async () => {
+    // given
+    const { auto, sessions, status, activate, stop } = setup();
+    await stop('t1');
+    await activate('t1');
+    status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    sessions.emit('exit', 't1', 1);
+    await vi.advanceTimersByTimeAsync(0);
+    sessions.emit('spawn', 't1', true, false);
+    await stop('t1');
+    // when
+    await auto.check();
+    // then
+    expect(sessions.sendPrompt).toHaveBeenCalledTimes(2);
+  });
+
   test('a check that starts while another runs does nothing', async () => {
     // given
     const { auto, mergeState, activate } = setup();
