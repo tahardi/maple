@@ -16,6 +16,8 @@ import { FileViewer } from '@renderer/card/viewer/FileViewer';
 import { MergedNotice } from './MergedNotice';
 import { PrSummary } from './PrSummary';
 import { RepoBranch } from '@renderer/card/viewer/RepoBranch';
+import { WorktreeMenu } from '@renderer/card/viewer/WorktreeMenu';
+import { folderName } from '@renderer/card/viewer/folderName';
 import { QuickOpen } from '@renderer/card/viewer/QuickOpen';
 import { PR_DESCRIPTION } from './prDescription';
 import { CARD_DESCRIPTION } from './cardDescription';
@@ -58,12 +60,15 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [tryRuns, setTryRuns] = useState(0);
   const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
   const [vaultChangedOnly, setVaultChangedOnly] = useState(true);
+  const [shownWorktree, setShownWorktree] = useState(tab.worktreePath);
   const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const pinned = review?.data ?? null;
   const changed = pinned?.files ?? changes?.files ?? [];
-  const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed);
+  const viewedScope =
+    tab.worktreePaths.length > 1 && tab.worktreePath !== null ? `${folderName(tab.worktreePath)}:` : '';
+  const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed, viewedScope);
   const [commented, setCommented] = useState<ReadonlySet<string>>(new Set());
   const showComments = useCallback((comments: readonly ReviewComment[]) => {
     setCommented(new Set(comments.map((c) => c.path)));
@@ -167,6 +172,18 @@ export function CardTab({ tab }: { tab: TabState }) {
     setLine(null);
   };
 
+  if (shownWorktree !== tab.worktreePath) {
+    setShownWorktree(tab.worktreePath);
+    if (shownWorktree !== null && tab.worktreePath !== null) {
+      setList({ files: [], preview: null });
+      setActiveFile(null);
+      setChangedOverride(null);
+      setApproveError(null);
+      setDescriptionOpened(false);
+      setCardOpened(false);
+    }
+  }
+
   if (!descriptionOpened && pr?.data) {
     setDescriptionOpened(true);
     setList((now) => ({ ...now, files: [PR_DESCRIPTION, ...now.files] }));
@@ -226,7 +243,18 @@ export function CardTab({ tab }: { tab: TabState }) {
       <div ref={body} className={styles.body}>
         <div className={styles.left} style={{ width: columns.left }} data-testid="tree-slot">
           {hasVault && <VaultSwitch view={view} onChange={setViewOverride} onRefresh={vault.refresh} />}
-          {!showsVault && worktreeExists && repo !== null && <RepoBranch repo={repo} />}
+          {!showsVault && tab.worktreePath !== null && tab.worktreePaths.length > 1 ? (
+            <WorktreeMenu
+              label={repo === null ? folderName(tab.worktreePath) : `${repo.name} · ${repo.branch}`}
+              paths={tab.worktreePaths}
+              selected={tab.worktreePath}
+              onSelect={(path) => void window.maple.tabs.selectWorktree(tab.id, path)}
+            >
+              {repo === null ? undefined : <RepoBranch repo={repo} />}
+            </WorktreeMenu>
+          ) : (
+            !showsVault && worktreeExists && repo !== null && <RepoBranch repo={repo} />
+          )}
           {showsVault ? (
             <FileTree
               key="vault"
@@ -324,7 +352,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           </div>
           {terminal !== 'closed' && (
             <div className={styles.terminal} hidden={terminal === 'hidden'}>
-              <TerminalPane tabId={tab.id} tryRuns={tryRuns} />
+              <TerminalPane tabId={tab.id} worktreePath={tab.worktreePath} tryRuns={tryRuns} />
             </div>
           )}
         </div>

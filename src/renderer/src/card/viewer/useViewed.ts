@@ -24,16 +24,19 @@ function load(cardKey: string): Saved {
 export function useViewed(
   cardKey: string,
   files: readonly FileChange[],
+  scope = '',
 ): { viewed: ReadonlySet<string>; toggle: (path: string) => void } {
   const [saved, setSaved] = useState(() => load(cardKey));
   const viewed = new Set(
-    files.filter((file) => Object.hasOwn(saved, file.path) && saved[file.path] === file.stamp).map((file) => file.path),
+    files
+      .filter((file) => Object.hasOwn(saved, scope + file.path) && saved[scope + file.path] === file.stamp)
+      .map((file) => file.path),
   );
 
   const toggle = (path: string) => {
-    const rest = Object.fromEntries(Object.entries(saved).filter(([key]) => key !== path));
+    const rest = Object.fromEntries(Object.entries(saved).filter(([key]) => key !== scope + path));
     const stamp = files.find((file) => file.path === path)?.stamp ?? null;
-    const next = viewed.has(path) ? rest : { ...rest, [path]: stamp };
+    const next = viewed.has(path) ? rest : { ...rest, [scope + path]: stamp };
     setSaved(next);
     try {
       localStorage.setItem(storageKey(cardKey), JSON.stringify(next));
