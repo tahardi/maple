@@ -1167,14 +1167,16 @@ describe('SessionManager', () => {
     expect(logger.info).toHaveBeenCalledWith('session', 'spawned', expect.objectContaining({ resumed: true }));
   });
 
-  test('logs the first 80 characters of a sent prompt', () => {
+  test('logs the length of a sent prompt but never its text', () => {
     // given
     const { manager, logger } = setup();
     const tab = manager.openPlanner('DIG', null);
+    const text = 'secret plan ' + 'x'.repeat(88);
     // when
-    manager.sendPrompt(tab.id, 'x'.repeat(100));
+    manager.sendPrompt(tab.id, text);
     // then
-    expect(logger.info).toHaveBeenCalledWith('session', 'prompt sent', { tabId: tab.id, text: 'x'.repeat(80) });
+    expect(logger.info).toHaveBeenCalledWith('session', 'prompt sent', { tabId: tab.id, length: text.length });
+    expect(JSON.stringify(logger.info.mock.calls)).not.toContain('secret plan');
   });
 
   test('logs a fresh start when a resume has no transcript', () => {

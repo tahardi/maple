@@ -222,7 +222,7 @@ export class SessionManager extends EventEmitter<Events> {
       return;
     }
     session.pty?.write(text);
-    this.log.info('session', 'prompt sent', { tabId, text: text.slice(0, 80) });
+    this.log.info('session', 'prompt sent', { tabId, length: text.length });
     setTimeout(() => {
       if (session.alive) {
         session.pty?.write('\r');
