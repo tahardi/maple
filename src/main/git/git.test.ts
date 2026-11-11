@@ -24,7 +24,6 @@ import {
   readFilePair,
   gitCommonDir,
   headSha,
-  originUrl,
   repoName,
   searchFiles,
   writeWorktreeFile,
@@ -530,16 +529,6 @@ describe('git', () => {
     // then
     expect(existsSync(marker)).toBe(false);
     expect(set?.files.map((file) => file.path)).toContain('keep.txt');
-  });
-
-  test('originUrl returns the configured url without applying insteadOf rewrites', async () => {
-    // given
-    git(worktree, 'remote', 'set-url', 'origin', 'https://github.com/taylor/maple.git');
-    git(worktree, 'config', 'url.ext::sh.insteadOf', 'https://github.com/');
-    // when
-    const url = await originUrl(worktree);
-    // then
-    expect(url).toBe('https://github.com/taylor/maple.git');
   });
 
   test('plain git diff runs the core.fsmonitor command from repo config', () => {

@@ -18,9 +18,10 @@ import { hookSocketPath, startHookServer } from '@main/sessions/hookServer';
 import { claimInstance } from '@main/app/instance';
 import { defaultRunner } from '@main/app/preflight';
 import { writeHooksFile } from '@main/sessions/hooksFile';
-import { currentBranch, findWorktrees, gitCommonDir, headSha, originUrl } from '@main/git/git';
+import { currentBranch, findWorktrees, headSha } from '@main/git/git';
 import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
+import { openPrMergeState } from '@main/github/mergeState';
 import { PrPoller } from '@main/github/prPoller';
 import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/ipc/config';
@@ -177,15 +178,16 @@ async function start(): Promise<Zoom> {
     recorder.hook(e);
     prEvents.hook(e);
   });
-  const stopAutoSync = new AutoSync({
+  const autoSync = new AutoSync({
     sessions,
     status,
     getCard,
-    prFor,
-    run: defaultRunner,
-    commonDir: gitCommonDir,
-    originUrl,
-  }).start();
+    mergeState: async (worktree, projectKey) => {
+      const branch = await currentBranch(worktree);
+      return openPrMergeState(await projectRunner(projectByKey, projectKey, branch, worktree), worktree, branch);
+    },
+  });
+  const stopAutoSync = autoSync.start();
   const prPoller = new PrPoller({
     tabs: () => sessions.list(),
     project: projectByKey,
@@ -260,6 +262,7 @@ async function start(): Promise<Zoom> {
     prs: prPoller,
     setActiveTab: (tabId) => {
       activeTabId = tabId;
+      autoSync.activate(tabId);
     },
     setNotifications: async (on) => {
       checkNotifications(on);
