@@ -4,8 +4,8 @@ import { syncPrompt } from '@shared/prompts';
 import type { Card } from '@shared/types/jira';
 import type { PrInfo } from '@shared/types/github';
 import type { TabState, TabStatus } from '@shared/types/tabs';
-import type { Runner } from '@main/app/preflight';
-import { AutoSync, LS_REMOTE_TIMEOUT_MS } from './autoSync';
+import type { MergeState } from '@main/github/mergeState';
+import { AutoSync, POLL_MS } from './autoSync';
 import type { SessionManager } from './sessions';
 import { StatusEngine } from './status';
 
@@ -44,11 +44,12 @@ const openPr: PrInfo = {
   checks: { passed: 2, failed: 0, pending: 0, total: 2, runs: [] },
 };
 
+const conflicting: MergeState = { mergeable: 'CONFLICTING', headSha: 'a'.repeat(40) };
+
 type Overrides = {
   tabs?: TabState[];
   getCard?: (key: string) => Promise<Card>;
   prFor?: (worktree: string, projectKey: string) => Promise<PrInfo | null>;
-  repoOf?: (worktree: string) => string;
 };
 
 function setup(overrides: Overrides = {}) {
@@ -68,22 +69,13 @@ function setup(overrides: Overrides = {}) {
     waitLimitMs: () => 60_000,
     logger,
   });
-  const main: { sha: string; byRepo: Record<string, string> } = { sha: 'aaa', byRepo: {} };
-  const repoOf = overrides.repoOf ?? ((worktree: string) => `/repos${worktree}`);
-  const commonDir = vi.fn((worktree: string) => Promise.resolve(repoOf(worktree)));
-  const originUrl = vi.fn((repo: string) => Promise.resolve(`https://example.test${repo}`));
-  const run = vi.fn<Runner>((_cmd, args) => {
-    const sha = main.byRepo[(args.at(-2) ?? '').replace('https://example.test', '')] ?? main.sha;
-    return Promise.resolve({ code: 0, stdout: `${sha}\trefs/heads/main\n`, stderr: '' });
-  });
+  const states: Record<string, MergeState | null> = {};
+  const mergeState = vi.fn((worktree: string) => Promise.resolve(worktree in states ? states[worktree] : conflicting));
   const auto = new AutoSync({
     sessions: sessions as unknown as SessionManager,
     status,
     getCard,
-    prFor,
-    run,
-    commonDir,
-    originUrl,
+    mergeState,
     logger,
   });
   const emitted: TabStatus[] = [];
@@ -94,30 +86,21 @@ function setup(overrides: Overrides = {}) {
     sessions.emit('spawn', tab.id, true, false);
   }
   const syncOf = (tabId: string) => status.statuses().find((s) => s.tabId === tabId)?.sync;
-  const lsRemoteCalls = () => run.mock.calls.filter(([, args]) => args.includes('ls-remote'));
-  const lsRemotes = () => lsRemoteCalls().length;
+  const activate = async (tabId: string | null) => {
+    auto.activate(tabId);
+    await vi.advanceTimersByTimeAsync(0);
+  };
   const stop = async (tabId: string) => {
     status.hook({ tabId, event: 'Stop', notificationType: null });
     await vi.waitFor(() => {
       expect(status.statuses().find((s) => s.tabId === tabId)?.dot).not.toBe('working');
     });
   };
-  return {
-    sessions,
-    status,
-    auto,
-    main,
-    run,
-    logger,
-    getCard,
-    emitted,
-    syncOf,
-    commonDir,
-    originUrl,
-    lsRemoteCalls,
-    lsRemotes,
-    stop,
+  const syncTurn = async (tabId: string) => {
+    status.hook({ tabId, event: 'UserPromptSubmit', notificationType: null });
+    await stop(tabId);
   };
+  return { sessions, status, auto, states, mergeState, logger, emitted, syncOf, activate, stop, syncTurn };
 }
 
 describe('AutoSync', () => {
@@ -129,95 +112,242 @@ describe('AutoSync', () => {
     vi.useRealTimers();
   });
 
-  test('the first poll records main and sends nothing', async () => {
+  test('a hidden tab is never checked', async () => {
     // given
-    const { auto, sessions, syncOf, lsRemotes } = setup();
+    const { auto, sessions, mergeState, stop } = setup();
+    await stop('t1');
     // when
-    await auto.poll();
+    await auto.check();
     // then
-    expect(lsRemotes()).toBe(1);
+    expect(mergeState).not.toHaveBeenCalled();
     expect(sessions.sendPrompt).not.toHaveBeenCalled();
-    expect(syncOf('t1')).toBeNull();
   });
 
-  test('a new main sha prompts an idle In Review tab with an open PR and marks it syncing', async () => {
+  test('switching to an idle In Review tab whose PR conflicts prompts it and marks it syncing', async () => {
     // given
-    const { auto, sessions, main, syncOf, stop } = setup();
+    const { sessions, syncOf, activate, stop } = setup();
     await stop('t1');
-    await auto.poll();
-    main.sha = 'bbb';
     // when
-    await auto.poll();
+    await activate('t1');
     // then
-    expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44'));
+    expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44', ['/wts/dig-44']));
     expect(syncOf('t1')).toBe('syncing');
   });
 
-  test('listeners see syncing last when an idle tab is synced', async () => {
-    // given
-    const { auto, main, emitted, stop } = setup();
-    await stop('t1');
-    await auto.poll();
-    main.sha = 'bbb';
-    // when
-    await auto.poll();
-    // then
-    expect(emitted.at(-1)?.sync).toBe('syncing');
-  });
+  test.each([{ mergeable: 'MERGEABLE' as const }, { mergeable: 'UNKNOWN' as const }])(
+    'switching to a tab whose PR is $mergeable sends nothing',
+    async ({ mergeable }) => {
+      // given
+      const { sessions, states, syncOf, activate, stop } = setup();
+      states['/wts/dig-44'] = { ...conflicting, mergeable };
+      await stop('t1');
+      // when
+      await activate('t1');
+      // then
+      expect(sessions.sendPrompt).not.toHaveBeenCalled();
+      expect(syncOf('t1')).toBeNull();
+    },
+  );
 
   test.each([
-    { case: 'card is In Progress', cardStatus: 'In Progress' as const, pr: openPr, exits: false, tab: undefined },
-    { case: 'card is In Review with no PR', cardStatus: 'In Review' as const, pr: null, exits: false, tab: undefined },
-    {
-      case: 'PR is merged',
-      cardStatus: 'In Review' as const,
-      pr: { ...openPr, state: 'MERGED' as const },
-      exits: false,
-      tab: undefined,
-    },
-    { case: 'session is not alive', cardStatus: 'In Review' as const, pr: openPr, exits: true, tab: undefined },
+    { case: 'card is In Progress', cardStatus: 'In Progress' as const, noPr: false, exits: false, tab: undefined },
+    { case: 'PR is not open', cardStatus: 'In Review' as const, noPr: true, exits: false, tab: undefined },
+    { case: 'session is not alive', cardStatus: 'In Review' as const, noPr: false, exits: true, tab: undefined },
     {
       case: 'tab has no worktree',
       cardStatus: 'In Review' as const,
-      pr: openPr,
+      noPr: false,
       exits: false,
       tab: cardTab('t1', 'DIG-44', null),
     },
     {
       case: 'tab is a planner',
       cardStatus: 'In Review' as const,
-      pr: openPr,
+      noPr: false,
       exits: false,
       tab: { ...cardTab('t1', 'DIG-44', '/wts/dig-44'), kind: 'planner' as const, cardKey: null },
     },
-  ])('a new main sha skips a tab whose $case', async ({ cardStatus, pr, exits, tab }) => {
+  ])('switching skips a tab whose $case', async ({ cardStatus, noPr, exits, tab }) => {
     // given
-    const { auto, sessions, main, syncOf, stop } = setup({
+    const { sessions, states, syncOf, activate, stop } = setup({
       tabs: tab === undefined ? undefined : [tab],
       getCard: (key) => Promise.resolve(card(key, cardStatus)),
-      prFor: () => Promise.resolve(pr),
     });
+    if (noPr) {
+      states['/wts/dig-44'] = null;
+    }
     await stop('t1');
     if (exits) {
       sessions.emit('exit', 't1', 0);
     }
-    await auto.poll();
-    main.sha = 'bbb';
     // when
-    await auto.poll();
+    await activate('t1');
     // then
     expect(sessions.sendPrompt).not.toHaveBeenCalled();
     expect(syncOf('t1')).toBeNull();
   });
 
-  test('a new main sha queues a working tab and sends when it goes idle', async () => {
+  test('a multi-repo card names only the worktrees that conflict', async () => {
     // given
-    const { auto, sessions, status, main, syncOf, stop } = setup();
-    status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
-    await auto.poll();
-    main.sha = 'bbb';
+    const tab = { ...cardTab('t1', 'DIG-44', null), worktreePaths: ['/wts/a', '/wts/b'] };
+    const { sessions, states, activate, stop } = setup({ tabs: [tab] });
+    states['/wts/a'] = { ...conflicting, mergeable: 'MERGEABLE' };
+    await stop('t1');
     // when
-    await auto.poll();
+    await activate('t1');
+    // then
+    expect(sessions.sendPrompt.mock.calls).toEqual([['t1', syncPrompt('DIG-44', ['/wts/b'])]]);
+  });
+
+  test('a conflict that appears while the tab is active is caught on the next poll', async () => {
+    // given
+    const { auto, sessions, states, activate, stop } = setup();
+    states['/wts/dig-44'] = { ...conflicting, mergeable: 'MERGEABLE' };
+    await stop('t1');
+    await activate('t1');
+    const stopPolling = auto.start();
+    states['/wts/dig-44'] = conflicting;
+    // when
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    stopPolling();
+    // then
+    expect(sessions.sendPrompt.mock.calls).toEqual([['t1', syncPrompt('DIG-44', ['/wts/dig-44'])]]);
+  });
+
+  test('the same conflict on the same PR head prompts once', async () => {
+    // given
+    const { auto, sessions, activate, syncTurn } = setup();
+    await syncTurn('t1');
+    await activate('t1');
+    await syncTurn('t1');
+    // when
+    await activate('t1');
+    await auto.check();
+    // then
+    expect(sessions.sendPrompt).toHaveBeenCalledTimes(1);
+  });
+
+  test('a conflict on a new PR head prompts again', async () => {
+    // given
+    const { auto, sessions, states, activate, syncTurn } = setup();
+    await syncTurn('t1');
+    await activate('t1');
+    await syncTurn('t1');
+    states['/wts/dig-44'] = { ...conflicting, headSha: 'b'.repeat(40) };
+    // when
+    await auto.check();
+    // then
+    expect(sessions.sendPrompt).toHaveBeenCalledTimes(2);
+  });
+
+  test('switching away stops the checks', async () => {
+    // given
+    const { auto, mergeState, activate } = setup();
+    await activate('t1');
+    const stopPolling = auto.start();
+    // when
+    await activate(null);
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    stopPolling();
+    // then
+    expect(mergeState).toHaveBeenCalledTimes(1);
+  });
+
+  test('a failed merge state lookup warns and checks the other worktrees', async () => {
+    // given
+    const tab = { ...cardTab('t1', 'DIG-44', null), worktreePaths: ['/wts/a', '/wts/b'] };
+    const { sessions, mergeState, logger, activate, stop } = setup({ tabs: [tab] });
+    mergeState.mockImplementationOnce(() => Promise.reject(new Error('boom')));
+    await stop('t1');
+    // when
+    await activate('t1');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
+      operation: 'mergeState',
+      worktree: '/wts/a',
+      error: 'boom',
+    });
+    expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44', ['/wts/b']));
+  });
+
+  test('start checks the active tab every 2 minutes until stopped', async () => {
+    // given
+    const { auto, mergeState, activate } = setup();
+    await activate('t1');
+    // when
+    const stopPolling = auto.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const first = mergeState.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    const second = mergeState.mock.calls.length;
+    stopPolling();
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    // then
+    expect([first, second, mergeState.mock.calls.length]).toEqual([1, 2, 2]);
+  });
+
+  test('a check that starts while another runs does nothing', async () => {
+    // given
+    const { auto, mergeState, activate } = setup();
+    let release: () => void = () => undefined;
+    mergeState.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => {
+            resolve(conflicting);
+          };
+        }),
+    );
+    await activate('t1');
+    // when
+    await auto.check();
+    // then
+    expect(mergeState).toHaveBeenCalledTimes(1);
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+  });
+
+  test('switching tabs during a check checks the new tab and never the hidden one', async () => {
+    // given
+    const { sessions, mergeState, activate, stop } = setup({
+      tabs: [cardTab('t1', 'DIG-44', '/wts/dig-44'), cardTab('t2', 'DIG-45', '/wts/dig-45')],
+    });
+    await stop('t1');
+    await stop('t2');
+    let release: () => void = () => undefined;
+    mergeState.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => {
+            resolve(conflicting);
+          };
+        }),
+    );
+    await activate('t1');
+    await activate('t2');
+    // when
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    // then
+    expect(sessions.sendPrompt.mock.calls).toEqual([['t2', syncPrompt('DIG-45', ['/wts/dig-45'])]]);
+  });
+
+  test('listeners see syncing last when an idle tab is synced', async () => {
+    // given
+    const { emitted, activate, stop } = setup();
+    await stop('t1');
+    // when
+    await activate('t1');
+    // then
+    expect(emitted.at(-1)?.sync).toBe('syncing');
+  });
+
+  test('a conflicting working tab is queued and sent when it goes idle', async () => {
+    // given
+    const { sessions, status, syncOf, activate, stop } = setup();
+    status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    // when
+    await activate('t1');
     const queued = { sync: syncOf('t1'), prompts: sessions.sendPrompt.mock.calls.length };
     await stop('t1');
     // then
@@ -228,11 +358,9 @@ describe('AutoSync', () => {
 
   test('syncing clears when the sync turn ends', async () => {
     // given
-    const { auto, status, main, syncOf, stop } = setup();
+    const { status, syncOf, activate, stop } = setup();
     await stop('t1');
-    await auto.poll();
-    main.sha = 'bbb';
-    await auto.poll();
+    await activate('t1');
     status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
     // when
     await stop('t1');
@@ -245,15 +373,13 @@ describe('AutoSync', () => {
     { sync: 'syncing', working: false },
   ])('a $sync tab whose session exits has no sync state', async ({ working }) => {
     // given
-    const { auto, sessions, status, main, syncOf, stop } = setup();
+    const { sessions, status, syncOf, activate, stop } = setup();
     if (working) {
       status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
     } else {
       await stop('t1');
     }
-    await auto.poll();
-    main.sha = 'bbb';
-    await auto.poll();
+    await activate('t1');
     // when
     sessions.emit('exit', 't1', 0);
     await vi.advanceTimersByTimeAsync(0);
@@ -261,286 +387,31 @@ describe('AutoSync', () => {
     expect(syncOf('t1')).toBeNull();
   });
 
-  test('a new main sha while syncing queues the tab again', async () => {
-    // given
-    const { auto, sessions, status, main, syncOf, stop } = setup();
-    await stop('t1');
-    await auto.poll();
-    main.sha = 'bbb';
-    await auto.poll();
-    status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
-    main.sha = 'ccc';
-    // when
-    await auto.poll();
-    const requeued = syncOf('t1');
-    await stop('t1');
-    // then
-    expect(requeued).toBe('queued');
-    expect(sessions.sendPrompt).toHaveBeenCalledTimes(2);
-    expect(syncOf('t1')).toBe('syncing');
-  });
-
-  test('a new main sha while queued sends one prompt', async () => {
-    // given
-    const { auto, sessions, status, main, stop } = setup();
-    status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
-    await auto.poll();
-    main.sha = 'bbb';
-    await auto.poll();
-    main.sha = 'ccc';
-    // when
-    await auto.poll();
-    await stop('t1');
-    // then
-    expect(sessions.sendPrompt).toHaveBeenCalledTimes(1);
-  });
-
-  test('runs ls-remote once per repo from outside the repo for tabs that share a repo', async () => {
-    // given
-    const { auto, lsRemoteCalls } = setup({
-      tabs: [cardTab('t1', 'DIG-44', '/wts/dig-44'), cardTab('t2', 'DIG-45', '/wts/dig-45')],
-      repoOf: () => '/repos/dig',
-    });
-    // when
-    await auto.poll();
-    await auto.poll();
-    // then
-    expect(lsRemoteCalls().map(([, , cwd]) => cwd)).toEqual(['/', '/']);
-  });
-
-  test('looks up the repo once per worktree across polls', async () => {
-    // given
-    const { auto, commonDir } = setup();
-    // when
-    await auto.poll();
-    await auto.poll();
-    // then
-    expect(commonDir).toHaveBeenCalledTimes(1);
-  });
-
-  test('runs ls-remote with a timeout', async () => {
-    // given
-    const { auto, lsRemoteCalls } = setup();
-    // when
-    await auto.poll();
-    // then
-    expect(lsRemoteCalls()[0]?.[3]).toBe(LS_REMOTE_TIMEOUT_MS);
-  });
-
-  test('runs ls-remote with fsmonitor turned off', async () => {
-    // given
-    const { auto, lsRemoteCalls } = setup();
-    // when
-    await auto.poll();
-    // then
-    expect(lsRemoteCalls()[0]?.[1]).toEqual([
-      '-c',
-      'core.fsmonitor=false',
-      'ls-remote',
-      'https://example.test/repos/wts/dig-44',
-      'refs/heads/main',
-    ]);
-  });
-
-  test.each([
-    { url: 'https://github.com/taylor/maple.git' },
-    { url: 'ssh://git@github.com/taylor/maple.git' },
-    { url: 'git@github.com:taylor/maple.git' },
-  ])('runs ls-remote for origin $url', async ({ url }) => {
-    // given
-    const { auto, originUrl, lsRemoteCalls } = setup();
-    originUrl.mockResolvedValue(url);
-    // when
-    await auto.poll();
-    // then
-    expect(lsRemoteCalls()[0]?.[1]).toContain(url);
-  });
-
-  test.each([
-    { url: 'ext::sh -c touch% /tmp/x' },
-    { url: '/srv/git/maple.git' },
-    { url: 'file:///srv/git/maple.git' },
-    { url: '--upload-pack=touch@host:x' },
-    { url: 'http://example.test/maple.git' },
-  ])('skips ls-remote and warns for origin $url', async ({ url }) => {
-    // given
-    const { auto, originUrl, logger, lsRemotes } = setup();
-    originUrl.mockResolvedValue(url);
-    // when
-    await auto.poll();
-    // then
-    expect(lsRemotes()).toBe(0);
-    expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
-      operation: 'ls-remote',
-      repo: '/repos/wts/dig-44',
-      error: 'checking origin url: url is not https or ssh',
-    });
-  });
-
   test('a waiting tab with a question prompt open is sent the prompt only after its turn stops', async () => {
     // given
-    const { auto, sessions, status, main, syncOf, stop } = setup();
+    const { sessions, status, syncOf, activate, stop } = setup();
     await stop('t1');
     status.hook({ tabId: 't1', event: 'Notification', notificationType: 'permission_prompt' });
-    await auto.poll();
-    main.sha = 'bbb';
     // when
-    await auto.poll();
+    await activate('t1');
     const queued = { sync: syncOf('t1'), prompts: sessions.sendPrompt.mock.calls.length };
     status.hook({ tabId: 't1', event: 'Stop', notificationType: null });
     // then
     expect(queued).toEqual({ sync: 'queued', prompts: 0 });
     await vi.waitFor(() => {
-      expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44'));
+      expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44', ['/wts/dig-44']));
     });
   });
 
   test('a waiting tab with failed checks is sent the prompt', async () => {
     // given
     const failing = { ...openPr, checks: { ...openPr.checks, failed: 1 } };
-    const { auto, sessions, status, main, stop } = setup({ prFor: () => Promise.resolve(failing) });
+    const { sessions, status, activate, stop } = setup({ prFor: () => Promise.resolve(failing) });
     await stop('t1');
-    await auto.poll();
-    main.sha = 'bbb';
     // when
-    await auto.poll();
+    await activate('t1');
     // then
     expect(status.statuses()[0]?.dot).toBe('waiting');
-    expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44'));
-  });
-
-  test('a new main sha syncs only the tabs of the repo whose main moved', async () => {
-    // given
-    const { auto, sessions, main, stop } = setup({
-      tabs: [cardTab('t1', 'DIG-44', '/wts/dig-44'), cardTab('t2', 'BEAR-1', '/wts/bear-1')],
-    });
-    await stop('t1');
-    await stop('t2');
-    await auto.poll();
-    main.byRepo['/repos/wts/bear-1'] = 'bbb';
-    // when
-    await auto.poll();
-    // then
-    expect(sessions.sendPrompt.mock.calls).toEqual([['t2', syncPrompt('BEAR-1')]]);
-  });
-
-  test('an unchanged sha sends nothing', async () => {
-    // given
-    const { auto, sessions, getCard, stop } = setup();
-    await stop('t1');
-    await auto.poll();
-    getCard.mockClear();
-    // when
-    await auto.poll();
-    // then
-    expect(sessions.sendPrompt).not.toHaveBeenCalled();
-    expect(getCard).not.toHaveBeenCalled();
-  });
-
-  test('a failed ls-remote warns and leaves the repo baseline unchanged', async () => {
-    // given
-    const { auto, sessions, main, run, logger, stop } = setup();
-    await stop('t1');
-    await auto.poll();
-    run.mockImplementationOnce(() => Promise.resolve({ code: 128, stdout: '', stderr: 'fatal: no remote' }));
-    main.sha = 'bbb';
-    // when
-    await auto.poll();
-    const promptsAfterFailure = sessions.sendPrompt.mock.calls.length;
-    await auto.poll();
-    // then
-    expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
-      operation: 'ls-remote',
-      repo: '/repos/wts/dig-44',
-      error: 'reading main: fatal: no remote',
-    });
-    expect(promptsAfterFailure).toBe(0);
-    expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44'));
-  });
-
-  test('a failed repo lookup warns and skips only that worktree', async () => {
-    // given
-    const { auto, commonDir, logger, lsRemotes } = setup({
-      tabs: [cardTab('t1', 'DIG-44', '/wts/gone'), cardTab('t2', 'DIG-45', '/wts/dig-45')],
-    });
-    commonDir.mockImplementationOnce(() => Promise.reject(new Error('running git rev-parse: not a git repository')));
-    // when
-    await auto.poll();
-    // then
-    expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
-      operation: 'rev-parse',
-      worktree: '/wts/gone',
-      error: 'running git rev-parse: not a git repository',
-    });
-    expect(lsRemotes()).toBe(1);
-  });
-
-  test.each([
-    { operation: 'getCard', failCard: true, failPr: false },
-    { operation: 'prFor', failCard: false, failPr: true },
-  ])('a failed $operation warns and skips only that tab', async ({ operation, failCard, failPr }) => {
-    // given
-    const fails = (key: string, fail: boolean) => fail && key === 'DIG-44';
-    const { auto, sessions, main, logger, stop } = setup({
-      tabs: [cardTab('t1', 'DIG-44', '/wts/dig-44'), cardTab('t2', 'DIG-45', '/wts/dig-45')],
-      repoOf: () => '/repos/dig',
-      getCard: (key) =>
-        fails(key, failCard) ? Promise.reject(new Error('reading card: 500')) : Promise.resolve(card(key)),
-      prFor: (worktree) =>
-        fails(worktree === '/wts/dig-44' ? 'DIG-44' : '', failPr)
-          ? Promise.reject(new Error('reading card: 500'))
-          : Promise.resolve(openPr),
-    });
-    await stop('t1');
-    await stop('t2');
-    await auto.poll();
-    logger.warn.mockClear();
-    main.sha = 'bbb';
-    // when
-    await auto.poll();
-    // then
-    expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
-      operation,
-      worktree: '/wts/dig-44',
-      error: 'reading card: 500',
-    });
-    expect(sessions.sendPrompt.mock.calls).toEqual([['t2', syncPrompt('DIG-45')]]);
-  });
-
-  test('start polls right away and every 2 minutes until stopped', async () => {
-    // given
-    const { auto, lsRemotes } = setup();
-    // when
-    const stop = auto.start();
-    await vi.advanceTimersByTimeAsync(0);
-    const first = lsRemotes();
-    await vi.advanceTimersByTimeAsync(120_000);
-    const second = lsRemotes();
-    stop();
-    await vi.advanceTimersByTimeAsync(120_000);
-    // then
-    expect([first, second, lsRemotes()]).toEqual([1, 2, 2]);
-  });
-
-  test('a poll that starts while another runs does nothing', async () => {
-    // given
-    const { auto, run, lsRemotes } = setup();
-    let release: () => void = () => undefined;
-    run.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          release = () => {
-            resolve({ code: 0, stdout: 'aaa\trefs/heads/main\n', stderr: '' });
-          };
-        }),
-    );
-    const first = auto.poll();
-    await vi.advanceTimersByTimeAsync(0);
-    // when
-    await auto.poll();
-    // then
-    expect(lsRemotes()).toBe(1);
-    release();
-    await first;
+    expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44', ['/wts/dig-44']));
   });
 });

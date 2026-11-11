@@ -132,10 +132,6 @@ export async function gitCommonDir(worktree: string): Promise<string> {
   return (await git(worktree, ['rev-parse', '--path-format=absolute', '--git-common-dir'])).trim();
 }
 
-export async function originUrl(repo: string): Promise<string> {
-  return (await git(repo, ['config', '--get', 'remote.origin.url'])).trim();
-}
-
 async function filterKeys(worktree: string): Promise<string[]> {
   try {
     return splitZ(await git(worktree, ['config', '--null', '--name-only', '--get-regexp', '^filter\\..*\\.']));
