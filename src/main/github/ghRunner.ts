@@ -44,16 +44,21 @@ export async function projectRunner(
   if (named !== null) {
     return ghRunner(named, run);
   }
+  let withPr: CommandRunner | null = null;
   for (const repo of repos) {
     const runner = ghRunner(repo, run);
-    if (await hasPr(runner, repo, branch)) {
+    const states = await prStates(runner, repo, branch);
+    if (states.includes('OPEN')) {
       return runner;
     }
+    if (withPr === null && states.length > 0) {
+      withPr = runner;
+    }
   }
-  return ghRunner(project.repo, run);
+  return withPr ?? ghRunner(project.repo, run);
 }
 
-async function hasPr(runner: CommandRunner, repo: string, branch: string): Promise<boolean> {
+async function prStates(runner: CommandRunner, repo: string, branch: string): Promise<string[]> {
   const { code, stdout, stderr } = await runner('gh', [
     'pr',
     'list',
@@ -64,11 +69,11 @@ async function hasPr(runner: CommandRunner, repo: string, branch: string): Promi
     '--limit',
     PR_LIST_LIMIT,
     '--json',
-    'isCrossRepository',
+    'isCrossRepository,state',
   ]);
   if (code !== 0) {
     throw new Error(`finding project repo: listing PRs in ${repo}: ${stderr}`);
   }
-  const prs = z.array(z.object({ isCrossRepository: z.boolean() })).parse(JSON.parse(stdout));
-  return prs.some((pr) => !pr.isCrossRepository);
+  const prs = z.array(z.object({ isCrossRepository: z.boolean(), state: z.string() })).parse(JSON.parse(stdout));
+  return prs.filter((pr) => !pr.isCrossRepository).map((pr) => pr.state);
 }
