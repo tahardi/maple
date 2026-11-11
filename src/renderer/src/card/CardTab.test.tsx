@@ -826,6 +826,7 @@ describe('CardTab', () => {
     expect((await slot.findAllByRole('term')).map((t) => t.textContent)).toEqual(['Repo', 'Branch']);
     expect(slot.getByText('maple')).toBeInTheDocument();
     expect(slot.getByText('mpl-20-file-tree')).toBeInTheDocument();
+    expect(slot.queryByRole('button', { name: /^Repo/ })).not.toBeInTheDocument();
   });
 
   test('hides the repo name and branch in the vault tree', async () => {
@@ -841,6 +842,89 @@ describe('CardTab', () => {
     // then
     expect(screen.getByRole('button', { name: 'Vault', pressed: true })).toBeInTheDocument();
     expect(screen.queryByTestId('repo-branch')).not.toBeInTheDocument();
+  });
+
+  const twoRepos: TabState = {
+    ...tab,
+    worktreePath: '/wts/xena-xena-62-vm-net',
+    worktreePaths: ['/wts/halo-xena-62-config', '/wts/xena-xena-62-vm-net'],
+  };
+
+  const xena = { name: 'xena', branch: 'xena-62-vm-net', hasTry: false };
+
+  test('shows a repo dropdown above the tree when the card has more than one worktree', async () => {
+    // given
+    fakeMaple({ repo: { info: () => Promise.resolve(xena) } });
+    // when
+    render(<CardTab tab={twoRepos} />);
+    // then
+    const slot = within(screen.getByTestId('tree-slot'));
+    const button = await slot.findByRole('button', { name: 'Repo: xena · xena-62-vm-net' });
+    expect(within(button).getByTestId('repo-branch')).toBeInTheDocument();
+    expect(
+      within(button)
+        .getAllByRole('term')
+        .map((t) => t.textContent),
+    ).toEqual(['Repo', 'Branch']);
+  });
+
+  test('names the selected folder on the repo dropdown before the repo info loads', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<CardTab tab={twoRepos} />);
+    // then
+    expect(screen.getByRole('button', { name: 'Repo: xena-xena-62-vm-net' })).toHaveTextContent('xena-xena-62-vm-net');
+  });
+
+  test('choosing another repo asks the main process to select it', async () => {
+    // given
+    const selectWorktree = vi.fn(() => Promise.resolve());
+    fakeMaple({ repo: { info: () => Promise.resolve(xena) }, tabs: { selectWorktree } });
+    render(<CardTab tab={twoRepos} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Repo: xena · xena-62-vm-net' }));
+    // when
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'halo-xena-62-config' }));
+    // then
+    expect(selectWorktree).toHaveBeenCalledWith('t1', '/wts/halo-xena-62-config');
+  });
+
+  test('switching repos closes the old repo files and opens the new PR description', async () => {
+    // given
+    let current: PrInfo | null = null;
+    fakeMaple({
+      repo: { listFiles: () => Promise.resolve(['README.md']), info: () => Promise.resolve(xena) },
+      pr: { get: () => Promise.resolve({ data: current, error: null, fetchedAt: null }) },
+    });
+    const { rerender } = render(<CardTab tab={twoRepos} />);
+    await userEvent.dblClick(await screen.findByText('README.md'));
+    expect(tabLabels()).toEqual(['README.md']);
+    // when
+    current = { ...pr, number: 12, body: '## Halo' };
+    rerender(<CardTab tab={{ ...twoRepos, worktreePath: '/wts/halo-xena-62-config' }} />);
+    // then
+    expect(await screen.findByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
+    expect(tabLabels()).toEqual(['PR description']);
+    expect(await screen.findByRole('heading', { name: 'Halo' })).toBeInTheDocument();
+  });
+
+  test('switching repos clears the Approve error', async () => {
+    // given
+    fakeMaple({
+      pr: {
+        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
+        review: reviewOf([]),
+        approve: () => Promise.reject(new Error('approving PR: offline')),
+      },
+    });
+    const { rerender } = render(<CardTab tab={twoRepos} />);
+    const slot = within(screen.getByTestId('claude-slot'));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    expect(await slot.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    // when
+    rerender(<CardTab tab={{ ...twoRepos, worktreePath: '/wts/halo-xena-62-config' }} />);
+    // then
+    expect(slot.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   test('keeps the active file when closing another file tab', async () => {
@@ -1459,7 +1543,7 @@ describe('CardTab', () => {
     // then
     expect(screen.getByTestId('terminal-pane')).toBeVisible();
     expect(terminal).toHaveAttribute('aria-pressed', 'true');
-    expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 1 });
+    expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 1, worktreePath: tab.worktreePath });
     // when
     await userEvent.click(runTry);
     // then

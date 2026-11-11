@@ -31,7 +31,11 @@ export function useCardData(tab: TabState): CardDataWithReview {
     outsideSprint: false,
   });
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : null));
-  const [loaded, setLoaded] = useState<{ number: number; review: Fetched<Review> } | null>(null);
+  const [loaded, setLoaded] = useState<{
+    worktreePath: string | null;
+    number: number;
+    review: Fetched<Review>;
+  } | null>(null);
   const latest = useRef(0);
   const latestReview = useRef(0);
   const { id, projectKey, cardKey, worktreePath } = tab;
@@ -80,14 +84,18 @@ export function useCardData(tab: TabState): CardDataWithReview {
     const seq = ++latestReview.current;
     void window.maple.pr.review(id).then((review) => {
       if (seq === latestReview.current) {
-        setLoaded({ number: openNumber, review });
+        setLoaded({ worktreePath, number: openNumber, review });
       }
     });
-  }, [id, openNumber]);
+  }, [id, worktreePath, openNumber]);
 
   useEffect(() => {
     reloadReview();
   }, [reloadReview]);
 
-  return { ...data, review: loaded?.number === openNumber ? loaded.review : null, reloadReview };
+  return {
+    ...data,
+    review: loaded?.worktreePath === worktreePath && loaded.number === openNumber ? loaded.review : null,
+    reloadReview,
+  };
 }
