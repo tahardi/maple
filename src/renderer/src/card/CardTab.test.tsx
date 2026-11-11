@@ -1285,6 +1285,27 @@ describe('CardTab', () => {
     expect(claude.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  test('an Approve error stays when a refresh finds the same head commit', async () => {
+    // given
+    const review = vi.fn<() => Promise<Fetched<Review>>>(reviewOf([]));
+    const approve = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('approving PR: offline'));
+    const changed = captureRepoChanged({
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review, approve },
+    });
+    render(<CardTab tab={tab} />);
+    const claude = within(screen.getByTestId('claude-slot'));
+    await userEvent.click(await claude.findByRole('button', { name: 'Approve' }));
+    expect(await claude.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    // when
+    act(() => {
+      changed.value();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // then
+    expect(review).toHaveBeenCalledTimes(1);
+    expect(claude.getByRole('alert')).toHaveTextContent('approving PR: offline');
+  });
+
   test('Reload review clears the Approve error', async () => {
     // given
     fakeMaple({

@@ -94,10 +94,11 @@ describe('PrSummary', () => {
     expect(title.nextElementSibling).toContainElement(screen.getByText('Reviewing 0123456'));
   });
 
-  test.each<{ name: string; updated: boolean; want: string | null }>([
-    { name: 'the review updated to a new commit', updated: true, want: 'Updated to ddddddd' },
-    { name: 'the review did not update', updated: false, want: null },
-  ])('shows the updated notice: $name', ({ updated, want }) => {
+  test.each<{ name: string; updated: boolean; headSha: string | null; want: string | null }>([
+    { name: 'the review updated to a new commit', updated: true, headSha: 'd'.repeat(40), want: 'Updated to ddddddd' },
+    { name: 'the review did not update', updated: false, headSha: 'd'.repeat(40), want: null },
+    { name: 'no review is loaded', updated: true, headSha: null, want: null },
+  ])('shows the updated notice: $name', ({ updated, headSha, want }) => {
     // given
     const pr = fetched({ ...info, headSha: 'd'.repeat(40) });
     // when
@@ -109,7 +110,7 @@ describe('PrSummary', () => {
         reviewError={null}
         findings={[]}
         projectRepo="tahardi/maple"
-        headSha={'d'.repeat(40)}
+        headSha={headSha}
         updated={updated}
         searchedRepos={[]}
       />,

@@ -480,27 +480,23 @@ describe('useCardData', () => {
     expect(result.current.review?.data?.headSha).toBe(moved);
   });
 
-  test.each([
-    { name: 'the first review loads', step: 'none' as const, want: false },
-    { name: 'the review reloads at a new commit', step: 'moved' as const, want: true },
-    { name: 'the review reloads at the same commit', step: 'same' as const, want: false },
-  ])('reviewUpdated is $want when $name', async ({ step, want }) => {
+  test('does not retry a failed review load while the head stays the same', async () => {
     // given
     let changed: () => void = vi.fn();
     const moved = 'd'.repeat(40);
-    const second: Fetched<Review> =
-      step === 'moved'
-        ? { ...fetchedReview, data: { ...reviewData, headSha: moved } }
-        : { ...fetchedReview, fetchedAt: '2026-10-28T12:01:00.000Z' };
-    const head = step === 'moved' ? { ...openPr, headSha: moved } : openPr;
+    const failed: Fetched<Review> = {
+      data: null,
+      error: 'fetching review: the PR head moved, try again',
+      fetchedAt: null,
+    };
     const get = vi
       .fn()
       .mockResolvedValueOnce({ data: openPr, error: null, fetchedAt: null })
-      .mockResolvedValue({ data: head, error: null, fetchedAt: null });
+      .mockResolvedValue({ data: { ...openPr, headSha: moved }, error: null, fetchedAt: null });
     const review = vi
       .fn<(tabId: string) => Promise<Fetched<Review>>>()
       .mockResolvedValueOnce(fetchedReview)
-      .mockResolvedValue(second);
+      .mockResolvedValue(failed);
     fakeMaple({
       pr: { get, review },
       repo: {
@@ -515,19 +511,111 @@ describe('useCardData', () => {
       expect(result.current.review).toEqual(fetchedReview);
     });
     // when
-    if (step === 'moved') {
+    act(() => {
+      changed();
+    });
+    await waitFor(() => {
+      expect(result.current.review).toEqual(failed);
+    });
+    act(() => {
+      changed();
+    });
+    // then
+    await waitFor(() => {
+      expect(get).toHaveBeenCalledTimes(3);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(review).toHaveBeenCalledTimes(2);
+  });
+
+  const moved = 'd'.repeat(40);
+  const atMoved: Fetched<Review> = { ...fetchedReview, data: { ...reviewData, headSha: moved } };
+  test.each<{
+    name: string;
+    first: Fetched<Review>;
+    next: PrInfo;
+    second: Fetched<Review>;
+    trigger: 'none' | 'changed' | 'reload';
+    want: boolean;
+  }>([
+    {
+      name: 'the first review loads',
+      first: fetchedReview,
+      next: openPr,
+      second: fetchedReview,
+      trigger: 'none',
+      want: false,
+    },
+    {
+      name: 'the review reloads at a new commit',
+      first: fetchedReview,
+      next: { ...openPr, headSha: moved },
+      second: atMoved,
+      trigger: 'changed',
+      want: true,
+    },
+    {
+      name: 'the review reloads at the same commit',
+      first: fetchedReview,
+      next: openPr,
+      second: { ...fetchedReview, fetchedAt: '2026-10-28T12:01:00.000Z' },
+      trigger: 'reload',
+      want: false,
+    },
+    {
+      name: 'a new PR opens on the same worktree',
+      first: fetchedReview,
+      next: { ...openPr, number: 8, headSha: moved },
+      second: { ...fetchedReview, data: { ...reviewData, number: 8, headSha: moved } },
+      trigger: 'changed',
+      want: false,
+    },
+    {
+      name: 'the first load failed and a later one loads',
+      first: { data: null, error: 'fetching review: offline', fetchedAt: null },
+      next: { ...openPr, headSha: moved },
+      second: atMoved,
+      trigger: 'changed',
+      want: false,
+    },
+  ])('reviewUpdated is $want when $name', async ({ first, next, second, trigger, want }) => {
+    // given
+    let changed: () => void = vi.fn();
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: openPr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: next, error: null, fetchedAt: null });
+    const review = vi
+      .fn<(tabId: string) => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValue(second);
+    fakeMaple({
+      pr: { get, review },
+      repo: {
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+    });
+    const { result } = renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(result.current.review).toEqual(first);
+    });
+    // when
+    if (trigger === 'changed') {
       act(() => {
         changed();
       });
     }
-    if (step === 'same') {
+    if (trigger === 'reload') {
       act(() => {
         result.current.reloadReview();
       });
     }
     // then
     await waitFor(() => {
-      expect(result.current.review).toEqual(step === 'none' ? fetchedReview : second);
+      expect(result.current.review).toEqual(trigger === 'none' ? first : second);
     });
     expect(result.current.reviewUpdated).toBe(want);
   });
