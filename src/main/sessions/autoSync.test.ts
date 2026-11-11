@@ -367,6 +367,40 @@ describe('AutoSync', () => {
     expect(sessions.sendPrompt).toHaveBeenCalledTimes(2);
   });
 
+  test('switching away cancels a queued sync and checks the tab again on return', async () => {
+    // given
+    const { sessions, status, syncOf, activate, stop } = setup({
+      tabs: [cardTab('t1', 'DIG-44', '/wts/dig-44'), cardTab('t2', 'DIG-45', '/wts/dig-45')],
+    });
+    status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    await stop('t2');
+    await activate('t1');
+    await activate('t2');
+    const hidden = syncOf('t1');
+    await stop('t1');
+    const promptsWhileHidden = sessions.sendPrompt.mock.calls.filter(([id]) => id === 't1').length;
+    // when
+    await activate('t1');
+    // then
+    expect({ hidden, promptsWhileHidden }).toEqual({ hidden: null, promptsWhileHidden: 0 });
+    expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44', ['/wts/dig-44']));
+  });
+
+  test('switching away leaves a sync that was already sent running', async () => {
+    // given
+    const { sessions, status, syncOf, activate, stop } = setup({
+      tabs: [cardTab('t1', 'DIG-44', '/wts/dig-44'), cardTab('t2', 'DIG-45', '/wts/dig-45')],
+    });
+    await stop('t1');
+    await activate('t1');
+    status.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
+    // when
+    await activate(null);
+    // then
+    expect(syncOf('t1')).toBe('syncing');
+    expect(sessions.sendPrompt).toHaveBeenCalledTimes(1);
+  });
+
   test('a check that starts while another runs does nothing', async () => {
     // given
     const { auto, mergeState, activate } = setup();

@@ -37,6 +37,14 @@ export class AutoSync {
   }
 
   activate(tabId: string | null): void {
+    const left = this.active;
+    if (left !== null && left !== tabId && this.pending.has(left)) {
+      for (const worktree of this.pending.get(left) ?? []) {
+        this.prompted.delete(worktree);
+      }
+      this.pending.delete(left);
+      this.deps.status.setSync(left, null);
+    }
     this.active = tabId;
     void this.check();
   }
