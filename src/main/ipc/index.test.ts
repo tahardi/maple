@@ -1,9 +1,11 @@
+import { EventEmitter } from 'node:events';
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { IPC_CHANNELS, type ChannelKind } from '@shared/ipc';
 import { SessionManager } from '@main/sessions/sessions';
 import { StatusEngine } from '@main/sessions/status';
 import { Terminals } from '@main/sessions/terminals';
+import type { StartQueue } from '@main/sessions/startQueue';
 import { registerIpc } from './index';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
@@ -67,6 +69,7 @@ describe('registerIpc', () => {
     lastProject: () => Promise.resolve(null),
     setSeen: () => Promise.resolve(),
     seen: () => Promise.resolve({}),
+    startQueue: new EventEmitter() as StartQueue,
   };
 
   sessions.setMaxListeners(0);

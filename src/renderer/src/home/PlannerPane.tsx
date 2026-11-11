@@ -1,7 +1,9 @@
 import { refinePrompt, suggestPrompt } from '@shared/prompts';
+import type { QueueState } from '@shared/types/queue';
 import { useEffect, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import styles from './PlannerPane.module.css';
+import { StartQueue } from './StartQueue';
 
 type Props = {
   projectKey: string;
@@ -16,6 +18,7 @@ type Props = {
   onAccept: () => void;
   onAcceptAndStart: () => void;
   failure: string | null;
+  queue: QueueState;
 };
 
 export function PlannerPane({
@@ -31,6 +34,7 @@ export function PlannerPane({
   onAccept,
   onAcceptAndStart,
   failure,
+  queue,
 }: Props) {
   const [tabId, setTabId] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
@@ -103,6 +107,7 @@ export function PlannerPane({
           )}
         </div>
       </div>
+      <StartQueue queue={queue} />
       {(nothingToStart || failure !== null) && (
         <div className={styles.status}>
           {nothingToStart && <span className={styles.nothing}>Nothing to start right now</span>}

@@ -110,6 +110,9 @@ describe('loadConfig', () => {
     { name: 'eventKeepDays missing', config: validConfig, check: { eventKeepDays: 365 } },
     { name: 'eventMaxMegabytes missing', config: validConfig, check: { eventMaxMegabytes: 200 } },
     { name: 'stateBackups missing', config: validConfig, check: { stateBackups: 3 } },
+    { name: 'maxWorking missing', config: validConfig, check: { maxWorking: 4 } },
+    { name: 'maxLoadPerCore missing', config: validConfig, check: { maxLoadPerCore: 0.8 } },
+    { name: 'minFreeMegabytes missing', config: validConfig, check: { minFreeMegabytes: 2048 } },
   ])('defaults when $name', async ({ config, check }) => {
     // given
     await writeFile(join(dir, 'config.json'), JSON.stringify(config));
@@ -166,6 +169,26 @@ describe('loadConfig', () => {
       name: 'a fractional stateBackups',
       content: JSON.stringify({ ...validConfig, stateBackups: 1.5 }),
       error: /^reading config: stateBackups:/,
+    },
+    {
+      name: 'a maxWorking of zero',
+      content: JSON.stringify({ ...validConfig, maxWorking: 0 }),
+      error: /^reading config: maxWorking: /,
+    },
+    {
+      name: 'a fractional maxWorking',
+      content: JSON.stringify({ ...validConfig, maxWorking: 1.5 }),
+      error: /^reading config: maxWorking: /,
+    },
+    {
+      name: 'a maxLoadPerCore of zero',
+      content: JSON.stringify({ ...validConfig, maxLoadPerCore: 0 }),
+      error: /^reading config: maxLoadPerCore: /,
+    },
+    {
+      name: 'a negative minFreeMegabytes',
+      content: JSON.stringify({ ...validConfig, minFreeMegabytes: -1 }),
+      error: /^reading config: minFreeMegabytes: /,
     },
     {
       name: 'string jiraBoardId',

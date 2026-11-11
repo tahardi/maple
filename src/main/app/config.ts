@@ -15,6 +15,9 @@ const defaultActions = [
 ];
 
 export const DEFAULT_WAIT_MINUTES = 10;
+export const DEFAULT_MAX_WORKING = 4;
+export const DEFAULT_MAX_LOAD_PER_CORE = 0.8;
+export const DEFAULT_MIN_FREE_MEGABYTES = 2048;
 
 const repoSchema = z
   .string()
@@ -30,6 +33,9 @@ const configSchema = z
     eventKeepDays: z.number().int().positive().default(KEEP_DAYS),
     eventMaxMegabytes: z.number().positive().default(MAX_MEGABYTES),
     stateBackups: z.number().int().positive().default(STATE_BACKUPS),
+    maxWorking: z.number().int().positive().default(DEFAULT_MAX_WORKING),
+    maxLoadPerCore: z.number().positive().default(DEFAULT_MAX_LOAD_PER_CORE),
+    minFreeMegabytes: z.number().nonnegative().default(DEFAULT_MIN_FREE_MEGABYTES),
     projects: z.array(
       z.object({
         name: z.string(),

@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SessionManager } from '@main/sessions/sessions';
@@ -7,6 +8,7 @@ import type { Fetched } from '@shared/types/app';
 import type { MapleConfig, ProjectConfig } from '@shared/types/config';
 import { notificationsDefault, projectByKey, registerConfig } from './config';
 import type { ZoomChange } from '@main/app/zoom';
+import type { StartQueue } from '@main/sessions/startQueue';
 
 type Handler = (event: IpcMainInvokeEvent) => Promise<unknown>;
 
@@ -56,6 +58,9 @@ const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleC
     eventKeepDays: 365,
     eventMaxMegabytes: 200,
     stateBackups: 3,
+    maxWorking: 4,
+    maxLoadPerCore: 0.8,
+    minFreeMegabytes: 2048,
     projects,
     actions: [],
   },
@@ -88,6 +93,7 @@ function deps(window: () => BrowserWindow | null = () => null) {
     lastProject: () => Promise.resolve(null),
     setSeen: () => Promise.resolve(),
     seen: () => Promise.resolve({}),
+    startQueue: new EventEmitter() as StartQueue,
   };
 }
 

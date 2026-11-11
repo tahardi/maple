@@ -15,6 +15,9 @@ export type MapleConfig = {
   eventKeepDays: number;
   eventMaxMegabytes: number;
   stateBackups: number;
+  maxWorking: number;
+  maxLoadPerCore: number;
+  minFreeMegabytes: number;
   projects: ProjectConfig[];
   actions: ActionConfig[];
 };
