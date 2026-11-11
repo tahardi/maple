@@ -66,7 +66,9 @@ export function CardTab({ tab }: { tab: TabState }) {
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const pinned = review?.data ?? null;
   const changed = pinned?.files ?? changes?.files ?? [];
-  const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed);
+  const viewedScope =
+    tab.worktreePaths.length > 1 && tab.worktreePath !== null ? `${folderName(tab.worktreePath)}:` : '';
+  const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed, viewedScope);
   const [commented, setCommented] = useState<ReadonlySet<string>>(new Set());
   const showComments = useCallback((comments: readonly ReviewComment[]) => {
     setCommented(new Set(comments.map((c) => c.path)));

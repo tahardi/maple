@@ -908,6 +908,59 @@ describe('CardTab', () => {
     expect(await screen.findByRole('heading', { name: 'Halo' })).toBeInTheDocument();
   });
 
+  test('switching to a repo without a PR leaves the PR description closed', async () => {
+    // given
+    let current: PrInfo | null = { ...pr, body: '## Xena' };
+    fakeMaple({
+      repo: { info: () => Promise.resolve(xena) },
+      pr: { get: () => Promise.resolve({ data: current, error: null, fetchedAt: null }) },
+    });
+    const { rerender } = render(<CardTab tab={twoRepos} />);
+    await screen.findByRole('tab', { name: 'PR description', selected: true });
+    // when
+    current = null;
+    rerender(<CardTab tab={{ ...twoRepos, worktreePath: '/wts/halo-xena-62-config' }} />);
+    // then
+    await waitFor(() => {
+      expect(screen.queryByRole('tab', { name: 'PR description' })).not.toBeInTheDocument();
+    });
+    await act(() => Promise.resolve());
+    expect(screen.queryByRole('tab', { name: 'PR description' })).not.toBeInTheDocument();
+  });
+
+  test('the first worktree appearing keeps the open file tabs', async () => {
+    // given
+    fakeVault([{ path: 'Projects/Maple/Spike.md', modifiedAt: new Date().toISOString() }]);
+    const { rerender } = render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    await userEvent.click(await screen.findByText('Spike.md'));
+    // when
+    rerender(<CardTab tab={{ ...tab, worktreePaths: [tab.worktreePath ?? ''] }} />);
+    // then
+    expect(screen.getByRole('tab', { name: 'Spike.md', selected: true })).toBeInTheDocument();
+  });
+
+  test('marks a file viewed in one repo only', async () => {
+    // given
+    fakeMaple({
+      repo: {
+        info: () => Promise.resolve(xena),
+        changes: () =>
+          Promise.resolve({
+            base: 'abc',
+            files: [{ path: 'README.md', status: 'M', oldPath: null, stamp: '1:1' }],
+            added: 1,
+            removed: 0,
+          }),
+      },
+    });
+    const { rerender } = render(<CardTab tab={twoRepos} />);
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Viewed README.md' }));
+    // when
+    rerender(<CardTab tab={{ ...twoRepos, worktreePath: '/wts/halo-xena-62-config' }} />);
+    // then
+    expect(await screen.findByRole('checkbox', { name: 'Viewed README.md' })).not.toBeChecked();
+  });
+
   test('switching repos clears the Approve error', async () => {
     // given
     fakeMaple({

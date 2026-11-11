@@ -61,4 +61,36 @@ describe('WorktreeMenu', () => {
     // then
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
+
+  test('clicking the button again closes the menu', async () => {
+    // given
+    render(<WorktreeMenu {...props} onSelect={vi.fn()} />);
+    await openMenu();
+    // when
+    await openMenu();
+    // then
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  test('opening focuses the selected worktree and arrow keys move through the list', async () => {
+    // given
+    render(<WorktreeMenu {...props} onSelect={vi.fn()} />);
+    await openMenu();
+    expect(screen.getByRole('menuitemradio', { name: 'xena-xena-62-vm-net' })).toHaveFocus();
+    // when
+    await userEvent.keyboard('{ArrowDown}');
+    // then
+    expect(screen.getByRole('menuitemradio', { name: 'halo-xena-62-config' })).toHaveFocus();
+  });
+
+  test('Escape closes the menu and returns focus to the button', async () => {
+    // given
+    render(<WorktreeMenu {...props} onSelect={vi.fn()} />);
+    await openMenu();
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Repo/ })).toHaveFocus();
+  });
 });
