@@ -152,6 +152,7 @@ async function start(): Promise<() => number> {
       maxWorking: config?.maxWorking ?? DEFAULT_MAX_WORKING,
       maxLoadPerCore: config?.maxLoadPerCore ?? DEFAULT_MAX_LOAD_PER_CORE,
       minFreeMegabytes: config?.minFreeMegabytes ?? DEFAULT_MIN_FREE_MEGABYTES,
+      hardMaxWorking: config?.hardMaxWorking ?? null,
     }),
     load: () => ({ loadAverage: loadavg()[0], cores: cpus().length, freeBytes: freemem() }),
     queued: state.queue,

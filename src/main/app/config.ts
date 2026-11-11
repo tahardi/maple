@@ -36,6 +36,7 @@ const configSchema = z
     maxWorking: z.number().int().positive().default(DEFAULT_MAX_WORKING),
     maxLoadPerCore: z.number().positive().default(DEFAULT_MAX_LOAD_PER_CORE),
     minFreeMegabytes: z.number().nonnegative().default(DEFAULT_MIN_FREE_MEGABYTES),
+    hardMaxWorking: z.number().int().positive().nullable().default(null),
     projects: z.array(
       z.object({
         name: z.string(),

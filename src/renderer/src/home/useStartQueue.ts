@@ -1,7 +1,7 @@
 import type { QueueState } from '@shared/types/queue';
 import { useEffect, useState } from 'react';
 
-const EMPTY: QueueState = { cards: [], working: 0, limit: 0, waitingFor: null, failure: null };
+const EMPTY: QueueState = { cards: [], working: 0, limit: null, waitingFor: null, failure: null };
 
 export function useStartQueue(): QueueState {
   const [queue, setQueue] = useState<QueueState>(EMPTY);

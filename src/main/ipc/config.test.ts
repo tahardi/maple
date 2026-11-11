@@ -61,6 +61,7 @@ const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleC
     maxWorking: 4,
     maxLoadPerCore: 0.8,
     minFreeMegabytes: 2048,
+    hardMaxWorking: null,
     projects,
     actions: [],
   },

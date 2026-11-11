@@ -8,7 +8,12 @@ import type { StatusEngine } from './status';
 export const RECHECK_MS = 15_000;
 
 export type HostLoad = { loadAverage: number; cores: number; freeBytes: number };
-export type StartLimits = { maxWorking: number; maxLoadPerCore: number; minFreeMegabytes: number };
+export type StartLimits = {
+  maxWorking: number;
+  maxLoadPerCore: number;
+  minFreeMegabytes: number;
+  hardMaxWorking: number | null;
+};
 export type StartQueueDeps = {
   sessions: SessionManager;
   status: StatusEngine;
@@ -29,6 +34,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
   private started = false;
   private pumping = false;
   private sent = '';
+  private lastExtraStart: number | null = null;
   private readonly log: Logger;
 
   constructor(private readonly deps: StartQueueDeps) {
@@ -48,7 +54,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
       if (hadFailure) {
         this.changed(false);
       }
-      return this.deps.sessions.startCard(projectKey, cardKey);
+      return this.startNow({ projectKey, cardKey });
     }
     if (!this.cards.some((c) => c.cardKey === cardKey)) {
       this.cards.push({ projectKey, cardKey });
@@ -85,7 +91,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     return {
       cards: [...this.cards],
       working: this.working(),
-      limit: this.deps.limits().maxWorking,
+      limit: this.deps.limits().hardMaxWorking,
       waitingFor: this.cards.length === 0 ? null : this.waitingFor(),
       failure: this.failure,
     };
@@ -121,7 +127,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
         changed = true;
         try {
           this.log.info('session', 'queued start', { cardKey: next.cardKey });
-          this.deps.sessions.startCard(next.projectKey, next.cardKey);
+          this.startNow(next);
         } catch (err) {
           this.failure = `starting ${next.cardKey}: ${message(err)}`;
           this.log.warn('session', 'queued start failed', { cardKey: next.cardKey, error: message(err) });
@@ -137,6 +143,13 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     }
   }
 
+  private startNow(card: QueuedCard): TabState {
+    if (this.working() >= this.deps.limits().maxWorking) {
+      this.lastExtraStart = Date.now();
+    }
+    return this.deps.sessions.startCard(card.projectKey, card.cardKey);
+  }
+
   private working(): number {
     return this.deps.status.statuses().filter((s) => s.dot === 'working').length;
   }
@@ -144,7 +157,8 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
   private waitingFor(): WaitReason | null {
     const limits = this.deps.limits();
     const load = this.deps.load();
-    if (this.working() >= limits.maxWorking) {
+    const working = this.working();
+    if (limits.hardMaxWorking !== null && working >= limits.hardMaxWorking) {
       return 'room';
     }
     if (load.loadAverage >= limits.maxLoadPerCore * load.cores) {
@@ -152,6 +166,9 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     }
     if (load.freeBytes < limits.minFreeMegabytes * 1024 * 1024) {
       return 'memory';
+    }
+    if (working >= limits.maxWorking && this.lastExtraStart !== null && Date.now() - this.lastExtraStart < RECHECK_MS) {
+      return 'pace';
     }
     return null;
   }

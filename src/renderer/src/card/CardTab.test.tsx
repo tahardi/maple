@@ -946,6 +946,7 @@ describe('CardTab', () => {
       maxWorking: 4,
       maxLoadPerCore: 0.8,
       minFreeMegabytes: 2048,
+      hardMaxWorking: null,
       projects: [],
       actions: [{ label: 'Sync', prompt: 'Sync {key}' }],
     };

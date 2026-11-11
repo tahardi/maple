@@ -14,6 +14,7 @@ const config: MapleConfig = {
   maxWorking: 4,
   maxLoadPerCore: 0.8,
   minFreeMegabytes: 2048,
+  hardMaxWorking: null,
   projects: [],
   actions: [
     { label: 'Address review', prompt: '/card {key}' },

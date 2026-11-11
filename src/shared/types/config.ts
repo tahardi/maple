@@ -18,6 +18,7 @@ export type MapleConfig = {
   maxWorking: number;
   maxLoadPerCore: number;
   minFreeMegabytes: number;
+  hardMaxWorking: number | null;
   projects: ProjectConfig[];
   actions: ActionConfig[];
 };

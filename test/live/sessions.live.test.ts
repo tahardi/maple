@@ -63,6 +63,7 @@ describe('SessionManager with a real claude', () => {
       maxWorking: 4,
       maxLoadPerCore: 0.8,
       minFreeMegabytes: 2048,
+      hardMaxWorking: null,
       actions: [],
       projects: [
         {

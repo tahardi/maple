@@ -113,6 +113,7 @@ describe('loadConfig', () => {
     { name: 'maxWorking missing', config: validConfig, check: { maxWorking: 4 } },
     { name: 'maxLoadPerCore missing', config: validConfig, check: { maxLoadPerCore: 0.8 } },
     { name: 'minFreeMegabytes missing', config: validConfig, check: { minFreeMegabytes: 2048 } },
+    { name: 'hardMaxWorking missing', config: validConfig, check: { hardMaxWorking: null } },
   ])('defaults when $name', async ({ config, check }) => {
     // given
     await writeFile(join(dir, 'config.json'), JSON.stringify(config));
@@ -189,6 +190,16 @@ describe('loadConfig', () => {
       name: 'a negative minFreeMegabytes',
       content: JSON.stringify({ ...validConfig, minFreeMegabytes: -1 }),
       error: /^reading config: minFreeMegabytes: /,
+    },
+    {
+      name: 'a hardMaxWorking of zero',
+      content: JSON.stringify({ ...validConfig, hardMaxWorking: 0 }),
+      error: /^reading config: hardMaxWorking: /,
+    },
+    {
+      name: 'a fractional hardMaxWorking',
+      content: JSON.stringify({ ...validConfig, hardMaxWorking: 1.5 }),
+      error: /^reading config: hardMaxWorking: /,
     },
     {
       name: 'string jiraBoardId',

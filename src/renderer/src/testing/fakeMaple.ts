@@ -18,6 +18,7 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
     maxWorking: 4,
     maxLoadPerCore: 0.8,
     minFreeMegabytes: 2048,
+    hardMaxWorking: null,
     projects: [
       {
         name: 'Bearclave',
