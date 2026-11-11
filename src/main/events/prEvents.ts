@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { prRepo } from '@shared/prRepo';
+import { tabWorktrees } from '@shared/tabWorktrees';
 import { eventSchemas, type EventRecord } from '@shared/types/events';
 import type { PrInfo } from '@shared/types/github';
 import type { Card, JiraStatus } from '@shared/types/jira';
@@ -151,7 +152,7 @@ export class PrEvents {
   ): (worktree: string, projectKey: string) => Promise<PrInfo | null> {
     return async (worktree, projectKey) => {
       const pr = await prFor(worktree, projectKey);
-      const tab = tabs().find((t) => t.worktreePath === worktree || t.worktreePaths.includes(worktree));
+      const tab = tabs().find((t) => tabWorktrees(t).includes(worktree));
       if (tab) {
         void this.pr(tab, pr);
       }

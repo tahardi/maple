@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { cardPrompt } from '@shared/prompts';
 import { prRepo } from '@shared/prRepo';
+import { tabWorktrees } from '@shared/tabWorktrees';
 import type { DiffLines, FilePair } from '@shared/types/files';
 import type { Fetched } from '@shared/types/app';
 import type { PrInfo, Review, ReviewComment } from '@shared/types/github';
@@ -27,8 +28,7 @@ function message(err: unknown): string {
 export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: PrEvents = prEvents): void {
   let login: Promise<string> | null = null;
 
-  async function runnerFor(tabId: string): Promise<CommandRunner> {
-    const worktree = deps.worktreeFor(tabId);
+  async function runnerFor(tabId: string, worktree = deps.worktreeFor(tabId)): Promise<CommandRunner> {
     const branch = worktree === null ? null : await currentBranch(worktree);
     return projectRunner(deps.project, deps.sessions.get(tabId)?.projectKey ?? null, branch, worktree);
   }
@@ -37,16 +37,11 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
     return prForBranch(run, worktree, await currentBranch(worktree));
   }
 
-  async function prAt(tabId: string, worktree: string): Promise<PrInfo | null> {
-    const branch = await currentBranch(worktree);
-    const projectKey = deps.sessions.get(tabId)?.projectKey ?? null;
-    return prForBranch(await projectRunner(deps.project, projectKey, branch, worktree), worktree, branch);
-  }
-
   async function holdsCard(tabId: string, worktree: string): Promise<boolean> {
-    const others = (deps.sessions.get(tabId)?.worktreePaths ?? []).filter((path) => path !== worktree);
+    const tab = deps.sessions.get(tabId);
+    const others = (tab === null ? [] : tabWorktrees(tab)).filter((path) => path !== worktree);
     try {
-      const prs = await Promise.all(others.map((path) => prAt(tabId, path)));
+      const prs = await Promise.all(others.map(async (path) => lookup(await runnerFor(tabId, path), path)));
       const open = prs.flatMap((p) => (p?.state === 'OPEN' ? [p.number] : []));
       if (open.length > 0) {
         logger.info('gh', 'waiting for other PRs', { tabId, open });

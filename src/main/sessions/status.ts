@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { nextDot, type DotInput } from '@shared/dots';
+import { tabWorktrees } from '@shared/tabWorktrees';
 import type { Card } from '@shared/types/jira';
 import type { Dot, HookEvent, SyncState, TabState, TabStatus } from '@shared/types/tabs';
 import type { PrInfo } from '@shared/types/github';
@@ -210,9 +211,8 @@ export class StatusEngine extends EventEmitter<Events> {
   }
 
   private async prsFor(tab: TabState): Promise<PrInfo[]> {
-    const paths = new Set([...tab.worktreePaths, ...(tab.worktreePath === null ? [] : [tab.worktreePath])]);
     const prs = await Promise.all(
-      [...paths].map((path) =>
+      tabWorktrees(tab).map((path) =>
         withTimeout(this.deps.prFor(path, tab.projectKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
           this.fail('gh', 'prFor', err),
         ),

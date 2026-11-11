@@ -73,7 +73,7 @@ vi.mock('@main/github/securityFindings', () => ({ openFindings, ghLogin }));
 const event = {} as IpcMainInvokeEvent;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const events = { approved: vi.fn(), commented: vi.fn(), replied: vi.fn(), resolved: vi.fn() };
-const eventTab = { projectKey: 'DIG', cardKey: 'DIG-44', worktreePaths: ['/wt'] };
+const eventTab = { projectKey: 'DIG', cardKey: 'DIG-44', worktreePath: '/wt', worktreePaths: ['/wt'] };
 const pr: PrInfo = {
   number: 33,
   url: 'https://github.com/tahardi/maple/pull/33',
@@ -104,7 +104,10 @@ function tabSessions(
   sendPrompt = vi.fn(),
   worktreePaths: readonly string[] = ['/wt'],
 ) {
-  return { get: () => ({ projectKey, cardKey, worktreePaths }), sendPrompt } as unknown as SessionManager;
+  return {
+    get: () => ({ projectKey, cardKey, worktreePath: '/wt', worktreePaths }),
+    sendPrompt,
+  } as unknown as SessionManager;
 }
 
 function register(
@@ -306,6 +309,19 @@ describe('registerPr', () => {
       Promise.resolve(worktree === '/wt2' ? { ...pr, state: 'MERGED' } : pr),
     );
     const { approve, sendPrompt } = approver({ [viewPin]: pinned(head) }, '/wt', 'DIG-44', ['/wt', '/wt2']);
+    // when
+    await approve('t1', head);
+    // then
+    expect(sendPrompt).toHaveBeenCalledWith('t1', '/card DIG-44');
+  });
+
+  test.each([
+    { name: 'another worktree has no PR', worktreePaths: ['/wt', '/wt2'] },
+    { name: 'the tab lists no worktrees', worktreePaths: [] },
+  ])('pr:approve prompts /card when $name', async ({ worktreePaths }) => {
+    // given
+    prForBranch.mockImplementation((_run, worktree) => Promise.resolve(worktree === '/wt2' ? null : pr));
+    const { approve, sendPrompt } = approver({ [viewPin]: pinned(head) }, '/wt', 'DIG-44', worktreePaths);
     // when
     await approve('t1', head);
     // then
