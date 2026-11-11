@@ -61,7 +61,7 @@ function setup(given: Setup = {}) {
     statuses = working(count);
     engine.emit('status', status('w0', 'idle'), 'working');
   };
-  return { queue, sessions, startCard, save, logger, load, tabs, setWorking };
+  return { queue, sessions, engine, startCard, save, logger, load, tabs, setWorking };
 }
 
 describe('StartQueue', () => {
@@ -234,6 +234,105 @@ describe('StartQueue', () => {
     queue.add('DIG', 'DIG-46');
     // then
     expect(queue.state().failure).toBeNull();
+  });
+
+  test('add starts waiting cards in order when there is room again', () => {
+    // given
+    const { queue, startCard, load } = setup({ load: { freeBytes: 0 }, queued: queued('DIG-45') });
+    queue.start();
+    load.freeBytes = 8 * GIB;
+    // when
+    queue.add('DIG', 'DIG-46');
+    // then
+    expect(startCard.mock.calls).toEqual([
+      ['DIG', 'DIG-45'],
+      ['DIG', 'DIG-46'],
+    ]);
+    expect(queue.state().cards).toEqual([]);
+  });
+
+  test('a start that emits status during a pass starts each card once up to the limit', () => {
+    // given
+    const { queue, engine, startCard } = setup({ working: 2, queued: queued('DIG-45', 'DIG-46', 'DIG-47') });
+    const spawn = startCard.getMockImplementation();
+    startCard.mockImplementation((projectKey: string, cardKey: string) => {
+      const opened = spawn?.(projectKey, cardKey) ?? tab(projectKey, cardKey);
+      engine.emit('status', status(opened.id, 'working'), 'idle');
+      return opened;
+    });
+    // when
+    queue.start();
+    // then
+    expect(startCard.mock.calls).toEqual([
+      ['DIG', 'DIG-45'],
+      ['DIG', 'DIG-46'],
+    ]);
+    expect(queue.state().cards).toEqual(queued('DIG-47'));
+  });
+
+  test('a failed save is logged at error', async () => {
+    // given
+    const { queue, save, logger } = setup({ working: 4 });
+    save.mockRejectedValueOnce(new Error('disk full'));
+    // when
+    queue.add('DIG', 'DIG-45');
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalled();
+    });
+    // then
+    expect(logger.error).toHaveBeenCalledWith('session', 'failed', { operation: 'saveQueue', error: 'disk full' });
+  });
+
+  test('a change in the working count emits changed without saving', () => {
+    // given
+    const { queue, save, setWorking } = setup({ working: 4, queued: queued('DIG-45') });
+    queue.start();
+    save.mockClear();
+    const changed = vi.fn();
+    queue.on('changed', changed);
+    // when
+    setWorking(5);
+    // then
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({ working: 5 }));
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test('queueing a card and starting it from the queue are logged at info', () => {
+    // given
+    const { queue, logger, setWorking } = setup({ working: 4 });
+    queue.start();
+    queue.add('DIG', 'DIG-45');
+    // when
+    setWorking(0);
+    // then
+    expect(logger.info).toHaveBeenCalledWith('session', 'queued', { cardKey: 'DIG-45' });
+    expect(logger.info).toHaveBeenCalledWith('session', 'queued start', { cardKey: 'DIG-45' });
+  });
+
+  test.each([
+    {
+      name: 'remove',
+      act: (q: StartQueue) => {
+        q.remove('DIG-99');
+      },
+    },
+    {
+      name: 'move',
+      act: (q: StartQueue) => {
+        q.move('DIG-99', 1);
+      },
+    },
+  ])('$name of a card not in the queue changes nothing', ({ act }) => {
+    // given
+    const { queue, save } = setup({ working: 4, queued: queued('DIG-45') });
+    const changed = vi.fn();
+    queue.on('changed', changed);
+    // when
+    act(queue);
+    // then
+    expect(queue.state().cards).toEqual(queued('DIG-45'));
+    expect(save).not.toHaveBeenCalled();
+    expect(changed).not.toHaveBeenCalled();
   });
 
   test('remove drops a waiting card and saves', () => {

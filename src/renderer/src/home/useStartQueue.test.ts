@@ -39,6 +39,38 @@ describe('useStartQueue', () => {
     expect(result.current).toEqual(next);
   });
 
+  test('a first load that arrives after a queue event is ignored', async () => {
+    // given
+    let resolveLoad: (state: QueueState) => void = () => undefined;
+    let emit: (state: QueueState) => void = () => undefined;
+    fakeMaple({
+      tabs: {
+        startQueue: vi.fn(
+          () =>
+            new Promise<QueueState>((resolve) => {
+              resolveLoad = resolve;
+            }),
+        ),
+        onQueue: vi.fn((cb: (state: QueueState) => void) => {
+          emit = cb;
+          return vi.fn();
+        }),
+      },
+    });
+    const { result } = renderHook(() => useStartQueue());
+    const next: QueueState = { ...loaded, cards: [], waitingFor: null };
+    act(() => {
+      emit(next);
+    });
+    // when
+    await act(async () => {
+      resolveLoad(loaded);
+      await Promise.resolve();
+    });
+    // then
+    expect(result.current).toEqual(next);
+  });
+
   test('unmounting stops listening for queue events', () => {
     // given
     const { stop } = setup();

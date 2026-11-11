@@ -186,6 +186,11 @@ describe('loadConfig', () => {
       error: /^reading config: maxLoadPerCore: /,
     },
     {
+      name: 'a negative minFreeMegabytes',
+      content: JSON.stringify({ ...validConfig, minFreeMegabytes: -1 }),
+      error: /^reading config: minFreeMegabytes: /,
+    },
+    {
       name: 'string jiraBoardId',
       content: JSON.stringify(stringBoardId),
       error: /^reading config: projects\.0\.jiraBoardId/,

@@ -52,10 +52,12 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     }
     if (!this.cards.some((c) => c.cardKey === cardKey)) {
       this.cards.push({ projectKey, cardKey });
+      this.log.info('session', 'queued', { cardKey });
       this.changed(true);
     } else if (hadFailure) {
       this.changed(false);
     }
+    this.pump();
     return null;
   }
 
@@ -118,6 +120,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
         this.cards = rest;
         changed = true;
         try {
+          this.log.info('session', 'queued start', { cardKey: next.cardKey });
           this.deps.sessions.startCard(next.projectKey, next.cardKey);
         } catch (err) {
           this.failure = `starting ${next.cardKey}: ${message(err)}`;
