@@ -544,6 +544,24 @@ describe('PrEvents', () => {
     expect(appended('pr.opened')).toEqual([]);
   });
 
+  test('restores merges and CI results per repo', async () => {
+    // given
+    const { events, fake, appended } = setup();
+    const other = 'tahardi/other';
+    fake.readEvents.mockResolvedValue([
+      logged('pr.opened', { repo, pr: 33 }),
+      logged('ci.result', { repo, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }),
+      logged('pr.merged', { repo, pr: 33 }),
+    ]);
+    const merged: PrInfo = { ...pr33, state: 'MERGED', checks: failing };
+    // when
+    await events.pr(tab, merged);
+    await events.pr(tab, { ...merged, url: `https://github.com/${other}/pull/33` });
+    // then
+    expect(appended('pr.merged')).toEqual([{ repo: other, pr: 33 }]);
+    expect(appended('ci.result')).toEqual([{ repo: other, pr: 33, passed: 5, failed: 1, failedChecks: ['test'] }]);
+  });
+
   test.each([
     {
       name: 'tapCard',

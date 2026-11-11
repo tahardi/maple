@@ -245,7 +245,7 @@ describe('StatusEngine', () => {
   test('a resumed spawn reads the worktree after the card lookup', async () => {
     // given
     const { sessions, emitted, prFor } = setup();
-    sessions.get.mockReturnValueOnce({ ...cardTab, worktreePath: null, worktreePaths: [] });
+    sessions.get.mockReturnValueOnce(noWorktreeTab);
     // when
     sessions.emit('spawn', 't1', false, true);
     // then
@@ -1057,6 +1057,7 @@ describe('StatusEngine', () => {
     { name: 'both PRs are green', a: openPr, b: openPr, want: 'ready' },
     { name: 'the unselected PR fails checks', a: openPr, b: failingPr, want: 'waiting' },
     { name: 'one PR is merged', a: mergedPr, b: openPr, want: 'ready' },
+    { name: 'one worktree has no PR', a: null, b: openPr, want: 'ready' },
   ])('a Stop hook for a card with two worktrees emits $want when $name', async ({ a, b, want }) => {
     // given
     const { sessions, engine, emitted, prFor } = setup({ tab: twoRepoTab, prFor: perWorktree(a, b) });
@@ -1069,6 +1070,20 @@ describe('StatusEngine', () => {
     });
     expect(prFor).toHaveBeenCalledWith('/wts/dig-days-dig-44', 'DIG');
     expect(prFor).toHaveBeenCalledWith('/wts/halo-dig-44', 'DIG');
+  });
+
+  test('a Stop hook for a card with two worktrees waits when one PR lookup fails', async () => {
+    // given
+    const prFor = (worktree: string) =>
+      worktree === '/wts/halo-dig-44' ? Promise.reject(new Error('listing PRs: down')) : Promise.resolve(openPr);
+    const { sessions, engine, emitted } = setup({ tab: twoRepoTab, prFor });
+    sessions.emit('spawn', 't1', true);
+    // when
+    engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
+    // then
+    await vi.waitFor(() => {
+      expect(emitted.at(-1)?.dot).toBe('waiting');
+    });
   });
 
   test('a Stop hook for a restored tab with only a selected worktree looks up its PR', async () => {
@@ -1100,7 +1115,7 @@ describe('StatusEngine', () => {
 
   test('a Stop hook for a card tab without a worktree skips the PR and waits', async () => {
     // given
-    const { sessions, engine, emitted, prFor } = setup({ tab: { ...cardTab, worktreePath: null, worktreePaths: [] } });
+    const { sessions, engine, emitted, prFor } = setup({ tab: noWorktreeTab });
     sessions.emit('spawn', 't1', true);
     // when
     engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
