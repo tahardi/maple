@@ -1,5 +1,7 @@
 import type { BrowserWindow } from 'electron';
 import type { MapleConfig, ProjectConfig } from '@shared/types/config';
+import type { Fetched } from '@shared/types/app';
+import type { PrInfo } from '@shared/types/github';
 import type { Dot } from '@shared/types/tabs';
 import type { SessionManager } from '@main/sessions/sessions';
 import type { StartQueue } from '@main/sessions/startQueue';
@@ -34,6 +36,7 @@ export type IpcDeps = {
   setSeen: (seen: Record<string, Dot>) => Promise<void>;
   seen: () => Promise<Record<string, Dot>>;
   startQueue: StartQueue;
+  latestPr: (tabId: string, worktree: string) => Promise<Fetched<PrInfo>>;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [

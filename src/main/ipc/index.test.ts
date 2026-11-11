@@ -70,6 +70,7 @@ describe('registerIpc', () => {
     setSeen: () => Promise.resolve(),
     seen: () => Promise.resolve({}),
     startQueue: new EventEmitter() as StartQueue,
+    latestPr: () => Promise.resolve({ data: null, error: null, fetchedAt: null }),
   };
 
   sessions.setMaxListeners(0);

@@ -105,6 +105,7 @@ function setup() {
       setSeen: () => Promise.resolve(),
       seen: () => Promise.resolve({}),
       startQueue: startQueue as unknown as StartQueue,
+      latestPr: () => Promise.resolve({ data: null, error: null, fetchedAt: null }),
       warnings: () => [],
     },
     logger,

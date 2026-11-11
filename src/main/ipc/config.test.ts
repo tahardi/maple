@@ -94,6 +94,7 @@ function deps(window: () => BrowserWindow | null = () => null) {
     setSeen: () => Promise.resolve(),
     seen: () => Promise.resolve({}),
     startQueue: new EventEmitter() as StartQueue,
+    latestPr: () => Promise.resolve({ data: null, error: null, fetchedAt: null }),
   };
 }
 

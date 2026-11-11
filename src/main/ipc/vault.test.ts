@@ -60,6 +60,7 @@ function register(vaultDir: () => Promise<string | null>) {
       setSeen: () => Promise.resolve(),
       seen: () => Promise.resolve({}),
       startQueue: new EventEmitter() as StartQueue,
+      latestPr: () => Promise.resolve({ data: null, error: null, fetchedAt: null }),
     },
     logger,
     vaultDir,
