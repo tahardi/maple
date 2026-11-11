@@ -16,7 +16,11 @@ type CardData = {
   outsideSprint: boolean;
 };
 
-type CardDataWithReview = CardData & { review: Fetched<Review> | null; reloadReview: () => void };
+type CardDataWithReview = CardData & {
+  review: Fetched<Review> | null;
+  reviewUpdated: boolean;
+  reloadReview: () => void;
+};
 
 const REFRESH_MS = 60_000;
 
@@ -36,6 +40,7 @@ export function useCardData(tab: TabState): CardDataWithReview {
     worktreePath: string | null;
     number: number;
     review: Fetched<Review>;
+    firstHead: string | null;
   } | null>(null);
   const latest = useRef(0);
   const latestReview = useRef(0);
@@ -79,6 +84,7 @@ export function useCardData(tab: TabState): CardDataWithReview {
   const { worktreePath: loadedFor, ...rest } = data;
   const shown = loadedFor === worktreePath ? rest : { ...rest, changes: null, files: [], repo: null, pr: null };
   const openNumber = shown.pr?.data?.state === 'OPEN' ? shown.pr.data.number : null;
+  const openHead = shown.pr?.data?.state === 'OPEN' ? shown.pr.data.headSha : null;
 
   const reloadReview = useCallback((): void => {
     if (openNumber === null) {
@@ -87,18 +93,25 @@ export function useCardData(tab: TabState): CardDataWithReview {
     const seq = ++latestReview.current;
     void window.maple.pr.review(id).then((review) => {
       if (seq === latestReview.current) {
-        setLoaded({ worktreePath, number: openNumber, review });
+        setLoaded((prev) => {
+          const same = prev?.worktreePath === worktreePath && prev.number === openNumber && prev.firstHead !== null;
+          const firstHead = same ? prev.firstHead : (review.data?.headSha ?? null);
+          return { worktreePath, number: openNumber, review, firstHead };
+        });
       }
     });
   }, [id, worktreePath, openNumber]);
 
   useEffect(() => {
     reloadReview();
-  }, [reloadReview]);
+  }, [reloadReview, openHead]);
 
+  const current = loaded?.worktreePath === worktreePath && loaded.number === openNumber ? loaded : null;
+  const reviewHead = current?.review.data?.headSha ?? null;
   return {
     ...shown,
-    review: loaded?.worktreePath === worktreePath && loaded.number === openNumber ? loaded.review : null,
+    review: current?.review ?? null,
+    reviewUpdated: current !== null && reviewHead !== null && reviewHead !== current.firstHead,
     reloadReview,
   };
 }

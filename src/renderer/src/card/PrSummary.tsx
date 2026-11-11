@@ -35,6 +35,7 @@ type PrSummaryProps = {
   findings: readonly SecurityFinding[];
   projectRepo: string | null;
   headSha: string | null;
+  updated: boolean;
   searchedRepos: readonly string[];
 };
 
@@ -46,10 +47,10 @@ export function PrSummary({
   findings,
   projectRepo,
   headSha,
+  updated,
   searchedRepos,
 }: PrSummaryProps) {
   const info = pr.data;
-  const behind = info?.state === 'OPEN' && headSha !== null && headSha !== info.headSha;
   return (
     <section className={styles.summary}>
       {pr.error !== null && <div className={styles.error}>GitHub unreachable</div>}
@@ -70,10 +71,8 @@ export function PrSummary({
             </span>
           </div>
           <div className={styles.title}>{info.title}</div>
-          {behind && (
-            <div className={styles.banner} role="status">
-              This PR has new commits
-            </div>
+          {info.state === 'OPEN' && updated && headSha !== null && (
+            <div className={styles.banner} role="status">{`Updated to ${headSha.slice(0, 7)}`}</div>
           )}
           {(headSha !== null || info.state === 'OPEN') && (
             <div className={styles.row}>

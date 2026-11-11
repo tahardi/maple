@@ -435,6 +435,103 @@ describe('useCardData', () => {
     expect(review).toHaveBeenCalledWith('t1');
   });
 
+  test('reloads the review once when the open PR gets a new head commit', async () => {
+    // given
+    let changed: () => void = vi.fn();
+    const moved = 'd'.repeat(40);
+    const later: Fetched<Review> = { ...fetchedReview, data: { ...reviewData, headSha: moved } };
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: openPr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...openPr, headSha: moved }, error: null, fetchedAt: null });
+    const review = vi
+      .fn<(tabId: string) => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(fetchedReview)
+      .mockResolvedValue(later);
+    fakeMaple({
+      pr: { get, review },
+      repo: {
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+    });
+    const { result } = renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(result.current.review).toEqual(fetchedReview);
+    });
+    // when
+    act(() => {
+      changed();
+    });
+    await waitFor(() => {
+      expect(result.current.review?.data?.headSha).toBe(moved);
+    });
+    act(() => {
+      changed();
+    });
+    // then
+    await waitFor(() => {
+      expect(get).toHaveBeenCalledTimes(3);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(review).toHaveBeenCalledTimes(2);
+    expect(result.current.review?.data?.headSha).toBe(moved);
+  });
+
+  test.each([
+    { name: 'the first review loads', step: 'none' as const, want: false },
+    { name: 'the review reloads at a new commit', step: 'moved' as const, want: true },
+    { name: 'the review reloads at the same commit', step: 'same' as const, want: false },
+  ])('reviewUpdated is $want when $name', async ({ step, want }) => {
+    // given
+    let changed: () => void = vi.fn();
+    const moved = 'd'.repeat(40);
+    const second: Fetched<Review> =
+      step === 'moved'
+        ? { ...fetchedReview, data: { ...reviewData, headSha: moved } }
+        : { ...fetchedReview, fetchedAt: '2026-10-28T12:01:00.000Z' };
+    const head = step === 'moved' ? { ...openPr, headSha: moved } : openPr;
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: openPr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: head, error: null, fetchedAt: null });
+    const review = vi
+      .fn<(tabId: string) => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(fetchedReview)
+      .mockResolvedValue(second);
+    fakeMaple({
+      pr: { get, review },
+      repo: {
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+    });
+    const { result } = renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(result.current.review).toEqual(fetchedReview);
+    });
+    // when
+    if (step === 'moved') {
+      act(() => {
+        changed();
+      });
+    }
+    if (step === 'same') {
+      act(() => {
+        result.current.reloadReview();
+      });
+    }
+    // then
+    await waitFor(() => {
+      expect(result.current.review).toEqual(step === 'none' ? fetchedReview : second);
+    });
+    expect(result.current.reviewUpdated).toBe(want);
+  });
+
   test.each([
     { name: 'there is no PR', found: null },
     { name: 'the PR is merged', found: { ...openPr, state: 'MERGED' as const } },

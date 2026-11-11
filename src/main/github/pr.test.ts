@@ -283,7 +283,7 @@ describe('approveAndMerge', () => {
     {
       name: 'the head moved',
       reply: pin('d'.repeat(40)),
-      want: 'the PR has new commits since the review loaded; click Reload review',
+      want: 'the PR has new commits since the review loaded; Approve again once the review updates',
     },
     { name: 'the PR targets another branch', reply: pin(sha, 'dig-44-x', 'dev'), want: 'PR targets dev, not main' },
     {

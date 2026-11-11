@@ -379,7 +379,7 @@ describe('registerPr', () => {
     const result = approve('t1', head);
     // then
     await expect(result).rejects.toThrow(
-      /^approving PR: the PR has new commits since the review loaded; click Reload review$/,
+      /^approving PR: the PR has new commits since the review loaded; Approve again once the review updates$/,
     );
     expect(calls).toEqual([viewPin, viewRepo]);
     expect(sendPrompt).not.toHaveBeenCalled();
