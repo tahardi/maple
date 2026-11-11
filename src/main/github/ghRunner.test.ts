@@ -106,11 +106,25 @@ describe('projectRunner', () => {
   });
 
   const branch = 'xena-92-go-caches';
-  const probe = ['pr', 'list', '--head', branch, '--state', 'all', '--limit', '100', '--json', 'isCrossRepository'];
+  const probe = [
+    'pr',
+    'list',
+    '--head',
+    branch,
+    '--state',
+    'all',
+    '--limit',
+    '100',
+    '--json',
+    'isCrossRepository,state',
+  ];
   const xena = { ...project, jiraKey: 'XENA', repo: 'tahardi/xena', otherRepos: ['tahardi/dotclaude'] };
   const three = { ...xena, otherRepos: ['tahardi/dotclaude', 'tahardi/halo'] };
   const none = '[]';
-  const found = '[{"isCrossRepository":false}]';
+  const found = '[{"isCrossRepository":false,"state":"OPEN"}]';
+  const merged = '[{"isCrossRepository":false,"state":"MERGED"}]';
+  const closed = '[{"isCrossRepository":false,"state":"CLOSED"}]';
+  const forkOpenOwnMerged = '[{"isCrossRepository":true,"state":"OPEN"},{"isCrossRepository":false,"state":"MERGED"}]';
 
   test.each([
     {
@@ -138,7 +152,7 @@ describe('projectRunner', () => {
       want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/dotclaude'],
     },
     {
-      name: 'stops probing at the first other repo with a PR',
+      name: 'stops probing at the first repo with an open PR',
       config: three,
       head: branch,
       worktree: null,
@@ -186,6 +200,54 @@ describe('projectRunner', () => {
       worktree: null,
       replies: { 'tahardi/xena': { stdout: none }, 'tahardi/dotclaude': { stdout: none } },
       want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/xena'],
+    },
+    {
+      name: 'prefers an open PR in a later repo over a merged PR in an earlier one',
+      config: three,
+      head: branch,
+      worktree: null,
+      replies: {
+        'tahardi/xena': { stdout: merged },
+        'tahardi/dotclaude': { stdout: none },
+        'tahardi/halo': { stdout: found },
+      },
+      want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/halo', 'tahardi/halo'],
+    },
+    {
+      name: 'uses the first repo with a merged PR when none is open',
+      config: three,
+      head: branch,
+      worktree: null,
+      replies: {
+        'tahardi/xena': { stdout: none },
+        'tahardi/dotclaude': { stdout: merged },
+        'tahardi/halo': { stdout: merged },
+      },
+      want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/halo', 'tahardi/dotclaude'],
+    },
+    {
+      name: 'uses a repo whose only PR is closed over the project repo fallback',
+      config: three,
+      head: branch,
+      worktree: null,
+      replies: {
+        'tahardi/xena': { stdout: none },
+        'tahardi/dotclaude': { stdout: closed },
+        'tahardi/halo': { stdout: none },
+      },
+      want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/halo', 'tahardi/dotclaude'],
+    },
+    {
+      name: 'ignores an open fork PR when choosing between merged PRs',
+      config: three,
+      head: branch,
+      worktree: null,
+      replies: {
+        'tahardi/xena': { stdout: merged },
+        'tahardi/dotclaude': { stdout: forkOpenOwnMerged },
+        'tahardi/halo': { stdout: merged },
+      },
+      want: ['tahardi/xena', 'tahardi/dotclaude', 'tahardi/halo', 'tahardi/xena'],
     },
     {
       name: 'uses the repo named by the worktree folder without probing',
@@ -246,6 +308,8 @@ describe('projectRunner', () => {
     { name: 'invalid JSON', stdout: 'not json' },
     { name: 'a non-array', stdout: '{"isCrossRepository":false}' },
     { name: 'an entry without the fork flag', stdout: '[{"number":8}]' },
+    { name: 'an entry without a state', stdout: '[{"isCrossRepository":false}]' },
+    { name: 'an entry with an unknown state', stdout: '[{"isCrossRepository":false,"state":"DRAFT"}]' },
   ])('rejects a probe that prints $name', async ({ stdout }) => {
     // given
     const { repos, run } = fakeRepos({ 'tahardi/xena': { stdout }, 'tahardi/dotclaude': { stdout: found } });
