@@ -159,4 +159,19 @@ describe('useViewed', () => {
     // then
     expect([...result.current.viewed]).toEqual(['README.md']);
   });
+
+  test('unchecking a file in one scope keeps the same path checked in another scope', () => {
+    // given
+    localStorage.setItem('maple.viewed.MPL-1', '{"halo-mpl-1:README.md":"1:1","xena-mpl-1:README.md":"2:2"}');
+    const { result } = renderHook(() => useViewed('MPL-1', [file('README.md', '1:1')], 'halo-mpl-1:'));
+    // when
+    act(() => {
+      result.current.toggle('README.md');
+    });
+    // then
+    expect([...result.current.viewed]).toEqual([]);
+    expect(JSON.parse(localStorage.getItem('maple.viewed.MPL-1') ?? 'null')).toEqual({
+      'xena-mpl-1:README.md': '2:2',
+    });
+  });
 });
