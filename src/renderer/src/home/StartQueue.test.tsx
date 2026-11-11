@@ -46,12 +46,13 @@ describe('StartQueue', () => {
   });
 
   test.each([
-    { waitingFor: 'room' as const, text: 'Waiting for room: 2 of 4 working' },
-    { waitingFor: 'cpu' as const, text: 'Waiting for CPU: 2 of 4 working' },
-    { waitingFor: 'memory' as const, text: 'Waiting for memory: 2 of 4 working' },
-  ])('waiting for $waitingFor shows $text', ({ waitingFor, text }) => {
+    { waitingFor: 'room' as const, limit: 6, text: 'Waiting for room: 6 of 6 working' },
+    { waitingFor: 'cpu' as const, limit: 8, text: 'Waiting for CPU: 6 working' },
+    { waitingFor: 'memory' as const, limit: 8, text: 'Waiting for memory: 6 working' },
+    { waitingFor: 'pace' as const, limit: 8, text: 'Starting one more every 15 seconds: 6 working' },
+  ])('waiting for $waitingFor shows $text', ({ waitingFor, limit, text }) => {
     // given
-    const queue = { ...queueOf('DIG-45'), waitingFor };
+    const queue = { ...queueOf('DIG-45'), working: 6, limit, waitingFor };
     // when
     setup(queue);
     // then

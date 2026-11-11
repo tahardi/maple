@@ -1,7 +1,17 @@
 import type { QueueState, WaitReason } from '@shared/types/queue';
 import styles from './StartQueue.module.css';
 
-const WAITING_FOR: Record<WaitReason, string> = { room: 'room', cpu: 'CPU', memory: 'memory' };
+const WAITING_FOR: Record<'cpu' | 'memory', string> = { cpu: 'CPU', memory: 'memory' };
+
+function waitText(reason: WaitReason, working: number, limit: number): string {
+  if (reason === 'room') {
+    return `Waiting for room: ${String(working)} of ${String(limit)} working`;
+  }
+  if (reason === 'pace') {
+    return `Starting one more every 15 seconds: ${String(working)} working`;
+  }
+  return `Waiting for ${WAITING_FOR[reason]}: ${String(working)} working`;
+}
 
 export function StartQueue({ queue }: { queue: QueueState }) {
   const { cards, working, limit, waitingFor, failure } = queue;
@@ -40,9 +50,7 @@ export function StartQueue({ queue }: { queue: QueueState }) {
         </ul>
       )}
       {cards.length > 0 && waitingFor !== null && (
-        <span className={styles.waiting}>
-          {`Waiting for ${WAITING_FOR[waitingFor]}: ${String(working)} of ${String(limit)} working`}
-        </span>
+        <span className={styles.waiting}>{waitText(waitingFor, working, limit)}</span>
       )}
       {failure !== null && (
         <span role="alert" className={styles.failure}>

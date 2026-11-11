@@ -10,6 +10,7 @@ import {
   DEFAULT_MAX_LOAD_PER_CORE,
   DEFAULT_MAX_WORKING,
   DEFAULT_MIN_FREE_MEGABYTES,
+  DEFAULT_START_AT_ONCE,
   DEFAULT_WAIT_MINUTES,
   loadConfig,
 } from '@main/app/config';
@@ -150,6 +151,7 @@ async function start(): Promise<() => number> {
     sessions,
     status,
     limits: () => ({
+      startAtOnce: config?.startAtOnce ?? DEFAULT_START_AT_ONCE,
       maxWorking: config?.maxWorking ?? DEFAULT_MAX_WORKING,
       maxLoadPerCore: config?.maxLoadPerCore ?? DEFAULT_MAX_LOAD_PER_CORE,
       minFreeMegabytes: config?.minFreeMegabytes ?? DEFAULT_MIN_FREE_MEGABYTES,

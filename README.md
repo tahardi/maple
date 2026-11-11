@@ -57,7 +57,8 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
   "eventKeepDays": 365,
   "eventMaxMegabytes": 200,
   "stateBackups": 3,
-  "maxWorking": 4,
+  "startAtOnce": 4,
+  "maxWorking": 8,
   "maxLoadPerCore": 0.8,
   "minFreeMegabytes": 2048,
   "projects": [
@@ -74,7 +75,7 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
 
 `eventKeepDays` and `eventMaxMegabytes` limit how much event history Maple keeps. On startup Maple deletes older days past these limits, and asks first if today's log would be deleted.
 
-`maxWorking`, `maxLoadPerCore`, and `minFreeMegabytes` limit how many cards Maple starts at once. Every Start joins one start queue shared by all projects. Maple starts the next queued card only while fewer than `maxWorking` tabs are working, the 1-minute load average is under `maxLoadPerCore` times the number of CPU cores, and at least `minFreeMegabytes` of memory is free. The Home tab's planner lists the waiting cards, and the queue is saved in `state.json`.
+`startAtOnce`, `maxWorking`, `maxLoadPerCore`, and `minFreeMegabytes` limit how many cards Maple runs. Every Start joins one start queue shared by all projects. Maple starts the next queued card only while fewer than `maxWorking` tabs are working, the 1-minute load average is under `maxLoadPerCore` times the number of CPU cores, and at least `minFreeMegabytes` of memory is free. While fewer than `startAtOnce` tabs are working, Maple starts queued cards right away. From `startAtOnce` up to `maxWorking`, it starts one more card at most every 15 seconds, so each new session's load shows up before the next check. The Home tab's planner lists the waiting cards, and the queue is saved in `state.json`.
 
 `repo` is the project's GitHub repository as `owner/name`. Maple runs each `gh` call for the project's PRs on the desktop, against `repo` or the `otherRepos` entry that has the card's PR. The review diff and the merge read from GitHub, and the worktree supplies only the branch name, so they never depend on the contents of a local checkout.
 

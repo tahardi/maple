@@ -8,7 +8,12 @@ import type { StatusEngine } from './status';
 export const RECHECK_MS = 15_000;
 
 export type HostLoad = { loadAverage: number; cores: number; freeBytes: number };
-export type StartLimits = { maxWorking: number; maxLoadPerCore: number; minFreeMegabytes: number };
+export type StartLimits = {
+  startAtOnce: number;
+  maxWorking: number;
+  maxLoadPerCore: number;
+  minFreeMegabytes: number;
+};
 export type StartQueueDeps = {
   sessions: SessionManager;
   status: StatusEngine;
@@ -29,6 +34,8 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
   private started = false;
   private pumping = false;
   private sent = '';
+  private lastStart: number | null = null;
+  private paceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly log: Logger;
 
   constructor(private readonly deps: StartQueueDeps) {
@@ -48,7 +55,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
       if (hadFailure) {
         this.changed(false);
       }
-      return this.deps.sessions.startCard(projectKey, cardKey);
+      return this.startNow({ projectKey, cardKey });
     }
     if (!this.cards.some((c) => c.cardKey === cardKey)) {
       this.cards.push({ projectKey, cardKey });
@@ -103,6 +110,10 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     return () => {
       this.started = false;
       clearInterval(timer);
+      if (this.paceTimer !== null) {
+        clearTimeout(this.paceTimer);
+        this.paceTimer = null;
+      }
       this.deps.status.off('status', pump);
       this.deps.sessions.off('changed', pump);
     };
@@ -121,7 +132,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
         changed = true;
         try {
           this.log.info('session', 'queued start', { cardKey: next.cardKey });
-          this.deps.sessions.startCard(next.projectKey, next.cardKey);
+          this.startNow(next);
         } catch (err) {
           this.failure = `starting ${next.cardKey}: ${message(err)}`;
           this.log.warn('session', 'queued start failed', { cardKey: next.cardKey, error: message(err) });
@@ -135,6 +146,25 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     } else if (JSON.stringify(this.state()) !== this.sent) {
       this.changed(false);
     }
+    this.schedulePace();
+  }
+
+  private schedulePace(): void {
+    if (this.paceTimer !== null || this.lastStart === null || this.cards.length === 0 || this.waitingFor() !== 'pace') {
+      return;
+    }
+    this.paceTimer = setTimeout(
+      () => {
+        this.paceTimer = null;
+        this.pump();
+      },
+      this.lastStart + RECHECK_MS - Date.now(),
+    );
+  }
+
+  private startNow(card: QueuedCard): TabState {
+    this.lastStart = Date.now();
+    return this.deps.sessions.startCard(card.projectKey, card.cardKey);
   }
 
   private working(): number {
@@ -144,7 +174,8 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
   private waitingFor(): WaitReason | null {
     const limits = this.deps.limits();
     const load = this.deps.load();
-    if (this.working() >= limits.maxWorking) {
+    const working = this.working();
+    if (working >= limits.maxWorking) {
       return 'room';
     }
     if (load.loadAverage >= limits.maxLoadPerCore * load.cores) {
@@ -152,6 +183,9 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     }
     if (load.freeBytes < limits.minFreeMegabytes * 1024 * 1024) {
       return 'memory';
+    }
+    if (working >= limits.startAtOnce && this.lastStart !== null && Date.now() - this.lastStart < RECHECK_MS) {
+      return 'pace';
     }
     return null;
   }
