@@ -110,10 +110,10 @@ describe('loadConfig', () => {
     { name: 'eventKeepDays missing', config: validConfig, check: { eventKeepDays: 365 } },
     { name: 'eventMaxMegabytes missing', config: validConfig, check: { eventMaxMegabytes: 200 } },
     { name: 'stateBackups missing', config: validConfig, check: { stateBackups: 3 } },
-    { name: 'maxWorking missing', config: validConfig, check: { maxWorking: 4 } },
+    { name: 'maxWorking missing', config: validConfig, check: { maxWorking: 8 } },
     { name: 'maxLoadPerCore missing', config: validConfig, check: { maxLoadPerCore: 0.8 } },
     { name: 'minFreeMegabytes missing', config: validConfig, check: { minFreeMegabytes: 2048 } },
-    { name: 'hardMaxWorking missing', config: validConfig, check: { hardMaxWorking: null } },
+    { name: 'startAtOnce missing', config: validConfig, check: { startAtOnce: 4 } },
   ])('defaults when $name', async ({ config, check }) => {
     // given
     await writeFile(join(dir, 'config.json'), JSON.stringify(config));
@@ -192,14 +192,14 @@ describe('loadConfig', () => {
       error: /^reading config: minFreeMegabytes: /,
     },
     {
-      name: 'a hardMaxWorking of zero',
-      content: JSON.stringify({ ...validConfig, hardMaxWorking: 0 }),
-      error: /^reading config: hardMaxWorking: /,
+      name: 'a startAtOnce of zero',
+      content: JSON.stringify({ ...validConfig, startAtOnce: 0 }),
+      error: /^reading config: startAtOnce: /,
     },
     {
-      name: 'a fractional hardMaxWorking',
-      content: JSON.stringify({ ...validConfig, hardMaxWorking: 1.5 }),
-      error: /^reading config: hardMaxWorking: /,
+      name: 'a fractional startAtOnce',
+      content: JSON.stringify({ ...validConfig, startAtOnce: 1.5 }),
+      error: /^reading config: startAtOnce: /,
     },
     {
       name: 'string jiraBoardId',

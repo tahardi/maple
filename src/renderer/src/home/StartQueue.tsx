@@ -3,7 +3,7 @@ import styles from './StartQueue.module.css';
 
 const WAITING_FOR: Record<'cpu' | 'memory', string> = { cpu: 'CPU', memory: 'memory' };
 
-function waitText(reason: WaitReason, working: number, limit: number | null): string {
+function waitText(reason: WaitReason, working: number, limit: number): string {
   if (reason === 'room') {
     return `Waiting for room: ${String(working)} of ${String(limit)} working`;
   }

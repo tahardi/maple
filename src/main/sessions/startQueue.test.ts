@@ -52,10 +52,10 @@ function setup(given: Setup = {}) {
     sessions: sessions as unknown as SessionManager,
     status: engine as unknown as StatusEngine,
     limits: () => ({
-      maxWorking: 4,
+      startAtOnce: 4,
+      maxWorking: 8,
       maxLoadPerCore: 0.8,
       minFreeMegabytes: 2048,
-      hardMaxWorking: null,
       ...given.limits,
     }),
     load: () => load,
@@ -95,7 +95,7 @@ describe('StartQueue', () => {
       name: '6 tabs are working with a ceiling of 6',
       working: 6,
       load: {},
-      hardMaxWorking: 6,
+      maxWorking: 6,
       waitingFor: 'room',
       limit: 6,
     },
@@ -103,21 +103,21 @@ describe('StartQueue', () => {
       name: 'the load average is at 0.8 per core',
       working: 0,
       load: { loadAverage: 6.4, cores: 8 },
-      hardMaxWorking: null,
+      maxWorking: 8,
       waitingFor: 'cpu',
-      limit: null,
+      limit: 8,
     },
     {
       name: 'free memory is under the floor',
       working: 0,
       load: { freeBytes: 1 * GIB },
-      hardMaxWorking: null,
+      maxWorking: 8,
       waitingFor: 'memory',
-      limit: null,
+      limit: 8,
     },
-  ])('add queues the card when $name', ({ working: count, load, hardMaxWorking, waitingFor, limit }) => {
+  ])('add queues the card when $name', ({ working: count, load, maxWorking, waitingFor, limit }) => {
     // given
-    const { queue, startCard } = setup({ working: count, load, limits: { hardMaxWorking } });
+    const { queue, startCard } = setup({ working: count, load, limits: { maxWorking } });
     // when
     const result = queue.add('DIG', 'DIG-45');
     // then
@@ -132,7 +132,7 @@ describe('StartQueue', () => {
     });
   });
 
-  test('starts one card past maxWorking when CPU and memory have room', () => {
+  test('starts one card past startAtOnce when CPU and memory have room', () => {
     // given
     const { queue, startCard } = setup({ working: 4 });
     // when
@@ -142,7 +142,7 @@ describe('StartQueue', () => {
     expect(startCard).toHaveBeenCalledWith('DIG', 'DIG-45');
   });
 
-  test('waits 15 seconds between starts past maxWorking', () => {
+  test('waits 15 seconds between starts past startAtOnce', () => {
     // given
     const { queue, startCard } = setup({ working: 4 });
     queue.start();
@@ -162,7 +162,7 @@ describe('StartQueue', () => {
     expect(queue.state().cards).toEqual([]);
   });
 
-  test('starts below maxWorking without waiting for the 15 second gap', () => {
+  test('starts below startAtOnce without waiting for the 15 second gap', () => {
     // given
     const { queue, startCard, setWorking } = setup({ working: 4 });
     queue.add('DIG', 'DIG-44');
@@ -229,7 +229,7 @@ describe('StartQueue', () => {
   test.each([
     { name: 'the load average is at 0.8 per core', load: { loadAverage: 6.4, cores: 8 }, waitingFor: 'cpu' },
     { name: 'free memory is under the floor', load: { freeBytes: 1 * GIB }, waitingFor: 'memory' },
-  ])('stops starting past maxWorking when $name', ({ load, waitingFor }) => {
+  ])('stops starting past startAtOnce when $name', ({ load, waitingFor }) => {
     // given
     const { queue, startCard } = setup({ working: 4, load });
     // when
@@ -240,9 +240,9 @@ describe('StartQueue', () => {
     expect(queue.state()).toMatchObject({ cards: queued('DIG-45'), waitingFor });
   });
 
-  test('never starts past hardMaxWorking', () => {
+  test('never starts past maxWorking', () => {
     // given
-    const { queue, startCard } = setup({ working: 6, limits: { hardMaxWorking: 6 } });
+    const { queue, startCard } = setup({ working: 6, limits: { maxWorking: 6 } });
     queue.start();
     // when
     const result = queue.add('DIG', 'DIG-45');
@@ -255,7 +255,7 @@ describe('StartQueue', () => {
 
   test('add returns the open tab of a card that is already open even when there is no room', () => {
     // given
-    const { queue, tabs, startCard } = setup({ working: 4, limits: { hardMaxWorking: 4 } });
+    const { queue, tabs, startCard } = setup({ working: 4, limits: { maxWorking: 4 } });
     tabs.push(tab('DIG', 'DIG-45'));
     // when
     const result = queue.add('DIG', 'DIG-45');
@@ -267,7 +267,7 @@ describe('StartQueue', () => {
 
   test('add queues a card only once', () => {
     // given
-    const { queue } = setup({ working: 4, limits: { hardMaxWorking: 4 } });
+    const { queue } = setup({ working: 4, limits: { maxWorking: 4 } });
     queue.add('DIG', 'DIG-45');
     // when
     queue.add('DIG', 'DIG-45');
@@ -277,7 +277,7 @@ describe('StartQueue', () => {
 
   test('add saves the queue and emits changed with the new state', () => {
     // given
-    const { queue, save } = setup({ working: 4, limits: { hardMaxWorking: 4 } });
+    const { queue, save } = setup({ working: 4, limits: { maxWorking: 4 } });
     const changed = vi.fn();
     queue.on('changed', changed);
     // when
@@ -291,7 +291,7 @@ describe('StartQueue', () => {
     // given
     const { queue, startCard, setWorking } = setup({
       working: 4,
-      limits: { hardMaxWorking: 4 },
+      limits: { maxWorking: 4 },
       queued: queued('DIG-45', 'DIG-46'),
     });
     queue.start();
@@ -402,7 +402,7 @@ describe('StartQueue', () => {
     // given
     const { queue, engine, startCard, save } = setup({
       working: 2,
-      limits: { hardMaxWorking: 4 },
+      limits: { maxWorking: 4 },
       queued: queued('DIG-45', 'DIG-46', 'DIG-47'),
     });
     const changed = vi.fn();
@@ -427,7 +427,7 @@ describe('StartQueue', () => {
 
   test('a failed save is logged at error', async () => {
     // given
-    const { queue, save, logger } = setup({ working: 4, limits: { hardMaxWorking: 4 } });
+    const { queue, save, logger } = setup({ working: 4, limits: { maxWorking: 4 } });
     save.mockRejectedValueOnce(new Error('disk full'));
     // when
     queue.add('DIG', 'DIG-45');
@@ -440,7 +440,7 @@ describe('StartQueue', () => {
 
   test('a change in the working count emits changed without saving', () => {
     // given
-    const { queue, save, setWorking } = setup({ working: 4, limits: { hardMaxWorking: 4 }, queued: queued('DIG-45') });
+    const { queue, save, setWorking } = setup({ working: 4, limits: { maxWorking: 4 }, queued: queued('DIG-45') });
     queue.start();
     save.mockClear();
     const changed = vi.fn();
@@ -454,7 +454,7 @@ describe('StartQueue', () => {
 
   test('queueing a card and starting it from the queue are logged at info', () => {
     // given
-    const { queue, logger, setWorking } = setup({ working: 4, limits: { hardMaxWorking: 4 } });
+    const { queue, logger, setWorking } = setup({ working: 4, limits: { maxWorking: 4 } });
     queue.start();
     queue.add('DIG', 'DIG-45');
     // when
@@ -479,7 +479,7 @@ describe('StartQueue', () => {
     },
   ])('$name of a card not in the queue changes nothing', ({ act }) => {
     // given
-    const { queue, save } = setup({ working: 4, limits: { hardMaxWorking: 4 }, queued: queued('DIG-45') });
+    const { queue, save } = setup({ working: 4, limits: { maxWorking: 4 }, queued: queued('DIG-45') });
     const changed = vi.fn();
     queue.on('changed', changed);
     // when
@@ -492,7 +492,7 @@ describe('StartQueue', () => {
 
   test('remove drops a waiting card and saves', () => {
     // given
-    const { queue, save } = setup({ working: 4, limits: { hardMaxWorking: 4 }, queued: queued('DIG-45', 'DIG-46') });
+    const { queue, save } = setup({ working: 4, limits: { maxWorking: 4 }, queued: queued('DIG-45', 'DIG-46') });
     // when
     queue.remove('DIG-45');
     // then
@@ -519,7 +519,7 @@ describe('StartQueue', () => {
     // given
     const { queue } = setup({
       working: 4,
-      limits: { hardMaxWorking: 4 },
+      limits: { maxWorking: 4 },
       queued: queued('DIG-45', 'DIG-46', 'DIG-47'),
     });
     // when
@@ -532,7 +532,7 @@ describe('StartQueue', () => {
     // given
     const { queue, sessions, startCard, setWorking, load } = setup({
       working: 4,
-      limits: { hardMaxWorking: 4 },
+      limits: { maxWorking: 4 },
       queued: queued('DIG-45'),
     });
     const stop = queue.start();

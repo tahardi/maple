@@ -9,10 +9,10 @@ export const RECHECK_MS = 15_000;
 
 export type HostLoad = { loadAverage: number; cores: number; freeBytes: number };
 export type StartLimits = {
+  startAtOnce: number;
   maxWorking: number;
   maxLoadPerCore: number;
   minFreeMegabytes: number;
-  hardMaxWorking: number | null;
 };
 export type StartQueueDeps = {
   sessions: SessionManager;
@@ -92,7 +92,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     return {
       cards: [...this.cards],
       working: this.working(),
-      limit: this.deps.limits().hardMaxWorking,
+      limit: this.deps.limits().maxWorking,
       waitingFor: this.cards.length === 0 ? null : this.waitingFor(),
       failure: this.failure,
     };
@@ -175,7 +175,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     const limits = this.deps.limits();
     const load = this.deps.load();
     const working = this.working();
-    if (limits.hardMaxWorking !== null && working >= limits.hardMaxWorking) {
+    if (working >= limits.maxWorking) {
       return 'room';
     }
     if (load.loadAverage >= limits.maxLoadPerCore * load.cores) {
@@ -184,7 +184,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     if (load.freeBytes < limits.minFreeMegabytes * 1024 * 1024) {
       return 'memory';
     }
-    if (working >= limits.maxWorking && this.lastStart !== null && Date.now() - this.lastStart < RECHECK_MS) {
+    if (working >= limits.startAtOnce && this.lastStart !== null && Date.now() - this.lastStart < RECHECK_MS) {
       return 'pace';
     }
     return null;
