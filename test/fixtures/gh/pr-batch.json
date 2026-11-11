@@ -1,0 +1,85 @@
+{
+  "data": {
+    "p0": {
+      "pullRequests": {
+        "nodes": [
+          {
+            "number": 141,
+            "url": "https://github.com/tahardi/maple/pull/141",
+            "title": "[MPL-217] One Card With PRs in Several Repos Shows Only One PR",
+            "state": "MERGED",
+            "body": "## Describe your changes\n\nWhen a card's branch has PRs in several repos and the worktree folder names none of them, Maple now picks the first repo with an open PR, then the first repo with any PR, then the project repo. Before, it took the first repo with any PR, so a merged PR in an earlier repo hid an open one in a later repo and greyed out Approve. Fork PRs are still ignored, so a fork's open PR never steers the choice.\n\nThe folder-name repo choice and passing the worktree to the lookup already landed in MPL-166, so this PR only adds the open-over-merged preference (per the card's amendment).\n\n## Related Jira cards\n\n[MPL-217](https://taylorantoniohardin.atlassian.net/browse/MPL-217)\n\n## Pre-Merge Checklist\n\n- [x] I have updated README files, if applicable. (Not applicable.)\n- [x] I have updated workflows, if applicable. (Not applicable.)\n- [x] Dependencies are pinned to exact versions. (No new dependencies.)\n- [x] I have run `make pre-pr` and all checks have passed.\n- [ ] CI's unit-test and e2e jobs pass (they run `make test-socket` and `make test-e2e`, which the sandbox blocks).\n- [ ] I have checked the change with `make try` (using `test-card` cards), if the change is visible. (See Needs Taylor.)\n\n## Acceptance criteria\n\n- Step 1 and 3 tests pass: the `projectRunner` table in `src/main/github/ghRunner.test.ts` passes, including the renamed and new probe rows. The Step 3 call-site tests were already in place from MPL-166 and pass.\n- `make pre-pr` exits 0: 2761 tests passed.\n- Hand test: see Needs Taylor.\n\n## Deviations from the card\n\n- The card's amendment drops the folder-name test rows and the Step 3 and 4 call-site changes, since MPL-166 already shipped them. Only the probe preference and its tests are here.\n- The card asked for `--json number,state`. The probe asks for `isCrossRepository,state`, because it keeps MPL-208's fork filter and needs no PR number.\n- The card asked for the first entry's state. The probe returns the states of all of the repo's own PRs and treats the repo as open if any is open. That way an older merged PR listed before a newer open one on the same branch cannot hide it.\n- The probe accepts only the `OPEN`, `MERGED`, and `CLOSED` states, matching the card's type and the PR lookup.\n- Added one test row the card did not list: a fork's open PR does not count as open.\n\n## Needs Taylor\n\nUses test card XENA-101. The folder-name part of this check comes from MPL-166; the probe fallback only runs when the folder names no listed repo.\n\n```bash\ncd ~/Documents/code/wts/maple-mpl-217-worktree-pr-repo\nmake try\n```\n\n### Panel follows the shown repo\n\nSince MPL-166, a card tab keeps the worktree it first showed, even after `touch` or a restart. It switches only when a new worktree appears or the tab is opened fresh. Until MPL-183 adds a repo menu, switch repos by touching a folder and then closing and reopening the XENA-101 tab.\n\nOn XENA-101, create a worktree in two XENA repos named `<repo>-xena-101-<slug>` on the same branch, push both, open a PR from each, and merge one. Then make the open PR's worktree the newest:\n\n```bash\nOPEN_WT=~/Documents/code/wts/xena-xena-101-pr-panel\ntouch \"$OPEN_WT\"\n```\n\nClose the XENA-101 tab and open it again from the board.\n\nExpect: the file view shows that repo, the PR panel shows its open PR with checks, and Approve is enabled (tooltip is not `No open PR`).\n\n```bash\nMERGED_WT=~/Documents/code/wts/dotclaude-xena-101-pr-panel\ntouch \"$MERGED_WT\"\n```\n\nClose and reopen the XENA-101 tab again.\n\nExpect: the file view and PR panel switch to the merged PR, and Approve is disabled. Afterward close the open PR without merging, delete both branches, and remove both worktrees.\n\n## Card impacts\n\n- MPL-234: when the poller has to probe a project's repos (the worktree folder names none), choose the first repo with an open same-repo PR, then the first with any same-repo PR, then the project repo; the helper is `prStates` in `src/main/github/ghRunner.ts`, which returns the states of a repo's non-fork PRs for the branch.\n\n## Tests\n\n- `stops probing at the first repo with an open PR` (renamed): probing stops at the first repo whose own PR is open.\n- `prefers an open PR in a later repo over a merged PR in an earlier one`: a merged PR in an earlier repo no longer wins.\n- `uses the first repo with a merged PR when none is open`: with no open PR, the first repo with any PR wins.\n- `ignores an open fork PR when choosing between merged PRs`: a fork's open PR does not make its repo count as open.\n- Existing probe rows updated for the new `isCrossRepository,state` fields.\n- `uses a repo whose only PR is closed over the project repo fallback`: a closed PR still counts as a PR for the repo choice.\n- `rejects a probe that prints an entry without a state` and `... an entry with an unknown state`: the probe refuses output it cannot read.\n\nAgent review: 3 fixed, 0 questions\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n\n",
+            "isCrossRepository": false,
+            "headRefName": "mpl-217-worktree-pr-repo",
+            "headRefOid": "4b38dc09af50eb0b78c0de39ad32955b04a07e17",
+            "statusCheckRollup": {
+              "contexts": {
+                "nodes": [
+                  {
+                    "__typename": "CheckRun",
+                    "name": "format",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685528",
+                    "startedAt": "2026-11-11T11:37:39Z"
+                  },
+                  {
+                    "__typename": "CheckRun",
+                    "name": "lint",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685520",
+                    "startedAt": "2026-11-11T11:37:38Z"
+                  },
+                  {
+                    "__typename": "CheckRun",
+                    "name": "typecheck",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685436",
+                    "startedAt": "2026-11-11T11:37:38Z"
+                  },
+                  {
+                    "__typename": "CheckRun",
+                    "name": "unit-test",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685188",
+                    "startedAt": "2026-11-11T11:37:38Z"
+                  },
+                  {
+                    "__typename": "CheckRun",
+                    "name": "e2e",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "detailsUrl": "https://github.com/tahardi/maple/actions/runs/43013496447/job/130498685424",
+                    "startedAt": "2026-11-11T11:37:38Z"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "p1": null,
+    "p2": {
+      "pullRequests": {
+        "nodes": []
+      }
+    }
+  },
+  "errors": [
+    {
+      "type": "NOT_FOUND",
+      "path": ["p1"],
+      "locations": [
+        {
+          "line": 1,
+          "column": 468
+        }
+      ],
+      "message": "Could not resolve to a Repository with the name 'tahardi/no-such-repo'."
+    }
+  ]
+}

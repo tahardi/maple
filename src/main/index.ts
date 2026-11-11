@@ -20,6 +20,7 @@ import { writeHooksFile } from '@main/sessions/hooksFile';
 import { currentBranch, findWorktrees, gitCommonDir, headSha, originUrl } from '@main/git/git';
 import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
+import { PrPoller } from '@main/github/prPoller';
 import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/ipc/config';
 import { closeNeedsConfirm } from '@main/ipc/closeNeedsConfirm';
@@ -173,10 +174,21 @@ async function start(): Promise<() => number> {
     commonDir: gitCommonDir,
     originUrl,
   }).start();
+  const prPoller = new PrPoller({
+    tabs: () => sessions.list(),
+    project: projectByKey,
+    branch: currentBranch,
+    run: defaultRunner,
+  });
+  const stopPrPoller = prPoller.start();
+  status.on('status', (s, prev) => {
+    prPoller.dotChanged(s.dot, prev);
+  });
   app.on('will-quit', (event) => {
     event.preventDefault();
     stopQueue();
     stopAutoSync();
+    stopPrPoller();
     sessions.killAll();
     terminals.closeAll();
     void stopHooks();
@@ -224,6 +236,7 @@ async function start(): Promise<() => number> {
     terminals,
     status,
     startQueue,
+    prs: prPoller,
     setActiveTab: (tabId) => {
       activeTabId = tabId;
     },

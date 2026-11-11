@@ -7,7 +7,7 @@ import type { PrInfo, Review, ReviewComment } from '@shared/types/github';
 import type { TabState } from '@shared/types/tabs';
 import { currentBranch } from '@main/git/git';
 import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@main/github/comments';
-import { projectRunner } from '@main/github/ghRunner';
+import { ghRunner, projectRunner } from '@main/github/ghRunner';
 import { approveAndMerge, diffLines, prForBranch } from '@main/github/pr';
 import { reviewFilePair, reviewFiles } from '@main/github/reviewDiff';
 import { ghLogin, openFindings } from '@main/github/securityFindings';
@@ -25,7 +25,6 @@ function message(err: unknown): string {
 }
 
 export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: PrEvents = prEvents): void {
-  const lastGood = new Map<string, Fetched<PrInfo>>();
   let login: Promise<string> | null = null;
 
   async function runnerFor(tabId: string): Promise<CommandRunner> {
@@ -58,20 +57,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
     if (!worktree) {
       return { data: null, error: null, fetchedAt: null };
     }
-    try {
-      const fetched = {
-        data: await lookup(await runnerFor(tabId), worktree),
-        error: null,
-        fetchedAt: new Date().toISOString(),
-      };
-      lastGood.set(`${tabId}:${worktree}`, fetched);
-      return fetched;
-    } catch (err) {
-      const cached = lastGood.get(`${tabId}:${worktree}`);
-      const error = message(err);
-      logger.warn('gh', 'failed', { operation: 'pr:get', tabId, error });
-      return { data: cached?.data ?? null, error, fetchedAt: cached?.fetchedAt ?? null };
-    }
+    return deps.prs.latest(tabId, worktree);
   });
   handle('pr:review', z.tuple([tabIdArg]), async (tabId): Promise<Fetched<Review>> => {
     const worktree = deps.worktreeFor(tabId);
@@ -79,11 +65,14 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       return { data: null, error: null, fetchedAt: null };
     }
     try {
-      const run = await runnerFor(tabId);
-      const pr = await lookup(run, worktree);
+      const { data: pr, error } = await deps.prs.latest(tabId, worktree);
+      if (pr === null && error !== null) {
+        throw new Error(error);
+      }
       if (pr?.state !== 'OPEN') {
         return { data: null, error: null, fetchedAt: null };
       }
+      const run = ghRunner(prRepo(pr.url));
       const [review, findings] = await Promise.all([
         reviewFiles(run, pr.number),
         myLogin(run).then((me) => openFindings(run, pr.number, me)),
@@ -124,6 +113,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         throw new Error('approving PR: branch has no open PR');
       }
       await approveAndMerge(run, pr.number, headSha, cardKey);
+      deps.prs.refresh();
       record(tabId, (tab) => events.approved(tab, pr));
       logger.info('gh', 'merged', { tabId, repo: prRepo(pr.url), number: pr.number, headSha });
       deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
@@ -238,9 +228,11 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       return [];
     }
     try {
-      const run = await runnerFor(tabId);
-      const pr = await lookup(run, worktree);
-      return pr === null ? [] : await reviewComments(run, worktree, pr.number);
+      const { data: pr, error } = await deps.prs.latest(tabId, worktree);
+      if (pr === null && error !== null) {
+        throw new Error(error);
+      }
+      return pr === null ? [] : await reviewComments(ghRunner(prRepo(pr.url)), worktree, pr.number);
     } catch (err) {
       logger.warn('gh', 'failed', { operation: 'pr:comments', tabId, error: message(err) });
       throw err;
