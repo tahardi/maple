@@ -333,10 +333,25 @@ describe('registerPr', () => {
   });
 
   test.each([
-    { name: 'pr:approve', args: ['t1', head], posted: () => gh },
-    { name: 'pr:comment', args: ['t1', 'src/a.ts', null, 3, 'why?', head], posted: () => commentOnLine },
-    { name: 'pr:reply', args: ['t1', 101, 'thanks'], posted: () => replyToComment },
-  ])('$name acts on the last good PR when the latest poll failed', async ({ name, args, posted }) => {
+    {
+      name: 'pr:approve',
+      args: ['t1', head],
+      posted: () => gh.mock.calls.map(([, args]) => args.join(' ')).filter((c) => c === postReview || c === merge),
+      want: [postReview, merge],
+    },
+    {
+      name: 'pr:comment',
+      args: ['t1', 'src/a.ts', null, 3, 'why?', head],
+      posted: () => commentOnLine.mock.calls.map(([, , number]) => number as number),
+      want: [33],
+    },
+    {
+      name: 'pr:reply',
+      args: ['t1', 101, 'thanks'],
+      posted: () => replyToComment.mock.calls.map(([, , number]) => number as number),
+      want: [33],
+    },
+  ])('$name acts on the last good PR when the latest poll failed', async ({ name, args, posted, want }) => {
     // given
     latestPr.mockResolvedValue({ data: pr, error: 'listing PRs: offline', fetchedAt: '2026-11-11T12:00:00.000Z' });
     const call = name === 'pr:approve' ? approver({ [viewPin]: pinned(head) }).approve : register(name, '/wt');
@@ -344,7 +359,7 @@ describe('registerPr', () => {
     const result = call(...args);
     // then
     await expect(result).resolves.toBeUndefined();
-    expect(posted()).toHaveBeenCalled();
+    expect(posted()).toEqual(want);
     expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
   });
 

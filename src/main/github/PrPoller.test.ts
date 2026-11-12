@@ -465,6 +465,33 @@ describe('PrPoller', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
+  test('fresh calls made after a poll sent its query share one more poll', async () => {
+    // given
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 5, state: 'OPEN' }] });
+    let release: () => void = () => undefined;
+    const answer = run.getMockImplementation() ?? run;
+    run.mockImplementationOnce(
+      (cmd, args) =>
+        new Promise((resolve) => {
+          release = () => {
+            resolve(answer(cmd, args));
+          };
+        }),
+    );
+    const prs = poller(() => [tab('1', ['/a', '/b'])], run);
+    const running = prs.poll();
+    await vi.advanceTimersByTimeAsync(0);
+    // when
+    const both = Promise.all([prs.fresh('1', '/a'), prs.fresh('1', '/b')]);
+    release();
+    await running;
+    const [a, b] = await both;
+    // then
+    expect(a.data?.number).toBe(5);
+    expect(b.data).toBeNull();
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
   test('fresh does not wait for a poll someone else queued after it', async () => {
     // given
     const { run } = github({ 'tahardi/maple@b/a': [{ number: 5, state: 'OPEN' }] });
