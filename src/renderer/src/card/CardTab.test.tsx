@@ -1482,48 +1482,15 @@ describe('CardTab', () => {
     );
   });
 
-  test('the Close card confirm is danger', async () => {
+  test('shows no Close button in the Claude pane', async () => {
     // given
     fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
-    render(<CardTab tab={tab} />);
     // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Close' }));
-    // then
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close card' })).toHaveAttribute(
-      'data-variant',
-      'danger',
-    );
-  });
-
-  test('Close opens a dialog that warns before closing the card', async () => {
-    // given
-    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
     render(<CardTab tab={tab} />);
-    // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Close' }));
     // then
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('Close MPL-20?');
-    expect(dialog).toHaveTextContent('This cannot be undone.');
-  });
-
-  test.each([
-    { name: 'Close card sends the close command', button: 'Close card', sent: [['t1', '/card MPL-20 close']] },
-    { name: 'Cancel sends nothing', button: 'Cancel', sent: [] },
-  ])('the close dialog: $name', async ({ button, sent }) => {
-    // given
-    const sendPrompt = vi.fn();
-    fakeMaple({
-      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) },
-      session: { sendPrompt },
-    });
-    render(<CardTab tab={tab} />);
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Close' }));
-    // when
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: button }));
-    // then
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(sendPrompt.mock.calls).toEqual(sent);
+    const slot = within(screen.getByTestId('claude-slot'));
+    await slot.findByRole('button', { name: 'Approve' });
+    expect(slot.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
   });
 
   test('a failed Approve anyway shows its error', async () => {
