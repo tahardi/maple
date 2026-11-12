@@ -3,7 +3,7 @@ import type { DiffLines } from '@shared/types/files/diffLines';
 import type { FilePair } from '@shared/types/files/filePair';
 import type { Review } from '@shared/types/github/review';
 import type { ReviewComment } from '@shared/types/github/reviewComment';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
@@ -424,5 +424,85 @@ describe('FileViewer', () => {
     // then
     expect(await screen.findByRole('tab', { name: '● README.md' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'a.ts' })).toBeInTheDocument();
+  });
+  test.each([
+    { name: 'a vault note', path: 'vault:Spike.md', button: 'Edit', absent: 'In file' },
+    { name: 'a changed code file', path: 'src/a.ts', button: 'In file', absent: 'Edit' },
+  ])('shows the buttons of $name in the bar', async ({ path, button, absent }) => {
+    // given
+    fakeMaple({
+      repo: { readFile: () => Promise.resolve(changed) },
+      vault: { read: () => Promise.resolve('## Findings\n') },
+    });
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={[path]}
+        activeFile={path}
+        onActivate={vi.fn()}
+        onCloseFiles={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+      />,
+    );
+    // then
+    const bar = screen.getByRole('tablist').parentElement;
+    if (bar === null) {
+      throw new Error('finding the tab bar');
+    }
+    expect(await within(bar).findByRole('button', { name: button })).toBeInTheDocument();
+    expect(within(bar).queryByRole('button', { name: absent })).not.toBeInTheDocument();
+  });
+
+  test('shows no view buttons on a description', () => {
+    // given
+    fakeMaple();
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={[PR_DESCRIPTION]}
+        activeFile={PR_DESCRIPTION}
+        onActivate={vi.fn()}
+        onCloseFiles={vi.fn()}
+        prBody="## Summary"
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+      />,
+    );
+    // then
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'In file' })).not.toBeInTheDocument();
+  });
+
+  test('switches from a note to a code file', async () => {
+    // given
+    fakeMaple({
+      repo: { readFile: () => Promise.resolve(changed) },
+      vault: { read: () => Promise.resolve('## Findings\n') },
+    });
+    const props = {
+      tabId: 't1',
+      openFiles: ['vault:Spike.md', 'src/a.ts'],
+      onActivate: vi.fn(),
+      onCloseFiles: vi.fn(),
+      prBody: null,
+      line: null,
+      canComment: false,
+      prFetchedAt: null,
+    };
+    const { rerender } = render(<FileViewer {...props} activeFile="vault:Spike.md" />);
+    await screen.findByRole('heading', { name: 'Findings' });
+    // when
+    rerender(<FileViewer {...props} activeFile="src/a.ts" />);
+    // then
+    expect(await screen.findByRole('button', { name: 'In file' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Findings' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'new\n');
   });
 });

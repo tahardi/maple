@@ -54,12 +54,13 @@ describe('useDiffMode', () => {
       throw new Error('writing storage: blocked');
     });
     const { result } = renderHook(() => useDiffMode());
-    expect(result.current.mode).toBe('in-file');
+    const first = result.current.mode;
     // when
     act(() => {
       result.current.choose('side-by-side');
     });
     // then
+    expect(first).toBe('in-file');
     expect(result.current.mode).toBe('side-by-side');
   });
 });

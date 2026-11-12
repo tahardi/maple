@@ -13,6 +13,20 @@ describe('useLineMarks', () => {
     monaco.enabled.value = true;
   });
 
+  test.each([
+    { name: 'before the editor mounts', editor: null, loaded: true },
+    { name: 'while Monaco loads', editor: target, loaded: false },
+  ])('adds no marks $name', ({ editor: shown, loaded }) => {
+    // given
+    monaco.enabled.value = loaded;
+    // when
+    renderHook(() => {
+      useLineMarks(shown, 'old\n', 'new\n');
+    });
+    // then
+    expect(monaco.editor.createDecorationsCollection).not.toHaveBeenCalled();
+  });
+
   test('marks the lines that differ from the base', () => {
     // given
     // when

@@ -42,4 +42,20 @@ describe('useDraftSave', () => {
     expect(useMaple.getState().drafts.t1['src/a.ts']).toEqual(draft);
     expect(result.current.saveError).toEqual({ path: 'src/a.ts', message: 'writing src/a.ts: EACCES' });
   });
+
+  test('clears the last save error on the next save', async () => {
+    // given
+    const { result } = renderHook(() => useDraftSave('t1'));
+    await act(async () => {
+      result.current.persist('src/a.ts', Promise.reject(new Error('writing src/a.ts: EACCES')), vi.fn());
+      await Promise.resolve();
+    });
+    // when
+    await act(async () => {
+      result.current.persist('src/a.ts', Promise.resolve(), vi.fn());
+      await Promise.resolve();
+    });
+    // then
+    expect(result.current.saveError).toBeNull();
+  });
 });

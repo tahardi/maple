@@ -166,4 +166,44 @@ describe('useFileComments', () => {
     // then
     expect(result.current.comments).toEqual([comment]);
   });
+
+  test('reads comments but no diff ranges without review commits', async () => {
+    // given
+    const comments = vi.fn(() => Promise.resolve([comment]));
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: {} }));
+    fakeMaple({ pr: { comments, diffLines } });
+    // when
+    const { result } = renderHook(() => useFileComments({ ...props, review: null }));
+    // then
+    await waitFor(() => {
+      expect(result.current.comments).toEqual([comment]);
+    });
+    expect(diffLines).not.toHaveBeenCalled();
+    expect(result.current.diff).toBeNull();
+  });
+
+  test('ignores a read that finishes after unmount', async () => {
+    // given
+    let finish: (next: ReviewComment[]) => void = () => undefined;
+    const comments = vi.fn(
+      () =>
+        new Promise<ReviewComment[]>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fakeMaple({ pr: { comments } });
+    const onComments = vi.fn();
+    const { unmount } = renderHook(() => useFileComments({ ...props, onComments }));
+    await waitFor(() => {
+      expect(comments).toHaveBeenCalledOnce();
+    });
+    unmount();
+    // when
+    await act(async () => {
+      finish([comment]);
+      await Promise.resolve();
+    });
+    // then
+    expect(onComments).not.toHaveBeenCalled();
+  });
 });
