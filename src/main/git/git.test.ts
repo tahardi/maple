@@ -29,6 +29,15 @@ import {
   writeWorktreeFile,
 } from './git';
 
+const timeout = vi.hoisted(() => ({ ms: 30_000 }));
+
+vi.mock('@main/util/commandTimeout', () => ({
+  get COMMAND_TIMEOUT_MS() {
+    return timeout.ms;
+  },
+  MERGE_TIMEOUT_MS: 120_000,
+}));
+
 function git(cwd: string, ...args: string[]): void {
   execFileSync(
     'git',
@@ -67,6 +76,7 @@ describe('git', () => {
   });
 
   afterEach(() => {
+    timeout.ms = 30_000;
     vi.unstubAllEnvs();
     rmSync(root, { recursive: true, force: true });
   });
@@ -541,6 +551,19 @@ describe('git', () => {
     git(worktree, 'diff', '--name-status');
     // then
     expect(existsSync(marker)).toBe(true);
+  });
+
+  test('currentBranch rejects when git runs past the timeout', async () => {
+    // given
+    timeout.ms = 50;
+    const bin = join(root, 'bin');
+    mkdirSync(bin);
+    writeFileSync(join(bin, 'git'), '#!/bin/sh\nsleep 5\n', { mode: 0o755 });
+    vi.stubEnv('PATH', `${bin}:${process.env.PATH ?? ''}`);
+    // when
+    const result = currentBranch(worktree);
+    // then
+    await expect(result).rejects.toThrow('running git rev-parse --abbrev-ref HEAD: timing out after 50ms');
   });
 
   test('readFilePair runs git show with fsmonitor turned off', async () => {

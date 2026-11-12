@@ -5,6 +5,15 @@ import { describe, expect, test, vi } from 'vitest';
 import type { PreflightProblem } from '@shared/types/app/preflightProblem';
 import { defaultRunner, runPreflight, type Runner } from './preflight';
 
+const timeout = vi.hoisted(() => ({ ms: 30_000 }));
+
+vi.mock('@main/util/commandTimeout', () => ({
+  get COMMAND_TIMEOUT_MS() {
+    return timeout.ms;
+  },
+  MERGE_TIMEOUT_MS: 120_000,
+}));
+
 const dir = mkdtempSync(join(tmpdir(), 'maple-preflight-'));
 const presentEnv = join(dir, 'env');
 const missingEnv = join(dir, 'missing');
@@ -356,6 +365,18 @@ describe('defaultRunner', () => {
     // when
     const result = await run(process.execPath, ['-e', 'setTimeout(() => undefined, 5000)'], undefined, 50);
     // then
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toBe('timing out after 50ms');
+  });
+
+  test('stops a command after the command timeout when none is given', async () => {
+    // given
+    timeout.ms = 50;
+    const run = defaultRunner;
+    // when
+    const result = await run(process.execPath, ['-e', 'setTimeout(() => undefined, 5000)']);
+    // then
+    timeout.ms = 30_000;
     expect(result.code).not.toBe(0);
     expect(result.stderr).toBe('timing out after 50ms');
   });

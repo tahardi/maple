@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import { approveAndMerge, diffLines, prForBranch } from './pr';
 import type { Runner } from '@main/app/preflight';
+import { MERGE_TIMEOUT_MS } from '@main/util/commandTimeout';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');
 
@@ -259,7 +260,18 @@ describe('approveAndMerge', () => {
     // when
     await approveAndMerge(run, 33, sha, 'DIG-44');
     // then
-    expect(run).toHaveBeenCalledWith('gh', merge.split(' '), '');
+    expect(run).toHaveBeenCalledWith('gh', merge.split(' '), '', MERGE_TIMEOUT_MS);
+  });
+
+  test('gives only the merge the longer timeout', async () => {
+    // given
+    const run = runner({ [viewPin]: pin(), [viewRepo]: ok('main\n') });
+    // when
+    await approveAndMerge(run, 33, sha, 'DIG-44');
+    // then
+    const others = run.mock.calls.filter(([, args]) => args.join(' ') !== merge);
+    expect(others.map((call) => call.length)).toEqual([3, 3, 3]);
+    expect(others.every((call) => call[3] === undefined)).toBe(true);
   });
 
   test('merges the pinned commit without a review when GitHub refuses self-approval', async () => {
@@ -276,7 +288,7 @@ describe('approveAndMerge', () => {
     // when
     await approveAndMerge(run, 33, sha, 'DIG-44');
     // then
-    expect(run).toHaveBeenCalledWith('gh', merge.split(' '), '');
+    expect(run).toHaveBeenCalledWith('gh', merge.split(' '), '', MERGE_TIMEOUT_MS);
   });
 
   test.each([
@@ -331,6 +343,6 @@ describe('approveAndMerge', () => {
     const result = approveAndMerge(run, 33, sha, 'DIG-44');
     // then
     await expect(result).rejects.toThrow(new RegExp(`^approving PR: ${want}$`));
-    expect(run).not.toHaveBeenCalledWith('gh', merge.split(' '), '');
+    expect(run).not.toHaveBeenCalledWith('gh', merge.split(' '), '', MERGE_TIMEOUT_MS);
   });
 });

@@ -231,12 +231,35 @@ describe('registerJira', () => {
       'fetch',
       jiraFetch(() => statuses.shift() ?? 500),
     );
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.UTC(2026, 10, 11));
     registerJira(deps, logger);
     const first = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    vi.setSystemTime(Date.UTC(2026, 10, 11, 0, 0, 16));
     // when
     const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
+    vi.useRealTimers();
     expect(got).toEqual({ ...(first as object), error: 'fetching sprint: Jira returned 500' });
+  });
+
+  test('moveToSprint makes the next sprint read go to Jira', async () => {
+    // given
+    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
+    const fetchFn = jiraFetch(() => 200);
+    vi.stubGlobal('fetch', fetchFn);
+    registerJira(deps, logger);
+    await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    await handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']);
+    // when
+    await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
+    // then
+    const sprintFetches = vi
+      .mocked(fetchFn)
+      .mock.calls.filter(([input]) =>
+        new URL(input instanceof Request ? input.url : input.toString()).pathname.endsWith('/board/7/sprint'),
+      );
+    expect(sprintFetches).toHaveLength(2);
   });
 
   test.each([

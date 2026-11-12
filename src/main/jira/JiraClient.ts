@@ -20,6 +20,8 @@ export type NewIssue = {
   labels: string[];
 };
 
+export const JIRA_TIMEOUT_MS = 30_000;
+
 const FIELDS = 'summary,status,labels,issuelinks,customfield_10016,description,parent';
 
 const statusSchema = z.object({ name: z.enum(['To Do', 'In Progress', 'In Review', 'Done']) });
@@ -93,6 +95,7 @@ export class JiraClient {
     private readonly creds: JiraCreds,
     private readonly fetchFn: typeof fetch = fetch,
     private readonly logger: Logger = appLogger,
+    private readonly timeoutMs: number = JIRA_TIMEOUT_MS,
   ) {}
 
   async activeSprint(boardId: number): Promise<Sprint | null> {
@@ -236,15 +239,23 @@ export class JiraClient {
     init: { method?: string; headers?: Record<string, string>; body?: string },
   ): Promise<unknown> {
     const auth = Buffer.from(`${this.creds.email}:${this.creds.token}`).toString('base64');
-    const res = await this.fetchFn(`${this.creds.site}${path}`, {
-      ...init,
-      headers: { ...init.headers, Authorization: `Basic ${auth}`, Accept: 'application/json' },
-    });
-    if (!res.ok) {
-      const details = jiraErrors(await res.text().catch(() => ''));
-      throw new Error(`Jira returned ${String(res.status)}${details === '' ? '' : `: ${details}`}`);
+    try {
+      const res = await this.fetchFn(`${this.creds.site}${path}`, {
+        ...init,
+        headers: { ...init.headers, Authorization: `Basic ${auth}`, Accept: 'application/json' },
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+      if (!res.ok) {
+        const details = jiraErrors(await res.text().catch(() => ''));
+        throw new Error(`Jira returned ${String(res.status)}${details === '' ? '' : `: ${details}`}`);
+      }
+      return res.status === 204 ? null : await res.json();
+    } catch (err) {
+      if (err instanceof Error && err.name === 'TimeoutError') {
+        throw new Error(`timing out after ${String(this.timeoutMs)}ms`, { cause: err });
+      }
+      throw err;
     }
-    return res.status === 204 ? null : res.json();
   }
 
   private toCard(issue: z.infer<typeof issueSchema>, colors: ReadonlyMap<string, string>): Card {

@@ -35,6 +35,24 @@ const backlogRoutes = {
 };
 
 describe('JiraClient', () => {
+  test('getCard rejects when Jira does not answer in time', async () => {
+    // given
+    const fetchFn = vi.fn<typeof fetch>(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal;
+          signal?.addEventListener('abort', () => {
+            reject(signal.reason instanceof Error ? signal.reason : new Error('aborting fetch'));
+          });
+        }),
+    );
+    const client = new JiraClient(creds, fetchFn, { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, 20);
+    // when
+    const result = client.getCard('HALO-1');
+    // then
+    await expect(result).rejects.toThrow('fetching card: timing out after 20ms');
+  });
+
   test('activeSprint returns the sprint and its cards', async () => {
     // given
     const client = new JiraClient(creds, fakeFetch(activeRoutes));

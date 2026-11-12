@@ -4,6 +4,7 @@ import type { ChecksSummary } from '@shared/types/github/checksSummary';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import { z } from 'zod';
 import type { Runner } from '@main/app/preflight';
+import { MERGE_TIMEOUT_MS } from '@main/util/commandTimeout';
 
 const prSchema = z.object({
   number: z.number(),
@@ -171,7 +172,12 @@ export async function approveAndMerge(run: Runner, num: number, headSha: string,
     throw new Error(`approving PR: reviewing: ${review.stderr}`);
   }
 
-  const merge = await run('gh', ['pr', 'merge', String(num), '--squash', '--match-head-commit', headSha], '');
+  const merge = await run(
+    'gh',
+    ['pr', 'merge', String(num), '--squash', '--match-head-commit', headSha],
+    '',
+    MERGE_TIMEOUT_MS,
+  );
   if (merge.code !== 0) {
     throw new Error(`approving PR: merging: ${merge.stderr}`);
   }

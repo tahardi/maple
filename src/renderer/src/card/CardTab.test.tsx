@@ -155,7 +155,7 @@ function fakeVault(
 describe('CardTab', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
-    useMaple.setState({ config: FAKE_CONFIG });
+    useMaple.setState({ config: FAKE_CONFIG, activeTabId: 't1' });
     localStorage.clear();
     vi.stubGlobal(
       'ResizeObserver',
@@ -1774,9 +1774,11 @@ describe('CardTab', () => {
   test('Ctrl+P does nothing in a card tab that is not active', async () => {
     // given
     fakeRepo(false);
-    useMaple.setState({ activeTabId: 'other' });
     render(<CardTab tab={tab} />);
     await screen.findByText('README.md');
+    act(() => {
+      useMaple.setState({ activeTabId: 'other' });
+    });
     // when
     await userEvent.keyboard('{Control>}p{/Control}');
     // then
