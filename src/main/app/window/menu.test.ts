@@ -1,6 +1,6 @@
 import type { MenuItemConstructorOptions } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { aboutDetail } from '../buildInfo';
+import { aboutDetail } from '@main/app/buildInfo';
 import { checkNotifications, setAppMenu } from './menu';
 
 const { buildFromTemplate, setApplicationMenu, getApplicationMenu, openPath, showMessageBox } = vi.hoisted(() => ({
@@ -18,8 +18,8 @@ vi.mock('electron', () => ({
   app: { getVersion: () => '0.1.0' },
 }));
 
-vi.mock('../buildInfo', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../buildInfo')>()),
+vi.mock('@main/app/buildInfo', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/app/buildInfo')>()),
   readBuildInfo: vi.fn(() => Promise.resolve(BUILD)),
 }));
 

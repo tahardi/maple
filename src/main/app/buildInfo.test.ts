@@ -30,6 +30,7 @@ describe('readBuildInfo', () => {
   test.each([
     { name: 'a missing file', content: null },
     { name: 'invalid JSON', content: '{not json' },
+    { name: 'the wrong shape', content: '{"sha":1}' },
   ])('returns unknown when build.json is missing or unreadable: $name', async ({ content }) => {
     // given
     const dir = await tempDir();
