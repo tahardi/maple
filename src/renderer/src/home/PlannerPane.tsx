@@ -104,7 +104,7 @@ export function PlannerPane({
           {selected.length > 0 && (
             <>
               <Button
-                label={`Start (${String(selected.length)})`}
+                label={`Start ${String(selected.length)} selected`}
                 variant="primary"
                 onClick={onStart}
                 disabled={running}

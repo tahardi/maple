@@ -26,7 +26,7 @@ function OpenMenu({ onDismiss }: { onDismiss: () => void }) {
 
 function renderDetail(c: Card, t: TabState | null, busy = false) {
   const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
-  render(<CardDetail card={c} tab={t} failure={null} busy={busy} {...handlers} />);
+  render(<CardDetail card={c} tab={t} busy={busy} {...handlers} />);
   return handlers;
 }
 
@@ -128,7 +128,7 @@ describe('CardDetail', () => {
       <CardDetail
         card={card('DIG-41', status)}
         tab={hasTab ? tab : null}
-        failure={null}
+
         busy={false}
         onStart={vi.fn()}
         onOpen={vi.fn()}
@@ -151,7 +151,7 @@ describe('CardDetail', () => {
       <CardDetail
         card={card('DIG-41', 'To Do')}
         tab={null}
-        failure={null}
+
         busy={false}
         onStart={vi.fn()}
         onOpen={vi.fn()}
@@ -179,7 +179,7 @@ describe('CardDetail', () => {
       <CardDetail
         card={card('DIG-41', status)}
         tab={null}
-        failure={null}
+
         busy
         onStart={vi.fn()}
         onOpen={vi.fn()}
@@ -254,7 +254,7 @@ describe('CardDetail', () => {
       <CardDetail
         card={card('DIG-41', 'To Do')}
         tab={null}
-        failure={null}
+
         busy={false}
         {...handlers}
         onAddToSprint={onAddToSprint}
@@ -305,9 +305,7 @@ describe('CardDetail', () => {
   test('Escape after unmount does not call onClose', async () => {
     // given
     const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
-    const { unmount } = render(
-      <CardDetail card={card('DIG-41', 'To Do')} tab={null} failure={null} busy={false} {...handlers} />,
-    );
+    const { unmount } = render(<CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} {...handlers} />);
     unmount();
     // when
     await userEvent.keyboard('{Escape}');
@@ -320,7 +318,7 @@ describe('CardDetail', () => {
     const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
     render(
       <div hidden>
-        <CardDetail card={card('DIG-41', 'To Do')} tab={null} failure={null} busy={false} {...handlers} />
+        <CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} {...handlers} />
       </div>,
     );
     // when
@@ -334,7 +332,7 @@ describe('CardDetail', () => {
     const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
     render(
       <>
-        <CardDetail card={card('DIG-41', 'To Do')} tab={null} failure={null} busy={false} {...handlers} />
+        <CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} {...handlers} />
         <Dialog title="Keyboard shortcuts" onClose={vi.fn()}>
           <p>sheet</p>
         </Dialog>
@@ -352,7 +350,7 @@ describe('CardDetail', () => {
     const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
     render(
       <>
-        <CardDetail card={card('DIG-41', 'To Do')} tab={null} failure={null} busy={false} {...handlers} />
+        <CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} {...handlers} />
         <OpenMenu onDismiss={onDismiss} />
       </>,
     );

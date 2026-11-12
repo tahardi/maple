@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { card, SPRINT } from '../testing/sprintFixture';
 import { Board } from './Board';
 
+const START = { openKeys: new Set<string>(), starting: new Set<string>(), onStart: vi.fn() };
+
 describe('Board', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -14,7 +16,9 @@ describe('Board', () => {
     { column: 'In Review', keys: ['DIG-45'] },
   ])('puts $keys in the $column column', ({ column, keys }) => {
     // given
-    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     // when
     const tiles = within(screen.getByRole('region', { name: column }))
       .getAllByRole('button')
@@ -26,7 +30,9 @@ describe('Board', () => {
   test('every column header shows its card count', () => {
     // given
     // when
-    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     // then
     const headings = ['To Do', 'In Progress', 'In Review', 'Done'].map(
       (column) => within(screen.getByRole('region', { name: column })).getByRole('heading').textContent,
@@ -36,7 +42,9 @@ describe('Board', () => {
 
   test('Done starts collapsed with its count and expands on click', async () => {
     // given
-    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     const done = screen.getByRole('region', { name: 'Done' });
     const expand = within(done).getByRole('button');
     expect(expand).toHaveAccessibleName('Expand Done column');
@@ -53,12 +61,14 @@ describe('Board', () => {
   test('Done stays open for the project after a remount', async () => {
     // given
     const { unmount } = render(
-      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />,
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Expand Done column' }));
     unmount();
     // when
-    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     // then
     expect(screen.getByRole('button', { name: /^DIG-40/ })).toBeInTheDocument();
   });
@@ -67,7 +77,9 @@ describe('Board', () => {
     // given
     localStorage.setItem('maple.doneOpen.DIG', 'true');
     // when
-    render(<Board projectKey="BEAR" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="BEAR" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     // then
     expect(screen.queryByRole('button', { name: /^DIG-40/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Expand Done column' })).toBeInTheDocument();
@@ -76,7 +88,9 @@ describe('Board', () => {
   test('Collapse hides the Done tiles again', async () => {
     // given
     localStorage.setItem('maple.doneOpen.DIG', 'true');
-    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Collapse Done column' }));
     // then
@@ -87,7 +101,9 @@ describe('Board', () => {
   test('only To Do tiles have checkboxes', async () => {
     // given
     const onToggle = vi.fn();
-    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={onToggle} />);
+    render(
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={onToggle} {...START} />,
+    );
     // when
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select DIG-41' }));
     // then
@@ -97,7 +113,9 @@ describe('Board', () => {
 
   test('marks a card blocked by an unfinished card with an icon', () => {
     // given
-    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     // when
     const blocked = screen.getByRole('button', { name: /^DIG-41/ });
     const doneBlocker = screen.getByRole('button', { name: /^DIG-45/ });
@@ -122,14 +140,18 @@ describe('Board', () => {
       ],
     };
     // when
-    render(<Board projectKey="DIG" sprint={sprint} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="DIG" sprint={sprint} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     // then
     expect(screen.getByRole('button', { name: /^DIG-50/ })).toHaveTextContent('⛔ Blocked by DIG-44, DIG-41');
   });
 
   test('shows the sprint name, dates, and done count', () => {
     // given
-    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     // when
     const header = screen.getByRole('banner');
     // then
@@ -140,7 +162,9 @@ describe('Board', () => {
 
   test('tiles show key, summary, points, and labels', () => {
     // given
-    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     // when
     const tile = screen.getByRole('button', { name: /^DIG-44/ });
     // then
@@ -153,7 +177,9 @@ describe('Board', () => {
   test('hides points and labels a card does not have', () => {
     // given
     localStorage.setItem('maple.doneOpen.DIG', 'true');
-    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    render(
+      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} {...START} />,
+    );
     // when
     const tile = screen.getByRole('button', { name: /^DIG-39/ });
     // then
@@ -164,7 +190,14 @@ describe('Board', () => {
     // given
     const onSelect = vi.fn();
     render(
-      <Board projectKey="DIG" sprint={SPRINT} selected={new Set(['DIG-41'])} onSelect={onSelect} onToggle={vi.fn()} />,
+      <Board
+        projectKey="DIG"
+        sprint={SPRINT}
+        selected={new Set(['DIG-41'])}
+        onSelect={onSelect}
+        onToggle={vi.fn()}
+        {...START}
+      />,
     );
     // when
     await userEvent.click(screen.getByRole('button', { name: /^DIG-44/ }));
@@ -172,5 +205,29 @@ describe('Board', () => {
     expect(screen.getByRole('button', { name: /^DIG-41/ })).toHaveAttribute('data-highlighted', 'true');
     expect(screen.getByRole('button', { name: /^DIG-44/ })).not.toHaveAttribute('data-highlighted');
     expect(onSelect).toHaveBeenCalledWith('DIG-44');
+  });
+
+  test('only To Do tiles without an open tab offer Start', () => {
+    // given
+    const sprint = {
+      ...SPRINT,
+      cards: [card('DIG-41', 'To Do'), card('DIG-42', 'To Do'), card('DIG-44', 'In Progress')],
+    };
+    // when
+    render(
+      <Board
+        projectKey="DIG"
+        sprint={sprint}
+        selected={new Set()}
+        onSelect={vi.fn()}
+        onToggle={vi.fn()}
+        openKeys={new Set(['DIG-42'])}
+        starting={new Set()}
+        onStart={vi.fn()}
+      />,
+    );
+    // then
+    const starts = screen.getAllByRole('button', { name: /^Start / });
+    expect(starts.map((b) => b.getAttribute('aria-label'))).toEqual(['Start DIG-41']);
   });
 });

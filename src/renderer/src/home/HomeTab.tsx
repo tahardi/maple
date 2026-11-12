@@ -62,10 +62,8 @@ export function HomeTab({ projectKey }: Props) {
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [picked, setPicked] = useState<readonly string[]>([]);
-  const [startFailure, setStartFailure] = useState<string | null>(null);
   const [suggested, setSuggested] = useState<readonly string[]>([]);
   const [confirming, setConfirming] = useState<'accept' | 'acceptAndStart' | null>(null);
-  const [moveFailure, setMoveFailure] = useState<string | null>(null);
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
   const [busyKeys, setBusyKeys] = useState<ReadonlySet<string>>(new Set());
   const [batch, setBatch] = useState<'start' | 'accept' | 'acceptAndStart' | null>(null);
@@ -95,26 +93,27 @@ export function HomeTab({ projectKey }: Props) {
   };
   const select = (key: string) => {
     setDetailKey(key);
-    setFailure(null);
   };
   const closeDetail = () => {
     if (confirmKey === null && confirming === null) {
       setDetailKey(null);
     }
   };
-  const markBusy = (key: string, busy: boolean) => {
+  const markBusy = (keys: readonly string[], busy: boolean) => {
     setBusyKeys((now) => {
       const next = new Set(now);
-      if (busy) {
-        next.add(key);
-      } else {
-        next.delete(key);
+      for (const key of keys) {
+        if (busy) {
+          next.add(key);
+        } else {
+          next.delete(key);
+        }
       }
       return next;
     });
   };
   const run = (key: string, action: Promise<TabState | null>) => {
-    markBusy(key, true);
+    markBusy([key], true);
     action
       .then((tab) => {
         setFailure(null);
@@ -126,31 +125,38 @@ export function HomeTab({ projectKey }: Props) {
         setFailure(errorText(err));
       })
       .finally(() => {
-        markBusy(key, false);
+        markBusy([key], false);
       });
   };
   const toggle = (key: string) => {
     setPicked(selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key]);
   };
-  const start = async (keys: readonly string[]) => {
-    setStartFailure(null);
+  const start = async (keys: readonly string[]): Promise<readonly string[]> => {
+    setFailure(null);
+    markBusy(keys, true);
     const started: TabState[] = [];
-    for (const [i, key] of keys.entries()) {
-      try {
-        const tab = await window.maple.tabs.startCard(projectKey, key);
-        if (tab) {
-          started.push(tab);
+    try {
+      for (const [i, key] of keys.entries()) {
+        try {
+          const tab = await window.maple.tabs.startCard(projectKey, key);
+          if (tab) {
+            started.push(tab);
+          }
+        } catch (err: unknown) {
+          setFailure(`starting ${key}: ${errorText(err)}`);
+          return keys.slice(i);
         }
-      } catch (err: unknown) {
-        setStartFailure(`starting ${key}: ${errorText(err)}`);
-        setPicked(keys.slice(i));
-        return;
       }
+    } finally {
+      markBusy(keys, false);
     }
-    setPicked([]);
     if (started[0]) {
       activateTab(started[0]);
     }
+    return [];
+  };
+  const startSelected = async (keys: readonly string[]) => {
+    setPicked(await start(keys));
   };
 
   const onBatch = useCallback((keys: string[]) => {
@@ -159,23 +165,23 @@ export function HomeTab({ projectKey }: Props) {
   }, []);
   const accept = async (andStart: boolean) => {
     setConfirming(null);
-    setMoveFailure(null);
+    setFailure(null);
     const sprintId = sprint?.data?.id;
     if (sprintId === undefined) {
-      setMoveFailure('moving cards to sprint: no active sprint');
+      setFailure('moving cards to sprint: no active sprint');
       return;
     }
     const startKeys = [...selected, ...toAccept];
     try {
       await window.maple.jira.moveToSprint(sprintId, toAccept);
     } catch (err: unknown) {
-      setMoveFailure(errorText(err));
+      setFailure(errorText(err));
       return;
     }
     refreshSprint();
     refreshBacklog();
     if (andStart) {
-      await start(startKeys);
+      await startSelected(startKeys);
     }
   };
   const addToSprint = async (key: string, sprintId: number) => {
@@ -212,6 +218,11 @@ export function HomeTab({ projectKey }: Props) {
             selected={new Set(selected)}
             onSelect={select}
             onToggle={toggle}
+            openKeys={openKeys}
+            starting={busyKeys}
+            onStart={(key) => {
+              void start([key]);
+            }}
           />
         ) : (
           sprint?.error === null && <p className={styles.empty}>No active sprint</p>
@@ -221,10 +232,9 @@ export function HomeTab({ projectKey }: Props) {
           <CardDetail
             card={card}
             tab={tabFor(card.key)}
-            failure={failure}
             busy={busyKeys.has(card.key)}
             onStart={() => {
-              run(card.key, window.maple.tabs.startCard(projectKey, card.key));
+              void start([card.key]);
             }}
             onOpen={() => {
               run(card.key, window.maple.tabs.openCard(projectKey, card.key));
@@ -253,14 +263,13 @@ export function HomeTab({ projectKey }: Props) {
         }}
         onStart={() => {
           setBatch('start');
-          void start(selected).finally(() => {
+          void startSelected(selected).finally(() => {
             setBatch(null);
           });
         }}
         onClear={() => {
           setPicked([]);
-          setStartFailure(null);
-          setMoveFailure(null);
+          setFailure(null);
         }}
         toAccept={toAccept}
         onAccept={() => {
@@ -269,7 +278,7 @@ export function HomeTab({ projectKey }: Props) {
         onAcceptAndStart={() => {
           setConfirming('acceptAndStart');
         }}
-        failure={moveFailure ?? startFailure}
+        failure={failure}
         queue={queue}
         busy={batch}
       />
@@ -296,9 +305,9 @@ export function HomeTab({ projectKey }: Props) {
           confirmLabel="Move to sprint"
           onConfirm={() => {
             const key = confirmCard.key;
-            markBusy(key, true);
+            markBusy([key], true);
             void addToSprint(key, activeSprint.id).finally(() => {
-              markBusy(key, false);
+              markBusy([key], false);
             });
           }}
           onCancel={() => {

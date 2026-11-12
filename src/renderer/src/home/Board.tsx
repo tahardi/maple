@@ -10,6 +10,9 @@ type Props = {
   selected: ReadonlySet<string>;
   onSelect: (key: string) => void;
   onToggle: (key: string) => void;
+  openKeys: ReadonlySet<string>;
+  starting: ReadonlySet<string>;
+  onStart: (key: string) => void;
 };
 
 const COLUMNS: readonly JiraStatus[] = ['To Do', 'In Progress', 'In Review', 'Done'];
@@ -18,7 +21,7 @@ function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function Board({ projectKey, sprint, selected, onSelect, onToggle }: Props) {
+export function Board({ projectKey, sprint, selected, onSelect, onToggle, openKeys, starting, onStart }: Props) {
   const done = sprint.cards.filter((c) => c.status === 'Done').length;
   const doneOpen = useDoneOpen(projectKey);
 
@@ -63,6 +66,8 @@ export function Board({ projectKey, sprint, selected, onSelect, onToggle }: Prop
                     selected={selected.has(c.key)}
                     onSelect={onSelect}
                     onToggle={status === 'To Do' ? onToggle : null}
+                    onStart={status === 'To Do' && !openKeys.has(c.key) ? onStart : null}
+                    starting={starting.has(c.key)}
                   />
                 ))}
             </section>
