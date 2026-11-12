@@ -128,7 +128,6 @@ describe('CardDetail', () => {
       <CardDetail
         card={card('DIG-41', status)}
         tab={hasTab ? tab : null}
-
         busy={false}
         onStart={vi.fn()}
         onOpen={vi.fn()}
@@ -151,7 +150,6 @@ describe('CardDetail', () => {
       <CardDetail
         card={card('DIG-41', 'To Do')}
         tab={null}
-
         busy={false}
         onStart={vi.fn()}
         onOpen={vi.fn()}
@@ -179,7 +177,6 @@ describe('CardDetail', () => {
       <CardDetail
         card={card('DIG-41', status)}
         tab={null}
-
         busy
         onStart={vi.fn()}
         onOpen={vi.fn()}
@@ -251,14 +248,7 @@ describe('CardDetail', () => {
     const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
     // when
     render(
-      <CardDetail
-        card={card('DIG-41', 'To Do')}
-        tab={null}
-
-        busy={false}
-        {...handlers}
-        onAddToSprint={onAddToSprint}
-      />,
+      <CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} {...handlers} onAddToSprint={onAddToSprint} />,
     );
     // then
     const button = screen.getByRole('button', { name: 'Add to sprint' });

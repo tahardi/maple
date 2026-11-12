@@ -211,7 +211,12 @@ describe('Board', () => {
     // given
     const sprint = {
       ...SPRINT,
-      cards: [card('DIG-41', 'To Do'), card('DIG-42', 'To Do'), card('DIG-44', 'In Progress')],
+      cards: [
+        card('DIG-41', 'To Do'),
+        card('DIG-42', 'To Do'),
+        card('DIG-43', 'To Do', { blockedBy: [{ key: 'DIG-44', status: 'In Progress' as const }] }),
+        card('DIG-44', 'In Progress'),
+      ],
     };
     // when
     render(
@@ -228,6 +233,28 @@ describe('Board', () => {
     );
     // then
     const starts = screen.getAllByRole('button', { name: /^Start / });
-    expect(starts.map((b) => b.getAttribute('aria-label'))).toEqual(['Start DIG-41']);
+    expect(starts.map((b) => b.getAttribute('aria-label'))).toEqual(['Start DIG-41', 'Start DIG-43']);
+  });
+
+  test('a starting tile reads Starting… and is disabled', () => {
+    // given
+    const sprint = { ...SPRINT, cards: [card('DIG-41', 'To Do'), card('DIG-42', 'To Do')] };
+    // when
+    render(
+      <Board
+        projectKey="DIG"
+        sprint={sprint}
+        selected={new Set()}
+        onSelect={vi.fn()}
+        onToggle={vi.fn()}
+        openKeys={new Set()}
+        starting={new Set(['DIG-41'])}
+        onStart={vi.fn()}
+      />,
+    );
+    // then
+    expect(screen.getByRole('button', { name: 'Start DIG-41' })).toHaveTextContent(/^Starting…$/);
+    expect(screen.getByRole('button', { name: 'Start DIG-41' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Start DIG-42' })).toBeEnabled();
   });
 });

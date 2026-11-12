@@ -361,6 +361,8 @@ describe('HomeTab', () => {
       expect(startCard).toHaveBeenCalledTimes(2);
     });
     expect(screen.getByRole('button', { name: 'Starting…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Start DIG-46' })).toHaveTextContent(/^Starting…$/);
+    expect(screen.getByRole('button', { name: 'Start DIG-46' })).toBeDisabled();
     // when
     await act(async () => {
       pending[1](tab('t-DIG-46', 'DIG-46'));
@@ -510,7 +512,9 @@ describe('HomeTab', () => {
     render(<HomeTab projectKey="DIG" />);
     await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('opening card: no worktree');
+    const alert = await within(screen.getByTestId('planner')).findByRole('alert');
+    expect(alert).toHaveTextContent('opening card: no worktree');
+    expect(within(screen.getByRole('complementary')).queryByRole('alert')).not.toBeInTheDocument();
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     // then

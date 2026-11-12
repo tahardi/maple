@@ -57,6 +57,7 @@
 }
 
 .selectable:hover .start,
-.selectable:focus-within .start {
+.selectable:focus-within .start,
+.start:has([aria-busy='true']) {
   opacity: 1;
 }
