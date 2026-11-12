@@ -1,21 +1,11 @@
-import type { QueueState, WaitReason } from '@shared/types/queue/queueState';
+import type { QueueState } from '@shared/types/queue/queueState';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './StartQueue.module.css';
-
-const WAITING_FOR: Record<'cpu' | 'memory', string> = { cpu: 'CPU', memory: 'memory' };
-
-function waitText(reason: WaitReason, working: number, limit: number): string {
-  if (reason === 'room') {
-    return `Waiting for room: ${String(working)} of ${String(limit)} working`;
-  }
-  if (reason === 'pace') {
-    return `Starting one more every 15 seconds: ${String(working)} working`;
-  }
-  return `Waiting for ${WAITING_FOR[reason]}: ${String(working)} working`;
-}
+import { waitText } from './waitText';
 
 export function StartQueue({ queue }: { queue: QueueState }) {
-  const { cards, working, limit, waitingFor, failure } = queue;
+  const { cards, failure } = queue;
+  const wait = waitText(queue);
   if (cards.length === 0 && failure === null) {
     return null;
   }
@@ -50,9 +40,7 @@ export function StartQueue({ queue }: { queue: QueueState }) {
           ))}
         </ul>
       )}
-      {cards.length > 0 && waitingFor !== null && (
-        <span className={styles.waiting}>{waitText(waitingFor, working, limit)}</span>
-      )}
+      {cards.length > 0 && wait !== null && <span className={styles.waiting}>{wait}</span>}
       {failure !== null && <Notice tone="danger">{failure}</Notice>}
     </div>
   );

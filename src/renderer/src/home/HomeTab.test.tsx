@@ -540,6 +540,7 @@ describe('HomeTab', () => {
       working: 4,
       limit: 4,
       waitingFor: 'room' as const,
+      gapSeconds: 90,
       failure: null,
     };
     fakeMaple({

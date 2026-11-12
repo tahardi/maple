@@ -11,6 +11,7 @@ import {
   DEFAULT_MAX_WORKING,
   DEFAULT_MIN_FREE_MEGABYTES,
   DEFAULT_START_AT_ONCE,
+  DEFAULT_START_GAP_SECONDS,
   DEFAULT_WAIT_MINUTES,
   loadConfig,
 } from '@main/app/config/config';
@@ -168,6 +169,7 @@ async function start(): Promise<Zoom> {
       maxWorking: config?.maxWorking ?? DEFAULT_MAX_WORKING,
       maxLoadPerCore: config?.maxLoadPerCore ?? DEFAULT_MAX_LOAD_PER_CORE,
       minFreeMegabytes: config?.minFreeMegabytes ?? DEFAULT_MIN_FREE_MEGABYTES,
+      startGapSeconds: config?.startGapSeconds ?? DEFAULT_START_GAP_SECONDS,
     }),
     load: () => ({ loadAverage: loadavg()[0], cores: cpus().length, freeBytes: freemem() }),
     queued: state.queue,

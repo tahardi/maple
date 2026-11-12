@@ -29,6 +29,7 @@ const config: MapleConfig = {
   eventMaxMegabytes: 200,
   stateBackups: 3,
   startAtOnce: 4,
+  startGapSeconds: 90,
   maxWorking: 8,
   maxLoadPerCore: 0.8,
   minFreeMegabytes: 2048,
