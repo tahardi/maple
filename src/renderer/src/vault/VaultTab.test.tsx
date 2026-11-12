@@ -1,7 +1,8 @@
 import type { TabState } from '@shared/types/tabs/tabState';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { fakeMaple } from '@renderer/testing/fakeMaple';
+import { useMaple } from '@renderer/store';
+import { FAKE_CONFIG, fakeMaple } from '@renderer/testing/fakeMaple';
 import { VaultTab } from './VaultTab';
 
 vi.mock('@renderer/card/viewer/editor/monacoSetup', () => ({}));
@@ -55,6 +56,7 @@ function fakeVault() {
 
 describe('VaultTab', () => {
   beforeEach(() => {
+    useMaple.setState(useMaple.getInitialState(), true);
     vi.stubGlobal(
       'ResizeObserver',
       vi.fn(function ResizeObserver() {
@@ -65,6 +67,18 @@ describe('VaultTab', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  test('heads the tree with the vault folder name and its full path on hover', () => {
+    // given
+    useMaple.setState({
+      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/home/bear/notes/' } },
+    });
+    fakeVault();
+    // when
+    render(<VaultTab tab={vaultTab} />);
+    // then
+    expect(screen.getByRole('heading', { name: 'notes' })).toHaveAttribute('title', '/home/bear/notes/');
   });
 
   test('shows the top level of the vault with folders closed', async () => {

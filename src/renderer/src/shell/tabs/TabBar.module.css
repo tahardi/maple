@@ -11,6 +11,12 @@
   height: 100%;
 }
 
+.divider {
+  width: 1px;
+  margin: 8px 4px;
+  background: var(--border);
+}
+
 .item {
   display: flex;
   color: var(--text-muted);
