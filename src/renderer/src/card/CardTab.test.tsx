@@ -2081,6 +2081,20 @@ describe('CardTab', () => {
     }
   });
 
+  test('a findings file that cannot be read still shows a button that opens its error', async () => {
+    // given
+    const error = 'reading findings: MPL-20.json is from a newer Maple';
+    fakeMaple({ findings: { get: vi.fn(() => Promise.resolve({ data: null, error, fetchedAt: null })) } });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(
+      await within(screen.getByRole('banner')).findByRole('button', { name: "Findings can't be read" }),
+    );
+    // then
+    expect(screen.getByRole('tab', { name: 'Findings', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(error);
+  });
+
   test('the findings button opens the Findings tab', async () => {
     // given
     const file = findingsFile([finding({ title: 'Branch name reaches a shell' })]);

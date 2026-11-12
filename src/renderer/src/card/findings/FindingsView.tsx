@@ -1,11 +1,12 @@
 import type { Finding } from '@shared/types/findings/finding';
 import type { FindingsFile } from '@shared/types/findings/findingsFile';
+import type { Severity } from '@shared/types/findings/severity';
 import { effectiveSeverity } from '@shared/findings/effectiveSeverity';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { FindingCard } from './FindingCard';
 import styles from './FindingsView.module.css';
 
-const ORDER = { high: 0, medium: 1, low: 2 };
+const ORDER: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
 
 function rank(finding: Finding): number {
   return (finding.decision === null ? 0 : 3) + ORDER[effectiveSeverity(finding)];

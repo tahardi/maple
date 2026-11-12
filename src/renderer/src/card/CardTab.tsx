@@ -182,7 +182,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         onOpenPr={() => {
           openFile(PR_DESCRIPTION, null, true);
         }}
-        findingsLabel={findingsLabel(dot, findings.data)}
+        findingsLabel={findingsLabel(dot, findings)}
         onOpenFindings={() => {
           openFile(FINDINGS, null, true);
         }}

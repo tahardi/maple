@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
@@ -107,7 +107,11 @@ describe('readFindings', () => {
       content: JSON.stringify(file([], { version: 2 })),
       want: /^reading findings: MPL-1\.json is from a newer Maple$/,
     },
-    { name: 'bad JSON', content: '{"version": 1,', want: /^reading findings: MPL-1\.json: .+/ },
+    {
+      name: 'bad JSON, without echoing the file',
+      content: 'JIRA_TOKEN=secret-value',
+      want: /^reading findings: MPL-1\.json: not valid JSON$/,
+    },
     {
       name: 'a failed schema',
       content: JSON.stringify(file([], { round: 'two' })),
@@ -130,6 +134,29 @@ describe('readFindings', () => {
     const read = readFindings(dir, 'MPL-1');
     // then
     await expect(read).rejects.toThrow(want);
+  });
+
+  test.each([
+    {
+      name: 'a symlink',
+      make: async (path: string) => {
+        await writeFile(join(dir, 'secret.json'), '{}');
+        await symlink(join(dir, 'secret.json'), path);
+      },
+    },
+    {
+      name: 'a folder',
+      make: async (path: string) => {
+        await mkdir(path);
+      },
+    },
+  ])('throws on $name in place of the file', async ({ make }) => {
+    // given
+    await make(join(dir, 'MPL-1.json'));
+    // when
+    const read = readFindings(dir, 'MPL-1');
+    // then
+    await expect(read).rejects.toThrow('reading findings: MPL-1.json is not a regular file');
   });
 
   test.each(['../MPL-1', 'mpl-1', 'MPL-1.json', 'MPL-'])('throws on the bad card key %s', async (key) => {

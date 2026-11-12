@@ -124,6 +124,24 @@ describe('registerFindings', () => {
     expect(got).toEqual({ data: null, error: null, fetchedAt: null });
   });
 
+  test('a findings dir that cannot be watched logs a warning and still reads', async () => {
+    // given
+    watch.watchWorktrees.mockImplementationOnce(() => {
+      throw new Error('ENOENT: no such file or directory');
+    });
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify(file));
+    // when
+    const invoke = register(dir);
+    const got = await invoke('findings:get', 'card');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('findings', 'failed', {
+      operation: 'watchWorktrees',
+      args: [dir],
+      error: 'ENOENT: no such file or directory',
+    });
+    expect(got).toMatchObject({ data: file, error: null });
+  });
+
   test('a change in the findings dir sends findings:changed', () => {
     // given
     register(dir);

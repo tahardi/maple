@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FindingsFile } from '@shared/types/findings/findingsFile';
 import { errorText } from '@shared/errors/errorText';
@@ -10,25 +11,46 @@ function versionOf(data: unknown): unknown {
   return typeof data === 'object' && data !== null && 'version' in data ? data.version : null;
 }
 
+async function readRegular(path: string): Promise<string | null> {
+  let handle;
+  try {
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  } catch (err) {
+    if (err instanceof Error && 'code' in err && err.code === 'ELOOP') {
+      return null;
+    }
+    throw err;
+  }
+  try {
+    return (await handle.stat()).isFile() ? await handle.readFile('utf8') : null;
+  } finally {
+    await handle.close();
+  }
+}
+
 export async function readFindings(dir: string, key: string): Promise<FindingsFile | null> {
   if (!KEY.test(key)) {
     throw new Error(`reading findings: bad card key ${key}`);
   }
   const name = `${key}.json`;
-  let text: string;
+  const path = join(dir, name);
+  let text: string | null;
   try {
-    text = await readFile(join(dir, name), 'utf8');
+    text = await readRegular(path);
   } catch (err) {
     if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
       return null;
     }
     throw new Error(`reading findings: ${name}: ${errorText(err)}`);
   }
+  if (text === null) {
+    throw new Error(`reading findings: ${name} is not a regular file`);
+  }
   let data: unknown;
   try {
     data = JSON.parse(text);
-  } catch (err) {
-    throw new Error(`reading findings: ${name}: ${errorText(err)}`);
+  } catch {
+    throw new Error(`reading findings: ${name}: not valid JSON`);
   }
   const version = versionOf(data);
   if (typeof version === 'number' && version > 1) {

@@ -1,8 +1,10 @@
 import type { Finding } from '@shared/types/findings/finding';
+import type { Severity } from '@shared/types/findings/severity';
+import type { Tone } from '@renderer/shell/blocks/tone';
 import { effectiveSeverity } from '@shared/findings/effectiveSeverity';
 import { Badge } from '@renderer/shell/blocks/Badge';
 import { chipLabel } from './chipLabel';
-import styles from './FindingsView.module.css';
+import styles from './FindingCard.module.css';
 
 const SECTIONS = [
   ['What it is', 'what'],
@@ -11,7 +13,7 @@ const SECTIONS = [
   ['How to defend', 'defense'],
 ] as const;
 
-const TONES = { high: 'danger', medium: 'warning', low: 'neutral' } as const;
+const TONES: Record<Severity, Tone | 'neutral'> = { high: 'danger', medium: 'warning', low: 'neutral' };
 
 function place(finding: Finding): string {
   if (finding.identity.kind === 'dependency') {
