@@ -3,7 +3,7 @@ import { upgrade, type UpgradeStep } from './upgrade';
 
 const steps: Record<number, UpgradeStep> = {
   1: (raw) => ({ ...raw, a: true }),
-  2: (raw) => ({ ...raw, b: true }),
+  2: (raw) => ({ ...raw, b: raw.a === true }),
 };
 
 describe('upgrade', () => {
@@ -16,7 +16,7 @@ describe('upgrade', () => {
     {
       name: 'version 2 upgraded by the last step only',
       raw: { version: 2 },
-      expected: { newer: false, raw: { b: true, version: 3 } },
+      expected: { newer: false, raw: { b: false, version: 3 } },
     },
     {
       name: 'a current file unchanged',

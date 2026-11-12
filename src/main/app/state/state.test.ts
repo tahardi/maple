@@ -271,6 +271,7 @@ describe('state', () => {
   test.each([
     { name: 'corrupt', content: '{' },
     { name: 'holding a non-string lastProject', content: JSON.stringify({ ...savedState, lastProject: 42 }) },
+    { name: 'holding a text version', content: JSON.stringify({ ...savedState, version: 'x' }) },
   ])('keeps a $name file as state.json.corrupt', async ({ content }) => {
     // given
     await writeFile(join(dir, 'state.json'), content);

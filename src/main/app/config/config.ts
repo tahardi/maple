@@ -123,7 +123,8 @@ async function readConfig(dir: string): Promise<Fetched<MapleConfig>> {
   }
   if (upgraded.newer) {
     return failed(
-      `reading config: ${path} is from a newer Maple (version ${String(upgraded.version)}, this build reads up to ${String(CONFIG_VERSION)})`,
+      `reading config: ${path} is from a newer Maple (version ${String(upgraded.version)}, ` +
+        `this build reads up to ${String(CONFIG_VERSION)})`,
     );
   }
 
