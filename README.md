@@ -48,10 +48,11 @@ CI runs unit, socket, and e2e on every PR. Live tests run only by hand. The Clau
 
 ## Config
 
-Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `~` expands to your home directory.
+Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `~` expands to your home directory. Maple refuses a config from a newer Maple.
 
 ```json
 {
+  "version": 1,
   "worktreesDir": "~/Documents/code/wts",
   "vaultDir": "~/Documents/obsidian-vault",
   "notifications": true,
