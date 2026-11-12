@@ -51,6 +51,9 @@ export class PrPoller {
   private results = new Map<string, Fetched<PrInfo>>();
   private running: Promise<void> | null = null;
   private again = false;
+  private started = 0;
+  private finished = 0;
+  private querying = false;
   private readonly log: Logger;
   private readonly now: () => Date;
 
@@ -72,7 +75,13 @@ export class PrPoller {
   }
 
   poll(): Promise<void> {
-    this.running ??= this.pollOnce().finally(() => {
+    if (this.running !== null) {
+      return this.running;
+    }
+    this.started += 1;
+    this.querying = false;
+    this.running = this.pollOnce().finally(() => {
+      this.finished += 1;
       this.running = null;
       if (this.again) {
         this.again = false;
@@ -108,8 +117,12 @@ export class PrPoller {
   }
 
   async fresh(tabId: string, worktree: string): Promise<Fetched<PrInfo>> {
-    this.refresh();
-    while (this.running !== null) {
+    const shared = this.running !== null && !this.querying;
+    const needed = shared ? this.started : this.started + 1;
+    if (!shared) {
+      this.refresh();
+    }
+    while (this.finished < needed && this.running !== null) {
       await this.running;
     }
     return this.results.get(keyOf(tabId, worktree)) ?? EMPTY;
@@ -127,6 +140,7 @@ export class PrPoller {
     const pairs = new Map(
       targets.flatMap((t) => t.repos.map((repo) => [batchKey({ repo, branch: t.branch }), { repo, branch: t.branch }])),
     );
+    this.querying = true;
     const batch = await fetchPrs(this.deps.run, [...pairs.values()]);
     const next = new Map<string, Fetched<PrInfo>>();
     for (const outcome of outcomes) {
