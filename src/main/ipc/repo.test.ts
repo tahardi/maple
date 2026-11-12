@@ -103,12 +103,15 @@ describe('registerRepo', () => {
   test.each([
     { name: 'stops the watcher of a tab that closed', tabs: [], stops: 1 },
     { name: 'keeps the watcher of a tab that is still open', tabs: [{ id: 't1' }], stops: 0 },
-  ])('$name', async ({ tabs, stops }) => {
+    { name: 'stops the watcher of a closed tab only once', tabs: [], stops: 1, emits: 2 },
+  ])('$name', async ({ tabs, stops, emits = 1 }) => {
     // given
     changes.mockResolvedValue(null);
     await invoke('repo:changes', 't1');
     // when
-    sessions.emit('changed', tabs as TabState[]);
+    for (let i = 0; i < emits; i++) {
+      sessions.emit('changed', tabs as TabState[]);
+    }
     // then
     expect(stop).toHaveBeenCalledTimes(stops);
   });

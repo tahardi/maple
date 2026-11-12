@@ -126,4 +126,42 @@ describe('SprintCache', () => {
     // then
     expect(load).toHaveBeenCalledTimes(2);
   });
+
+  test('a failure after clear still returns the old data', async () => {
+    // given
+    const load = vi
+      .fn<Load>()
+      .mockResolvedValueOnce(sprint)
+      .mockRejectedValueOnce(new Error('fetching sprint: offline'));
+    const cache = new SprintCache(load, 15_000, now);
+    const first = await cache.get(project);
+    cache.clear();
+    // when
+    const got = await cache.get(project);
+    // then
+    expect(got).toEqual({ data: sprint, fetchedAt: first.fetchedAt, error: 'fetching sprint: offline' });
+  });
+
+  test('a load that started before clear does not refill the cache', async () => {
+    // given
+    let finish: (value: Sprint | null) => void = () => undefined;
+    const load = vi
+      .fn<Load>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      )
+      .mockResolvedValue(sprint);
+    const cache = new SprintCache(load, 15_000, now);
+    const early = cache.get(project);
+    cache.clear();
+    finish(sprint);
+    await early;
+    // when
+    await cache.get(project);
+    // then
+    expect(load).toHaveBeenCalledTimes(2);
+  });
 });

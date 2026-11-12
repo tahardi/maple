@@ -348,6 +348,39 @@ describe('useCardData', () => {
     expect(sprint).not.toHaveBeenCalled();
   });
 
+  test('a tab that is hidden stops its timer and repo changes', async () => {
+    // given
+    let changed: () => void = () => undefined;
+    const unsubscribe = vi.fn();
+    const changes = vi.fn(() => Promise.resolve(null));
+    fakeMaple({
+      repo: {
+        changes,
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return unsubscribe;
+        }),
+      },
+    });
+    renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(changes).toHaveBeenCalledTimes(1);
+    });
+    vi.useFakeTimers();
+    // when
+    act(() => {
+      useMaple.setState({ activeTabId: 'other' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+      changed();
+    });
+    vi.useRealTimers();
+    // then
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(changes).toHaveBeenCalledTimes(2);
+  });
+
   test('a hidden tab loads as soon as it is shown', async () => {
     // given
     useMaple.setState({ activeTabId: 'other' });

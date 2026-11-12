@@ -37,7 +37,9 @@ export class SprintCache<T> {
 
   clear(): void {
     this.generation += 1;
-    this.last.clear();
+    for (const [key, entry] of this.last) {
+      this.last.set(key, { ...entry, loadedAt: -Infinity });
+    }
     this.loading.clear();
   }
 

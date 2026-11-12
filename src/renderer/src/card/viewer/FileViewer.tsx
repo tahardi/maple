@@ -151,6 +151,8 @@ export function FileViewer({
   const scrollTarget = useRef<editor.ICodeEditor | null>(null);
   const [target, setTarget] = useState<editor.ICodeEditor | null>(null);
   const keepScroll = useRef<number | null>(null);
+  const loadedFile = useRef<string | null>(null);
+  const active = useMaple((s) => s.activeTabId === tabId);
   const drafts = useMaple((s) => (Object.hasOwn(s.drafts, tabId) ? s.drafts[tabId] : NO_DRAFTS));
   const setDraft = useMaple((s) => s.setDraft);
   const dot = useMaple((s) => (tabId in s.statuses ? s.statuses[tabId].dot : null));
@@ -255,11 +257,20 @@ export function FileViewer({
       void window.maple.repo.readFile(tabId, activeFile).then((next) => {
         if (live) {
           keepScroll.current = top;
+          loadedFile.current = activeFile;
           setPair(next);
         }
       });
     };
-    load(false);
+    const reload = loadedFile.current === activeFile;
+    if (active || !reload) {
+      load(reload);
+    }
+    if (!active) {
+      return () => {
+        live = false;
+      };
+    }
     const unsubscribe = window.maple.repo.onChanged(tabId, () => {
       load(true);
     });
@@ -267,7 +278,7 @@ export function FileViewer({
       live = false;
       unsubscribe();
     };
-  }, [tabId, activeFile, headSha, baseSha, reviewOldPath]);
+  }, [active, tabId, activeFile, headSha, baseSha, reviewOldPath]);
 
   useEffect(() => {
     if (keepScroll.current !== null) {

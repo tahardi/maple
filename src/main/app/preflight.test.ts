@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { PreflightProblem } from '@shared/types/app/preflightProblem';
 import { defaultRunner, runPreflight, type Runner } from './preflight';
 
@@ -346,6 +346,10 @@ describe('runPreflight claude sandbox', () => {
 });
 
 describe('defaultRunner', () => {
+  afterEach(() => {
+    timeout.ms = 30_000;
+  });
+
   test.each([
     { name: 'success', cmd: process.execPath, args: ['-e', 'process.stdout.write("ok")'], code: 0, stdout: 'ok' },
     { name: 'exit code', cmd: process.execPath, args: ['-e', 'process.exit(3)'], code: 3, stdout: '' },
@@ -376,7 +380,6 @@ describe('defaultRunner', () => {
     // when
     const result = await run(process.execPath, ['-e', 'setTimeout(() => undefined, 5000)']);
     // then
-    timeout.ms = 30_000;
     expect(result.code).not.toBe(0);
     expect(result.stderr).toBe('timing out after 50ms');
   });
