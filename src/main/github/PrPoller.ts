@@ -3,6 +3,7 @@ import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Dot } from '@shared/types/tabs/dot';
 import type { TabState } from '@shared/types/tabs/tabState';
+import { SETTLED_DOTS } from '@shared/status/dots';
 import { worktreeRepo } from '@shared/worktree/worktree';
 import { tabWorktrees } from '@shared/worktree/tabWorktrees';
 import { appLogger, type Logger } from '@main/app/log/log';
@@ -22,8 +23,6 @@ export type PrPollerDeps = {
 
 type Target = { tabId: string; worktree: string; branch: string; repos: string[] };
 type Outcome = Target | { tabId: string; worktree: string; error: Error };
-
-const SETTLED: readonly Dot[] = ['idle', 'ready', 'merged', 'waiting'];
 
 const EMPTY: Fetched<PrInfo> = { data: null, error: null, fetchedAt: null };
 
@@ -52,6 +51,9 @@ export class PrPoller {
   private results = new Map<string, Fetched<PrInfo>>();
   private running: Promise<void> | null = null;
   private again = false;
+  private started = 0;
+  private finished = 0;
+  private querying = false;
   private readonly log: Logger;
   private readonly now: () => Date;
 
@@ -73,7 +75,13 @@ export class PrPoller {
   }
 
   poll(): Promise<void> {
-    this.running ??= this.pollOnce().finally(() => {
+    if (this.running !== null) {
+      return this.running;
+    }
+    this.started += 1;
+    this.querying = false;
+    this.running = this.pollOnce().finally(() => {
+      this.finished += 1;
       this.running = null;
       if (this.again) {
         this.again = false;
@@ -92,7 +100,7 @@ export class PrPoller {
   }
 
   dotChanged(dot: Dot, prev: Dot): void {
-    if (dot !== prev && SETTLED.includes(dot)) {
+    if (dot !== prev && SETTLED_DOTS.includes(dot)) {
       this.refresh();
     }
   }
@@ -108,6 +116,18 @@ export class PrPoller {
     return this.results.get(key) ?? EMPTY;
   }
 
+  async fresh(tabId: string, worktree: string): Promise<Fetched<PrInfo>> {
+    const shared = this.running !== null && !this.querying;
+    const needed = shared ? this.started : this.started + 1;
+    if (!shared) {
+      this.refresh();
+    }
+    while (this.finished < needed && this.running !== null) {
+      await this.running;
+    }
+    return this.results.get(keyOf(tabId, worktree)) ?? EMPTY;
+  }
+
   private async pollOnce(): Promise<void> {
     const fetchedAt = this.now().toISOString();
     const outcomes = await Promise.all(
@@ -120,6 +140,7 @@ export class PrPoller {
     const pairs = new Map(
       targets.flatMap((t) => t.repos.map((repo) => [batchKey({ repo, branch: t.branch }), { repo, branch: t.branch }])),
     );
+    this.querying = true;
     const batch = await fetchPrs(this.deps.run, [...pairs.values()]);
     const next = new Map<string, Fetched<PrInfo>>();
     for (const outcome of outcomes) {

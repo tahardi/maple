@@ -22,6 +22,7 @@ function node(overrides: Record<string, unknown> = {}) {
     state: 'OPEN',
     body: '## Deviations from the card\n\nNone\n',
     isCrossRepository: false,
+    mergeable: 'MERGEABLE',
     headRefName: 'mpl-7-seven',
     headRefOid: 'b'.repeat(40),
     statusCheckRollup: null,
@@ -50,6 +51,7 @@ describe('batchQueries', () => {
     expect(queries[0]).toContain('pullRequests(headRefName: "mpl-1-a", first: 5');
     expect(queries[0]).toContain('p1: repository(owner: "tahardi", name: "xena")');
     expect(queries[0]).toContain('pullRequests(headRefName: "xena-2-b", first: 5');
+    expect(queries[0]).toContain(' mergeable ');
   });
 
   test('escapes values as JSON strings', () => {
@@ -104,6 +106,15 @@ describe('parsePrBatch', () => {
     ]);
   });
 
+  test('reads whether each PR can merge', () => {
+    // given
+    const stdout = fixture('pr-batch.json');
+    // when
+    const result = parsePrBatch(recorded, stdout);
+    // then
+    expect(result.get(batchKey(recorded[0]))).toEqual([expect.objectContaining({ mergeable: 'CONFLICTING' })]);
+  });
+
   test('gives a pair with no PR an empty list', () => {
     // given
     const stdout = fixture('pr-batch.json');
@@ -145,6 +156,7 @@ describe('parsePrBatch', () => {
         needsTaylor: null,
         cardImpacts: null,
         headSha: 'b'.repeat(40),
+        mergeable: 'MERGEABLE',
         checks: { passed: 0, failed: 0, pending: 0, total: 0, runs: [] },
       },
     ]);

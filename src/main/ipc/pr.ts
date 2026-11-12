@@ -9,10 +9,9 @@ import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Review } from '@shared/types/github/review';
 import type { ReviewComment } from '@shared/types/github/reviewComment';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { currentBranch } from '@main/git/repoIdentity';
 import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@main/github/comments';
-import { ghRunner, projectRunner } from '@main/github/ghRunner';
-import { approveAndMerge, diffLines, prForBranch } from '@main/github/pr';
+import { ghRunner } from '@main/github/ghRunner';
+import { approveAndMerge, diffLines } from '@main/github/pr';
 import { reviewFilePair, reviewFiles } from '@main/github/reviewDiff';
 import { ghLogin } from '@main/github/ghLogin';
 import { openFindings } from '@main/github/securityFindings';
@@ -29,20 +28,33 @@ const pathArg = z.string().min(1).max(4096);
 export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: PrEvents = prEvents): void {
   let login: Promise<string> | null = null;
 
-  async function runnerFor(tabId: string, worktree = deps.worktreeFor(tabId)): Promise<CommandRunner> {
-    const branch = worktree === null ? null : await currentBranch(worktree);
-    return projectRunner(deps.project, deps.sessions.get(tabId)?.projectKey ?? null, branch, worktree);
+  async function lookup(tabId: string, worktree: string): Promise<PrInfo | null> {
+    const { data, error } = await deps.prs.latest(tabId, worktree);
+    if (data === null && error !== null) {
+      throw new Error(error);
+    }
+    return data;
   }
 
-  async function lookup(run: CommandRunner, worktree: string): Promise<PrInfo | null> {
-    return prForBranch(run, worktree, await currentBranch(worktree));
+  async function prRunner(tabId: string, doing: string): Promise<CommandRunner> {
+    const worktree = deps.worktreeFor(tabId);
+    const pr =
+      worktree === null
+        ? null
+        : await lookup(tabId, worktree).catch((err: unknown) => {
+            throw new Error(`${doing}: ${errorText(err)}`);
+          });
+    if (pr === null) {
+      throw new Error(`${doing}: tab has no PR`);
+    }
+    return ghRunner(prRepo(pr.url));
   }
 
   async function holdsCard(tabId: string, worktree: string): Promise<boolean> {
     const tab = deps.sessions.get(tabId);
     const others = (tab === null ? [] : tabWorktrees(tab)).filter((path) => path !== worktree);
     try {
-      const prs = await Promise.all(others.map(async (path) => lookup(await runnerFor(tabId, path), path)));
+      const prs = await Promise.all(others.map((path) => lookup(tabId, path)));
       const open = prs.flatMap((p) => (p?.state === 'OPEN' ? [p.number] : []));
       if (open.length > 0) {
         logger.info('gh', 'waiting for other PRs', { tabId, open });
@@ -106,7 +118,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
     z.tuple([tabIdArg, pathArg, pathArg.nullable(), shaArg, shaArg]),
     async (tabId, path, oldPath, baseSha, headSha): Promise<FilePair> => {
       try {
-        return await reviewFilePair(await runnerFor(tabId), path, oldPath, baseSha, headSha);
+        return await reviewFilePair(await prRunner(tabId, 'reading PR file'), path, oldPath, baseSha, headSha);
       } catch (err) {
         logger.warn('gh', 'failed', { operation: 'pr:readFile', tabId, path, error: errorText(err) });
         throw err;
@@ -120,15 +132,13 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       if (worktree === null || cardKey === null) {
         throw new Error('approving PR: tab has no card worktree');
       }
-      const run = await runnerFor(tabId).catch((err: unknown) => {
-        throw new Error(`approving PR: ${errorText(err)}`);
-      });
-      const pr = await lookup(run, worktree).catch((err: unknown) => {
+      const pr = await lookup(tabId, worktree).catch((err: unknown) => {
         throw new Error(`approving PR: ${errorText(err)}`);
       });
       if (pr?.state !== 'OPEN') {
         throw new Error('approving PR: branch has no open PR');
       }
+      const run = ghRunner(prRepo(pr.url));
       await approveAndMerge(run, pr.number, headSha, cardKey);
       deps.prs.refresh();
       record(tabId, (tab) => events.approved(tab, pr));
@@ -159,15 +169,13 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         if (worktree === null) {
           throw new Error('commenting on line: tab has no card worktree');
         }
-        const run = await runnerFor(tabId).catch((err: unknown) => {
-          throw new Error(`commenting on line: ${errorText(err)}`);
-        });
-        const pr = await lookup(run, worktree).catch((err: unknown) => {
+        const pr = await lookup(tabId, worktree).catch((err: unknown) => {
           throw new Error(`commenting on line: ${errorText(err)}`);
         });
         if (pr?.state !== 'OPEN') {
           throw new Error('commenting on line: branch has no open PR');
         }
+        const run = ghRunner(prRepo(pr.url));
         await commentOnLine(run, worktree, pr.number, headSha, { path, startLine, line, body });
         record(tabId, (tab) => events.commented(tab, pr, body.length));
       } catch (err) {
@@ -192,15 +200,13 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         if (worktree === null) {
           throw new Error('replying to comment: tab has no card worktree');
         }
-        const run = await runnerFor(tabId).catch((err: unknown) => {
-          throw new Error(`replying to comment: ${errorText(err)}`);
-        });
-        const pr = await lookup(run, worktree).catch((err: unknown) => {
+        const pr = await lookup(tabId, worktree).catch((err: unknown) => {
           throw new Error(`replying to comment: ${errorText(err)}`);
         });
         if (pr?.state !== 'OPEN') {
           throw new Error('replying to comment: branch has no open PR');
         }
+        const run = ghRunner(prRepo(pr.url));
         await replyToComment(run, worktree, pr.number, commentId, body);
         record(tabId, (tab) => events.replied(tab, pr, commentId, body.length));
       } catch (err) {
@@ -224,9 +230,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         if (worktree === null) {
           throw new Error(`${verb} thread: tab has no card worktree`);
         }
-        const run = await runnerFor(tabId).catch((err: unknown) => {
-          throw new Error(`${verb} thread: ${errorText(err)}`);
-        });
+        const run = await prRunner(tabId, `${verb} thread`);
         await resolveThread(run, worktree, threadId, resolved);
         record(tabId, (tab) => events.resolved(tab, threadId, resolved));
       } catch (err) {
@@ -263,7 +267,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       return { ranges: {} };
     }
     try {
-      return { ranges: await diffLines(await runnerFor(tabId), worktree, baseSha, headSha) };
+      return { ranges: await diffLines(await prRunner(tabId, 'listing PR files'), worktree, baseSha, headSha) };
     } catch (err) {
       logger.warn('gh', 'failed', { operation: 'pr:diffLines', tabId, error: errorText(err) });
       throw err;

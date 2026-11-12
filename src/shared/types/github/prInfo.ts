@@ -1,5 +1,7 @@
 import type { ChecksSummary } from './checksSummary';
 
+export type Mergeable = 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+
 export type PrInfo = {
   number: number;
   url: string;
@@ -10,5 +12,6 @@ export type PrInfo = {
   cardImpacts: string | null;
   body: string;
   headSha: string;
+  mergeable: Mergeable;
   checks: ChecksSummary;
 };

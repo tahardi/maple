@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { Card } from '@shared/types/jira/card';
+import type { Fetched } from '@shared/types/app/fetched';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { TabState } from '@shared/types/tabs/tabState';
 import type { TabStatus } from '@shared/types/tabs/tabStatus';
@@ -39,6 +40,7 @@ const openPr: PrInfo = {
   cardImpacts: null,
   body: '',
   headSha: 'a'.repeat(40),
+  mergeable: 'MERGEABLE',
   checks: { passed: 2, failed: 0, pending: 0, total: 2, runs: [] },
 };
 
@@ -51,8 +53,14 @@ const twoRepoTab: TabState = {
   worktreePaths: ['/wts/dig-days-dig-44', '/wts/halo-dig-44'],
 };
 
+const fetchedAt = '2026-11-12T00:00:00.000Z';
+
+function got(pr: PrInfo | null): Promise<Fetched<PrInfo>> {
+  return Promise.resolve({ data: pr, error: null, fetchedAt });
+}
+
 function perWorktree(a: PrInfo | null, b: PrInfo | null) {
-  return (worktree: string) => Promise.resolve(worktree === '/wts/dig-days-dig-44' ? a : b);
+  return (_tabId: string, worktree: string) => got(worktree === '/wts/dig-days-dig-44' ? a : b);
 }
 
 const WAIT_LIMIT_MS = 60_000;
@@ -60,14 +68,14 @@ const WAIT_LIMIT_MS = 60_000;
 type Overrides = {
   tab?: TabState | null;
   getCard?: () => Promise<Card>;
-  prFor?: (worktree: string, projectKey: string) => Promise<PrInfo | null>;
+  prFor?: (tabId: string, worktree: string) => Promise<Fetched<PrInfo>>;
 };
 
 function setup(overrides: Overrides = {}) {
   const tab = overrides.tab === undefined ? cardTab : overrides.tab;
   const sessions = Object.assign(new EventEmitter(), { get: vi.fn(() => tab) });
   const getCard = vi.fn(overrides.getCard ?? (() => Promise.resolve(card)));
-  const prFor = vi.fn(overrides.prFor ?? (() => Promise.resolve(openPr)));
+  const prFor = vi.fn(overrides.prFor ?? (() => got(openPr)));
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const engine = new StatusEngine({
     sessions: sessions as unknown as SessionManager,
@@ -231,7 +239,7 @@ describe('StatusEngine', () => {
       const { sessions, emitted, prFor } = setup({
         tab,
         getCard: () => Promise.resolve({ ...card, status }),
-        prFor: () => Promise.resolve(pr),
+        prFor: () => got(pr),
       });
       // when
       sessions.emit('spawn', 't1', false, true);
@@ -253,7 +261,7 @@ describe('StatusEngine', () => {
     await vi.waitFor(() => {
       expect(emitted.at(-1)?.dot).toBe('ready');
     });
-    expect(prFor).toHaveBeenCalledWith('/wts/dig-44', 'DIG');
+    expect(prFor).toHaveBeenCalledWith('t1', '/wts/dig-44');
   });
 
   test('a fresh unprompted spawn of a card that is not Done stays idle', async () => {
@@ -407,7 +415,7 @@ describe('StatusEngine', () => {
       new Promise<Card>((resolve) => {
         lookups.push(resolve);
       });
-    const { sessions, engine, emitted } = setup({ getCard, prFor: () => Promise.resolve(null) });
+    const { sessions, engine, emitted } = setup({ getCard, prFor: () => got(null) });
     sessions.emit('spawn', 't1', false);
     engine.hook({ tabId: 't1', event: 'Stop', notificationType: null });
     lookups[1]?.({ ...card, status: 'In Progress' });
@@ -471,6 +479,11 @@ describe('StatusEngine', () => {
   test.each([
     { name: 'card', getCard: () => Promise.reject(new Error('fetching card: down')), prFor: undefined },
     { name: 'PR', getCard: undefined, prFor: () => Promise.reject(new Error('listing PRs: down')) },
+    {
+      name: 'PR poll',
+      getCard: undefined,
+      prFor: () => Promise.resolve({ data: openPr, error: 'listing PRs: down', fetchedAt: null }),
+    },
   ])('a Stop hook waits when the $name fetch fails', async ({ getCard, prFor }) => {
     // given
     const { sessions, engine, emitted } = setup({ getCard, prFor });
@@ -485,7 +498,7 @@ describe('StatusEngine', () => {
 
   test.each([
     { name: 'getCard', scope: 'jira', getCard: () => new Promise<Card>(() => undefined), prFor: undefined },
-    { name: 'prFor', scope: 'gh', getCard: undefined, prFor: () => new Promise<PrInfo | null>(() => undefined) },
+    { name: 'prFor', scope: 'gh', getCard: undefined, prFor: () => new Promise<Fetched<PrInfo>>(() => undefined) },
   ])(
     'a Stop lookup that never settles gives up and waits after 15 seconds when $name hangs',
     async ({ name, scope, getCard, prFor }) => {
@@ -558,7 +571,7 @@ describe('StatusEngine', () => {
   test('a resumed spawn PR lookup that never settles gives up after 15 seconds and stays idle', async () => {
     // given
     vi.useFakeTimers();
-    const { sessions, engine, logger } = setup({ prFor: () => new Promise<PrInfo | null>(() => undefined) });
+    const { sessions, engine, logger } = setup({ prFor: () => new Promise<Fetched<PrInfo>>(() => undefined) });
     // when
     sessions.emit('spawn', 't1', false, true);
     await vi.advanceTimersByTimeAsync(15_000);
@@ -572,8 +585,8 @@ describe('StatusEngine', () => {
 
   test('a prompt during the resumed spawn PR lookup wins', async () => {
     // given
-    let resolvePr: (pr: PrInfo | null) => void = () => undefined;
-    const pending = new Promise<PrInfo | null>((resolve) => {
+    let resolvePr: (pr: Fetched<PrInfo>) => void = () => undefined;
+    const pending = new Promise<Fetched<PrInfo>>((resolve) => {
       resolvePr = resolve;
     });
     const { sessions, engine, emitted, prFor } = setup({ prFor: () => pending });
@@ -583,7 +596,7 @@ describe('StatusEngine', () => {
     });
     // when
     engine.hook({ tabId: 't1', event: 'UserPromptSubmit', notificationType: null });
-    resolvePr(openPr);
+    resolvePr({ data: openPr, error: null, fetchedAt });
     await new Promise((resolve) => setTimeout(resolve, 10));
     // then
     expect(emitted.map((s) => s.dot)).toEqual(['idle', 'working']);
@@ -900,7 +913,7 @@ describe('StatusEngine', () => {
     // given
     const getCard = () =>
       Promise.resolve({ ...card, status: want === 'merged' ? ('Done' as const) : ('In Progress' as const) });
-    const prFor = () => Promise.resolve(want === 'ready' ? openPr : null);
+    const prFor = () => got(want === 'ready' ? openPr : null);
     const ready = () => Promise.resolve({ ...card, status: 'In Review' as const });
     const { sessions, engine, emitted } = setup({ getCard: want === 'ready' ? ready : getCard, prFor });
     sessions.emit('spawn', 't1', true);
@@ -1036,7 +1049,7 @@ describe('StatusEngine', () => {
       expect(emitted.at(-1)?.dot).toBe('ready');
     });
     expect(getCard).toHaveBeenCalledWith('DIG-44');
-    expect(prFor).toHaveBeenCalledWith('/wts/dig-44', 'DIG');
+    expect(prFor).toHaveBeenCalledWith('t1', '/wts/dig-44');
   });
 
   test.each([
@@ -1069,14 +1082,14 @@ describe('StatusEngine', () => {
     await vi.waitFor(() => {
       expect(emitted.at(-1)?.dot).toBe(want);
     });
-    expect(prFor).toHaveBeenCalledWith('/wts/dig-days-dig-44', 'DIG');
-    expect(prFor).toHaveBeenCalledWith('/wts/halo-dig-44', 'DIG');
+    expect(prFor).toHaveBeenCalledWith('t1', '/wts/dig-days-dig-44');
+    expect(prFor).toHaveBeenCalledWith('t1', '/wts/halo-dig-44');
   });
 
   test('a Stop hook for a card with two worktrees waits when one PR lookup fails', async () => {
     // given
-    const prFor = (worktree: string) =>
-      worktree === '/wts/halo-dig-44' ? Promise.reject(new Error('listing PRs: down')) : Promise.resolve(openPr);
+    const prFor = (_tabId: string, worktree: string) =>
+      worktree === '/wts/halo-dig-44' ? Promise.reject(new Error('listing PRs: down')) : got(openPr);
     const { sessions, engine, emitted } = setup({ tab: twoRepoTab, prFor });
     sessions.emit('spawn', 't1', true);
     // when
@@ -1107,7 +1120,7 @@ describe('StatusEngine', () => {
     sessions.emit('spawn', 't1', false, true);
     // then
     await vi.waitFor(() => {
-      expect(prFor).toHaveBeenCalledWith('/wts/halo-dig-44', 'DIG');
+      expect(prFor).toHaveBeenCalledWith('t1', '/wts/halo-dig-44');
     });
     await vi.waitFor(() => {
       expect(engine.statuses()[0]?.dot).toBe('waiting');
@@ -1251,6 +1264,14 @@ describe('StatusEngine', () => {
       operation: 'prFor',
       getCard: undefined,
       prFor: () => Promise.reject(new Error('listing PRs: down')),
+      error: 'listing PRs: down',
+    },
+    {
+      name: 'PR poll',
+      scope: 'gh',
+      operation: 'prFor',
+      getCard: undefined,
+      prFor: () => Promise.resolve({ data: openPr, error: 'listing PRs: down', fetchedAt: null }),
       error: 'listing PRs: down',
     },
   ])('logs a failed $name fetch at warn', async ({ scope, operation, getCard, prFor, error }) => {

@@ -12,6 +12,8 @@ export const DOT_LABELS: Record<Dot, string> = {
   idle: 'Idle',
 };
 
+export const SETTLED_DOTS: readonly Dot[] = ['idle', 'ready', 'merged', 'waiting'];
+
 export type DotInput =
   | { type: 'prompt' }
   | { type: 'permission' }

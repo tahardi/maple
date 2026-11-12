@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { eventSchemas } from '@shared/types/events/eventSchemas';
 import type { EventRecord, EventRefs } from '@shared/types/events/eventRecord';
 import type { ChecksSummary } from '@shared/types/github/checksSummary';
+import type { Fetched } from '@shared/types/app/fetched';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Card } from '@shared/types/jira/card';
 import type { TabState } from '@shared/types/tabs/tabState';
@@ -35,9 +36,11 @@ const pr33: PrInfo = {
   cardImpacts: null,
   body: '',
   headSha: 'a'.repeat(40),
+  mergeable: 'MERGEABLE',
   checks: pending,
 };
 const pr34: PrInfo = { ...pr33, number: 34 };
+const got33: Fetched<PrInfo> = { data: pr33, error: null, fetchedAt: '2026-11-12T00:00:00.000Z' };
 const failing: ChecksSummary = {
   passed: 5,
   failed: 1,
@@ -467,18 +470,34 @@ describe('PrEvents', () => {
     expect(appended('card.status')).toEqual([{ from: null, to: 'In Review' }]);
   });
 
-  test('tapPr records the PR for the tab with that worktree and returns it', async () => {
+  test('tapPr records the PR for the tab with that id and returns it', async () => {
     // given
     const { events, fake } = setup();
-    const prFor = vi.fn((): Promise<PrInfo | null> => Promise.resolve(pr33));
+    const prFor = vi.fn((): Promise<Fetched<PrInfo>> => Promise.resolve(got33));
     const tapped = events.tapPr(prFor, () => [tab]);
     // when
-    const result = await tapped('/wt', 'MPL');
+    const result = await tapped('t1', '/wt');
     await settle();
     // then
-    expect(result).toBe(pr33);
-    expect(prFor).toHaveBeenCalledWith('/wt', 'MPL');
+    expect(result).toBe(got33);
+    expect(prFor).toHaveBeenCalledWith('t1', '/wt');
     expect(fake.append.mock.calls).toEqual([['pr.opened', refs, { repo, pr: 33 }]]);
+  });
+
+  test('tapPr records nothing when the poll failed', async () => {
+    // given
+    const { events, fake } = setup();
+    const failed: Fetched<PrInfo> = { data: pr33, error: 'listing PRs: offline', fetchedAt: null };
+    const tapped = events.tapPr(
+      () => Promise.resolve(failed),
+      () => [tab],
+    );
+    // when
+    const result = await tapped('t1', '/wt');
+    await settle();
+    // then
+    expect(result).toBe(failed);
+    expect(fake.append).not.toHaveBeenCalled();
   });
 
   test('tapPr records the PR for an unselected worktree of the tab', async () => {
@@ -486,11 +505,11 @@ describe('PrEvents', () => {
     const { events, fake } = setup();
     const twoRepos: TabState = { ...tab, worktreePaths: ['/wt', '/wt2'] };
     const tapped = events.tapPr(
-      () => Promise.resolve(pr33),
+      () => Promise.resolve(got33),
       () => [twoRepos],
     );
     // when
-    await tapped('/wt2', 'MPL');
+    await tapped('t1', '/wt2');
     await settle();
     // then
     expect(fake.append.mock.calls).toEqual([['pr.opened', refs, { repo, pr: 33 }]]);
@@ -500,11 +519,11 @@ describe('PrEvents', () => {
     // given
     const { events, fake } = setup();
     const tapped = events.tapPr(
-      () => Promise.resolve(pr33),
+      () => Promise.resolve(got33),
       () => [{ ...tab, worktreePaths: [] }],
     );
     // when
-    await tapped('/wt', 'MPL');
+    await tapped('t1', '/wt');
     await settle();
     // then
     expect(fake.append.mock.calls).toEqual([['pr.opened', refs, { repo, pr: 33 }]]);
@@ -579,7 +598,7 @@ describe('PrEvents', () => {
         events.tapPr(
           () => Promise.reject(new Error('offline')),
           () => [tab],
-        )('/wt', 'MPL'),
+        )('t1', '/wt'),
     },
   ])('$name passes the lookup error through and records nothing', async ({ call }) => {
     // given
@@ -595,18 +614,18 @@ describe('PrEvents', () => {
   test('records nothing when no open tab matches', async () => {
     // given
     const { events, fake } = setup();
-    const other: TabState = { ...tab, cardKey: 'MPL-1', worktreePath: '/other', worktreePaths: ['/other'] };
+    const other: TabState = { ...tab, id: 't2', cardKey: 'MPL-1', worktreePath: '/other', worktreePaths: ['/other'] };
     const tappedCard = events.tapCard(
       () => Promise.resolve(card),
       () => [other],
     );
     const tappedPr = events.tapPr(
-      () => Promise.resolve(pr33),
+      () => Promise.resolve(got33),
       () => [other],
     );
     // when
     await tappedCard('MPL-189');
-    await tappedPr('/wt', 'MPL');
+    await tappedPr('t1', '/wt');
     await settle();
     // then
     expect(fake.append).not.toHaveBeenCalled();
@@ -621,13 +640,13 @@ describe('PrEvents', () => {
       () => [tab],
     );
     const tappedPr = events.tapPr(
-      () => Promise.resolve(pr33),
+      () => Promise.resolve(got33),
       () => [tab],
     );
     // when
-    const results = await Promise.all([tappedCard('MPL-189'), tappedPr('/wt', 'MPL')]);
+    const results = await Promise.all([tappedCard('MPL-189'), tappedPr('t1', '/wt')]);
     // then
-    expect(results).toEqual([card, pr33]);
+    expect(results).toEqual([card, got33]);
   });
 
   test('a failed append does not break a tap', async () => {
