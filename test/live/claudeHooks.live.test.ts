@@ -41,7 +41,12 @@ describe('claude hooks', () => {
       (e) => events.push(e),
       createLogger(() => undefined),
     );
-    const hooks = await writeHooksFile(dir, process.execPath, resolve('resources/maple-hook.mjs'));
+    const hooks = await writeHooksFile(
+      dir,
+      process.execPath,
+      resolve('resources/maple-hook.mjs'),
+      join(dir, 'findings'),
+    );
     flags = ['--dangerously-skip-permissions', '--settings', hooks];
   });
 

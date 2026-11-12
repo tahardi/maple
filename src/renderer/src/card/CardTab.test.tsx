@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
 import { card, SPRINT } from '../testing/sprintFixture';
+import { finding, findingsFile } from '../testing/findingsFixture';
 import { CardTab } from './CardTab';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 
@@ -2052,5 +2053,57 @@ describe('CardTab', () => {
     const button = screen.getByRole('button', { name: 'Terminal' });
     expect(button).toHaveAttribute('aria-keyshortcuts', 'Control+`');
     expect(button).toHaveTextContent('Ctrl+`');
+  });
+
+  test.each([
+    { dot: 'ready' as const, count: 2, label: '2 findings need you' },
+    { dot: 'working' as const, count: 2, label: 'Findings (2)' },
+    { dot: 'ready' as const, count: 0, label: null },
+  ])('the findings button with a $dot dot and $count findings reads $label', async ({ dot, count, label }) => {
+    // given
+    const file = findingsFile(Array.from({ length: count }, (_, i) => finding({ id: `F${String(i + 1)}` })));
+    const get = vi.fn(() => Promise.resolve({ data: file, error: null, fetchedAt: null }));
+    fakeMaple({ findings: { get } });
+    useMaple.setState({
+      statuses: { t1: { tabId: 't1', dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null } },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const banner = within(screen.getByRole('banner'));
+    if (label === null) {
+      await waitFor(() => {
+        expect(get).toHaveBeenCalledWith('t1');
+      });
+      expect(banner.queryByRole('button', { name: /findings/i })).not.toBeInTheDocument();
+    } else {
+      expect(await banner.findByRole('button', { name: label })).toBeInTheDocument();
+    }
+  });
+
+  test('a findings file that cannot be read still shows a button that opens its error', async () => {
+    // given
+    const error = 'reading findings: MPL-20.json is from a newer Maple';
+    fakeMaple({ findings: { get: vi.fn(() => Promise.resolve({ data: null, error, fetchedAt: null })) } });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(
+      await within(screen.getByRole('banner')).findByRole('button', { name: "Findings can't be read" }),
+    );
+    // then
+    expect(screen.getByRole('tab', { name: 'Findings', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(error);
+  });
+
+  test('the findings button opens the Findings tab', async () => {
+    // given
+    const file = findingsFile([finding({ title: 'Branch name reaches a shell' })]);
+    fakeMaple({ findings: { get: vi.fn(() => Promise.resolve({ data: file, error: null, fetchedAt: null })) } });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Findings (1)' }));
+    // then
+    expect(screen.getByRole('tab', { name: 'Findings', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Branch name reaches a shell' })).toBeInTheDocument();
   });
 });

@@ -38,17 +38,18 @@ function tab(kind: TabState['kind'], projectKey = 'DIG'): TabState {
   return { id: 't1', projectKey, kind, cardKey, sessionId: 's1', worktreePath: null, worktreePaths: [] };
 }
 
-function setup(hasTranscript = true, cfg: MapleConfig = config) {
+function setup(hasTranscript = true, current: MapleConfig = config) {
   const ptys: FakePty[] = [];
   const spawnFn = fakeSpawn(ptys);
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const endTmux = vi.fn<(name: string | null) => void>();
   const processes = new ClaudeProcesses({
     spawn: spawnFn,
-    config: () => cfg,
+    config: () => current,
     hooksFile: '/tmp/maple/hooksFile.json',
     socketPath: '/tmp/maple.sock',
     snapshotRoot: '/tmp/maple/snapshots',
+    findingsDir: '/tmp/maple/findings',
     hasTranscript: () => hasTranscript,
     tmuxConf: '/tmp/maple/tmux.conf',
     endTmux,
@@ -71,7 +72,12 @@ describe('ClaudeProcesses', () => {
     // when
     processes.launch(tab('card'), { resume: false, prompt: '/card DIG-44' });
     // then
-    const env = { MAPLE_TAB_ID: 't1', MAPLE_SOCKET: '/tmp/maple.sock', MAPLE_SNAPSHOT_DIR: '/tmp/maple/snapshots/s1' };
+    const env = {
+      MAPLE_TAB_ID: 't1',
+      MAPLE_SOCKET: '/tmp/maple.sock',
+      MAPLE_SNAPSHOT_DIR: '/tmp/maple/snapshots/s1',
+      MAPLE_FINDINGS_DIR: '/tmp/maple/findings',
+    };
     const claude = ['claude', ...base, '--session-id', 's1', '/card DIG-44'];
     expect(vi.mocked(spawnFn).mock.calls[0][0]).toBe('tmux');
     expect(ptys[0].args).toEqual(tmuxArgs('maple-t1', '/tmp/maple/tmux.conf', '/tmp/dig-days', env, claude));
@@ -91,6 +97,19 @@ describe('ClaudeProcesses', () => {
     processes.launch(tab('planner'), { resume: true, prompt: null });
     // then
     expect(ptys[0].args.join(' ')).toContain(`${flag} s1`);
+  });
+
+  test.each([
+    { kind: 'card' as const, want: '/tmp/maple/findings' },
+    { kind: 'vault' as const, want: undefined },
+  ])('launch gives MAPLE_FINDINGS_DIR to a $kind tab: $want', ({ kind, want }) => {
+    // given
+    const { processes, ptys } = setup(true, { ...config, vaultDir: '/tmp/vault' });
+    // when
+    processes.launch(tab(kind), { resume: false, prompt: null });
+    // then
+    const assignments = ptys[0].args.filter((arg) => arg.startsWith('MAPLE_FINDINGS_DIR='));
+    expect(assignments).toEqual(want === undefined ? [] : [`MAPLE_FINDINGS_DIR=${want}`]);
   });
 
   test('launch for an unknown project throws', () => {

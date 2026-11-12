@@ -12,6 +12,7 @@ import type { JiraCreds } from '@main/jira/readCreds';
 import type { ZoomChange } from '@main/app/window/zoom/zoom';
 import { registerApp } from './app';
 import { registerConfig } from './config';
+import { registerFindings } from './findings';
 import { registerJira } from './jira';
 import { registerLearning } from './learning';
 import { registerPr } from './pr';
@@ -43,6 +44,7 @@ export type IpcDeps = {
   jira: Promise<JiraClient>;
   jiraCreds: Promise<JiraCreds>;
   watchVault: (dir: string) => void;
+  findingsDir: string;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [
@@ -56,6 +58,7 @@ const registrars: readonly ((deps: IpcDeps) => void)[] = [
   registerVault,
   registerLearning,
   registerPr,
+  registerFindings,
   registerApp,
 ];
 

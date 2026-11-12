@@ -16,6 +16,7 @@ export type SessionDeps = {
   hooksFile: string;
   socketPath: string;
   snapshotRoot: string;
+  findingsDir: string;
   save: (tabs: TabState[], closedSessions: Record<string, string>) => Promise<void>;
   closedSessions: Record<string, string>;
   uuid: () => string;

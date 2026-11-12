@@ -57,6 +57,7 @@ const base = {
   watchVault: () => undefined,
   startQueue: new EventEmitter() as StartQueue,
   prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
+  findingsDir: '/tmp/maple/findings',
 };
 
 function fixture(name: string): string {

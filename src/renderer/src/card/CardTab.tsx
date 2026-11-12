@@ -17,6 +17,9 @@ import { folderName } from '@renderer/card/viewer/tree/folderName';
 import { QuickOpen } from '@renderer/card/viewer/quickOpen/QuickOpen';
 import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
+import { FINDINGS } from '@renderer/card/viewer/tabs/findingsTab';
+import { useFindings } from '@renderer/card/findings/useFindings';
+import { findingsLabel } from '@renderer/card/findings/findingsLabel';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 import { useCardData } from './useCardData';
 import { useApproveFlow } from './approve/useApproveFlow';
@@ -44,6 +47,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
   const active = useMaple((s) => s.activeTabId === tab.id);
+  const findings = useFindings(tab.id);
   const body = useRef<HTMLDivElement>(null);
   const middle = useRef<HTMLDivElement>(null);
   const left = useColumnDrag(body, {
@@ -178,6 +182,10 @@ export function CardTab({ tab }: { tab: TabState }) {
         onOpenPr={() => {
           openFile(PR_DESCRIPTION, null, true);
         }}
+        findingsLabel={findingsLabel(dot, findings)}
+        onOpenFindings={() => {
+          openFile(FINDINGS, null, true);
+        }}
       />
       {approval.error !== null && (
         <div className={styles.approveError}>
@@ -256,6 +264,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 line={openFiles.line}
                 review={pinned}
                 onReloadReview={reloadPinnedReview}
+                findings={findings}
                 noteChanges
               />
             )}

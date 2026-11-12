@@ -1,5 +1,6 @@
 import { APP_CHANNELS, type AppApi } from './app';
 import { CONFIG_CHANNELS, type ConfigApi } from './config';
+import { FINDINGS_CHANNELS, type FindingsApi } from './findings';
 import { JIRA_CHANNELS, type JiraApi } from './jira';
 import { LEARNING_CHANNELS, type LearningApi } from './learning';
 import { PR_CHANNELS, type PrApi } from './pr';
@@ -21,6 +22,7 @@ export const IPC_AREAS = [
   'vault',
   'learning',
   'pr',
+  'findings',
   'app',
 ] as const;
 export type IpcArea = (typeof IPC_AREAS)[number];
@@ -37,6 +39,7 @@ export interface MapleApi {
   vault: VaultApi;
   learning: LearningApi;
   pr: PrApi;
+  findings: FindingsApi;
   app: AppApi;
 }
 
@@ -53,6 +56,7 @@ export const IPC_CHANNELS = {
   vault: VAULT_CHANNELS,
   learning: LEARNING_CHANNELS,
   pr: PR_CHANNELS,
+  findings: FINDINGS_CHANNELS,
   app: APP_CHANNELS,
 } as const satisfies { [A in IpcArea]: { [M in keyof MapleApi[A]]: ChannelKind } };
 

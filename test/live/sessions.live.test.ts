@@ -80,9 +80,15 @@ describe('SessionManager with a real claude', () => {
     const manager = new SessionManager({
       spawn,
       config: () => config,
-      hooksFile: await writeHooksFile(dir, process.execPath, resolve('resources/maple-hook.mjs')),
+      hooksFile: await writeHooksFile(
+        dir,
+        process.execPath,
+        resolve('resources/maple-hook.mjs'),
+        join(dir, 'findings'),
+      ),
       socketPath: join(dir, 'maple.sock'),
       snapshotRoot: join(dir, 'snapshots'),
+      findingsDir: join(dir, 'findings'),
       save: () => Promise.resolve(),
       closedSessions: {},
       uuid: randomUUID,

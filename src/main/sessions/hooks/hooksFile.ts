@@ -5,7 +5,12 @@ function quote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
-export async function writeHooksFile(dir: string, execPath: string, scriptPath: string): Promise<string> {
+export async function writeHooksFile(
+  dir: string,
+  execPath: string,
+  scriptPath: string,
+  findingsDir: string,
+): Promise<string> {
   const cmd = `ELECTRON_RUN_AS_NODE=1 ${quote(execPath)} ${quote(scriptPath)}`;
   const hook = (event: string) => [{ type: 'command', command: `${cmd} ${event}` }];
   const content = {
@@ -18,6 +23,7 @@ export async function writeHooksFile(dir: string, execPath: string, scriptPath: 
         { matcher: 'Write|Edit|MultiEdit|mcp__anchorhold__anchorhold_write_note', hooks: hook('PreToolUse') },
       ],
     },
+    sandbox: { filesystem: { allowWrite: [findingsDir] } },
   };
   const path = join(dir, 'hooksFile.json');
   await mkdir(dir, { recursive: true });

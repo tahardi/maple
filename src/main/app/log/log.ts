@@ -20,6 +20,7 @@ export type LogScope =
   | 'terminal'
   | 'vault'
   | 'learning'
+  | 'findings'
   | 'events'
   | 'app';
 

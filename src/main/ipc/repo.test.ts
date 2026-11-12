@@ -75,6 +75,7 @@ function invoke(channel: string, ...args: unknown[]): unknown {
       jira: new Promise<never>(() => undefined),
       jiraCreds: new Promise<never>(() => undefined),
       watchVault: () => undefined,
+      findingsDir: '/tmp/maple/findings',
     },
     logger,
   );

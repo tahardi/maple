@@ -73,6 +73,7 @@ function setup(tabs: TabState[] = [tab]) {
       jira: new Promise<never>(() => undefined),
       jiraCreds: new Promise<never>(() => undefined),
       watchVault: () => undefined,
+      findingsDir: '/tmp/maple/findings',
     },
     logger,
   );

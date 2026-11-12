@@ -53,6 +53,7 @@ function register(vaultDir: () => Promise<string | null>) {
       jira: new Promise<never>(() => undefined),
       jiraCreds: new Promise<never>(() => undefined),
       watchVault,
+      findingsDir: '/tmp/maple/findings',
     },
     logger,
     vaultDir,

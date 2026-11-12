@@ -58,6 +58,7 @@ function setup(
     hooksFile: '/tmp/maple/hooksFile.json',
     socketPath: '/tmp/maple.sock',
     snapshotRoot: '/tmp/maple/snapshots',
+    findingsDir: '/tmp/maple/findings',
     save,
     closedSessions,
     uuid: () => `uuid-${String(++n)}`,
@@ -97,6 +98,7 @@ function wrappedCard(tabId: string, claude: string[]): string[] {
     MAPLE_TAB_ID: tabId,
     MAPLE_SOCKET: '/tmp/maple.sock',
     MAPLE_SNAPSHOT_DIR: `/tmp/maple/snapshots/${claude[claude.indexOf(flag) + 1]}`,
+    MAPLE_FINDINGS_DIR: '/tmp/maple/findings',
   };
   return tmuxArgs(`maple-${tabId}`, '/tmp/maple/tmux.conf', '/tmp/dig-days', env, ['claude', ...claude]);
 }

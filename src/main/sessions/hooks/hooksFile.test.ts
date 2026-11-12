@@ -23,7 +23,7 @@ describe('writeHooksFile', () => {
     const execPath = '/opt/Maple/maple';
     const scriptPath = '/opt/Maple/resources/maple-hook.mjs';
     // when
-    const path = await writeHooksFile(dir, execPath, scriptPath);
+    const path = await writeHooksFile(dir, execPath, scriptPath, '/f');
     // then
     expect(path).toBe(join(dir, 'hooksFile.json'));
     const parsed = JSON.parse(await readFile(path, 'utf8')) as Hooks;
@@ -49,7 +49,7 @@ describe('writeHooksFile', () => {
     const execPath = '/maple';
     const scriptPath = '/s.mjs';
     // when
-    const path = await writeHooksFile(dir, execPath, scriptPath);
+    const path = await writeHooksFile(dir, execPath, scriptPath, '/f');
     // then
     const parsed = JSON.parse(await readFile(path, 'utf8')) as Hooks;
     expect(parsed.hooks.PreToolUse[0].matcher).toBe('Write|Edit|MultiEdit|mcp__anchorhold__anchorhold_write_note');
@@ -61,7 +61,7 @@ describe('writeHooksFile', () => {
     const execPath = "/home/o'neil/maple";
     const scriptPath = "/home/o'neil/maple-hook.mjs";
     // when
-    const path = await writeHooksFile(dir, execPath, scriptPath);
+    const path = await writeHooksFile(dir, execPath, scriptPath, '/f');
     // then
     const parsed = JSON.parse(await readFile(path, 'utf8')) as Hooks;
     const command = parsed.hooks.Stop[0].hooks[0].command;
@@ -73,11 +73,21 @@ describe('writeHooksFile', () => {
     ).toBe(`${execPath}\n${scriptPath}\nStop\n`);
   });
 
+  test('allows sandboxed writes to the findings dir', async () => {
+    // given
+    const findingsDir = '/home/me/.config/maple/findings';
+    // when
+    const path = await writeHooksFile(dir, '/maple', '/s.mjs', findingsDir);
+    // then
+    const parsed = JSON.parse(await readFile(path, 'utf8')) as { sandbox: unknown };
+    expect(parsed.sandbox).toEqual({ filesystem: { allowWrite: [findingsDir] } });
+  });
+
   test('creates the config dir when it is missing', async () => {
     // given
     const missing = join(dir, 'nested', 'maple');
     // when
-    const path = await writeHooksFile(missing, '/maple', '/s.mjs');
+    const path = await writeHooksFile(missing, '/maple', '/s.mjs', '/f');
     // then
     expect(JSON.parse(await readFile(path, 'utf8'))).toHaveProperty('hooks.Stop');
   });

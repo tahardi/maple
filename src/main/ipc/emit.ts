@@ -24,6 +24,7 @@ const KEY_COUNTS: { [A in IpcArea]: { [M in MethodOf<A, 'event'>]: EmitKeys<A, M
   vault: { onChanged: 0 },
   learning: {},
   pr: {},
+  findings: { onChanged: 0 },
   app: { onQuitRequested: 0, onReportRequested: 0, onShortcutsRequested: 0 },
 };
 
