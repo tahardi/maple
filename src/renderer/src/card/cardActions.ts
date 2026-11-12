@@ -17,6 +17,6 @@ export function cardActions({ config, cardKey, pr, worktreeExists, send }: CardA
     onClick: () => {
       send(fillAction(action.prompt, { key: cardKey, pr: pr?.number ?? null }));
     },
-    ...(worktreeExists ? {} : { disabled: true }),
+    ...(worktreeExists ? {} : { disabled: true, reason: 'No worktree' }),
   }));
 }

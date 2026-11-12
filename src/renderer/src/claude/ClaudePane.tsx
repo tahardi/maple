@@ -12,6 +12,7 @@ export type PaneAction = {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  reason?: string;
 };
 
 type ClaudePaneProps = { tabId: string; actions: readonly PaneAction[] };

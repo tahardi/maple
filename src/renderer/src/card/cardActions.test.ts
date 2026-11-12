@@ -73,13 +73,16 @@ describe('cardActions', () => {
     expect(send).toHaveBeenCalledWith(want);
   });
 
-  test('without a worktree every button is disabled', () => {
+  test('without a worktree every button is disabled and says No worktree', () => {
     // given
     const { list } = actions({ worktreeExists: false });
     // when
-    const disabled = list.map((a) => a.disabled);
+    const states = list.map((a) => ({ disabled: a.disabled, reason: a.reason }));
     // then
-    expect(disabled).toEqual([true, true]);
+    expect(states).toEqual([
+      { disabled: true, reason: 'No worktree' },
+      { disabled: true, reason: 'No worktree' },
+    ]);
   });
 
   test.each([

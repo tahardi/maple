@@ -25,15 +25,17 @@ describe('ActionBar', () => {
     expect(onClick).toHaveBeenCalledOnce();
   });
 
-  test('a disabled action does not call onClick', async () => {
+  test('a disabled action shows its reason beside it and does not call onClick', async () => {
     // given
     const onClick = vi.fn();
-    render(<ActionBar actions={[{ label: 'Ship', onClick, disabled: true }]} />);
+    render(<ActionBar actions={[{ label: 'Ship', onClick, disabled: true, reason: 'No worktree' }]} />);
     const button = screen.getByRole('button', { name: 'Ship' });
     // when
     await userEvent.click(button);
     // then
     expect(button).toBeDisabled();
+    expect(screen.getByText('No worktree')).toBeVisible();
+    expect(button).toHaveAccessibleDescription('No worktree');
     expect(onClick).not.toHaveBeenCalled();
   });
 
