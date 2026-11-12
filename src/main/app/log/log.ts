@@ -2,7 +2,8 @@ import { join } from 'node:path';
 import log from 'electron-log/node';
 import { configDir } from '@main/app/config/config';
 import { errorText } from '@shared/errors/errorText';
-import { isPlainObject, redact } from './redact';
+import { isPlainObject } from './isPlainObject';
+import { redact } from './redact';
 
 export type LogScope =
   | 'session'

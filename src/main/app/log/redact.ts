@@ -1,3 +1,5 @@
+import { isPlainObject } from './isPlainObject';
+
 type Fields = Record<string, unknown>;
 
 const SECRET = /token|authorization|password|secret|env/i;
@@ -15,8 +17,4 @@ function redactValue(value: unknown): unknown {
     return value.map(redactValue);
   }
   return isPlainObject(value) ? redact(value) : value;
-}
-
-export function isPlainObject(value: unknown): value is Fields {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
