@@ -13,7 +13,15 @@ export function registerConfig(deps: IpcDeps): void {
   };
   ipcMain.handle('config:get', () => currentConfig());
   ipcMain.handle('config:reload', reload);
-  setAppMenu(reload, deps.setNotifications, deps.setZoom, () => {
-    send(deps.window(), 'app:reportRequested', null);
-  });
+  setAppMenu(
+    reload,
+    deps.setNotifications,
+    deps.setZoom,
+    () => {
+      send(deps.window(), 'app:reportRequested', null);
+    },
+    () => {
+      send(deps.window(), 'app:shortcutsRequested', null);
+    },
+  );
 }

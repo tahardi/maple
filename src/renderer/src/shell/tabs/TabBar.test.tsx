@@ -383,4 +383,14 @@ describe('TabBar', () => {
     // then
     expect(report).not.toBeInTheDocument();
   });
+
+  test('card tab close buttons show their shortcut', () => {
+    // given
+    render(<TabBar />);
+    // when
+    const close = screen.getByRole('button', { name: 'Close BEAR-1' });
+    // then
+    expect(close).toHaveAttribute('title', 'Close (Ctrl+Shift+W)');
+    expect(close).toHaveAttribute('aria-keyshortcuts', 'Control+Shift+W');
+  });
 });

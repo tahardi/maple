@@ -74,6 +74,14 @@ body {
   cursor: pointer;
 }
 
+:where(kbd) {
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
 :where(button:hover:enabled) {
   background: var(--surface-hover);
 }

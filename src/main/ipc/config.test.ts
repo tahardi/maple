@@ -23,6 +23,7 @@ const { handle, loadConfig, setAppMenu } = vi.hoisted(() => ({
         setNotifications: (on: boolean) => Promise<void>,
         setZoom: (change: ZoomChange) => Promise<void>,
         reportBug: () => void,
+        showShortcuts: () => void,
       ) => void
     >(),
 }));
@@ -210,5 +211,18 @@ describe('registerConfig menu', () => {
     reportBug();
     // then
     expect(sendToWindow).toHaveBeenCalledWith('app:reportRequested', null);
+  });
+
+  test('the menu shortcuts trigger tells the window', () => {
+    // given
+    vi.clearAllMocks();
+    loadConfig.mockResolvedValue(first);
+    const { win, sendToWindow } = fakeWindow(false);
+    registerConfig(deps(() => win));
+    const [[, , , , showShortcuts]] = setAppMenu.mock.calls;
+    // when
+    showShortcuts();
+    // then
+    expect(sendToWindow).toHaveBeenCalledWith('app:shortcutsRequested', null);
   });
 });

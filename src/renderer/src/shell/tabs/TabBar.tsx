@@ -6,12 +6,14 @@ import { ProjectMenu } from '@renderer/shell/ProjectMenu';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './TabBar.module.css';
 import { tabLabel } from './tabLabel';
+import { useTabKeys } from './useTabKeys';
 import { errorText } from '@shared/errors/errorText';
 import { DOT_LABELS } from '@shared/status/dots';
 
 const SYNC_LABELS = { queued: 'Sync queued', syncing: 'Syncing with main' } as const;
 
 export function TabBar() {
+  useTabKeys();
   const tabs = useMaple((s) => s.tabs);
   const projectKey = useMaple((s) => s.projectKey);
   const activeTabId = useMaple((s) => s.activeTabId);
@@ -98,7 +100,13 @@ export function TabBar() {
         )}
       </button>
       {id !== null && (
-        <button className={styles.close} aria-label={`Close ${item.label}`} onClick={() => void closeTab(id, false)}>
+        <button
+          className={styles.close}
+          aria-label={`Close ${item.label}`}
+          title="Close (Ctrl+Shift+W)"
+          aria-keyshortcuts="Control+Shift+W"
+          onClick={() => void closeTab(id, false)}
+        >
           ×
         </button>
       )}

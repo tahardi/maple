@@ -9,6 +9,7 @@ import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { monaco } from '@renderer/testing/fakeMonaco';
 import { FileViewer } from './FileViewer';
+import css from './FileViewer.module.css?raw';
 import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
 
@@ -505,5 +506,30 @@ describe('FileViewer', () => {
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Findings' })).not.toBeInTheDocument();
     expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'new\n');
+  });
+
+  test('file tabs are reachable with Tab and open on Enter', async () => {
+    // given
+    const { props } = renderViewer(same);
+    await userEvent.tab();
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(screen.getByRole('tab', { name: 'README.md' })).toHaveFocus();
+    // when
+    await userEvent.keyboard('{Enter}');
+    // then
+    expect(props.onActivate).toHaveBeenCalledWith('README.md');
+  });
+
+  test.each([
+    { name: 'keeps the preview italic', property: /font(-style)?:/, present: false },
+    { name: 'covers the tab with its padding', property: /padding: var\(--space-2\)/, present: true },
+  ])('the file tab label $name', ({ property, present }) => {
+    // given
+    const label = /\.label \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    // when
+    const matched = property.test(label);
+    // then
+    expect(matched).toBe(present);
   });
 });

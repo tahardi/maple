@@ -2109,4 +2109,15 @@ describe('CardTab', () => {
     expect(list).toHaveBeenCalledTimes(2);
     expect(written).toHaveBeenCalledTimes(2);
   });
+
+  test('the Terminal button shows its shortcut', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const button = screen.getByRole('button', { name: 'Terminal' });
+    expect(button).toHaveAttribute('aria-keyshortcuts', 'Control+`');
+    expect(button).toHaveTextContent('Ctrl+`');
+  });
 });

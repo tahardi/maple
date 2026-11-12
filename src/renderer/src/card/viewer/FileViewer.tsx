@@ -102,38 +102,31 @@ export function FileViewer({
       <div className={styles.bar}>
         <div className={styles.tabs} role="tablist">
           {openFiles.map((path) => (
-            <div
-              key={path}
-              role="tab"
-              aria-label={label(path)}
-              aria-selected={path === activeFile}
-              title={path}
-              className={[
-                styles.tab,
-                path === activeFile ? styles.active : '',
-                path === preview ? styles.preview : '',
-              ].join(' ')}
-              onClick={() => {
-                onActivate(path);
-              }}
-              onDoubleClick={() => {
-                onPin?.(path);
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setMenu({ path, x: e.clientX, y: e.clientY });
-              }}
-            >
-              {label(path)}
+            <div key={path} className={path === activeFile ? `${styles.tab} ${styles.active}` : styles.tab}>
+              <button
+                role="tab"
+                aria-label={label(path)}
+                aria-selected={path === activeFile}
+                title={path}
+                className={path === preview ? `${styles.label} ${styles.preview}` : styles.label}
+                onClick={() => {
+                  onActivate(path);
+                }}
+                onDoubleClick={() => {
+                  onPin?.(path);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setMenu({ path, x: e.clientX, y: e.clientY });
+                }}
+              >
+                {label(path)}
+              </button>
               <button
                 aria-label={`Close ${path === PR_DESCRIPTION || path === CARD_DESCRIPTION ? baseName(path) : path}`}
                 className={styles.close}
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={() => {
                   onCloseFiles([path]);
-                }}
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
                 }}
               >
                 ×

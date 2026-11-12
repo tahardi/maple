@@ -6,6 +6,7 @@ import { VaultTab } from './vault/VaultTab';
 import { Notice } from './shell/blocks/Notice';
 import { QuitGuard } from './shell/QuitGuard';
 import { ReportLauncher } from './shell/ReportLauncher';
+import { ShortcutSheet } from './shell/shortcuts/ShortcutSheet';
 import { TabErrorBoundary } from './shell/TabErrorBoundary';
 import { TabBar } from '@renderer/shell/tabs/TabBar';
 import { useMaple } from './store';
@@ -79,6 +80,7 @@ export function App() {
         </div>
       ))}
       <QuitGuard />
+      <ShortcutSheet />
       <ReportLauncher />
     </div>
   );
