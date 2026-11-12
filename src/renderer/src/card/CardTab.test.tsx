@@ -410,17 +410,20 @@ describe('CardTab', () => {
       throw new Error('finding the column divider: missing');
     }
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
-    // when
-    fireEvent.pointerDown(divider);
-    act(() => {
-      window.dispatchEvent(new PointerEvent('pointermove', { clientX: 300 }));
-      window.dispatchEvent(new PointerEvent('pointermove', { clientX: 320 }));
-      window.dispatchEvent(new PointerEvent('pointerup'));
-    });
-    // then
-    const leftWrites = setItem.mock.calls.filter(([key]) => key === 'maple.columns.left');
-    expect(leftWrites).toEqual([['maple.columns.left', '320']]);
-    setItem.mockRestore();
+    try {
+      // when
+      fireEvent.pointerDown(divider);
+      act(() => {
+        window.dispatchEvent(new PointerEvent('pointermove', { clientX: 300 }));
+        window.dispatchEvent(new PointerEvent('pointermove', { clientX: 320 }));
+        window.dispatchEvent(new PointerEvent('pointerup'));
+      });
+      // then
+      const leftWrites = setItem.mock.calls.filter(([key]) => key === 'maple.columns.left');
+      expect(leftWrites).toEqual([['maple.columns.left', '320']]);
+    } finally {
+      setItem.mockRestore();
+    }
   });
 
   test('marks the files that have review comments in the tree', async () => {

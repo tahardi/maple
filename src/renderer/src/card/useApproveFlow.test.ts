@@ -75,9 +75,11 @@ describe('useApproveFlow', () => {
     // given
     const approve = fakeApprove();
     const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1', ['high', 'high']), unviewed: 1 });
+    // when
     act(() => {
       result.current.approve();
     });
+    // then
     expect(result.current.dialog?.body).toBe('2 open high-severity findings. Approve anyway?');
     // when
     act(() => {
@@ -186,6 +188,39 @@ describe('useApproveFlow', () => {
     // when
     act(() => {
       result.current.clearError();
+    });
+    // then
+    expect(result.current.error).toBeNull();
+  });
+
+  test('the dialog closes when the review moves to a new commit', () => {
+    // given
+    const approve = fakeApprove();
+    const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 1 });
+    act(() => {
+      result.current.approve();
+    });
+    // when
+    rerender({ worktree: '/a', review: reviewAt('h2'), unviewed: 1 });
+    // then
+    expect(result.current.dialog).toBeNull();
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  test('approving again clears the last error', async () => {
+    // given
+    const maple = failingApprove();
+    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
+    act(() => {
+      result.current.approve();
+    });
+    await waitFor(() => {
+      expect(result.current.error).not.toBeNull();
+    });
+    maple.pr.approve = vi.fn(() => new Promise<void>(() => undefined));
+    // when
+    act(() => {
+      result.current.approve();
     });
     // then
     expect(result.current.error).toBeNull();

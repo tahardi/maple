@@ -113,6 +113,7 @@ describe('useOpenFiles', () => {
     act(() => {
       result.current.open('a.ts', 12);
     });
+    // when
     rerender({ path: '/a', pr: false, card: false });
     // then
     expect(result.current.line).toBe(12);

@@ -65,6 +65,19 @@ describe('useColumnDrag', () => {
     expect(result.current.size).toBe(300);
   });
 
+  test('a click without a move saves nothing', () => {
+    // given
+    const { result } = renderDrag();
+    act(() => {
+      result.current.start(new PointerEvent('pointerdown'));
+    });
+    // when
+    pointer('pointerup');
+    // then
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(result.current.size).toBe(240);
+  });
+
   test('reset returns to the initial size and forgets the saved size', () => {
     // given
     localStorage.setItem(KEY, '300');
