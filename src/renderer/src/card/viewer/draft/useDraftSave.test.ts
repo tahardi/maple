@@ -50,12 +50,14 @@ describe('useDraftSave', () => {
       result.current.persist('src/a.ts', Promise.reject(new Error('writing src/a.ts: EACCES')), vi.fn());
       await Promise.resolve();
     });
+    const failed = result.current.saveError;
     // when
     await act(async () => {
       result.current.persist('src/a.ts', Promise.resolve(), vi.fn());
       await Promise.resolve();
     });
     // then
+    expect(failed).toEqual({ path: 'src/a.ts', message: 'writing src/a.ts: EACCES' });
     expect(result.current.saveError).toBeNull();
   });
 });

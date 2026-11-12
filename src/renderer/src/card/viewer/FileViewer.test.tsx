@@ -425,6 +425,7 @@ describe('FileViewer', () => {
     expect(await screen.findByRole('tab', { name: '● README.md' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'a.ts' })).toBeInTheDocument();
   });
+
   test.each([
     { name: 'a vault note', path: 'vault:Spike.md', button: 'Edit', absent: 'In file' },
     { name: 'a changed code file', path: 'src/a.ts', button: 'In file', absent: 'Edit' },
