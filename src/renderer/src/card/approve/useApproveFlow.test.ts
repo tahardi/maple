@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { fakeMaple } from '../../testing/fakeMaple';
 import { useApproveFlow } from './useApproveFlow';
 
-type Props = { worktree: string | null; review: Review | null; unviewed: number };
+type Props = { worktree: string | null; review: Review | null; unviewed: number; blocked?: boolean };
 
 function reviewAt(headSha: string, severities: readonly FindingSeverity[] = []): Review {
   return {
@@ -19,9 +19,11 @@ function reviewAt(headSha: string, severities: readonly FindingSeverity[] = []):
 }
 
 function renderFlow(initialProps: Props) {
-  return renderHook(({ worktree, review, unviewed }: Props) => useApproveFlow('t1', worktree, review, unviewed), {
-    initialProps,
-  });
+  return renderHook(
+    ({ worktree, review, unviewed, blocked }: Props) =>
+      useApproveFlow('t1', worktree, review, unviewed, blocked ?? false),
+    { initialProps },
+  );
 }
 
 function fakeApprove() {
@@ -91,6 +93,37 @@ describe('useApproveFlow', () => {
     // then
     expect(result.current.dialog).toBeNull();
     expect(approve).toHaveBeenCalledWith('t1', 'h1');
+  });
+
+  test('the dialog closes and confirm approves nothing once a blocker appears', () => {
+    // given
+    const approve = fakeApprove();
+    const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
+    act(() => {
+      result.current.approve();
+    });
+    // when
+    rerender({ worktree: '/a', review: reviewAt('h1'), unviewed: 0, blocked: true });
+    act(() => {
+      result.current.confirm();
+    });
+    // then
+    expect(result.current.dialog).toBeNull();
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  test('the dialog stays closed when the blocker clears', () => {
+    // given
+    fakeApprove();
+    const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
+    act(() => {
+      result.current.approve();
+    });
+    rerender({ worktree: '/a', review: reviewAt('h1'), unviewed: 0, blocked: true });
+    // when
+    rerender({ worktree: '/a', review: reviewAt('h1'), unviewed: 0, blocked: false });
+    // then
+    expect(result.current.dialog).toBeNull();
   });
 
   test('cancel closes the dialog without approving', () => {

@@ -19,12 +19,16 @@ export function useApproveFlow(
   worktreePath: string | null,
   review: Review | null,
   unviewed: number,
+  blocked: boolean,
 ): ApproveFlow {
   const [error, setError] = useWorktreeState<{ headSha: string; message: string } | null>(worktreePath, null);
   const [pendingSha, setPendingSha] = useState<string | null>(null);
   const [merging, setMerging] = useState<ReadonlySet<string | null>>(new Set());
   const headSha = review?.headSha ?? null;
-  const asking = review !== null && pendingSha === headSha;
+  if (blocked && pendingSha !== null) {
+    setPendingSha(null);
+  }
+  const asking = review !== null && pendingSha === headSha && !blocked;
   const highFindings = review?.findings.filter((f) => f.severity === 'high').length ?? 0;
 
   const send = (sha: string) => {

@@ -111,7 +111,8 @@ export function CardTab({ tab }: { tab: TabState }) {
       vault.notes.map((note) => note.path),
     ),
   ]);
-  const approval = useApproveFlow(tab.id, tab.worktreePath, pinned, unviewed);
+  const blocker = approveBlocker({ dot, pr: pr?.data ?? null, review: pinned, worktreeExists });
+  const approval = useApproveFlow(tab.id, tab.worktreePath, pinned, unviewed, blocker !== null);
   const reloadPinnedReview = () => {
     approval.clearError();
     reloadReview();
@@ -161,7 +162,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         reviewUpdated={reviewUpdated}
         approve={
           <ApproveButton
-            blocker={approveBlocker({ dot, pr: pr?.data ?? null, review: pinned, worktreeExists })}
+            blocker={blocker}
             busy={approval.approving}
             onClick={approval.approve}
             onReloadReview={reloadPinnedReview}
