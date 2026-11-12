@@ -8,14 +8,18 @@ const hardCodedColor = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsl)\(|:[^;{}]*(?<![\w-])
 
 const hardCodedFontSize = /font-size:(?!\s*var\(--font-)[^;]+/g;
 
-const hardCodedSpacing =
-  /(?<![\w-])(?:padding|margin|gap|row-gap|column-gap|inset|top|right|bottom|left)(?:-[a-z]+)?\s*:[^;{}]*?(?<![\d.])(?:[4-9]|\d{2,})px/g;
+const spacingProperties = 'padding|margin|gap|row-gap|column-gap|inset|top|right|bottom|left';
 
-const hardCodedRadius = /border-radius\s*:(?!\s*var\(--radius-)[^;]+/g;
+const hardCodedSpacing = new RegExp(
+  `(?<![\\w-])(?:${spacingProperties})(?:-[a-z]+)*\\s*:[^;{}]*?(?<![\\d.])(?:[4-9]|\\d{2,})px`,
+  'g',
+);
+
+const hardCodedRadius = /border(?:-[a-z]+)*-radius\s*:(?!\s*var\(--radius-)[^;]+/g;
 
 const hardCodedZIndex = /z-index\s*:(?!\s*var\(--z-)[^;]+/g;
 
-const removedOutline = /outline\s*:\s*(?:none|0)\b/g;
+const removedOutline = /outline(?:-style|-width)?\s*:\s*(?:none|0(?:px)?)\b/g;
 
 const palette = [
   ['--bg', '#1e1e1e'],
@@ -189,6 +193,9 @@ describe('theme', () => {
     ['border-left: 4px solid var(--border);', []],
     ['width: 140px;', []],
     ['row-gap: 6px;', ['row-gap: 6px']],
+    ['gap: 3px;', []],
+    ['gap: 4px;', ['gap: 4px']],
+    ['padding-inline-start: 8px;', ['padding-inline-start: 8px']],
   ])('the spacing check on %s', (css, want) => {
     // given
     const source = css;
@@ -203,6 +210,7 @@ describe('theme', () => {
   test.each([
     ['border-radius: var(--radius-md);', []],
     ['border-radius: 50%;', ['border-radius: 50%']],
+    ['border-top-left-radius: 4px;', ['border-top-left-radius: 4px']],
   ])('the radius check on %s', (css, want) => {
     // given
     const source = css;
@@ -223,6 +231,25 @@ describe('theme', () => {
 
     // when
     const matches = source.match(hardCodedZIndex) ?? [];
+
+    // then
+    expect(matches).toEqual(want);
+  });
+
+  test.each([
+    ['outline: none;', ['outline: none']],
+    ['outline: 0;', ['outline: 0']],
+    ['outline: 0px;', ['outline: 0px']],
+    ['outline-style: none;', ['outline-style: none']],
+    ['outline-width: 0;', ['outline-width: 0']],
+    ['outline: 2px solid var(--warning);', []],
+    ['outline-offset: 0;', []],
+  ])('the outline check on %s', (css, want) => {
+    // given
+    const source = css;
+
+    // when
+    const matches = source.match(removedOutline) ?? [];
 
     // then
     expect(matches).toEqual(want);
@@ -300,10 +327,10 @@ describe('theme', () => {
 
   test.each(palette)('theme.css defines %s as %s', (name, value) => {
     // given
-    const css = theme;
+    const tokenName = name;
 
     // when
-    const declared = new RegExp(`^\\s*${name}:\\s*([^;]+);`, 'm').exec(css)?.[1];
+    const declared = token(tokenName);
 
     // then
     expect(declared).toBe(value);

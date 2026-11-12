@@ -8,7 +8,7 @@
 .toggle {
   display: flex;
   gap: var(--space-1);
-  padding: var(--space-2) var(--space-2);
+  padding: var(--space-2);
 }
 
 .list {
