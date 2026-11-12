@@ -83,15 +83,7 @@ export function TabBar() {
   const renderItem = ({ id, ...item }: (typeof pinned)[number] | (typeof cardItems)[number]) => (
     <div key={item.key} className={item.selected ? `${styles.item} ${styles.active}` : styles.item}>
       <button role="tab" aria-selected={item.selected} className={styles.tab} onClick={item.onClick}>
-        {item.dot && (
-          <span
-            role="img"
-            className={styles.dot}
-            data-dot={item.dot}
-            aria-label={DOT_LABELS[item.dot]}
-            title={DOT_LABELS[item.dot]}
-          />
-        )}
+        {item.dot && <span role="img" className={styles.dot} data-dot={item.dot} aria-label={DOT_LABELS[item.dot]} />}
         {item.label}
         {item.sync !== null && (
           <span

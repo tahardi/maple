@@ -237,7 +237,18 @@ describe('TabBar', () => {
     // then
     const img = within(screen.getByRole('tab', { name: /BEAR-2/ })).getByRole('img', { name: label });
     expect(img).toHaveAttribute('data-dot', dot);
-    expect(img).toHaveAttribute('title', label);
+    expect(img).not.toHaveAttribute('title');
+  });
+
+  test('names a hovered dot with a themed tooltip instead of the native one', () => {
+    // given
+    const hover = /\.dot:hover::after \{([^}]*)\}/;
+    // when
+    const tooltip = hover.exec(css)?.[1] ?? '';
+    // then
+    expect(tooltip).toMatch(/content: attr\(aria-label\)/);
+    expect(tooltip).toMatch(/border: 1px solid var\(--border\)/);
+    expect(tooltip).toMatch(/z-index: var\(--z-menu\)/);
   });
 
   test.each([
