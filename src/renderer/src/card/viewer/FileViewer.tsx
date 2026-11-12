@@ -169,6 +169,7 @@ export function FileViewer({
   const wordWrap = wrap ? 'on' : 'off';
   const headSha = review?.headSha ?? null;
   const baseSha = review?.baseSha ?? null;
+  const watching = active || (headSha !== null && baseSha !== null);
   const reviewOldPath = review?.files.find((f) => f.path === activeFile)?.oldPath ?? null;
   const showsDescription = activeFile === PR_DESCRIPTION || activeFile === CARD_DESCRIPTION;
   const showsNote = activeFile?.startsWith(VAULT_PREFIX) ?? false;
@@ -263,10 +264,10 @@ export function FileViewer({
       });
     };
     const reload = loadedFile.current === activeFile;
-    if (active || !reload) {
+    if (watching || !reload) {
       load(reload);
     }
-    if (!active) {
+    if (!watching) {
       return () => {
         live = false;
       };
@@ -278,7 +279,7 @@ export function FileViewer({
       live = false;
       unsubscribe();
     };
-  }, [active, tabId, activeFile, headSha, baseSha, reviewOldPath]);
+  }, [watching, tabId, activeFile, headSha, baseSha, reviewOldPath]);
 
   useEffect(() => {
     if (keepScroll.current !== null) {

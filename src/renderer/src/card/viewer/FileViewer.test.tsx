@@ -1951,6 +1951,45 @@ describe('FileViewer', () => {
     expect(editor).toHaveAttribute('data-value', 'new\n');
   });
 
+  test('a review file is not read again when the tab is hidden and shown', async () => {
+    // given
+    const pinned: Review = {
+      number: 7,
+      headSha: 'a'.repeat(40),
+      baseSha: 'c'.repeat(40),
+      added: 0,
+      removed: 0,
+      files: [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: 'f'.repeat(40) }],
+      findings: [],
+    };
+    const prRead = vi.fn(() => Promise.resolve(changed));
+    fakeMaple({ pr: { readFile: prRead } });
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFiles={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+        review={pinned}
+      />,
+    );
+    await screen.findByTestId('editor');
+    // when
+    act(() => {
+      useMaple.setState({ activeTabId: 'other' });
+    });
+    act(() => {
+      useMaple.setState({ activeTabId: 't1' });
+    });
+    // then
+    expect(prRead).toHaveBeenCalledOnce();
+  });
+
   test('shows why a file from GitHub could not be read', async () => {
     // given
     const pinned: Review = {
