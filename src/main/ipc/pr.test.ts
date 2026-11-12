@@ -125,6 +125,7 @@ function register(
       prs: { latest: latestPr, refresh: refreshPrs },
       jira: new Promise<never>(() => undefined),
       jiraCreds: new Promise<never>(() => undefined),
+      findingsDir: '/tmp/maple/findings',
     },
     logger,
     events as unknown as PrEvents,

@@ -111,6 +111,7 @@ function setup() {
       prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
       jira: new Promise<never>(() => undefined),
       jiraCreds: new Promise<never>(() => undefined),
+      findingsDir: '/tmp/maple/findings',
       warnings: () => [],
     },
     logger,
