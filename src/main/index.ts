@@ -38,6 +38,7 @@ import { uiActionRecorder } from '@main/events/uiActions';
 import { checkNotifications } from '@main/app/window/menu';
 import { notifyTab, shouldNotify } from '@main/app/notify';
 import { restoreTabs } from '@main/sessions/restore';
+import { reloadOnCrash } from '@main/app/window/reloadOnCrash';
 import { lockDown, webPreferences } from '@main/app/window/security';
 import { showStartupFailure } from '@main/app/startupFailure';
 import { SessionManager } from '@main/sessions/SessionManager';
@@ -70,6 +71,7 @@ function createWindow(zoom: Zoom): Promise<void> {
   const rendererUrl = app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL;
   const indexFile = join(import.meta.dirname, '../renderer/index.html');
   lockDown(window.webContents, rendererUrl ?? pathToFileURL(indexFile).href);
+  reloadOnCrash(window.webContents);
   window.on('page-title-updated', (event) => {
     event.preventDefault();
   });
