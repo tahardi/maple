@@ -30,7 +30,7 @@ type Options = {
   queue?: QueueState;
 };
 
-const EMPTY_QUEUE: QueueState = { cards: [], working: 0, limit: 4, waitingFor: null, failure: null };
+const EMPTY_QUEUE: QueueState = { cards: [], working: 0, limit: 4, waitingFor: null, gapSeconds: 90, failure: null };
 
 function setup(
   { selected = [], toAccept = [], readyCount = 0, refineCount = 0, failure = null, queue = EMPTY_QUEUE }: Options = {},
@@ -263,6 +263,7 @@ describe('PlannerPane', () => {
       working: 2,
       limit: 2,
       waitingFor: 'room',
+      gapSeconds: 90,
       failure: null,
     };
     // when

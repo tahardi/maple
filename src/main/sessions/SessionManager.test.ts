@@ -2,12 +2,12 @@ import type { IPty, spawn } from 'node-pty';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { findWorktrees } from '@main/git/git';
+import { findWorktrees } from '@main/git/findWorktrees';
 import { SessionManager } from './SessionManager';
 import { tmuxArgs } from './tmux';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
 
-vi.mock('@main/git/git', () => ({ findWorktrees: vi.fn() }));
+vi.mock('@main/git/findWorktrees', () => ({ findWorktrees: vi.fn() }));
 vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktrees: vi.fn() }));
 
 type FakePty = {
@@ -29,6 +29,7 @@ const config: MapleConfig = {
   eventMaxMegabytes: 200,
   stateBackups: 3,
   startAtOnce: 4,
+  startGapSeconds: 90,
   maxWorking: 8,
   maxLoadPerCore: 0.8,
   minFreeMegabytes: 2048,

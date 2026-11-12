@@ -14,6 +14,7 @@ export type StartLimits = {
   maxWorking: number;
   maxLoadPerCore: number;
   minFreeMegabytes: number;
+  startGapSeconds: number;
 };
 export type StartQueueDeps = {
   sessions: SessionManager;
@@ -91,6 +92,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
       working: this.working(),
       limit: this.deps.limits().maxWorking,
       waitingFor: this.cards.length === 0 ? null : this.waitingFor(),
+      gapSeconds: this.deps.limits().startGapSeconds,
       failure: this.failure,
     };
   }
@@ -155,7 +157,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
         this.paceTimer = null;
         this.pump();
       },
-      this.lastStart + RECHECK_MS - Date.now(),
+      this.lastStart + this.deps.limits().startGapSeconds * 1000 - Date.now(),
     );
   }
 
@@ -181,7 +183,11 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     if (load.freeBytes < limits.minFreeMegabytes * 1024 * 1024) {
       return 'memory';
     }
-    if (working >= limits.startAtOnce && this.lastStart !== null && Date.now() - this.lastStart < RECHECK_MS) {
+    if (
+      working >= limits.startAtOnce &&
+      this.lastStart !== null &&
+      Date.now() - this.lastStart < limits.startGapSeconds * 1000
+    ) {
       return 'pace';
     }
     return null;

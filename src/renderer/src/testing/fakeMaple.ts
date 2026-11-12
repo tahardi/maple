@@ -16,6 +16,7 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
     eventMaxMegabytes: 200,
     stateBackups: 3,
     startAtOnce: 4,
+    startGapSeconds: 90,
     maxWorking: 8,
     maxLoadPerCore: 0.8,
     minFreeMegabytes: 2048,
@@ -100,7 +101,9 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       onStatus: vi.fn(unsubscribe),
       onChanged: vi.fn(unsubscribe),
       onActivate: vi.fn(unsubscribe),
-      startQueue: vi.fn(() => Promise.resolve({ cards: [], working: 0, limit: 4, waitingFor: null, failure: null })),
+      startQueue: vi.fn(() =>
+        Promise.resolve({ cards: [], working: 0, limit: 4, waitingFor: null, gapSeconds: 90, failure: null }),
+      ),
       unqueue: vi.fn(() => Promise.resolve()),
       moveQueued: vi.fn(() => Promise.resolve()),
       onQueue: vi.fn(unsubscribe),
