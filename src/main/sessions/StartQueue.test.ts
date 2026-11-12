@@ -471,6 +471,11 @@ describe('StartQueue', () => {
     // when
     queue.start();
     // then
+    expect(startCard.mock.calls).toEqual([['DIG', 'DIG-45']]);
+    expect(queue.state()).toMatchObject({ cards: queued('DIG-46'), waitingFor: 'pace' });
+    // when
+    vi.advanceTimersByTime(15_000);
+    // then
     expect(startCard.mock.calls).toEqual([
       ['DIG', 'DIG-45'],
       ['DIG', 'DIG-46'],

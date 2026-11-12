@@ -161,9 +161,8 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
   }
 
   private startNow(card: QueuedCard): TabState {
-    const tab = this.deps.sessions.startCard(card.projectKey, card.cardKey);
     this.lastStart = Date.now();
-    return tab;
+    return this.deps.sessions.startCard(card.projectKey, card.cardKey);
   }
 
   private working(): number {
