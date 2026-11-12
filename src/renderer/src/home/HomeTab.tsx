@@ -98,7 +98,7 @@ export function HomeTab({ projectKey }: Props) {
     setFailure(null);
   };
   const closeDetail = () => {
-    if (confirmKey === null) {
+    if (confirmKey === null && confirming === null) {
       setDetailKey(null);
     }
   };

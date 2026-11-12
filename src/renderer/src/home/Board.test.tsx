@@ -58,15 +58,30 @@ describe('Board', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Expand Done column' }));
     unmount();
     // when
-    const dig = render(
-      <Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />,
-    );
+    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
     // then
     expect(screen.getByRole('button', { name: /^DIG-40/ })).toBeInTheDocument();
-    dig.unmount();
+  });
+
+  test('another project keeps its Done collapsed', () => {
+    // given
+    localStorage.setItem('maple.doneOpen.DIG', 'true');
+    // when
     render(<Board projectKey="BEAR" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    // then
     expect(screen.queryByRole('button', { name: /^DIG-40/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Expand Done column' })).toBeInTheDocument();
+  });
+
+  test('Collapse hides the Done tiles again', async () => {
+    // given
+    localStorage.setItem('maple.doneOpen.DIG', 'true');
+    render(<Board projectKey="DIG" sprint={SPRINT} selected={new Set()} onSelect={vi.fn()} onToggle={vi.fn()} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse Done column' }));
+    // then
+    expect(screen.queryByRole('button', { name: /^DIG-40/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Done column' })).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('only To Do tiles have checkboxes', async () => {

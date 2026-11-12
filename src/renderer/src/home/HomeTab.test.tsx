@@ -236,6 +236,7 @@ describe('HomeTab', () => {
     // then
     expect(await screen.findByText('Jira unreachable')).toHaveAttribute('role', 'status');
     expect(screen.queryByText('No active sprint')).not.toBeInTheDocument();
+    expect(screen.queryByText('Loading sprint…')).not.toBeInTheDocument();
   });
 
   test('Start starts the card and activates its new tab', async () => {
@@ -528,6 +529,32 @@ describe('HomeTab', () => {
     acceptSetup();
     await openBacklogCard('DIG-50');
     await userEvent.click(screen.getByRole('button', { name: 'Add to sprint' }));
+    // when
+    await userEvent.keyboard('{Escape}');
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
+
+  test('a click in the planner keeps the details open', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.click(screen.getByTestId('planner'));
+    // then
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
+
+  test('Escape with the Accept confirm open closes only the confirm', async () => {
+    // given
+    const { emit } = acceptSetup();
+    await screen.findByText('Backlog (2)');
+    await userEvent.click(screen.getByRole('button', { name: /^DIG-44/ }));
+    emit(['DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1' }));
     // when
     await userEvent.keyboard('{Escape}');
     fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));

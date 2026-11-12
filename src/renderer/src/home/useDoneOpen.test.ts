@@ -28,6 +28,21 @@ describe('useDoneOpen', () => {
     expect(renderHook(() => useDoneOpen('BEAR')).result.current.open).toBe(false);
   });
 
+  test('a second toggle closes it and saves that', () => {
+    // given
+    const { result } = renderHook(() => useDoneOpen('DIG'));
+    act(() => {
+      result.current.toggle();
+    });
+    // when
+    act(() => {
+      result.current.toggle();
+    });
+    // then
+    expect(result.current.open).toBe(false);
+    expect(localStorage.getItem('maple.doneOpen.DIG')).toBe('false');
+  });
+
   test('reads a saved open state', () => {
     // given
     localStorage.setItem('maple.doneOpen.DIG', 'true');

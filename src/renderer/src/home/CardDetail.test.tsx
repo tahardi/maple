@@ -283,4 +283,51 @@ describe('CardDetail', () => {
     // then
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  test.each(['{Enter}', 'a'])('%s does not call onClose', async (key) => {
+    // given
+    const { onClose } = renderDetail(card('DIG-41', 'To Do'), null);
+    // when
+    await userEvent.keyboard(key);
+    // then
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test('Escape after unmount does not call onClose', async () => {
+    // given
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    const { unmount } = render(
+      <CardDetail card={card('DIG-41', 'To Do')} tab={null} failure={null} busy={false} {...handlers} />,
+    );
+    unmount();
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(handlers.onClose).not.toHaveBeenCalled();
+  });
+
+  test('Escape on a hidden page does not call onClose', async () => {
+    // given
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    render(
+      <div hidden>
+        <CardDetail card={card('DIG-41', 'To Do')} tab={null} failure={null} busy={false} {...handlers} />
+      </div>,
+    );
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(handlers.onClose).not.toHaveBeenCalled();
+  });
+
+  test('an Escape another handler already took does not call onClose', () => {
+    // given
+    const { onClose } = renderDetail(card('DIG-41', 'To Do'), null);
+    const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    event.preventDefault();
+    // when
+    document.dispatchEvent(event);
+    // then
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

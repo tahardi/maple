@@ -1,6 +1,6 @@
 import type { Card } from '@shared/types/jira/card';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { EpicLozenge } from './EpicLozenge';
 import { Badge } from '@renderer/shell/blocks/Badge';
@@ -38,10 +38,11 @@ function action(card: Card, tab: TabState | null, props: Props): Action | null {
 export function CardDetail(props: Props) {
   const { card, tab, failure, busy, onClose, onAddToSprint } = props;
   const next = action(card, tab, props);
+  const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.defaultPrevented && ref.current?.closest('[hidden]') === null) {
         onClose();
       }
     };
@@ -53,6 +54,7 @@ export function CardDetail(props: Props) {
 
   return (
     <aside
+      ref={ref}
       className={styles.detail}
       onPointerDown={(e) => {
         e.stopPropagation();
