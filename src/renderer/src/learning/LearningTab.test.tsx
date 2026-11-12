@@ -1,5 +1,6 @@
 import type { TabState } from '@shared/types/tabs/tabState';
-import { render, screen, within } from '@testing-library/react';
+import type { LessonSummary } from '@shared/types/learning/lessonSummary';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
@@ -76,5 +77,32 @@ describe('LearningTab', () => {
     // then
     expect(await screen.findByText('reading lessons: no vaultDir in config')).toBeInTheDocument();
     expect(screen.queryByText(/^No lessons yet/)).not.toBeInTheDocument();
+  });
+
+  test('keeps the listed lessons and shows the error when a reload fails', async () => {
+    // given
+    const changed = { value: (): void => undefined };
+    const list = vi
+      .fn<() => Promise<LessonSummary[]>>()
+      .mockResolvedValueOnce([lesson('xss', { title: 'XSS' })])
+      .mockRejectedValueOnce(new Error('reading lessons: no vaultDir in config'));
+    fakeMaple({
+      learning: { list },
+      vault: {
+        onChanged: (cb) => {
+          changed.value = cb;
+          return vi.fn();
+        },
+      },
+    });
+    render(<LearningTab tab={learningTab} />);
+    await screen.findByRole('button', { name: 'XSS' });
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await screen.findByText('reading lessons: no vaultDir in config')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'XSS' })).toBeInTheDocument();
   });
 });

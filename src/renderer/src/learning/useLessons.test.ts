@@ -74,24 +74,43 @@ describe('useLessons', () => {
     });
   });
 
-  test('stops listening and ignores a late result after unmount', async () => {
+  test('stops listening after unmount', () => {
     // given
-    let finish: (lessons: LessonSummary[]) => void = () => undefined;
-    const list = vi.fn(
-      () =>
-        new Promise<LessonSummary[]>((resolve) => {
-          finish = resolve;
-        }),
-    );
     const unsubscribe = vi.fn();
-    fakeMaple({ learning: { list }, vault: { onChanged: () => unsubscribe } });
-    const { result, unmount } = renderHook(() => useLessons());
+    fakeMaple({ vault: { onChanged: () => unsubscribe } });
+    const { unmount } = renderHook(() => useLessons());
     // when
     unmount();
-    finish([lesson('xss')]);
-    await Promise.resolve();
     // then
     expect(unsubscribe).toHaveBeenCalledTimes(1);
-    expect(result.current.lessons).toEqual([]);
+  });
+
+  test('ignores an older list that finishes after a newer one', async () => {
+    // given
+    let finishOld: (lessons: LessonSummary[]) => void = () => undefined;
+    const list = vi
+      .fn<() => Promise<LessonSummary[]>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+      )
+      .mockResolvedValueOnce([lesson('new')]);
+    fakeMaple({ learning: { list } });
+    const { result } = renderHook(() => useLessons());
+    act(() => {
+      result.current.reload();
+    });
+    await waitFor(() => {
+      expect(result.current.lessons).toEqual([lesson('new')]);
+    });
+    // when
+    await act(async () => {
+      finishOld([lesson('old')]);
+      await Promise.resolve();
+    });
+    // then
+    expect(result.current.lessons).toEqual([lesson('new')]);
   });
 });

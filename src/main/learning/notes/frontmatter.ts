@@ -68,7 +68,7 @@ function reprint(doc: Document, fields: Record<string, unknown>): string {
 
 export function writeFrontmatter(text: string, fields: Record<string, unknown>): string {
   const { block, body } = split(text);
-  const newline = text.startsWith('---\r\n') ? '\r\n' : '\n';
+  const newline = text.includes('\r\n') ? '\r\n' : '\n';
   const edited = editBlock(block ?? '', fields).replace(/\r?\n/g, newline);
   return `---${newline}${edited}---${newline}${body}`;
 }

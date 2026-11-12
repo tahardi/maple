@@ -79,6 +79,12 @@ describe('frontmatter', () => {
       want: '---\r\nclass: xss\r\ncomfortable: true\r\nstatus: learned\r\n---\r\n# XSS\r\n',
     },
     {
+      name: 'adds a block with Windows line endings to a note that has none',
+      text: '# XSS\r\n',
+      fields: { comfortable: true },
+      want: '---\r\ncomfortable: true\r\n---\r\n# XSS\r\n',
+    },
+    {
       name: 'writes a list and a plain value together',
       text: '---\nstatus: to-learn\ngrades: []\n---\n# XSS\n',
       fields: { status: 'learned', grades: [{ date: '2026-11-12', score: 4, total: 5 }] },
