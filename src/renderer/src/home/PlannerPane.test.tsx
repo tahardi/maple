@@ -1,4 +1,3 @@
-import type { QueueState } from '@shared/types/queue/queueState';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { refinePrompt } from '@shared/prompts/refinePrompt';
 import { suggestPrompt } from '@shared/prompts/suggestPrompt';
@@ -27,22 +26,11 @@ type Options = {
   readyCount?: number;
   refineCount?: number;
   failure?: string | null;
-  queue?: QueueState;
   busy?: 'start' | 'accept' | 'acceptAndStart' | null;
 };
 
-const EMPTY_QUEUE: QueueState = { cards: [], working: 0, limit: 4, waitingFor: null, gapSeconds: 90, failure: null };
-
 function setup(
-  {
-    selected = [],
-    toAccept = [],
-    readyCount = 0,
-    refineCount = 0,
-    failure = null,
-    queue = EMPTY_QUEUE,
-    busy = null,
-  }: Options = {},
+  { selected = [], toAccept = [], readyCount = 0, refineCount = 0, failure = null, busy = null }: Options = {},
   planner: Promise<TabState> = Promise.resolve(PLANNER),
 ) {
   let emit: (keys: string[]) => void = () => undefined;
@@ -74,7 +62,6 @@ function setup(
       onAccept={onAccept}
       onAcceptAndStart={onAcceptAndStart}
       failure={failure}
-      queue={queue}
       busy={busy}
       width={40}
     />,
@@ -266,24 +253,14 @@ describe('PlannerPane', () => {
     });
   });
 
-  test('shows the start queue under the bar', async () => {
+  test('shows no start queue', async () => {
     // given
-    const queue: QueueState = {
-      cards: [{ projectKey: 'DIG', cardKey: 'DIG-45' }],
-      working: 2,
-      limit: 2,
-      waitingFor: 'room',
-      gapSeconds: 90,
-      failure: null,
-    };
+    setup();
     // when
-    setup({ queue });
+    await screen.findByTestId('claude-pane');
     // then
-    const list = await screen.findByRole('list', { name: 'Start queue' });
-    expect(within(list).getByText('DIG-45')).toBeInTheDocument();
-    expect(screen.getByText('Waiting for room: 2 of 2 working')).toBeInTheDocument();
-    const bar = screen.getByRole('group', { name: 'Batch' });
-    expect(bar.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('list', { name: 'Start queue' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/queued/)).not.toBeInTheDocument();
   });
 
   test('shows the failure outside the button groups', async () => {

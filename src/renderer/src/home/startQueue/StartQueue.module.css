@@ -1,17 +1,32 @@
 .queue {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: 0 var(--space-2) var(--space-2);
+  position: relative;
 }
 
-.list {
+.pill {
+  color: var(--text-muted);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 2px var(--space-2);
+  cursor: pointer;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: var(--z-menu);
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 320px;
   margin: 0;
-  padding: 0;
+  padding: var(--space-2);
   list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px var(--overlay);
 }
 
 .row {
@@ -20,10 +35,9 @@
   gap: var(--space-1);
 }
 
-.key {
+.card {
   flex: 1;
-}
-
-.waiting {
-  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

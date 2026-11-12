@@ -15,6 +15,7 @@ describe('CardTile', () => {
         onToggle={null}
         onStart={null}
         starting={false}
+        queued={[]}
       />,
     );
     // then
@@ -31,6 +32,7 @@ describe('CardTile', () => {
         onToggle={null}
         onStart={null}
         starting={false}
+        queued={[]}
       />,
     );
     // when
@@ -51,6 +53,7 @@ describe('CardTile', () => {
         onToggle={onToggle}
         onStart={null}
         starting={false}
+        queued={[]}
       />,
     );
     // when
@@ -73,6 +76,7 @@ describe('CardTile', () => {
         onToggle={vi.fn()}
         onStart={null}
         starting={false}
+        queued={[]}
       />,
     );
     // when
@@ -95,6 +99,7 @@ describe('CardTile', () => {
         onToggle={null}
         onStart={null}
         starting={false}
+        queued={[]}
       />,
     );
     // when
@@ -116,6 +121,7 @@ describe('CardTile', () => {
         onToggle={vi.fn()}
         onStart={onStart}
         starting={false}
+        queued={[]}
       />,
     );
     // when
@@ -136,6 +142,7 @@ describe('CardTile', () => {
         onToggle={vi.fn()}
         onStart={null}
         starting={false}
+        queued={[]}
       />,
     );
     // then
@@ -153,6 +160,7 @@ describe('CardTile', () => {
         onToggle={vi.fn()}
         onStart={vi.fn()}
         starting
+        queued={[]}
       />,
     );
     // then
@@ -160,5 +168,45 @@ describe('CardTile', () => {
     expect(start).toHaveTextContent(/^Starting…$/);
     expect(start).toBeDisabled();
     expect(start).toHaveAttribute('aria-busy', 'true');
+  });
+
+  test('a queued card shows Queued #N instead of Start and no checkbox', () => {
+    // given
+    // when
+    render(
+      <CardTile
+        card={card('DIG-44', 'To Do')}
+        selected={false}
+        onSelect={vi.fn()}
+        onToggle={null}
+        onStart={null}
+        starting={false}
+        queued={['DIG-40', 'DIG-44']}
+      />,
+    );
+    // then
+    expect(screen.getByText('Queued #2')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start DIG-44' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  test('a queued card offers move and remove controls', () => {
+    // given
+    // when
+    render(
+      <CardTile
+        card={card('DIG-44', 'To Do')}
+        selected={false}
+        onSelect={vi.fn()}
+        onToggle={null}
+        onStart={null}
+        starting={false}
+        queued={['DIG-40', 'DIG-44']}
+      />,
+    );
+    // then
+    expect(screen.getByRole('button', { name: 'Move DIG-44 up' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Move DIG-44 down' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Remove DIG-44 from the queue' })).toBeInTheDocument();
   });
 });

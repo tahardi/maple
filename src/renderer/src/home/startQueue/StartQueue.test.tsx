@@ -6,99 +6,84 @@ import { StartQueue } from './StartQueue';
 
 function queueOf(...keys: string[]): QueueState {
   return {
-    cards: keys.map((cardKey) => ({ projectKey: 'DIG', cardKey })),
-    working: 2,
-    limit: 4,
+    cards: keys.map((cardKey) => ({ projectKey: cardKey.split('-')[0] ?? '', cardKey })),
+    working: 6,
+    limit: 6,
     waitingFor: 'room',
     gapSeconds: 90,
     failure: null,
   };
 }
 
-function setup(queue: QueueState) {
-  const unqueue = vi.fn(() => Promise.resolve());
-  const moveQueued = vi.fn(() => Promise.resolve());
-  fakeMaple({ tabs: { unqueue, moveQueued } });
-  const { container } = render(<StartQueue queue={queue} />);
-  return { unqueue, moveQueued, container };
+function setup(queue: QueueState, titles: ReadonlyMap<string, string> = new Map()) {
+  fakeMaple({ tabs: { unqueue: vi.fn(() => Promise.resolve()), moveQueued: vi.fn(() => Promise.resolve()) } });
+  const { container } = render(<StartQueue queue={queue} titles={titles} />);
+  return { container };
 }
 
 describe('StartQueue', () => {
-  test('renders nothing when no card waits and nothing failed', () => {
+  test.each([
+    { name: 'nothing is queued', failure: null },
+    { name: 'nothing is queued but a start failed', failure: 'starting DIG-45: boom' },
+  ])('renders nothing when $name', ({ failure }) => {
     // given
-    const queue = { ...queueOf(), waitingFor: null };
+    const queue = { ...queueOf(), waitingFor: null, failure };
     // when
     const { container } = setup(queue);
     // then
     expect(container).toBeEmptyDOMElement();
   });
 
-  test('lists the waiting cards in order', () => {
+  test.each([
+    { waitingFor: 'room' as const, limit: 6, text: '2 queued · Waiting for room: 6 of 6 working' },
+    { waitingFor: 'cpu' as const, limit: 8, text: '2 queued · Waiting for CPU: 6 working' },
+    { waitingFor: null, limit: 8, text: '2 queued' },
+  ])('the pill reads $text', ({ waitingFor, limit, text }) => {
     // given
-    const queue = queueOf('DIG-45', 'DIG-46');
+    const queue = { ...queueOf('DIG-45', 'DIG-46'), limit, waitingFor };
     // when
     setup(queue);
     // then
-    const list = screen.getByRole('list', { name: 'Start queue' });
-    const keys = within(list)
-      .getAllByRole('listitem')
-      .map((item) => item.querySelector('span')?.textContent);
-    expect(keys).toEqual(['DIG-45', 'DIG-46']);
+    const pill = screen.getByRole('button', { name: text });
+    expect(pill).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('clicking the pill lists every queued card in order with its title when known', async () => {
+    // given
+    setup(queueOf('DIG-45', 'BEAR-7'), new Map([['DIG-45', 'Summary of DIG-45']]));
+    const pill = screen.getByRole('button', { name: /^2 queued/ });
+    // when
+    await userEvent.click(pill);
+    // then
+    expect(pill).toHaveAttribute('aria-expanded', 'true');
+    const items = within(screen.getByRole('list', { name: 'Start queue' })).getAllByRole('listitem');
+    expect(items.map((item) => item.firstElementChild?.textContent)).toEqual([
+      '#1 DIG-45 Summary of DIG-45',
+      '#2 BEAR-7',
+    ]);
+    expect(within(items[0] ?? document.body).getByRole('button', { name: 'Move DIG-45 down' })).toBeInTheDocument();
+  });
+
+  test('each listed card has move and remove controls', async () => {
+    // given
+    setup(queueOf('DIG-45', 'BEAR-7'));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /^2 queued/ }));
+    // then
+    expect(screen.getByRole('button', { name: 'Move BEAR-7 up' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove DIG-45 from the queue' })).toBeInTheDocument();
   });
 
   test.each([
-    { waitingFor: 'room' as const, limit: 6, text: 'Waiting for room: 6 of 6 working' },
-    { waitingFor: 'cpu' as const, limit: 8, text: 'Waiting for CPU: 6 working' },
-    { waitingFor: 'memory' as const, limit: 8, text: 'Waiting for memory: 6 working' },
-    { waitingFor: 'pace' as const, limit: 8, text: 'Starting one more every 90 seconds: 6 working' },
-  ])('waiting for $waitingFor shows $text', ({ waitingFor, limit, text }) => {
+    { name: 'Escape', act: () => userEvent.keyboard('{Escape}') },
+    { name: 'a click outside', act: () => userEvent.click(document.body) },
+  ])('$name closes the list', async ({ act }) => {
     // given
-    const queue = { ...queueOf('DIG-45'), working: 6, limit, waitingFor };
+    setup(queueOf('DIG-45'));
+    await userEvent.click(screen.getByRole('button', { name: /^1 queued/ }));
     // when
-    setup(queue);
+    await act();
     // then
-    expect(screen.getByText(text)).toBeInTheDocument();
-  });
-
-  test('Move up and Move down call moveQueued', async () => {
-    // given
-    const { moveQueued } = setup(queueOf('DIG-45', 'DIG-46', 'DIG-47'));
-    // when
-    await userEvent.click(screen.getByRole('button', { name: 'Move DIG-46 up' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Move DIG-46 down' }));
-    // then
-    expect(moveQueued.mock.calls).toEqual([
-      ['DIG-46', -1],
-      ['DIG-46', 1],
-    ]);
-  });
-
-  test('the first card cannot move up and the last cannot move down', () => {
-    // given
-    const queue = queueOf('DIG-45', 'DIG-46');
-    // when
-    setup(queue);
-    // then
-    expect(screen.getByRole('button', { name: 'Move DIG-45 up' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Move DIG-46 down' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Move DIG-45 down' })).toBeEnabled();
-  });
-
-  test('Remove calls unqueue', async () => {
-    // given
-    const { unqueue } = setup(queueOf('DIG-45'));
-    // when
-    await userEvent.click(screen.getByRole('button', { name: 'Remove DIG-45 from the queue' }));
-    // then
-    expect(unqueue).toHaveBeenCalledWith('DIG-45');
-  });
-
-  test('shows a failed queued start in an alert', () => {
-    // given
-    const queue = { ...queueOf(), waitingFor: null, failure: 'starting DIG-45: no worktree' };
-    // when
-    setup(queue);
-    // then
-    expect(screen.getByRole('alert')).toHaveTextContent('starting DIG-45: no worktree');
+    expect(screen.queryByRole('list', { name: 'Start queue' })).not.toBeInTheDocument();
   });
 });

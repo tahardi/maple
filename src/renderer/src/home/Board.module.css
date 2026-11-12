@@ -17,8 +17,13 @@
   font-size: var(--font-xl);
 }
 
-.header span {
+.header > span {
   color: var(--text-muted);
+}
+
+.status {
+  margin-left: auto;
+  align-self: center;
 }
 
 .columns {

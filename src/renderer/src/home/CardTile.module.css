@@ -56,8 +56,26 @@
   opacity: 0;
 }
 
+.chip {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  pointer-events: none;
+}
+
+.queueControls {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+}
+
 .selectable:hover .start,
 .selectable:focus-within .start,
+.selectable:hover .queueControls,
+.selectable:focus-within .queueControls,
 .start:has([aria-busy='true']) {
   opacity: 1;
 }

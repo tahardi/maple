@@ -2,6 +2,7 @@ import type { Card } from '@shared/types/jira/card';
 import { EpicLozenge } from './EpicLozenge';
 import { Badge } from '@renderer/shell/blocks/Badge';
 import { Button } from '@renderer/shell/blocks/Button';
+import { QueueControls } from '@renderer/home/startQueue/QueueControls';
 import styles from './CardTile.module.css';
 
 type Props = {
@@ -11,9 +12,11 @@ type Props = {
   onToggle: ((key: string) => void) | null;
   onStart: ((key: string) => void) | null;
   starting: boolean;
+  queued: readonly string[];
 };
 
-export function CardTile({ card, selected, onSelect, onToggle, onStart, starting }: Props) {
+export function CardTile({ card, selected, onSelect, onToggle, onStart, starting, queued }: Props) {
+  const place = queued.indexOf(card.key);
   const blockers = card.blockedBy.filter((b) => b.status !== 'Done').map((b) => b.key);
 
   const tile = (
@@ -39,8 +42,21 @@ export function CardTile({ card, selected, onSelect, onToggle, onStart, starting
     </button>
   );
 
-  if (onToggle === null && onStart === null) {
+  if (onToggle === null && onStart === null && place < 0) {
     return tile;
+  }
+  if (place >= 0) {
+    return (
+      <div className={styles.selectable}>
+        {tile}
+        <span className={styles.chip}>
+          <Badge tone="info">{`Queued #${String(place + 1)}`}</Badge>
+        </span>
+        <span className={styles.queueControls}>
+          <QueueControls cardKey={card.key} index={place} count={queued.length} />
+        </span>
+      </div>
+    );
   }
   return (
     <div className={styles.selectable}>

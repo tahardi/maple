@@ -1,12 +1,10 @@
 import { refinePrompt } from '@shared/prompts/refinePrompt';
 import { suggestPrompt } from '@shared/prompts/suggestPrompt';
-import type { QueueState } from '@shared/types/queue/queueState';
 import { useEffect, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './PlannerPane.module.css';
-import { StartQueue } from '@renderer/home/startQueue/StartQueue';
 
 type Props = {
   projectKey: string;
@@ -21,7 +19,6 @@ type Props = {
   onAccept: () => void;
   onAcceptAndStart: () => void;
   failure: string | null;
-  queue: QueueState;
   busy: 'start' | 'accept' | 'acceptAndStart' | null;
   width: number;
 };
@@ -39,7 +36,6 @@ export function PlannerPane({
   onAccept,
   onAcceptAndStart,
   failure,
-  queue,
   busy,
   width,
 }: Props) {
@@ -137,7 +133,6 @@ export function PlannerPane({
           )}
         </div>
       </div>
-      <StartQueue queue={queue} />
       {(nothingToStart || failure !== null) && (
         <div className={styles.status}>
           {nothingToStart && <span className={styles.nothing}>Nothing to start right now</span>}
