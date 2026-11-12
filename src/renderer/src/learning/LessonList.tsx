@@ -50,14 +50,15 @@ export function LessonList({
   return (
     <ul className={styles.list}>
       {[...lessons].sort(byStatusThenTitle).map((l) => (
-        <li key={l.path} className={styles.row} aria-current={l.path === selected ? true : undefined}>
-          <button
-            type="button"
-            className={styles.title}
-            onClick={() => {
-              onSelect(l.path);
-            }}
-          >
+        <li
+          key={l.path}
+          className={styles.row}
+          aria-current={l.path === selected ? true : undefined}
+          onClick={() => {
+            onSelect(l.path);
+          }}
+        >
+          <button type="button" className={styles.title}>
             {l.title}
           </button>
           <div className={styles.badges}>
@@ -70,7 +71,11 @@ export function LessonList({
             )}
             {l.findings > 0 && <Badge>{l.findings === 1 ? '1 finding' : `${String(l.findings)} findings`}</Badge>}
           </div>
-          <div>
+          <div
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
             <Button
               label={l.comfortable ? 'Not comfortable' : 'Mark comfortable'}
               busy={saving === l.path}

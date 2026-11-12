@@ -68,6 +68,35 @@ describe('LessonList', () => {
     expect(onSelect).toHaveBeenCalledWith('Learning/Security/xss.md');
   });
 
+  test('clicking anywhere on a row selects the note', async () => {
+    // given
+    const onSelect = vi.fn();
+    render(
+      <LessonList
+        lessons={[lesson('xss', { title: 'XSS', findings: 2 })]}
+        selected={null}
+        onSelect={onSelect}
+        onSaved={vi.fn()}
+      />,
+    );
+    // when
+    await userEvent.click(screen.getByText('2 findings'));
+    // then
+    expect(onSelect).toHaveBeenCalledWith('Learning/Security/xss.md');
+  });
+
+  test('Mark comfortable does not select the note', async () => {
+    // given
+    const onSelect = vi.fn();
+    render(
+      <LessonList lessons={[lesson('xss', { title: 'XSS' })]} selected={null} onSelect={onSelect} onSaved={vi.fn()} />,
+    );
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Mark comfortable' }));
+    // then
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   test('Mark comfortable calls setComfortable and shows Saving…', async () => {
     // given
     let finish = (): void => undefined;

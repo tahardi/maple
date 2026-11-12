@@ -12,6 +12,11 @@
   gap: var(--space-1);
   padding: var(--space-2);
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--surface-hover);
 }
 
 .row[aria-current='true'] {
