@@ -24,7 +24,7 @@ export type TabsApi = {
   onActivate(cb: (tabId: string) => void): Unsubscribe;
   startQueue(): Promise<QueueState>;
   unqueue(cardKey: string): Promise<void>;
-  moveQueued(cardKey: string, offset: -1 | 1): Promise<void>;
+  moveQueued(cardKey: string, index: number): Promise<void>;
   onQueue(cb: (state: QueueState) => void): Unsubscribe;
 };
 

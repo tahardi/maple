@@ -1,35 +1,64 @@
 import type { QueueState } from '@shared/types/queue/queueState';
-import { Notice } from '@renderer/shell/blocks/Notice';
+import { useCallback, useRef, useState } from 'react';
+import { useDismiss } from '@renderer/shell/menu/useDismiss';
 import styles from './StartQueue.module.css';
 import { waitText } from './waitText';
 
-export function StartQueue({ queue }: { queue: QueueState }) {
-  const { cards, failure } = queue;
-  const wait = waitText(queue);
-  if (cards.length === 0 && failure === null) {
+export function StartQueue({ queue, titles }: { queue: QueueState; titles: ReadonlyMap<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const [dragged, setDragged] = useState<string | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => {
+    setOpen(false);
+  }, []);
+  const { cards } = queue;
+  if (open && cards.length === 0) {
+    setOpen(false);
+  }
+  useDismiss(root, open, close);
+  if (cards.length === 0) {
     return null;
   }
+  const wait = waitText(queue);
   return (
-    <div className={styles.queue}>
-      {cards.length > 0 && (
-        <ul aria-label="Start queue" className={styles.list}>
+    <div ref={root} className={styles.queue}>
+      <button
+        className={styles.pill}
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open);
+        }}
+      >
+        {`${String(cards.length)} queued${wait === null ? '' : ` · ${wait}`}`}
+      </button>
+      {open && (
+        <ul aria-label="Start queue" className={styles.popover}>
           {cards.map(({ cardKey }, i) => (
-            <li key={cardKey} className={styles.row}>
-              <span className={styles.key}>{cardKey}</span>
-              <button
-                aria-label={`Move ${cardKey} up`}
-                disabled={i === 0}
-                onClick={() => void window.maple.tabs.moveQueued(cardKey, -1)}
-              >
-                ↑
-              </button>
-              <button
-                aria-label={`Move ${cardKey} down`}
-                disabled={i === cards.length - 1}
-                onClick={() => void window.maple.tabs.moveQueued(cardKey, 1)}
-              >
-                ↓
-              </button>
+            <li
+              key={cardKey}
+              className={styles.row}
+              draggable
+              data-dragging={dragged === cardKey ? 'true' : undefined}
+              onDragStart={() => {
+                setDragged(cardKey);
+              }}
+              onDragEnd={() => {
+                setDragged(null);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragged !== null && dragged !== cardKey) {
+                  void window.maple.tabs.moveQueued(dragged, i);
+                }
+                setDragged(null);
+              }}
+            >
+              <span className={styles.card}>
+                {[`#${String(i + 1)}`, cardKey, titles.get(cardKey)].filter(Boolean).join(' ')}
+              </span>
               <button
                 aria-label={`Remove ${cardKey} from the queue`}
                 onClick={() => void window.maple.tabs.unqueue(cardKey)}
@@ -40,8 +69,6 @@ export function StartQueue({ queue }: { queue: QueueState }) {
           ))}
         </ul>
       )}
-      {cards.length > 0 && wait !== null && <span className={styles.waiting}>{wait}</span>}
-      {failure !== null && <Notice tone="danger">{failure}</Notice>}
     </div>
   );
 }

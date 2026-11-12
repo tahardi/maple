@@ -1,3 +1,4 @@
+import type { QueueState } from '@shared/types/queue/queueState';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -881,7 +882,7 @@ describe('HomeTab', () => {
       jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
     });
     render(<HomeTab projectKey="DIG" />);
-    await screen.findByRole('list', { name: 'Start queue' });
+    await screen.findByText('Queued #1');
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Select ready (1)' }));
     // then
@@ -1423,5 +1424,145 @@ describe('HomeTab', () => {
     await openBacklogCard('DIG-50');
     // then
     expect(screen.getByRole('button', { name: 'Add to sprint' })).toBeDisabled();
+  });
+
+  test('the queue pill sits in the sprint header and lists backlog and other-project cards', async () => {
+    // given
+    const queue = {
+      cards: [
+        { projectKey: 'DIG', cardKey: 'DIG-41' },
+        { projectKey: 'DIG', cardKey: 'DIG-50' },
+        { projectKey: 'BEAR', cardKey: 'BEAR-7' },
+      ],
+      working: 4,
+      limit: 4,
+      waitingFor: 'room' as const,
+      gapSeconds: 90,
+      failure: null,
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: {
+        sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }),
+        backlog: () => Promise.resolve({ data: BACKLOG, error: null, fetchedAt: null }),
+      },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByText('Backlog (2)');
+    const pill = await within(screen.getByRole('banner')).findByRole('button', { name: /^3 queued/ });
+    // when
+    await userEvent.click(pill);
+    // then
+    const items = within(screen.getByRole('list', { name: 'Start queue' })).getAllByRole('listitem');
+    expect(items.map((item) => item.firstElementChild?.textContent)).toEqual([
+      '#1 DIG-41 Summary of DIG-41',
+      '#2 DIG-50 Summary of DIG-50',
+      '#3 BEAR-7',
+    ]);
+  });
+
+  test('a ticked card that gets queued drops out of the selection', async () => {
+    // given
+    let emit: (state: QueueState) => void = () => undefined;
+    fakeMaple({
+      tabs: {
+        onQueue: (cb: (state: QueueState) => void) => {
+          emit = cb;
+          return vi.fn();
+        },
+      },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Select DIG-41' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select DIG-42' }));
+    // when
+    act(() => {
+      emit({
+        cards: [{ projectKey: 'DIG', cardKey: 'DIG-41' }],
+        working: 4,
+        limit: 4,
+        waitingFor: 'room',
+        gapSeconds: 90,
+        failure: null,
+      });
+    });
+    // then
+    expect(screen.getByRole('button', { name: 'Start 1 selected' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Select DIG-41' })).not.toBeInTheDocument();
+  });
+
+  test('a failed queued start shows under the planner bar', async () => {
+    // given
+    const queue = {
+      cards: [],
+      working: 0,
+      limit: 4,
+      waitingFor: null,
+      gapSeconds: 90,
+      failure: 'starting DIG-41: no worktree',
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('starting DIG-41: no worktree');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getByRole('banner')).not.toContainElement(alert);
+    expect(screen.getByTestId('planner')).toContainElement(alert);
+  });
+
+  test('a queued card shows its place in the details instead of Start', async () => {
+    // given
+    const queue = {
+      cards: [{ projectKey: 'DIG', cardKey: 'DIG-41' }],
+      working: 4,
+      limit: 4,
+      waitingFor: 'room' as const,
+      gapSeconds: 90,
+      failure: null,
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByText('Queued #1');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /^DIG-41/ }));
+    // then
+    const details = screen.getByRole('complementary');
+    expect(within(details).getByText('Queued #1')).toBeInTheDocument();
+    expect(within(details).queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+  });
+
+  test('Escape closes the queue list and leaves the details open', async () => {
+    // given
+    const queue = {
+      cards: [{ projectKey: 'DIG', cardKey: 'DIG-41' }],
+      working: 4,
+      limit: 4,
+      waitingFor: 'room' as const,
+      gapSeconds: 90,
+      failure: null,
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-42/ }));
+    screen.getByRole('button', { name: /^1 queued/ }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('list', { name: 'Start queue' })).toBeInTheDocument();
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(screen.queryByRole('list', { name: 'Start queue' })).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
   });
 });

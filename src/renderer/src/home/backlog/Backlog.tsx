@@ -1,6 +1,7 @@
 import type { BacklogGroup } from '@shared/types/jira/backlogGroup';
 import { useState } from 'react';
 import { EpicLozenge } from '@renderer/home/EpicLozenge';
+import { Badge } from '@renderer/shell/blocks/Badge';
 import { SplitHandle } from '@renderer/shell/split/SplitHandle';
 import type { ColumnDrag } from '@renderer/shell/split/useColumnDrag';
 import styles from './Backlog.module.css';
@@ -8,11 +9,12 @@ import styles from './Backlog.module.css';
 type Props = {
   groups: readonly BacklogGroup[];
   highlighted?: readonly string[];
+  queued?: readonly string[];
   onSelect: (key: string) => void;
   drag: ColumnDrag;
 };
 
-export function Backlog({ groups, highlighted = [], onSelect, drag }: Props) {
+export function Backlog({ groups, highlighted = [], queued = [], onSelect, drag }: Props) {
   const [open, setOpen] = useState(false);
   const count = groups.reduce((sum, g) => sum + g.cards.length, 0);
 
@@ -55,6 +57,11 @@ export function Backlog({ groups, highlighted = [], onSelect, drag }: Props) {
                     <span className={styles.key}>{card.key}</span>
                     <span>{card.summary}</span>
                     {card.points !== null && <span className={styles.points}>{`${String(card.points)} pts`}</span>}
+                    {queued.includes(card.key) && (
+                      <span className={styles.chip}>
+                        <Badge tone="info">{`Queued #${String(queued.indexOf(card.key) + 1)}`}</Badge>
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
