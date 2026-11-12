@@ -6,6 +6,7 @@ import { useMaple } from '../store';
 import { Backlog } from '@renderer/home/backlog/Backlog';
 import { Board } from './Board';
 import { CardDetail } from './CardDetail';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './HomeTab.module.css';
 import { PlannerPane } from './PlannerPane';
 import { readyToStart } from '@renderer/home/startQueue/readyToStart';
@@ -155,11 +156,7 @@ export function HomeTab({ projectKey }: Props) {
   return (
     <div className={styles.home} data-testid="home">
       <div className={styles.main}>
-        {sprint && sprint.error !== null && (
-          <div role="status" className={styles.stale}>
-            {staleMessage(sprint.fetchedAt)}
-          </div>
-        )}
+        {sprint && sprint.error !== null && <Notice tone="warning">{staleMessage(sprint.fetchedAt)}</Notice>}
         {sprint?.data ? (
           <Board sprint={sprint.data} selected={new Set(selected)} onSelect={select} onToggle={toggle} />
         ) : (

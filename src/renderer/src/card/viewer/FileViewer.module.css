@@ -84,19 +84,6 @@
 }
 
 .message,
-.notice {
-  padding: var(--space-3);
-  color: var(--text-muted);
-}
-
-.notice {
-  color: var(--danger);
-}
-
-.notice button {
-  margin-left: var(--space-2);
-}
-
 :global(.line-add) {
   background: var(--diff-add-bg);
 }

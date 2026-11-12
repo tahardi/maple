@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './TerminalPane.module.css';
 import { TerminalView } from './TerminalView';
 import { errorText } from '@shared/errors/errorText';
@@ -140,9 +141,9 @@ export function TerminalPane({
           +
         </button>
         {tryError !== null && (
-          <span role="alert" className={styles.error}>
+          <Notice tone="danger">
             {MAKE_TRY} did not start: {tryError}
-          </span>
+          </Notice>
         )}
       </div>
       <div className={styles.views}>

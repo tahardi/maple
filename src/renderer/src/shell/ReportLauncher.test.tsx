@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
 import { ReportLauncher } from './ReportLauncher';
@@ -43,7 +43,10 @@ describe('ReportLauncher', () => {
 
   test.each([
     { name: 'Cancel', close: () => userEvent.click(screen.getByRole('button', { name: 'Cancel' })) },
-    { name: 'Escape', close: () => userEvent.keyboard('{Escape}') },
+    {
+      name: 'the cancel event (Escape)',
+      close: () => fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true })),
+    },
   ])('closing the form with $name hides it', async ({ close }) => {
     // given
     const { request } = setup();

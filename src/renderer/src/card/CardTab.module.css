@@ -64,9 +64,3 @@
   padding: var(--space-3);
   color: var(--text-muted);
 }
-
-.approveError {
-  padding: var(--space-2) var(--space-3);
-  background: var(--bg-raised);
-  color: var(--danger);
-}

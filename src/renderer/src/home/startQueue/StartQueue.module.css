@@ -27,7 +27,3 @@
 .waiting {
   color: var(--text-muted);
 }
-
-.failure {
-  color: var(--danger);
-}

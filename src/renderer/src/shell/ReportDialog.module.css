@@ -1,17 +1,9 @@
-.backdrop {
-  composes: backdrop from './ConfirmDialog.module.css';
-}
-
-.dialog {
-  composes: dialog from './ConfirmDialog.module.css';
-  width: 480px;
-}
-
 .buttons {
   composes: buttons from './ConfirmDialog.module.css';
 }
 
 .form {
+  width: 480px;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -36,9 +28,4 @@
 .note {
   margin: 0;
   color: var(--text-muted);
-}
-
-.form [role='alert'] {
-  margin: 0;
-  color: var(--danger);
 }

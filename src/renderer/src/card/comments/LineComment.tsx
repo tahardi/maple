@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import { CommentEditor } from './CommentEditor';
 import styles from './LineComment.module.css';
 import { errorText } from '@shared/errors/errorText';
@@ -32,11 +33,7 @@ export function LineComment({ tabId, path, startLine, line, headSha, onDone }: P
         className={styles.heading}
       >{`Comment on ${path}:${startLine === null ? '' : `${String(startLine)}-`}${String(line)}`}</h3>
       <CommentEditor label="Comment" value={text} onChange={setText} />
-      {error !== null && (
-        <div className={styles.error} role="alert">
-          {error}
-        </div>
-      )}
+      {error !== null && <Notice tone="danger">{error}</Notice>}
       <div className={styles.actions}>
         <button disabled={posting || text.trim() === ''} onClick={post}>
           Post

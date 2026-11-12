@@ -96,9 +96,28 @@ describe('App', () => {
     // when
     render(<App />);
     // then
-    const banner = await screen.findByRole('alert');
-    expect(banner).toHaveTextContent('reading state: state.json is unreadable');
-    expect(banner).toHaveTextContent('dropped DIG-44: project DIG is not in config');
+    const notice = await screen.findByRole('status');
+    expect(notice).toHaveAttribute('data-tone', 'warning');
+    expect(notice).toHaveTextContent('reading state: state.json is unreadable');
+    expect(notice).toHaveTextContent('dropped DIG-44: project DIG is not in config');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('shows warnings and a config error as two notices', async () => {
+    // given
+    fakeMaple({
+      app: { warnings: () => Promise.resolve(['reading state: state.json is unreadable']) },
+      config: { get: () => Promise.resolve({ data: null, error: 'reading config: bad json', fetchedAt: null }) },
+    });
+    // when
+    render(<App />);
+    // then
+    const warning = await screen.findByRole('status');
+    const danger = await screen.findByRole('alert');
+    expect(warning).toHaveAttribute('data-tone', 'warning');
+    expect(warning).toHaveTextContent('reading state: state.json is unreadable');
+    expect(danger).toHaveAttribute('data-tone', 'danger');
+    expect(danger).toHaveTextContent('reading config: bad json');
   });
 
   test('shows Home when warnings fail to load', async () => {
@@ -122,6 +141,7 @@ describe('App', () => {
     // then
     const banner = await screen.findByRole('alert');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(banner).toHaveAttribute('data-tone', 'danger');
     expect(banner).toHaveTextContent('gh is not installed');
     expect(banner).toHaveTextContent('reading config: bad json');
   });

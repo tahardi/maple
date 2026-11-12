@@ -12,7 +12,7 @@ import { CardHeader } from './CardHeader';
 import styles from './CardTab.module.css';
 import { FileTree } from '@renderer/card/viewer/tree/FileTree';
 import { FileViewer } from '@renderer/card/viewer/FileViewer';
-import { MergedNotice } from './MergedNotice';
+import { Notice } from '../shell/blocks/Notice';
 import { PrSummary } from './PrSummary';
 import { RepoBranch } from '@renderer/card/viewer/tree/RepoBranch';
 import { WorktreeMenu } from '@renderer/card/viewer/tree/WorktreeMenu';
@@ -353,12 +353,13 @@ export function CardTab({ tab }: { tab: TabState }) {
         <div className={styles.divider} onPointerDown={drag('right')} />
         <div className={styles.right} style={{ width: `${String(columns.right)}%` }} data-testid="claude-slot">
           {card?.status === 'Done' && !worktreeExists && (
-            <MergedNotice label={wontDo ? 'Closed' : 'Merged'} onClose={() => void closeTab(tab.id, false)} />
+            <Notice tone="success">
+              <span>{wontDo ? 'Closed' : 'Merged'}</span>
+              <button onClick={() => void closeTab(tab.id, false)}>Close tab</button>
+            </Notice>
           )}
           {approveError !== null && approveError.headSha === pinned?.headSha && (
-            <div className={styles.approveError} role="alert">
-              {approveError.message}
-            </div>
+            <Notice tone="danger">{approveError.message}</Notice>
           )}
           <ClaudePane tabId={tab.id} actions={actions} />
         </div>

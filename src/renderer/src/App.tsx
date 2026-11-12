@@ -3,7 +3,7 @@ import styles from './App.module.css';
 import { CardTab } from './card/CardTab';
 import { HomeTab } from './home/HomeTab';
 import { VaultTab } from './vault/VaultTab';
-import { Banner } from './shell/Banner';
+import { Notice } from './shell/blocks/Notice';
 import { QuitGuard } from './shell/QuitGuard';
 import { ReportLauncher } from './shell/ReportLauncher';
 import { TabBar } from '@renderer/shell/tabs/TabBar';
@@ -33,15 +33,28 @@ export function App() {
   const vaultTabs = tabs.filter((t) => t.kind === 'vault');
   const tabActive = [...cardTabs, ...vaultTabs].some((t) => t.id === activeTabId);
 
-  const messages = [
-    ...problems.map((p) => p.message),
-    ...warnings,
-    ...(configError === null ? [] : [configError, RELOAD_HINT]),
-  ];
+  const errors = [...problems.map((p) => p.message), ...(configError === null ? [] : [configError, RELOAD_HINT])];
 
   return (
     <div className={styles.app}>
-      {messages.length > 0 && <Banner messages={messages} />}
+      {warnings.length > 0 && (
+        <Notice tone="warning">
+          <ul>
+            {warnings.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </Notice>
+      )}
+      {errors.length > 0 && (
+        <Notice tone="danger">
+          <ul>
+            {errors.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </Notice>
+      )}
       <TabBar />
       {cardTabs.map((tab) => (
         <div key={tab.id} className={styles.slot} hidden={tab.id !== activeTabId}>

@@ -22,6 +22,7 @@ import { useLineZones } from '@renderer/card/comments/useLineZones';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
 import { NoteOverview } from './overview/NoteOverview';
 import { FileTabMenu } from '@renderer/card/viewer/tabs/FileTabMenu';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './FileViewer.module.css';
 import { errorText } from '@shared/errors/errorText';
 
@@ -530,13 +531,9 @@ export function FileViewer({
 
   const notices = (path: string, mine: Draft | null, disk: string | null) => (
     <>
-      {saveError?.path === path && (
-        <div className={styles.notice} role="alert">
-          {`Saving failed: ${saveError.message}`}
-        </div>
-      )}
+      {saveError?.path === path && <Notice tone="danger">{`Saving failed: ${saveError.message}`}</Notice>}
       {mine !== null && mine.disk !== disk && (
-        <div className={styles.notice}>
+        <Notice tone="warning">
           File changed on disk
           <button
             onClick={() => {
@@ -555,7 +552,7 @@ export function FileViewer({
           >
             Keep mine
           </button>
-        </div>
+        </Notice>
       )}
     </>
   );
@@ -607,11 +604,7 @@ export function FileViewer({
       );
     }
     if (showsNote && shownNote === null && readError?.path === activeFile) {
-      return (
-        <div className={styles.notice} role="alert">
-          {`Reading the note failed: ${readError.message}`}
-        </div>
-      );
+      return <Notice tone="danger">{`Reading the note failed: ${readError.message}`}</Notice>;
     }
     if (showsNote && markdown !== null) {
       return (
@@ -634,9 +627,7 @@ export function FileViewer({
     }
     if (shown === null) {
       return readError?.path === activeFile ? (
-        <div className={styles.notice} role="alert">
-          {`Reading the file from GitHub failed: ${readError.message}`}
-        </div>
+        <Notice tone="danger">{`Reading the file from GitHub failed: ${readError.message}`}</Notice>
       ) : null;
     }
     if (shown.kind === 'binary') {
@@ -663,16 +654,14 @@ export function FileViewer({
     const locked = shown.current === null || review !== null;
     return (
       <>
-        {shown.current === null && <div className={styles.notice}>Deleted in this branch</div>}
+        {shown.current === null && <Notice tone="info">Deleted in this branch</Notice>}
         {notices(shown.path, draft, shown.current)}
         {commentable &&
           blocked !== null &&
           refused?.path === shown.path &&
           refused.start === selected?.start &&
           refused.end === selected.end && (
-            <div className={styles.notice} role="alert">
-              {`Can't comment on ${linesLabel(refused)}. ${blocked}`}
-            </div>
+            <Notice tone="danger">{`Can't comment on ${linesLabel(refused)}. ${blocked}`}</Notice>
           )}
         <div className={styles.editor} onKeyDown={save}>
           <Editor

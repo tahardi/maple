@@ -1206,6 +1206,16 @@ describe('FileViewer', () => {
     expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'old\n');
   });
 
+  test('a file deleted in this branch shows an info notice', async () => {
+    // given
+    // when
+    renderViewer({ kind: 'text', path: 'src/old.ts', current: null, base: 'old\n' });
+    // then
+    const notice = await screen.findByRole('status');
+    expect(notice).toHaveTextContent('Deleted in this branch');
+    expect(notice).toHaveAttribute('data-tone', 'info');
+  });
+
   test('activates and closes file tabs', async () => {
     // given
     const { props } = renderViewer(changed);
@@ -2043,7 +2053,10 @@ describe('FileViewer', () => {
     current = 'three\n';
     changedCb();
     // then
-    expect(await screen.findByText('File changed on disk')).toBeInTheDocument();
+    expect((await screen.findByText('File changed on disk')).closest('[data-tone]')).toHaveAttribute(
+      'data-tone',
+      'warning',
+    );
     expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'two\n');
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Reload' }));

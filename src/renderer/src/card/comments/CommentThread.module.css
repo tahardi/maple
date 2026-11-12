@@ -36,14 +36,6 @@
   padding: var(--space-2) var(--space-3);
 }
 
-.error {
-  color: var(--danger);
-}
-
-.resolved {
-  color: var(--success);
-}
-
 .actions {
   display: flex;
   gap: var(--space-2);
