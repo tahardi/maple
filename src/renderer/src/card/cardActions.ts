@@ -12,11 +12,18 @@ type CardActionsInput = {
   review: Review | null;
   dot: Dot;
   worktreeExists: boolean;
+  approving: boolean;
   send: (text: string) => void;
   approve: () => void;
+  reloadReview: () => void;
 };
 
-function approveBlocker({ dot, pr, review }: CardActionsInput): string | null {
+const STALE_REVIEW = new Set(['Review not loaded', 'PR has new commits']);
+
+function approveBlocker({ dot, pr, review, worktreeExists }: CardActionsInput): string | null {
+  if (!worktreeExists) {
+    return 'No worktree';
+  }
   if (dot === 'working') {
     return 'Agent is working';
   }
@@ -33,17 +40,26 @@ function approveBlocker({ dot, pr, review }: CardActionsInput): string | null {
 }
 
 export function cardActions(input: CardActionsInput): PaneAction[] {
-  const { config, cardKey, pr, worktreeExists, send, approve } = input;
-  const disable = (title: string | null) =>
-    !worktreeExists ? { disabled: true, title: 'No worktree' } : title === null ? {} : { disabled: true, title };
+  const { config, cardKey, pr, worktreeExists, approving, send, approve, reloadReview } = input;
+  const reason = approveBlocker(input);
   return [
     ...config.actions.map((action) => ({
       label: action.label,
       onClick: () => {
         send(fillAction(action.prompt, { key: cardKey, pr: pr?.number ?? null }));
       },
-      ...disable(null),
+      ...(worktreeExists ? {} : { disabled: true }),
     })),
-    { label: 'Approve', onClick: approve, variant: 'primary', ...disable(approveBlocker(input)) },
+    {
+      label: 'Approve & merge',
+      onClick: approve,
+      variant: 'primary',
+      busy: approving,
+      busyLabel: 'Merging…',
+      ...(reason === null ? {} : { disabled: true, reason }),
+      ...(reason !== null && STALE_REVIEW.has(reason)
+        ? { fix: { label: 'Reload review', onClick: reloadReview } }
+        : {}),
+    },
   ];
 }

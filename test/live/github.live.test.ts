@@ -1,15 +1,24 @@
 import { describe, expect, test } from 'vitest';
 import { ghRunner } from '../../src/main/github/ghRunner';
-import { prForBranch } from '../../src/main/github/pr';
+import { batchKey, fetchPrs } from '../../src/main/github/prBatch';
 
 const run = ghRunner('tahardi/maple');
+
+async function prsFor(branch: string) {
+  const pair = { repo: 'tahardi/maple', branch };
+  const prs = (await fetchPrs(run, [pair])).get(batchKey(pair));
+  if (!Array.isArray(prs)) {
+    throw prs ?? new Error('listing PRs: no result');
+  }
+  return prs;
+}
 
 describe('github', () => {
   test('finds the merged PR for a known branch', async () => {
     // given
     const branch = 'mpl-7-typescript-standards';
     // when
-    const pr = await prForBranch(run, '', branch);
+    const pr = (await prsFor(branch)).at(0);
     // then
     expect(pr?.state).toBe('MERGED');
     expect(pr?.number).toBeGreaterThan(0);
@@ -24,12 +33,12 @@ describe('github', () => {
     expect(pr?.checks.runs.every((r) => r.bucket === 'pass' || r.bucket === 'skipping')).toBe(true);
   });
 
-  test('returns null for a branch with no PR', async () => {
+  test('returns no PRs for a branch with no PR', async () => {
     // given
     const branch = 'maple-live-test-no-such-branch';
     // when
-    const pr = await prForBranch(run, '', branch);
+    const prs = await prsFor(branch);
     // then
-    expect(pr).toBeNull();
+    expect(prs).toEqual([]);
   });
 });

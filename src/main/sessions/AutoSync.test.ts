@@ -2,10 +2,10 @@ import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { syncPrompt } from '@shared/prompts/syncPrompt';
 import type { Card } from '@shared/types/jira/card';
+import type { Fetched } from '@shared/types/app/fetched';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { TabState } from '@shared/types/tabs/tabState';
 import type { TabStatus } from '@shared/types/tabs/tabStatus';
-import type { MergeState } from '@main/github/mergeState';
 import { AutoSync, LOOKUP_TIMEOUT_MS, POLL_MS } from './AutoSync';
 import type { SessionManager } from './SessionManager';
 import { StatusEngine } from './StatusEngine';
@@ -42,15 +42,22 @@ const openPr: PrInfo = {
   cardImpacts: null,
   body: '',
   headSha: 'a'.repeat(40),
+  mergeable: 'MERGEABLE',
   checks: { passed: 2, failed: 0, pending: 0, total: 2, runs: [] },
 };
 
-const conflicting: MergeState = { mergeable: 'CONFLICTING', headSha: 'a'.repeat(40) };
+const conflicting: PrInfo = { ...openPr, mergeable: 'CONFLICTING' };
+
+const fetched = (pr: PrInfo | null): Fetched<PrInfo> => ({
+  data: pr,
+  error: null,
+  fetchedAt: '2026-11-12T00:00:00.000Z',
+});
 
 type Overrides = {
   tabs?: TabState[];
   getCard?: (key: string) => Promise<Card>;
-  prFor?: (worktree: string, projectKey: string) => Promise<PrInfo | null>;
+  prFor?: (tabId: string, worktree: string) => Promise<Fetched<PrInfo>>;
 };
 
 function setup(overrides: Overrides = {}) {
@@ -61,7 +68,7 @@ function setup(overrides: Overrides = {}) {
     sendPrompt: vi.fn(),
   });
   const getCard = vi.fn(overrides.getCard ?? ((key: string) => Promise.resolve(card(key))));
-  const prFor = vi.fn(overrides.prFor ?? (() => Promise.resolve(openPr)));
+  const prFor = vi.fn(overrides.prFor ?? (() => Promise.resolve(fetched(openPr))));
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const status = new StatusEngine({
     sessions: sessions as unknown as SessionManager,
@@ -70,13 +77,15 @@ function setup(overrides: Overrides = {}) {
     waitLimitMs: () => 60_000,
     logger,
   });
-  const states: Record<string, MergeState | null> = {};
-  const mergeState = vi.fn((worktree: string) => Promise.resolve(worktree in states ? states[worktree] : conflicting));
+  const states: Record<string, PrInfo | null> = {};
+  const pr = vi.fn((_tabId: string, worktree: string) =>
+    Promise.resolve(fetched(worktree in states ? states[worktree] : conflicting)),
+  );
   const auto = new AutoSync({
     sessions: sessions as unknown as SessionManager,
     status,
     getCard,
-    mergeState,
+    pr,
     logger,
   });
   const emitted: TabStatus[] = [];
@@ -101,7 +110,7 @@ function setup(overrides: Overrides = {}) {
     status.hook({ tabId, event: 'UserPromptSubmit', notificationType: null });
     await stop(tabId);
   };
-  return { sessions, status, auto, states, mergeState, logger, emitted, syncOf, activate, stop, syncTurn };
+  return { sessions, status, auto, states, pr, logger, emitted, syncOf, activate, stop, syncTurn };
 }
 
 describe('AutoSync', () => {
@@ -115,12 +124,12 @@ describe('AutoSync', () => {
 
   test('a hidden tab is never checked', async () => {
     // given
-    const { auto, sessions, mergeState, stop } = setup();
+    const { auto, sessions, pr, stop } = setup();
     await stop('t1');
     // when
     await auto.check();
     // then
-    expect(mergeState).not.toHaveBeenCalled();
+    expect(pr).not.toHaveBeenCalled();
     expect(sessions.sendPrompt).not.toHaveBeenCalled();
   });
 
@@ -188,6 +197,21 @@ describe('AutoSync', () => {
     expect(syncOf('t1')).toBeNull();
   });
 
+  test.each([{ state: 'MERGED' as const }, { state: 'CLOSED' as const }])(
+    'a $state PR that conflicts is never prompted',
+    async ({ state }) => {
+      // given
+      const { sessions, states, syncOf, activate, stop } = setup();
+      states['/wts/dig-44'] = { ...conflicting, state };
+      await stop('t1');
+      // when
+      await activate('t1');
+      // then
+      expect(sessions.sendPrompt).not.toHaveBeenCalled();
+      expect(syncOf('t1')).toBeNull();
+    },
+  );
+
   test('a multi-repo card names only the worktrees that conflict', async () => {
     // given
     const tab = { ...cardTab('t1', 'DIG-44', null), worktreePaths: ['/wts/a', '/wts/b'] };
@@ -243,7 +267,7 @@ describe('AutoSync', () => {
 
   test('switching away stops the checks', async () => {
     // given
-    const { auto, mergeState, activate } = setup();
+    const { auto, pr, activate } = setup();
     await activate('t1');
     const stopPolling = auto.start();
     // when
@@ -251,45 +275,62 @@ describe('AutoSync', () => {
     await vi.advanceTimersByTimeAsync(POLL_MS);
     stopPolling();
     // then
-    expect(mergeState).toHaveBeenCalledTimes(1);
+    expect(pr).toHaveBeenCalledTimes(1);
   });
 
-  test('a failed merge state lookup warns and checks the other worktrees', async () => {
+  test('a failed PR poll warns and checks the other worktrees', async () => {
     // given
     const tab = { ...cardTab('t1', 'DIG-44', null), worktreePaths: ['/wts/a', '/wts/b'] };
-    const { sessions, mergeState, logger, activate, stop } = setup({ tabs: [tab] });
-    mergeState.mockImplementationOnce(() => Promise.reject(new Error('boom')));
+    const { sessions, pr, logger, activate, stop } = setup({ tabs: [tab] });
+    pr.mockImplementationOnce(() => Promise.resolve({ data: null, error: 'listing PRs: down', fetchedAt: null }));
     await stop('t1');
     // when
     await activate('t1');
     // then
     expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
-      operation: 'mergeState',
+      operation: 'pr',
       worktree: '/wts/a',
-      error: 'boom',
+      error: 'listing PRs: down',
     });
     expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44', ['/wts/b']));
   });
 
+  test('a failed PR poll that still holds a conflicting PR warns and sends nothing', async () => {
+    // given
+    const { sessions, pr, logger, syncOf, activate, stop } = setup();
+    pr.mockResolvedValue({ data: conflicting, error: 'listing PRs: down', fetchedAt: null });
+    await stop('t1');
+    // when
+    await activate('t1');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
+      operation: 'pr',
+      worktree: '/wts/dig-44',
+      error: 'listing PRs: down',
+    });
+    expect(sessions.sendPrompt).not.toHaveBeenCalled();
+    expect(syncOf('t1')).toBeNull();
+  });
+
   test('start checks the active tab every 2 minutes until stopped', async () => {
     // given
-    const { auto, mergeState, activate } = setup();
+    const { auto, pr, activate } = setup();
     await activate('t1');
     // when
     const stopPolling = auto.start();
     await vi.advanceTimersByTimeAsync(0);
-    const first = mergeState.mock.calls.length;
+    const first = pr.mock.calls.length;
     await vi.advanceTimersByTimeAsync(POLL_MS);
-    const second = mergeState.mock.calls.length;
+    const second = pr.mock.calls.length;
     stopPolling();
     await vi.advanceTimersByTimeAsync(POLL_MS);
     // then
-    expect([first, second, mergeState.mock.calls.length]).toEqual([1, 2, 2]);
+    expect([first, second, pr.mock.calls.length]).toEqual([1, 2, 2]);
   });
 
   test('a failed card lookup warns and sends nothing', async () => {
     // given
-    const { sessions, mergeState, logger, activate, stop } = setup({
+    const { sessions, pr, logger, activate, stop } = setup({
       getCard: () => Promise.reject(new Error('boom')),
     });
     await stop('t1');
@@ -301,25 +342,25 @@ describe('AutoSync', () => {
       card: 'DIG-44',
       error: 'boom',
     });
-    expect(mergeState).not.toHaveBeenCalled();
+    expect(pr).not.toHaveBeenCalled();
     expect(sessions.sendPrompt).not.toHaveBeenCalled();
   });
 
-  test('a merge state lookup that never settles times out and later checks still run', async () => {
+  test('a PR read that never settles times out and later checks still run', async () => {
     // given
-    const { auto, mergeState, logger, activate } = setup();
-    mergeState.mockImplementationOnce(() => new Promise(() => undefined));
+    const { auto, pr, logger, activate } = setup();
+    pr.mockImplementationOnce(() => new Promise(() => undefined));
     await activate('t1');
     // when
     await vi.advanceTimersByTimeAsync(LOOKUP_TIMEOUT_MS);
     await auto.check();
     // then
     expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
-      operation: 'mergeState',
+      operation: 'pr',
       worktree: '/wts/dig-44',
       error: `timing out after ${String(LOOKUP_TIMEOUT_MS / 1000)}s`,
     });
-    expect(mergeState).toHaveBeenCalledTimes(2);
+    expect(pr).toHaveBeenCalledTimes(2);
   });
 
   test('a second conflict found while queued is added to the prompt', async () => {
@@ -404,13 +445,13 @@ describe('AutoSync', () => {
 
   test('a check that starts while another runs does nothing', async () => {
     // given
-    const { auto, mergeState, activate } = setup();
+    const { auto, pr, activate } = setup();
     let release: () => void = () => undefined;
-    mergeState.mockImplementation(
+    pr.mockImplementation(
       () =>
         new Promise((resolve) => {
           release = () => {
-            resolve(conflicting);
+            resolve(fetched(conflicting));
           };
         }),
     );
@@ -418,24 +459,24 @@ describe('AutoSync', () => {
     // when
     await auto.check();
     // then
-    expect(mergeState).toHaveBeenCalledTimes(1);
+    expect(pr).toHaveBeenCalledTimes(1);
     release();
     await vi.advanceTimersByTimeAsync(0);
   });
 
   test('switching tabs during a check checks the new tab and never the hidden one', async () => {
     // given
-    const { sessions, mergeState, activate, stop } = setup({
+    const { sessions, pr, activate, stop } = setup({
       tabs: [cardTab('t1', 'DIG-44', '/wts/dig-44'), cardTab('t2', 'DIG-45', '/wts/dig-45')],
     });
     await stop('t1');
     await stop('t2');
     let release: () => void = () => undefined;
-    mergeState.mockImplementationOnce(
+    pr.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           release = () => {
-            resolve(conflicting);
+            resolve(fetched(conflicting));
           };
         }),
     );
@@ -522,7 +563,7 @@ describe('AutoSync', () => {
   test('a waiting tab with failed checks is sent the prompt', async () => {
     // given
     const failing = { ...openPr, checks: { ...openPr.checks, failed: 1 } };
-    const { sessions, status, activate, stop } = setup({ prFor: () => Promise.resolve(failing) });
+    const { sessions, status, activate, stop } = setup({ prFor: () => Promise.resolve(fetched(failing)) });
     await stop('t1');
     // when
     await activate('t1');

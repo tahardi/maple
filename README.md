@@ -15,6 +15,8 @@ make pre-pr  # install dependencies, then run format, lint, typecheck, and test-
 make format  # check formatting (npm run format fixes it)
 make lint
 make typecheck
+make audit  # fail on high or critical npm advisories
+make package  # build Maple and package it into dist/linux-unpacked
 make test-unit  # run the unit tests, except the socket tests
 make test-socket  # run the tests that open Unix sockets, which sandboxed runs cannot do
 make test-e2e  # build the app and run the Playwright smoke test (needs a display and tmux, so not in the sandbox)

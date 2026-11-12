@@ -1,8 +1,8 @@
 import type { z } from 'zod';
 import { prRepo } from '@shared/github/prRepo';
-import { tabWorktrees } from '@shared/worktree/tabWorktrees';
 import { eventSchemas } from '@shared/types/events/eventSchemas';
 import type { EventRecord } from '@shared/types/events/eventRecord';
+import type { Fetched } from '@shared/types/app/fetched';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Card } from '@shared/types/jira/card';
 import type { JiraStatus } from '@shared/types/jira/jiraStatus';
@@ -150,16 +150,16 @@ export class PrEvents {
   }
 
   tapPr(
-    prFor: (worktree: string, projectKey: string) => Promise<PrInfo | null>,
+    prFor: (tabId: string, worktree: string) => Promise<Fetched<PrInfo>>,
     tabs: () => readonly TabState[],
-  ): (worktree: string, projectKey: string) => Promise<PrInfo | null> {
-    return async (worktree, projectKey) => {
-      const pr = await prFor(worktree, projectKey);
-      const tab = tabs().find((t) => tabWorktrees(t).includes(worktree));
-      if (tab) {
-        void this.pr(tab, pr);
+  ): (tabId: string, worktree: string) => Promise<Fetched<PrInfo>> {
+    return async (tabId, worktree) => {
+      const fetched = await prFor(tabId, worktree);
+      const tab = tabs().find((t) => t.id === tabId);
+      if (tab && fetched.error === null) {
+        void this.pr(tab, fetched.data);
       }
-      return pr;
+      return fetched;
     };
   }
 

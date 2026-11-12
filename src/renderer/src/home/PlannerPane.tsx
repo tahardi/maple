@@ -3,6 +3,7 @@ import { suggestPrompt } from '@shared/prompts/suggestPrompt';
 import type { QueueState } from '@shared/types/queue/queueState';
 import { useEffect, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
+import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './PlannerPane.module.css';
 import { StartQueue } from '@renderer/home/startQueue/StartQueue';
@@ -21,6 +22,7 @@ type Props = {
   onAcceptAndStart: () => void;
   failure: string | null;
   queue: QueueState;
+  busy: 'start' | 'accept' | 'acceptAndStart' | null;
   width: number;
 };
 
@@ -38,6 +40,7 @@ export function PlannerPane({
   onAcceptAndStart,
   failure,
   queue,
+  busy,
   width,
 }: Props) {
   const [tabId, setTabId] = useState<string | null>(null);
@@ -80,6 +83,7 @@ export function PlannerPane({
     window.maple.session.sendPrompt(tabId, refinePrompt(projectKey));
   };
 
+  const running = busy !== null;
   const nothingToStart = answered && selected.length === 0 && toAccept.length === 0;
 
   return (
@@ -94,19 +98,41 @@ export function PlannerPane({
           </button>
         </div>
         <div role="group" aria-label="Batch" className={styles.group}>
-          <button onClick={onSelectReady} disabled={readyCount === 0}>{`Select ready (${String(readyCount)})`}</button>
+          <button onClick={onSelectReady} disabled={readyCount === 0 || running}>
+            {`Select ready (${String(readyCount)})`}
+          </button>
           {selected.length > 0 && (
             <>
-              <button data-variant="primary" onClick={onStart}>{`Start (${String(selected.length)})`}</button>
-              <button onClick={onClear}>Clear</button>
+              <Button
+                label={`Start (${String(selected.length)})`}
+                variant="primary"
+                onClick={onStart}
+                disabled={running}
+                busy={busy === 'start'}
+                busyLabel="Starting…"
+              />
+              <button onClick={onClear} disabled={running}>
+                Clear
+              </button>
             </>
           )}
           {toAccept.length > 0 && (
             <>
-              <button onClick={onAccept}>{`Accept ${String(toAccept.length)}`}</button>
-              <button data-variant="primary" onClick={onAcceptAndStart}>
-                {`Accept ${String(toAccept.length)} and start all`}
-              </button>
+              <Button
+                label={`Accept ${String(toAccept.length)}`}
+                onClick={onAccept}
+                disabled={running}
+                busy={busy === 'accept'}
+                busyLabel="Moving…"
+              />
+              <Button
+                label={`Accept ${String(toAccept.length)} and start all`}
+                variant="primary"
+                onClick={onAcceptAndStart}
+                disabled={running}
+                busy={busy === 'acceptAndStart'}
+                busyLabel="Starting…"
+              />
             </>
           )}
         </div>

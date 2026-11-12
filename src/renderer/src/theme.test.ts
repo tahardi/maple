@@ -444,6 +444,18 @@ describe('theme', () => {
     expect(theme.indexOf(':where(button:disabled)')).toBeGreaterThan(lastOverride);
   });
 
+  test('a busy button shows a progress cursor after the disabled style', () => {
+    // given
+    const css = theme;
+
+    // when
+    const busy = /:where\(button\[aria-busy='true'\]\)\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+
+    // then
+    expect(busy).toMatch(/cursor:\s*progress/);
+    expect(css.indexOf(":where(button[aria-busy='true'])")).toBeGreaterThan(css.indexOf(':where(button:disabled)'));
+  });
+
   test('main.tsx imports the theme', () => {
     // given
     const source = entry['./main.tsx'] ?? '';

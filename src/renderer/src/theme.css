@@ -113,6 +113,10 @@ body {
   cursor: default;
 }
 
+:where(button[aria-busy='true']) {
+  cursor: progress;
+}
+
 :where([data-variant='segmented']) {
   display: flex;
 }

@@ -12,7 +12,10 @@ export type PaneAction = {
   label: string;
   onClick: () => void;
   disabled?: boolean;
-  title?: string;
+  reason?: string;
+  fix?: { label: string; onClick: () => void };
+  busy?: boolean;
+  busyLabel?: string;
   variant?: 'primary' | 'danger';
 };
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { Badge } from '@renderer/shell/blocks/Badge';
+import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { CommentEditor } from './CommentEditor';
 import styles from './CommentThread.module.css';
@@ -21,35 +22,36 @@ function label(thread: Thread): string {
 
 export function CommentThread({ tabId, thread, onPosted }: Props) {
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<'reply' | 'resolve' | 'unresolve' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
   const [posts, setPosts] = useState(0);
 
-  const send = (request: Promise<void>, onDone: () => void) => {
-    setBusy(true);
+  const send = (kind: 'reply' | 'resolve' | 'unresolve', request: Promise<void>, onDone: () => void) => {
+    setPending(kind);
     setError(null);
     request.then(
       () => {
-        setBusy(false);
+        setPending(null);
         onDone();
         onPosted();
       },
       (err: unknown) => {
         setError(errorText(err));
-        setBusy(false);
+        setPending(null);
       },
     );
   };
 
   const post = () => {
-    send(window.maple.pr.reply(tabId, thread.id, text), () => {
+    send('reply', window.maple.pr.reply(tabId, thread.id, text), () => {
       setText('');
       setPosts(posts + 1);
     });
   };
 
   const { threadId } = thread;
+  const busy = pending !== null;
   const open = !thread.resolved;
 
   return (
@@ -81,18 +83,23 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
           <CommentEditor key={posts} label="Reply" value={text} onChange={setText} />
           {error !== null && <Notice tone="danger">{error}</Notice>}
           <div className={styles.actions}>
-            <button disabled={busy || text.trim() === ''} onClick={post}>
-              Post
-            </button>
+            <Button
+              label="Post"
+              disabled={busy || text.trim() === ''}
+              busy={pending === 'reply'}
+              busyLabel="Posting…"
+              onClick={post}
+            />
             {threadId !== null && (
-              <button
+              <Button
+                label="Resolve"
                 disabled={busy}
+                busy={pending === 'resolve'}
+                busyLabel="Resolving…"
                 onClick={() => {
-                  send(window.maple.pr.resolve(tabId, threadId, true), () => undefined);
+                  send('resolve', window.maple.pr.resolve(tabId, threadId, true), () => undefined);
                 }}
-              >
-                Resolve
-              </button>
+              />
             )}
           </div>
         </div>
@@ -101,14 +108,15 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
         <div className={styles.reply}>
           {error !== null && <Notice tone="danger">{error}</Notice>}
           <div className={styles.actions}>
-            <button
+            <Button
+              label="Unresolve"
               disabled={busy}
+              busy={pending === 'unresolve'}
+              busyLabel="Unresolving…"
               onClick={() => {
-                send(window.maple.pr.resolve(tabId, threadId, false), () => undefined);
+                send('unresolve', window.maple.pr.resolve(tabId, threadId, false), () => undefined);
               }}
-            >
-              Unresolve
-            </button>
+            />
           </div>
         </div>
       )}

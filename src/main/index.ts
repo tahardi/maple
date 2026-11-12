@@ -21,9 +21,6 @@ import { defaultRunner } from '@main/app/preflight';
 import { writeHooksFile } from '@main/sessions/hooks/hooksFile';
 import { findWorktrees } from '@main/git/findWorktrees';
 import { currentBranch, headSha } from '@main/git/repoIdentity';
-import { projectRunner } from '@main/github/ghRunner';
-import { prForBranch } from '@main/github/pr';
-import { openPrMergeState } from '@main/github/mergeState';
 import { PrPoller } from '@main/github/PrPoller';
 import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/app/config/configCache';
@@ -31,7 +28,8 @@ import { closeNeedsConfirm } from '@main/sessions/closeNeedsConfirm';
 import { recordActions } from '@main/ipc/validated';
 import { JiraClient } from '@main/jira/JiraClient';
 import { jiraEnvPath, readCreds } from '@main/jira/readCreds';
-import { appLogger, startLogging } from '@main/app/log/log';
+import { appLogger, setLogSecrets, startLogging } from '@main/app/log/log';
+import { readBuildInfo } from '@main/app/buildInfo';
 import { logUncaught } from '@main/app/log/logUncaught';
 import { askDeleteToday } from '@main/events/askDeleteToday';
 import { eventLog, startEventLog } from '@main/events/eventLog';
@@ -104,6 +102,8 @@ function createWindow(zoom: Zoom): Promise<void> {
 
 async function start(): Promise<Zoom> {
   startLogging(!app.isPackaged);
+  const build = await readBuildInfo(import.meta.dirname);
+  appLogger.info('app', 'started', { version: app.getVersion(), sha: build.sha, built: build.date });
   logUncaught();
   process.on('uncaughtException', (err) => {
     dialog.showErrorBox('A JavaScript error occurred in the main process', err.stack ?? err.message);
@@ -119,6 +119,12 @@ async function start(): Promise<Zoom> {
   const tmuxConf = await writeTmuxConf(configDir());
   const socketPath = hookSocketPath();
   const creds = readCreds(jiraEnvPath());
+  void creds.then(
+    (c) => {
+      setLogSecrets([c.token, Buffer.from(`${c.email}:${c.token}`).toString('base64')]);
+    },
+    () => undefined,
+  );
   const jiraEnv = await creds.then(
     (c): Record<string, string> => ({ JIRA_SITE: c.site, JIRA_EMAIL: c.email, JIRA_TOKEN: c.token }),
     () => ({}),
@@ -154,14 +160,19 @@ async function start(): Promise<Zoom> {
   const jira = creds.then((c) => new JiraClient(c));
   jira.catch(() => undefined);
   const getCard = async (key: string) => (await jira).getCard(key);
-  const prFor = async (worktree: string, projectKey: string) => {
-    const branch = await currentBranch(worktree);
-    return prForBranch(await projectRunner(projectByKey, projectKey, branch, worktree), worktree, branch);
-  };
+  const prPoller = new PrPoller({
+    tabs: () => sessions.list(),
+    project: projectByKey,
+    branch: currentBranch,
+    run: defaultRunner,
+  });
   const status = new StatusEngine({
     sessions,
     getCard: prEvents.tapCard(getCard, () => sessions.list()),
-    prFor: prEvents.tapPr(prFor, () => sessions.list()),
+    prFor: prEvents.tapPr(
+      (tabId, worktree) => prPoller.fresh(tabId, worktree),
+      () => sessions.list(),
+    ),
     waitLimitMs: () => (config?.backgroundWaitMinutes ?? DEFAULT_WAIT_MINUTES) * 60_000,
   });
   const startQueue = new StartQueue({
@@ -189,18 +200,9 @@ async function start(): Promise<Zoom> {
     sessions,
     status,
     getCard,
-    mergeState: async (worktree, projectKey) => {
-      const branch = await currentBranch(worktree);
-      return openPrMergeState(await projectRunner(projectByKey, projectKey, branch, worktree), worktree, branch);
-    },
+    pr: (tabId, worktree) => prPoller.latest(tabId, worktree),
   });
   const stopAutoSync = autoSync.start();
-  const prPoller = new PrPoller({
-    tabs: () => sessions.list(),
-    project: projectByKey,
-    branch: currentBranch,
-    run: defaultRunner,
-  });
   const stopPrPoller = prPoller.start();
   status.on('status', (s, prev) => {
     prPoller.dotChanged(s.dot, prev);

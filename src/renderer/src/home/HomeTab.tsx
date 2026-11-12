@@ -67,6 +67,8 @@ export function HomeTab({ projectKey }: Props) {
   const [confirming, setConfirming] = useState<'accept' | 'acceptAndStart' | null>(null);
   const [moveFailure, setMoveFailure] = useState<string | null>(null);
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
+  const [busyKeys, setBusyKeys] = useState<ReadonlySet<string>>(new Set());
+  const [batch, setBatch] = useState<'start' | 'accept' | 'acceptAndStart' | null>(null);
   const backlogCards = backlog?.data?.flatMap((g) => g.cards) ?? [];
   const backlogToDo = backlogCards.filter((c) => c.status === 'To Do');
   const accepting = backlogToDo.filter((c) => suggested.includes(c.key));
@@ -95,7 +97,19 @@ export function HomeTab({ projectKey }: Props) {
     setDetailKey(key);
     setFailure(null);
   };
-  const run = (action: Promise<TabState | null>) => {
+  const markBusy = (key: string, busy: boolean) => {
+    setBusyKeys((now) => {
+      const next = new Set(now);
+      if (busy) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  };
+  const run = (key: string, action: Promise<TabState | null>) => {
+    markBusy(key, true);
     action
       .then((tab) => {
         setFailure(null);
@@ -105,6 +119,9 @@ export function HomeTab({ projectKey }: Props) {
       })
       .catch((err: unknown) => {
         setFailure(errorText(err));
+      })
+      .finally(() => {
+        markBusy(key, false);
       });
   };
   const toggle = (key: string) => {
@@ -190,11 +207,12 @@ export function HomeTab({ projectKey }: Props) {
           card={card}
           tab={tabFor(card.key)}
           failure={failure}
+          busy={busyKeys.has(card.key)}
           onStart={() => {
-            run(window.maple.tabs.startCard(projectKey, card.key));
+            run(card.key, window.maple.tabs.startCard(projectKey, card.key));
           }}
           onOpen={() => {
-            run(window.maple.tabs.openCard(projectKey, card.key));
+            run(card.key, window.maple.tabs.openCard(projectKey, card.key));
           }}
           onGoTo={() => {
             const tab = tabFor(card.key);
@@ -219,7 +237,12 @@ export function HomeTab({ projectKey }: Props) {
         onSelectReady={() => {
           setPicked(ready.every((key) => selected.includes(key)) ? [] : [...new Set([...selected, ...ready])]);
         }}
-        onStart={() => void start(selected)}
+        onStart={() => {
+          setBatch('start');
+          void start(selected).finally(() => {
+            setBatch(null);
+          });
+        }}
         onClear={() => {
           setPicked([]);
           setStartFailure(null);
@@ -234,13 +257,19 @@ export function HomeTab({ projectKey }: Props) {
         }}
         failure={moveFailure ?? startFailure}
         queue={queue}
+        busy={batch}
       />
       {confirming && (
         <ConfirmDialog
           title={confirming === 'accept' ? 'Accept cards' : 'Accept and start cards'}
           body={`Move into ${sprint?.data?.name ?? 'the sprint'}: ${accepting.map((c) => `${c.key} ${c.summary}`).join('; ')}`}
           confirmLabel={confirming === 'accept' ? 'Move to sprint' : 'Move and start'}
-          onConfirm={() => void accept(confirming === 'acceptAndStart')}
+          onConfirm={() => {
+            setBatch(confirming);
+            void accept(confirming === 'acceptAndStart').finally(() => {
+              setBatch(null);
+            });
+          }}
           onCancel={() => {
             setConfirming(null);
           }}
@@ -251,7 +280,13 @@ export function HomeTab({ projectKey }: Props) {
           title="Add to sprint"
           body={addBody(confirmCard, activeSprint.name)}
           confirmLabel="Move to sprint"
-          onConfirm={() => void addToSprint(confirmCard.key, activeSprint.id)}
+          onConfirm={() => {
+            const key = confirmCard.key;
+            markBusy(key, true);
+            void addToSprint(key, activeSprint.id).finally(() => {
+              markBusy(key, false);
+            });
+          }}
           onCancel={() => {
             setConfirmKey(null);
           }}

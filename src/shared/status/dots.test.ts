@@ -15,6 +15,7 @@ const pr = (state: PrInfo['state'], failed: number): PrInfo => ({
   cardImpacts: null,
   body: '',
   headSha: 'a'.repeat(40),
+  mergeable: 'MERGEABLE',
   checks: { passed: 3 - failed, failed, pending: 0, total: 3, runs: [] },
 });
 

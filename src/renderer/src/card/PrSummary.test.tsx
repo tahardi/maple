@@ -16,6 +16,7 @@ const info: PrInfo = {
   cardImpacts: '- MPL-21: rename foo to bar',
   body: '',
   headSha: '0123456789abcdef0123456789abcdef01234567',
+  mergeable: 'MERGEABLE',
   checks: { passed: 5, failed: 0, pending: 0, total: 5, runs: [] },
 };
 

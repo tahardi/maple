@@ -16,6 +16,7 @@ function node(repo: string, pr: Pr) {
     state: pr.state,
     body: '',
     isCrossRepository: false,
+    mergeable: 'MERGEABLE',
     headRefName: 'x',
     headRefOid: 'a'.repeat(40),
     statusCheckRollup: null,
@@ -424,6 +425,107 @@ describe('PrPoller', () => {
     // when
     const result = await prs.latest('1', '/a');
     // then
+    expect(result.data?.number).toBe(5);
+  });
+
+  test('fresh waits for a poll that starts after the call', async () => {
+    // given
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 2, state: 'OPEN' }] });
+    let release: () => void = () => undefined;
+    const first = github({ 'tahardi/maple@b/a': [{ number: 1, state: 'OPEN' }] }).run;
+    run.mockImplementationOnce(
+      (cmd, args) =>
+        new Promise((resolve) => {
+          release = () => {
+            resolve(first(cmd, args));
+          };
+        }),
+    );
+    const prs = poller(() => [tab('1', ['/a'])], run);
+    const running = prs.poll();
+    await vi.advanceTimersByTimeAsync(0);
+    // when
+    const result = prs.fresh('1', '/a');
+    release();
+    await running;
+    // then
+    expect((await result).data?.number).toBe(2);
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  test('fresh shares a poll that has not sent its query yet', async () => {
+    // given
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 5, state: 'OPEN' }] });
+    const prs = poller(() => [tab('1', ['/a', '/b'])], run);
+    // when
+    const [a, b] = await Promise.all([prs.fresh('1', '/a'), prs.fresh('1', '/b')]);
+    // then
+    expect(a.data?.number).toBe(5);
+    expect(b.data).toBeNull();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  test('fresh calls made after a poll sent its query share one more poll', async () => {
+    // given
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 5, state: 'OPEN' }] });
+    let release: () => void = () => undefined;
+    const answer = run.getMockImplementation() ?? run;
+    run.mockImplementationOnce(
+      (cmd, args) =>
+        new Promise((resolve) => {
+          release = () => {
+            resolve(answer(cmd, args));
+          };
+        }),
+    );
+    const prs = poller(() => [tab('1', ['/a', '/b'])], run);
+    const running = prs.poll();
+    await vi.advanceTimersByTimeAsync(0);
+    // when
+    const both = Promise.all([prs.fresh('1', '/a'), prs.fresh('1', '/b')]);
+    release();
+    await running;
+    const [a, b] = await both;
+    // then
+    expect(a.data?.number).toBe(5);
+    expect(b.data).toBeNull();
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  test('fresh does not wait for a poll someone else queued after it', async () => {
+    // given
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 5, state: 'OPEN' }] });
+    let release: () => void = () => undefined;
+    const answer = run.getMockImplementation() ?? run;
+    run.mockImplementationOnce(
+      (cmd, args) =>
+        new Promise((resolve) => {
+          release = () => {
+            resolve(answer(cmd, args));
+          };
+        }),
+    );
+    const prs = poller(() => [tab('1', ['/a'])], run);
+    const result = prs.fresh('1', '/a');
+    await vi.advanceTimersByTimeAsync(0);
+    run.mockImplementation(() => new Promise(() => undefined));
+    prs.refresh();
+    // when
+    release();
+    // then
+    expect((await result).data?.number).toBe(5);
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  test('fresh starts a poll when none is running', async () => {
+    // given
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 5, state: 'OPEN' }] });
+    const prs = poller(() => [tab('1', ['/a'])], run);
+    await prs.poll();
+    // when
+    const result = await prs.fresh('1', '/a');
+    // then
+    expect(run).toHaveBeenCalledTimes(2);
     expect(result.data?.number).toBe(5);
   });
 

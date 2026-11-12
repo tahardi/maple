@@ -21,6 +21,7 @@ import { linesLabel, selectedLines, type Lines } from '@renderer/card/viewer/edi
 import { useDiffMode } from '@renderer/card/viewer/editor/useDiffMode';
 import { useLineMarks } from '@renderer/card/viewer/editor/useLineMarks';
 import { baseName } from '@renderer/card/viewer/tabs/baseName';
+import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { useMaple } from '@renderer/store';
 import styles from '../FileViewer.module.css';
@@ -30,7 +31,7 @@ const NO_DRAFTS: Record<string, Draft> = {};
 
 const OUTSIDE_DIFF = 'GitHub only accepts comments on lines in the PR diff';
 
-const NO_REVIEW = 'Review not loaded: click Reload review to pin comments to the reviewed commit';
+const NO_REVIEW = 'Review not loaded';
 
 const NO_SELECTION = 'Select lines to comment on';
 
@@ -52,6 +53,7 @@ export function CodeView({
   diff,
   onCommentsChanged,
   onPin,
+  onReloadReview,
   toolbar,
 }: {
   tabId: string;
@@ -63,6 +65,7 @@ export function CodeView({
   diff: ({ headSha: string } & DiffLines) | null;
   onCommentsChanged: () => void;
   onPin?: (path: string) => void;
+  onReloadReview?: () => void;
   toolbar: HTMLElement | null;
 }) {
   const monaco = useMonaco();
@@ -281,9 +284,16 @@ export function CodeView({
           <div className={styles.toggle}>
             {(changed || heldChanged) && <DiffModeButtons mode={mode} onChoose={choose} />}
             {(commentable || heldComment) && (
-              <button
+              <Button
+                label="Comment"
                 disabled={!commentable || selected === null}
-                title={selected === null ? NO_SELECTION : (blocked ?? undefined)}
+                hint={selected === null ? NO_SELECTION : null}
+                reason={selected === null ? null : blocked}
+                fix={
+                  selected !== null && blocked === NO_REVIEW && onReloadReview !== undefined
+                    ? { label: 'Reload review', onClick: onReloadReview }
+                    : null
+                }
                 onClick={() => {
                   if (!commentable || selected === null) {
                     return;
@@ -295,9 +305,7 @@ export function CodeView({
                     setRefused({ path: text.path, ...selected });
                   }
                 }}
-              >
-                Comment
-              </button>
+              />
             )}
           </div>,
           toolbar,

@@ -1,11 +1,12 @@
 import { syncPrompt } from '@shared/prompts/syncPrompt';
 import { tabWorktrees } from '@shared/worktree/tabWorktrees';
 import type { Card } from '@shared/types/jira/card';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Dot } from '@shared/types/tabs/dot';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { withTimeout } from '@main/util/withTimeout';
-import type { MergeState } from '@main/github/mergeState';
 import type { SessionManager } from './SessionManager';
 import type { StatusEngine } from './StatusEngine';
 import { errorText } from '@shared/errors/errorText';
@@ -17,7 +18,7 @@ export type AutoSyncDeps = {
   sessions: SessionManager;
   status: StatusEngine;
   getCard: (key: string) => Promise<Card>;
-  mergeState: (worktree: string, projectKey: string) => Promise<MergeState | null>;
+  pr: (tabId: string, worktree: string) => Promise<Fetched<PrInfo>>;
   logger?: Logger;
 };
 
@@ -87,15 +88,21 @@ export class AutoSync {
     if (card?.status !== 'In Review') {
       return;
     }
-    const states = await Promise.all(
+    const prs = await Promise.all(
       tabWorktrees(tab).map(async (worktree) => ({
         worktree,
-        state: await this.attempt('mergeState', { worktree }, () => this.deps.mergeState(worktree, tab.projectKey)),
+        pr: await this.attempt('pr', { worktree }, async () => {
+          const { data, error } = await this.deps.pr(tab.id, worktree);
+          if (error !== null) {
+            throw new Error(error);
+          }
+          return data;
+        }),
       })),
     );
-    const conflicting = states.flatMap(({ worktree, state }) =>
-      state?.mergeable === 'CONFLICTING' && this.prompted.get(worktree) !== state.headSha
-        ? [{ worktree, headSha: state.headSha }]
+    const conflicting = prs.flatMap(({ worktree, pr }) =>
+      pr?.state === 'OPEN' && pr.mergeable === 'CONFLICTING' && this.prompted.get(worktree) !== pr.headSha
+        ? [{ worktree, headSha: pr.headSha }]
         : [],
     );
     if (conflicting.length === 0 || this.active !== tab.id) {

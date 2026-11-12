@@ -238,4 +238,104 @@ describe('useApproveFlow', () => {
     expect(result.current.dialog).toBeNull();
     expect(approve).not.toHaveBeenCalled();
   });
+
+  test.each([
+    { name: 'resolves', outcome: () => Promise.resolve() },
+    { name: 'rejects', outcome: () => Promise.reject(new Error('approving PR: offline')) },
+  ])('approving is true until the approve call $name', async ({ outcome }) => {
+    // given
+    let settle: () => void = () => undefined;
+    fakeMaple({
+      pr: {
+        approve: vi.fn(
+          () =>
+            new Promise<void>((resolve, reject) => {
+              settle = () => {
+                outcome().then(resolve, reject);
+              };
+            }),
+        ),
+      },
+    });
+    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
+    // when
+    act(() => {
+      result.current.approve();
+    });
+    // then
+    expect(result.current.approving).toBe(true);
+    // when
+    act(() => {
+      settle();
+    });
+    // then
+    await waitFor(() => {
+      expect(result.current.approving).toBe(false);
+    });
+  });
+
+  test('approving is set when the approve goes through Approve anyway', () => {
+    // given
+    fakeMaple({ pr: { approve: vi.fn(() => new Promise<void>(() => undefined)) } });
+    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 1 });
+    // when
+    act(() => {
+      result.current.approve();
+    });
+    // then
+    expect(result.current.approving).toBe(false);
+    // when
+    act(() => {
+      result.current.confirm();
+    });
+    // then
+    expect(result.current.approving).toBe(true);
+  });
+
+  test('approving stays with the worktree being merged', () => {
+    // given
+    fakeMaple({ pr: { approve: vi.fn(() => new Promise<void>(() => undefined)) } });
+    const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
+    act(() => {
+      result.current.approve();
+    });
+    // when
+    rerender({ worktree: '/b', review: reviewAt('h1'), unviewed: 0 });
+    // then
+    expect(result.current.approving).toBe(false);
+    // when
+    rerender({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
+    // then
+    expect(result.current.approving).toBe(true);
+  });
+
+  test('a merge finishing in one worktree leaves another worktree approving', async () => {
+    // given
+    const settle = new Map<string, () => void>();
+    fakeMaple({
+      pr: {
+        approve: vi.fn(
+          (_tabId: string, headSha: string) =>
+            new Promise<void>((resolve) => {
+              settle.set(headSha, resolve);
+            }),
+        ),
+      },
+    });
+    const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('ha'), unviewed: 0 });
+    act(() => {
+      result.current.approve();
+    });
+    rerender({ worktree: '/b', review: reviewAt('hb'), unviewed: 0 });
+    act(() => {
+      result.current.approve();
+    });
+    // when
+    await act(async () => {
+      settle.get('ha')?.();
+      await Promise.resolve();
+    });
+    // then
+    expect(result.current.approving).toBe(true);
+  });
 });

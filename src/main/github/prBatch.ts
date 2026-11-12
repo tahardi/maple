@@ -35,6 +35,7 @@ const nodeSchema = z.object({
   state: z.enum(['OPEN', 'MERGED', 'CLOSED']),
   body: z.string(),
   isCrossRepository: z.boolean(),
+  mergeable: z.enum(['MERGEABLE', 'CONFLICTING', 'UNKNOWN']),
   headRefOid: z.string(),
   statusCheckRollup: z.object({ contexts: z.object({ nodes: z.array(contextSchema) }) }).nullable(),
 });
@@ -56,7 +57,7 @@ function alias({ repo, branch }: RepoBranch, index: number): string {
     `p${String(index)}: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { ` +
     `pullRequests(headRefName: ${JSON.stringify(branch)}, first: 5, states: [OPEN, MERGED, CLOSED], ` +
     'orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number url title state body isCrossRepository ' +
-    'headRefName headRefOid statusCheckRollup { contexts(first: 100) { nodes { __typename ' +
+    'mergeable headRefName headRefOid statusCheckRollup { contexts(first: 100) { nodes { __typename ' +
     '... on CheckRun { name status conclusion detailsUrl startedAt } ' +
     '... on StatusContext { context state targetUrl } } } } } } }'
   );
@@ -139,6 +140,7 @@ function prInfo(node: z.infer<typeof nodeSchema>): PrInfo {
     body: node.body,
     ...parsePrBody(node.body),
     headSha: node.headRefOid,
+    mergeable: node.mergeable,
     checks: summary(newest(node.statusCheckRollup?.contexts.nodes ?? []).map(checkRun)),
   };
 }
