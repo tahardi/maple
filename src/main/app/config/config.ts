@@ -20,6 +20,7 @@ export const DEFAULT_START_AT_ONCE = 4;
 export const DEFAULT_MAX_WORKING = 8;
 export const DEFAULT_MAX_LOAD_PER_CORE = 0.8;
 export const DEFAULT_MIN_FREE_MEGABYTES = 2048;
+export const DEFAULT_START_GAP_SECONDS = 90;
 
 const repoSchema = z
   .string()
@@ -36,6 +37,7 @@ const configSchema = z
     eventMaxMegabytes: z.number().positive().default(MAX_MEGABYTES),
     stateBackups: z.number().int().positive().default(STATE_BACKUPS),
     startAtOnce: z.number().int().positive().default(DEFAULT_START_AT_ONCE),
+    startGapSeconds: z.number().positive().default(DEFAULT_START_GAP_SECONDS),
     maxWorking: z.number().int().positive().default(DEFAULT_MAX_WORKING),
     maxLoadPerCore: z.number().positive().default(DEFAULT_MAX_LOAD_PER_CORE),
     minFreeMegabytes: z.number().nonnegative().default(DEFAULT_MIN_FREE_MEGABYTES),

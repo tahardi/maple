@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { expandHome } from '../../src/main/app/config/config';
-import { JiraClient, readCreds } from '../../src/main/jira/JiraClient';
+import { JiraClient } from '../../src/main/jira/JiraClient';
+import { readCreds } from '../../src/main/jira/readCreds';
 
 const statuses = ['To Do', 'In Progress', 'In Review', 'Done'];
 

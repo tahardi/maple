@@ -2,6 +2,8 @@ import { join } from 'node:path';
 import log from 'electron-log/node';
 import { configDir } from '@main/app/config/config';
 import { errorText } from '@shared/errors/errorText';
+import { isPlainObject } from './isPlainObject';
+import { redact } from './redact';
 
 export type LogScope =
   | 'session'
@@ -25,27 +27,7 @@ type Fields = Record<string, unknown>;
 
 export type Logger = Record<Level, (scope: LogScope, msg: string, fields?: Fields) => void>;
 
-const SECRET = /token|authorization|password|secret|env/i;
 const MAX_SIZE = 5 * 1024 * 1024;
-
-export function redact(fields: Fields): Fields {
-  return Object.fromEntries(
-    Object.entries(fields)
-      .filter(([key]) => !SECRET.test(key))
-      .map(([key, value]) => [key, redactValue(value)]),
-  );
-}
-
-function redactValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(redactValue);
-  }
-  return isPlainObject(value) ? redact(value) : value;
-}
-
-function isPlainObject(value: unknown): value is Fields {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function format(value: unknown): string {
   const text = Array.isArray(value)
@@ -77,18 +59,6 @@ export function logFailure<T>(logger: Logger, scope: LogScope, fields: Fields, r
   } catch (err) {
     return fail(err);
   }
-}
-
-export function logUncaught(logger: Logger = appLogger, proc: NodeJS.EventEmitter = process): void {
-  proc.on('uncaughtException', (err: Error) => {
-    logger.error('app', 'uncaught exception', { error: err.message, stack: err.stack });
-  });
-  proc.on('unhandledRejection', (reason: unknown) => {
-    logger.error('app', 'unhandled rejection', {
-      error: errorText(reason),
-      stack: reason instanceof Error ? reason.stack : undefined,
-    });
-  });
 }
 
 export function logsDir(): string {

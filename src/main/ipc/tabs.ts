@@ -4,7 +4,7 @@ import type { CloseResult } from '@shared/types/tabs/closeResult';
 import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { sessionCost } from '@main/sessions/transcripts/sessionCost';
 import { send, type IpcDeps } from './index';
-import { closeNeedsConfirm } from './closeNeedsConfirm';
+import { closeNeedsConfirm } from '@main/sessions/closeNeedsConfirm';
 import { cardKeyArg, handle, on, projectKeyArg, tabIdArg } from './validated';
 
 export function registerTabs(

@@ -11,6 +11,7 @@ import {
   DEFAULT_MAX_WORKING,
   DEFAULT_MIN_FREE_MEGABYTES,
   DEFAULT_START_AT_ONCE,
+  DEFAULT_START_GAP_SECONDS,
   DEFAULT_WAIT_MINUTES,
   loadConfig,
 } from '@main/app/config/config';
@@ -18,17 +19,20 @@ import { hookSocketPath, startHookServer } from '@main/sessions/hooks/hookServer
 import { claimInstance } from '@main/app/instance';
 import { defaultRunner } from '@main/app/preflight';
 import { writeHooksFile } from '@main/sessions/hooks/hooksFile';
-import { currentBranch, findWorktrees, headSha } from '@main/git/git';
+import { findWorktrees } from '@main/git/findWorktrees';
+import { currentBranch, headSha } from '@main/git/repoIdentity';
 import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { openPrMergeState } from '@main/github/mergeState';
 import { PrPoller } from '@main/github/PrPoller';
 import { registerIpc } from '@main/ipc';
-import { notificationsDefault, projectByKey } from '@main/ipc/config';
-import { closeNeedsConfirm } from '@main/ipc/closeNeedsConfirm';
+import { notificationsDefault, projectByKey } from '@main/app/config/configCache';
+import { closeNeedsConfirm } from '@main/sessions/closeNeedsConfirm';
 import { recordActions } from '@main/ipc/validated';
-import { JiraClient, jiraEnvPath, readCreds } from '@main/jira/JiraClient';
-import { appLogger, logUncaught, startLogging } from '@main/app/log/log';
+import { JiraClient } from '@main/jira/JiraClient';
+import { jiraEnvPath, readCreds } from '@main/jira/readCreds';
+import { appLogger, startLogging } from '@main/app/log/log';
+import { logUncaught } from '@main/app/log/logUncaught';
 import { askDeleteToday } from '@main/events/askDeleteToday';
 import { eventLog, startEventLog } from '@main/events/eventLog';
 import { prEvents } from '@main/events/PrEvents';
@@ -168,6 +172,7 @@ async function start(): Promise<Zoom> {
       maxWorking: config?.maxWorking ?? DEFAULT_MAX_WORKING,
       maxLoadPerCore: config?.maxLoadPerCore ?? DEFAULT_MAX_LOAD_PER_CORE,
       minFreeMegabytes: config?.minFreeMegabytes ?? DEFAULT_MIN_FREE_MEGABYTES,
+      startGapSeconds: config?.startGapSeconds ?? DEFAULT_START_GAP_SECONDS,
     }),
     load: () => ({ loadAverage: loadavg()[0], cores: cpus().length, freeBytes: freemem() }),
     queued: state.queue,

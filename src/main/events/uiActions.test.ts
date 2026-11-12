@@ -3,7 +3,7 @@ import type { ActionConfig } from '@shared/types/config/actionConfig';
 import { eventSchemas, type UiActionData } from '@shared/types/events/eventSchemas';
 import type { EventRefs } from '@shared/types/events/eventRecord';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { redact } from '@main/app/log/log';
+import { redact } from '@main/app/log/redact';
 import { uiActionRecorder } from './uiActions';
 
 const cardTab: TabState = {

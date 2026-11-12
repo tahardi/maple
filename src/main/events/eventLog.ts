@@ -8,7 +8,8 @@ import { eventEnvelopeSchema, type EventRecord, type EventRefs } from '@shared/t
 import { eventSchemas, type EventSchemas } from '@shared/types/events/eventSchemas';
 import type { EventFilter } from '@shared/types/events/eventFilter';
 import { configDir } from '@main/app/config/config';
-import { appLogger, logFailure, redact, type Logger } from '@main/app/log/log';
+import { appLogger, logFailure, type Logger } from '@main/app/log/log';
+import { redact } from '@main/app/log/redact';
 import { closeTornLine } from './closeTornLine';
 import { dayFiles } from './dayFiles';
 import { dayName } from './dayName';

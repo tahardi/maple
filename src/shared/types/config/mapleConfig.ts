@@ -10,6 +10,7 @@ export type MapleConfig = {
   eventMaxMegabytes: number;
   stateBackups: number;
   startAtOnce: number;
+  startGapSeconds: number;
   maxWorking: number;
   maxLoadPerCore: number;
   minFreeMegabytes: number;

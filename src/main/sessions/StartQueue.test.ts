@@ -50,16 +50,18 @@ function setup(given: Setup = {}) {
   const load: HostLoad = { loadAverage: 1, cores: 8, freeBytes: 8 * GIB, ...given.load };
   const save = vi.fn<(cards: QueuedCard[]) => Promise<void>>(() => Promise.resolve());
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  const limits: StartLimits = {
+    startAtOnce: 4,
+    maxWorking: 8,
+    maxLoadPerCore: 0.8,
+    minFreeMegabytes: 2048,
+    startGapSeconds: 15,
+    ...given.limits,
+  };
   const queue = new StartQueue({
     sessions: sessions as unknown as SessionManager,
     status: engine as unknown as StatusEngine,
-    limits: () => ({
-      startAtOnce: 4,
-      maxWorking: 8,
-      maxLoadPerCore: 0.8,
-      minFreeMegabytes: 2048,
-      ...given.limits,
-    }),
+    limits: () => limits,
     load: () => load,
     queued: given.queued ?? [],
     save,
@@ -69,7 +71,7 @@ function setup(given: Setup = {}) {
     statuses = working(count);
     engine.emit('status', status('w0', 'idle'), 'working');
   };
-  return { queue, sessions, engine, startCard, save, logger, load, tabs, setWorking };
+  return { queue, sessions, engine, startCard, save, logger, load, limits, tabs, setWorking };
 }
 
 describe('StartQueue', () => {
@@ -130,6 +132,7 @@ describe('StartQueue', () => {
       working: count,
       limit,
       waitingFor,
+      gapSeconds: 15,
       failure: null,
     });
   });
@@ -144,7 +147,7 @@ describe('StartQueue', () => {
     expect(startCard).toHaveBeenCalledWith('DIG', 'DIG-45');
   });
 
-  test('waits 15 seconds between starts past startAtOnce', () => {
+  test('waits the start gap between starts past startAtOnce', () => {
     // given
     const { queue, startCard } = setup({ working: 4 });
     queue.start();
@@ -164,7 +167,7 @@ describe('StartQueue', () => {
     expect(queue.state().cards).toEqual([]);
   });
 
-  test('starts below startAtOnce without waiting for the 15 second gap', () => {
+  test('starts below startAtOnce without waiting for the start gap', () => {
     // given
     const { queue, startCard, setWorking } = setup({ working: 4 });
     queue.add('DIG', 'DIG-44');
@@ -184,7 +187,7 @@ describe('StartQueue', () => {
     expect(queue.state()).toMatchObject({ cards: queued('DIG-47'), waitingFor: 'pace' });
   });
 
-  test('starts a batch of 8 four at once and then one every 15 seconds', () => {
+  test('starts a batch of 8 four at once and then one per start gap', () => {
     // given
     const { queue, startCard } = setup({
       queued: queued('DIG-41', 'DIG-42', 'DIG-43', 'DIG-44', 'DIG-45', 'DIG-46', 'DIG-47', 'DIG-48'),
@@ -208,7 +211,7 @@ describe('StartQueue', () => {
     expect(startCard).toHaveBeenCalledTimes(6);
   });
 
-  test('starts the next card 15 seconds after an extra start made partway through a timer period', () => {
+  test('starts the next card one start gap after an extra start made partway through a recheck period', () => {
     // given
     const { queue, startCard } = setup({ working: 4 });
     queue.start();
@@ -226,6 +229,70 @@ describe('StartQueue', () => {
       ['DIG', 'DIG-45'],
       ['DIG', 'DIG-46'],
     ]);
+  });
+
+  test('a 90 second start gap waits 90 seconds and reports the gap', () => {
+    // given
+    const { queue, startCard } = setup({ working: 4, limits: { startGapSeconds: 90 } });
+    queue.start();
+    queue.add('DIG', 'DIG-45');
+    queue.add('DIG', 'DIG-46');
+    // when
+    vi.advanceTimersByTime(89_999);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(1);
+    expect(queue.state()).toMatchObject({ waitingFor: 'pace', gapSeconds: 90 });
+    // when
+    vi.advanceTimersByTime(1);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(2);
+  });
+
+  test('a start gap that grows while a card waits holds the start until the new gap', () => {
+    // given
+    const { queue, startCard, limits } = setup({ working: 4 });
+    queue.start();
+    queue.add('DIG', 'DIG-45');
+    queue.add('DIG', 'DIG-46');
+    limits.startGapSeconds = 90;
+    // when
+    vi.advanceTimersByTime(89_999);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(1);
+    expect(queue.state()).toMatchObject({ waitingFor: 'pace', gapSeconds: 90 });
+    // when
+    vi.advanceTimersByTime(1);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(2);
+  });
+
+  test('a start gap that shrinks while a card waits starts it on the next recheck', () => {
+    // given
+    const { queue, startCard, limits } = setup({ working: 4, limits: { startGapSeconds: 90 } });
+    queue.start();
+    queue.add('DIG', 'DIG-45');
+    queue.add('DIG', 'DIG-46');
+    limits.startGapSeconds = 15;
+    // when
+    vi.advanceTimersByTime(RECHECK_MS);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(2);
+    expect(queue.state().cards).toEqual([]);
+  });
+
+  test('a long start gap still rechecks CPU and memory every 15 seconds', () => {
+    // given
+    const { queue, startCard, load } = setup({
+      load: { loadAverage: 8 },
+      queued: queued('DIG-45'),
+      limits: { startGapSeconds: 90 },
+    });
+    queue.start();
+    load.loadAverage = 1;
+    // when
+    vi.advanceTimersByTime(RECHECK_MS);
+    // then
+    expect(startCard).toHaveBeenCalledWith('DIG', 'DIG-45');
   });
 
   test.each([

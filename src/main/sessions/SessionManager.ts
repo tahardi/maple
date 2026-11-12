@@ -6,7 +6,7 @@ import { parseSuggestedBatch } from '@shared/prompts/suggestedBatch';
 import { cardPrompt } from '@shared/prompts/cardPrompt';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { findWorktrees } from '@main/git/git';
+import { findWorktrees } from '@main/git/findWorktrees';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { tmuxArgs } from './tmux';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
