@@ -97,6 +97,11 @@ export function HomeTab({ projectKey }: Props) {
     setDetailKey(key);
     setFailure(null);
   };
+  const closeDetail = () => {
+    if (confirmKey === null && confirming === null) {
+      setDetailKey(null);
+    }
+  };
   const markBusy = (key: string, busy: boolean) => {
     setBusyKeys((now) => {
       const next = new Set(now);
@@ -193,39 +198,48 @@ export function HomeTab({ projectKey }: Props) {
 
   return (
     <div ref={home} className={styles.home} data-testid="home">
-      <div ref={main} className={styles.main}>
+      <div ref={main} className={styles.main} data-testid="board-area" onPointerDown={closeDetail}>
+        {sprint === null && (
+          <p role="status" className={styles.empty}>
+            Loading sprint…
+          </p>
+        )}
         {sprint && sprint.error !== null && <Notice tone="warning">{staleMessage(sprint.fetchedAt)}</Notice>}
         {sprint?.data ? (
-          <Board sprint={sprint.data} selected={new Set(selected)} onSelect={select} onToggle={toggle} />
+          <Board
+            projectKey={projectKey}
+            sprint={sprint.data}
+            selected={new Set(selected)}
+            onSelect={select}
+            onToggle={toggle}
+          />
         ) : (
           sprint?.error === null && <p className={styles.empty}>No active sprint</p>
         )}
         {backlog?.data && <Backlog groups={backlog.data} highlighted={toAccept} onSelect={select} drag={backlogDrag} />}
+        {card && (
+          <CardDetail
+            card={card}
+            tab={tabFor(card.key)}
+            failure={failure}
+            busy={busyKeys.has(card.key)}
+            onStart={() => {
+              run(card.key, window.maple.tabs.startCard(projectKey, card.key));
+            }}
+            onOpen={() => {
+              run(card.key, window.maple.tabs.openCard(projectKey, card.key));
+            }}
+            onGoTo={() => {
+              const tab = tabFor(card.key);
+              if (tab) {
+                activateTab(tab);
+              }
+            }}
+            onClose={closeDetail}
+            onAddToSprint={backlogCard ? onAddToSprint : undefined}
+          />
+        )}
       </div>
-      {card && (
-        <CardDetail
-          card={card}
-          tab={tabFor(card.key)}
-          failure={failure}
-          busy={busyKeys.has(card.key)}
-          onStart={() => {
-            run(card.key, window.maple.tabs.startCard(projectKey, card.key));
-          }}
-          onOpen={() => {
-            run(card.key, window.maple.tabs.openCard(projectKey, card.key));
-          }}
-          onGoTo={() => {
-            const tab = tabFor(card.key);
-            if (tab) {
-              activateTab(tab);
-            }
-          }}
-          onClose={() => {
-            setDetailKey(null);
-          }}
-          onAddToSprint={backlogCard ? onAddToSprint : undefined}
-        />
-      )}
       <SplitHandle drag={planner} axis="x" label="Resize planner" />
       <PlannerPane
         projectKey={projectKey}

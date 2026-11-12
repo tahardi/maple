@@ -1,5 +1,6 @@
 import type { Card } from '@shared/types/jira/card';
 import type { TabState } from '@shared/types/tabs/tabState';
+import { useEffect, useRef } from 'react';
 import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { EpicLozenge } from './EpicLozenge';
 import { Badge } from '@renderer/shell/blocks/Badge';
@@ -37,9 +38,30 @@ function action(card: Card, tab: TabState | null, props: Props): Action | null {
 export function CardDetail(props: Props) {
   const { card, tab, failure, busy, onClose, onAddToSprint } = props;
   const next = action(card, tab, props);
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const visible = ref.current?.closest('[hidden]') === null;
+      const dialogOpen = document.querySelector('dialog[open]') !== null;
+      if (e.key === 'Escape' && !e.defaultPrevented && visible && !dialogOpen) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
 
   return (
-    <aside className={styles.detail}>
+    <aside
+      ref={ref}
+      className={styles.detail}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+      }}
+    >
       <div className={styles.top}>
         <h3>{`${card.key} ${card.summary}`}</h3>
         <button className={styles.close} aria-label="Close details" title="Close details" onClick={onClose}>

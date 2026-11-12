@@ -11,10 +11,6 @@
   cursor: pointer;
 }
 
-.tile[data-blocked='true'] {
-  opacity: 0.5;
-}
-
 .tile[data-highlighted='true'] {
   border-color: var(--accent-strong);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-strong) 40%, transparent);

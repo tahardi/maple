@@ -80,6 +80,16 @@ describe('useDismiss', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
+  test('Escape it handles is marked as handled', () => {
+    // given
+    setup(true);
+    const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    // when
+    document.dispatchEvent(event);
+    // then
+    expect(event.defaultPrevented).toBe(true);
+  });
+
   test('starts listening when opened', () => {
     // given
     const { outside, onDismiss, rerender } = setup(false);

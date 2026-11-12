@@ -51,6 +51,7 @@
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-full: 999px;
+  --z-sticky: 1;
   --z-menu: 100;
   --z-dialog: 200;
 }

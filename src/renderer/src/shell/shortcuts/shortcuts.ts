@@ -11,5 +11,6 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { keys: 'Ctrl+Shift+C', action: 'Copy in a terminal' },
   { keys: 'Ctrl+Shift+R', action: 'Reload config' },
   { keys: 'Ctrl+Plus / Ctrl+- / Ctrl+0', action: 'Zoom in, out, or reset' },
+  { keys: 'Esc', action: 'Close card details' },
   { keys: '?', action: 'This list' },
 ];

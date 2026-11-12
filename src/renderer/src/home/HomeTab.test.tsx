@@ -1,5 +1,5 @@
 import type { TabState } from '@shared/types/tabs/tabState';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';
@@ -95,10 +95,33 @@ describe('HomeTab', () => {
     // when
     render(<HomeTab projectKey="DIG" />);
     // then
-    const notice = await screen.findByRole('status');
-    expect(notice).toHaveTextContent(new RegExp(`^${want}$`));
+    const notice = await screen.findByText(want);
+    expect(notice).toHaveAttribute('role', 'status');
     expect(notice).toHaveAttribute('data-tone', 'warning');
     expect(screen.getByRole('button', { name: /^DIG-44/ })).toBeInTheDocument();
+  });
+
+  test('shows Loading sprint… until the sprint arrives', async () => {
+    // given
+    let resolve: (value: Awaited<ReturnType<Window['maple']['jira']['sprint']>>) => void = () => undefined;
+    fakeMaple({
+      jira: {
+        sprint: () =>
+          new Promise((r) => {
+            resolve = r;
+          }),
+      },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    expect(screen.getByRole('status')).toHaveTextContent('Loading sprint…');
+    // when
+    act(() => {
+      resolve({ data: SPRINT, error: null, fetchedAt: null });
+    });
+    // then
+    expect(await screen.findByRole('button', { name: /^DIG-41/ })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   test('shows the backlog under the board', async () => {
@@ -211,8 +234,9 @@ describe('HomeTab', () => {
     // when
     render(<HomeTab projectKey="DIG" />);
     // then
-    expect(await screen.findByRole('status')).toHaveTextContent('Jira unreachable');
+    expect(await screen.findByText('Jira unreachable')).toHaveAttribute('role', 'status');
     expect(screen.queryByText('No active sprint')).not.toBeInTheDocument();
+    expect(screen.queryByText('Loading sprint…')).not.toBeInTheDocument();
   });
 
   test('Start starts the card and activates its new tab', async () => {
@@ -441,6 +465,102 @@ describe('HomeTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close details' }));
     // then
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  test('opens card details over the board area', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // then
+    expect(within(screen.getByTestId('board-area')).getByRole('complementary')).toBeInTheDocument();
+  });
+
+  test('Escape closes the card details', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  test('a click on the board outside the details closes them', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.click(screen.getByRole('heading', { name: 'DIG Sprint 3' }));
+    // then
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  test('a click inside the details keeps them open', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.click(screen.getByRole('heading', { name: 'DIG-44 Summary of DIG-44' }));
+    // then
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
+
+  test('clicking another tile swaps the details to that card', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /^DIG-45/ }));
+    // then
+    expect(screen.getAllByRole('complementary')).toHaveLength(1);
+    expect(within(screen.getByRole('complementary')).getByRole('heading', { level: 3 })).toHaveTextContent(
+      'DIG-45 Summary of DIG-45',
+    );
+  });
+
+  test('Escape with the Add to sprint confirm open closes only the confirm', async () => {
+    // given
+    acceptSetup();
+    await openBacklogCard('DIG-50');
+    await userEvent.click(screen.getByRole('button', { name: 'Add to sprint' }));
+    // when
+    await userEvent.keyboard('{Escape}');
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
+
+  test('a click in the planner keeps the details open', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.click(screen.getByTestId('planner'));
+    // then
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
+
+  test('Escape with the Accept confirm open closes only the confirm', async () => {
+    // given
+    const { emit } = acceptSetup();
+    await screen.findByText('Backlog (2)');
+    await userEvent.click(screen.getByRole('button', { name: /^DIG-44/ }));
+    emit(['DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1' }));
+    // when
+    await userEvent.keyboard('{Escape}');
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
   });
 
   test('the card detail follows a refreshed sprint', async () => {

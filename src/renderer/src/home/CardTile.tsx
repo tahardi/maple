@@ -32,7 +32,7 @@ export function CardTile({ card, selected, onSelect, onToggle }: Props) {
           <Badge key={label}>{label}</Badge>
         ))}
       </span>
-      {blockers.length > 0 && <span className={styles.blocked}>{`blocked by ${blockers.join(', ')}`}</span>}
+      {blockers.length > 0 && <span className={styles.blocked}>{`⛔ Blocked by ${blockers.join(', ')}`}</span>}
     </button>
   );
 
