@@ -47,9 +47,18 @@ const review: Review = {
   findings: [],
 };
 
-function actions(overrides: { pr?: PrInfo | null; review?: Review | null; dot?: Dot; worktreeExists?: boolean } = {}) {
+type Overrides = {
+  pr?: PrInfo | null;
+  review?: Review | null;
+  dot?: Dot;
+  worktreeExists?: boolean;
+  approving?: boolean;
+};
+
+function actions(overrides: Overrides = {}) {
   const send = vi.fn();
   const approve = vi.fn();
+  const reloadReview = vi.fn();
   const list = cardActions({
     config,
     cardKey: 'DIG-44',
@@ -57,20 +66,22 @@ function actions(overrides: { pr?: PrInfo | null; review?: Review | null; dot?: 
     review: overrides.review === undefined ? review : overrides.review,
     dot: overrides.dot ?? 'ready',
     worktreeExists: overrides.worktreeExists ?? true,
+    approving: overrides.approving ?? false,
     send,
     approve,
+    reloadReview,
   });
-  return { list, send, approve };
+  return { list, send, approve, reloadReview };
 }
 
 describe('cardActions', () => {
-  test('gives one button per config action, then Approve', () => {
+  test('gives one button per config action, then Approve & merge', () => {
     // given
     const { list } = actions();
     // when
     const labels = list.map((a) => a.label);
     // then
-    expect(labels).toEqual(['Address review', 'Merge main', 'Approve']);
+    expect(labels).toEqual(['Address review', 'Merge main', 'Approve & merge']);
     expect(list.every((a) => !a.disabled)).toBe(true);
   });
 
@@ -99,43 +110,83 @@ describe('cardActions', () => {
     // given
     const { list, approve } = actions();
     // when
-    list.find((a) => a.label === 'Approve')?.onClick();
+    list.find((a) => a.label === 'Approve & merge')?.onClick();
     // then
     expect(approve).toHaveBeenCalledOnce();
   });
 
   test.each([
-    { name: 'the agent is working', overrides: { dot: 'working' as const }, title: 'Agent is working' },
-    { name: 'there is no PR', overrides: { pr: null }, title: 'No open PR' },
-    { name: 'the PR is merged', overrides: { pr: { ...pr, state: 'MERGED' as const } }, title: 'No open PR' },
+    { name: 'the agent is working', overrides: { dot: 'working' as const }, reason: 'Agent is working' },
+    { name: 'there is no PR', overrides: { pr: null }, reason: 'No open PR' },
+    { name: 'the PR is merged', overrides: { pr: { ...pr, state: 'MERGED' as const } }, reason: 'No open PR' },
     {
       name: 'checks are failing',
       overrides: { pr: { ...pr, checks: { passed: 2, failed: 1, pending: 0, total: 3, runs: [] } } },
-      title: 'Checks are failing',
+      reason: 'Checks are failing',
     },
-    { name: 'the review is not loaded', overrides: { review: null }, title: 'Review not loaded' },
+    { name: 'the review is not loaded', overrides: { review: null }, reason: 'Review not loaded' },
     {
       name: 'the PR has new commits',
       overrides: { pr: { ...pr, headSha: 'c'.repeat(40) } },
-      title: 'PR has new commits',
+      reason: 'PR has new commits',
     },
-  ])('Approve is disabled when $name', ({ overrides, title }) => {
+  ])('Approve is disabled when $name', ({ overrides, reason }) => {
     // given
     const { list } = actions(overrides);
     // when
-    const approve = list.find((a) => a.label === 'Approve');
+    const approve = list.find((a) => a.label === 'Approve & merge');
     // then
-    expect(approve).toMatchObject({ disabled: true, title });
+    expect(approve).toMatchObject({ disabled: true, reason });
     expect(list.filter((a) => a.disabled)).toHaveLength(1);
   });
 
-  test('every button is disabled without a worktree', () => {
+  test('without a worktree every button is disabled and Approve & merge says No worktree', () => {
     // given
     const { list } = actions({ worktreeExists: false });
     // when
-    const states = list.map((a) => ({ disabled: a.disabled, title: a.title }));
+    const states = list.map((a) => ({ disabled: a.disabled, reason: a.reason }));
     // then
-    expect(states).toEqual(Array(3).fill({ disabled: true, title: 'No worktree' }));
+    expect(states).toEqual([
+      { disabled: true, reason: undefined },
+      { disabled: true, reason: undefined },
+      { disabled: true, reason: 'No worktree' },
+    ]);
+  });
+
+  test.each([
+    { name: 'the review is not loaded', overrides: { review: null } },
+    { name: 'the PR has new commits', overrides: { pr: { ...pr, headSha: 'c'.repeat(40) } } },
+  ])('Approve & merge offers Reload review when $name', ({ overrides }) => {
+    // given
+    const { list, reloadReview } = actions(overrides);
+    const approve = list.find((a) => a.label === 'Approve & merge');
+    // when
+    approve?.fix?.onClick();
+    // then
+    expect(approve?.fix?.label).toBe('Reload review');
+    expect(reloadReview).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    { name: 'the agent is working', overrides: { dot: 'working' as const } },
+    { name: 'checks are failing', overrides: { pr: { ...pr, checks: { ...pr.checks, failed: 1 } } } },
+    { name: 'nothing blocks it', overrides: {} },
+  ])('Approve & merge offers no fix when $name', ({ overrides }) => {
+    // given
+    const { list } = actions(overrides);
+    // when
+    const approve = list.find((a) => a.label === 'Approve & merge');
+    // then
+    expect(approve?.fix).toBeUndefined();
+  });
+
+  test('Approve & merge shows Merging… while approving', () => {
+    // given
+    const { list } = actions({ approving: true });
+    // when
+    const approve = list.find((a) => a.label === 'Approve & merge');
+    // then
+    expect(approve).toMatchObject({ busy: true, busyLabel: 'Merging…' });
   });
 
   test.each([
@@ -151,8 +202,10 @@ describe('cardActions', () => {
       review,
       dot: 'ready',
       worktreeExists: true,
+      approving: false,
       send,
       approve: vi.fn(),
+      reloadReview: vi.fn(),
     });
     // when
     list[0].onClick();
@@ -164,7 +217,7 @@ describe('cardActions', () => {
     // given
     const { list } = actions({ dot });
     // when
-    const approve = list.find((a) => a.label === 'Approve');
+    const approve = list.find((a) => a.label === 'Approve & merge');
     // then
     expect(approve?.disabled).toBeUndefined();
   });
@@ -173,25 +226,25 @@ describe('cardActions', () => {
     // given
     const { list } = actions({ pr: { ...pr, checks: { passed: 1, failed: 0, pending: 2, total: 3, runs: [] } } });
     // when
-    const approve = list.find((a) => a.label === 'Approve');
+    const approve = list.find((a) => a.label === 'Approve & merge');
     // then
     expect(approve?.disabled).toBeUndefined();
   });
 
   test.each([
-    { name: 'working beats no PR', overrides: { dot: 'working' as const, pr: null }, title: 'Agent is working' },
+    { name: 'working beats no PR', overrides: { dot: 'working' as const, pr: null }, reason: 'Agent is working' },
     {
       name: 'no worktree beats working',
       overrides: { dot: 'working' as const, worktreeExists: false },
-      title: 'No worktree',
+      reason: 'No worktree',
     },
-  ])('Approve shows one reason: $name', ({ overrides, title }) => {
+  ])('Approve shows one reason: $name', ({ overrides, reason }) => {
     // given
     const { list } = actions(overrides);
     // when
-    const approve = list.find((a) => a.label === 'Approve');
+    const approve = list.find((a) => a.label === 'Approve & merge');
     // then
-    expect(approve?.title).toBe(title);
+    expect(approve?.reason).toBe(reason);
   });
 
   test('failing checks show before a missing review', () => {
@@ -199,9 +252,9 @@ describe('cardActions', () => {
     const failing = { ...pr, checks: { passed: 2, failed: 1, pending: 0, total: 3, runs: [] } };
     const { list } = actions({ pr: failing, review: null });
     // when
-    const approve = list.find((a) => a.label === 'Approve');
+    const approve = list.find((a) => a.label === 'Approve & merge');
     // then
-    expect(approve?.title).toBe('Checks are failing');
+    expect(approve?.reason).toBe('Checks are failing');
   });
 
   test('a config with no actions gives only Approve', () => {
@@ -213,12 +266,14 @@ describe('cardActions', () => {
       review,
       dot: 'ready',
       worktreeExists: true,
+      approving: false,
       send: vi.fn(),
       approve: vi.fn(),
+      reloadReview: vi.fn(),
     });
     // when
     const labels = list.map((a) => a.label);
     // then
-    expect(labels).toEqual(['Approve']);
+    expect(labels).toEqual(['Approve & merge']);
   });
 });

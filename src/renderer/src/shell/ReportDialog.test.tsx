@@ -117,4 +117,17 @@ describe('ReportDialog', () => {
     // then
     expect(screen.getByRole('textbox', { name: 'Title' })).toHaveFocus();
   });
+
+  test('Submit reads Submitting… while filing', async () => {
+    // given
+    fakeMaple({ jira: { report: vi.fn(() => new Promise<never>(() => undefined)) } });
+    renderDialog();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), 'Crash');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    // then
+    const button = screen.getByRole('button', { name: 'Submitting…' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
+  });
 });

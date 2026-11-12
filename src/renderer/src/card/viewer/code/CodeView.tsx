@@ -21,6 +21,7 @@ import { linesLabel, selectedLines, type Lines } from '@renderer/card/viewer/edi
 import { useDiffMode } from '@renderer/card/viewer/editor/useDiffMode';
 import { useLineMarks } from '@renderer/card/viewer/editor/useLineMarks';
 import { baseName } from '@renderer/card/viewer/tabs/baseName';
+import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { useMaple } from '@renderer/store';
 import styles from '../FileViewer.module.css';
@@ -281,9 +282,11 @@ export function CodeView({
           <div className={styles.toggle}>
             {(changed || heldChanged) && <DiffModeButtons mode={mode} onChoose={choose} />}
             {(commentable || heldComment) && (
-              <button
+              <Button
+                label="Comment"
                 disabled={!commentable || selected === null}
-                title={selected === null ? NO_SELECTION : (blocked ?? undefined)}
+                hint={selected === null ? NO_SELECTION : null}
+                reason={selected === null ? null : blocked}
                 onClick={() => {
                   if (!commentable || selected === null) {
                     return;
@@ -295,9 +298,7 @@ export function CodeView({
                     setRefused({ path: text.path, ...selected });
                   }
                 }}
-              >
-                Comment
-              </button>
+              />
             )}
           </div>,
           toolbar,

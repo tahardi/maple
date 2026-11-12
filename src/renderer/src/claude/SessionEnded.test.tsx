@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
 import { SessionEnded } from './SessionEnded';
@@ -50,5 +50,34 @@ describe('SessionEnded', () => {
     // then
     expect(screen.getByRole('button', { name: 'Resume' })).toHaveAttribute('data-variant', 'primary');
     expect(screen.getByRole('button', { name: 'Start fresh' })).not.toHaveAttribute('data-variant');
+  });
+
+  test.each([
+    { label: 'Resume', busyLabel: 'Resuming…', other: 'Start fresh', settle: 'resume' },
+    { label: 'Start fresh', busyLabel: 'Starting…', other: 'Resume', settle: 'startFresh' },
+  ] as const)('$label reads $busyLabel and disables both buttons until it settles', async (row) => {
+    // given
+    let finish: () => void = () => undefined;
+    const pending = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fakeMaple({ tabs: { resume: pending, startFresh: pending } });
+    render(<SessionEnded tabId="t1" exitCode={0} resumeFailed={false} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: row.label }));
+    // then
+    expect(screen.getByRole('button', { name: row.busyLabel })).toBeDisabled();
+    expect(screen.getByRole('button', { name: row.other })).toBeDisabled();
+    // when
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    // then
+    expect(screen.getByRole('button', { name: row.label })).toBeEnabled();
+    expect(screen.getByRole('button', { name: row.other })).toBeEnabled();
   });
 });

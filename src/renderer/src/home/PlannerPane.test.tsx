@@ -28,12 +28,21 @@ type Options = {
   refineCount?: number;
   failure?: string | null;
   queue?: QueueState;
+  busy?: 'start' | 'accept' | 'acceptAndStart' | null;
 };
 
 const EMPTY_QUEUE: QueueState = { cards: [], working: 0, limit: 4, waitingFor: null, gapSeconds: 90, failure: null };
 
 function setup(
-  { selected = [], toAccept = [], readyCount = 0, refineCount = 0, failure = null, queue = EMPTY_QUEUE }: Options = {},
+  {
+    selected = [],
+    toAccept = [],
+    readyCount = 0,
+    refineCount = 0,
+    failure = null,
+    queue = EMPTY_QUEUE,
+    busy = null,
+  }: Options = {},
   planner: Promise<TabState> = Promise.resolve(PLANNER),
 ) {
   let emit: (keys: string[]) => void = () => undefined;
@@ -66,6 +75,7 @@ function setup(
       onAcceptAndStart={onAcceptAndStart}
       failure={failure}
       queue={queue}
+      busy={busy}
       width={40}
     />,
   );
@@ -421,5 +431,22 @@ describe('PlannerPane', () => {
     unmount();
     // then
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    { busy: 'start' as const, label: 'Start (2)', busyLabel: 'Starting…' },
+    { busy: 'accept' as const, label: 'Accept 1', busyLabel: 'Moving…' },
+    { busy: 'acceptAndStart' as const, label: 'Accept 1 and start all', busyLabel: 'Starting…' },
+  ])('$label reads $busyLabel while $busy runs', async ({ busy, label, busyLabel }) => {
+    // given
+    const options = { selected: ['DIG-41', 'DIG-42'], toAccept: ['DIG-50'], readyCount: 2, busy };
+    // when
+    setup(options);
+    // then
+    const batch = within(screen.getByRole('group', { name: 'Batch' }));
+    expect(batch.getByRole('button', { name: busyLabel })).toHaveAttribute('aria-busy', 'true');
+    expect(batch.queryByRole('button', { name: label })).not.toBeInTheDocument();
+    expect(batch.getAllByRole('button').filter((b) => !(b as HTMLButtonElement).disabled)).toEqual([]);
+    await screen.findByTestId('claude-pane');
   });
 });

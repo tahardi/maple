@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Filed } from '@shared/types/jira/filed';
 import type { Report } from '@shared/types/jira/report';
 import styles from './ReportDialog.module.css';
+import { Button } from './blocks/Button';
 import { Dialog } from './blocks/Dialog';
 import { Notice } from './blocks/Notice';
 import { errorText } from '@shared/errors/errorText';
@@ -90,9 +91,14 @@ export function ReportDialog({ onClose }: ReportDialogProps) {
             <button type="button" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" data-variant="primary" disabled={sending || title.trim() === ''}>
-              Submit
-            </button>
+            <Button
+              label="Submit"
+              type="submit"
+              variant="primary"
+              disabled={title.trim() === ''}
+              busy={sending}
+              busyLabel="Submitting…"
+            />
           </div>
         </form>
       )}

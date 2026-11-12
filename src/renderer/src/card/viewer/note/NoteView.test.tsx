@@ -272,7 +272,7 @@ describe('NoteView', () => {
     // then
     expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
     await vi.waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Changes' })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: 'Changes' })).not.toBeInTheDocument();
     });
     expect(screen.queryByTestId('editor')).not.toBeInTheDocument();
   });
@@ -345,7 +345,8 @@ describe('NoteView', () => {
     expect(await screen.findByRole('heading', { name: 'Findings' })).toBeInTheDocument();
     const button = screen.getByRole('button', { name: 'Changes' });
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', message);
+    expect(screen.getByText(message)).toBeVisible();
+    expect(button).toHaveAccessibleDescription(message);
   });
 
   test('says why a note cannot be shown', async () => {
@@ -382,19 +383,18 @@ describe('NoteView', () => {
     const button = screen.getByRole('button', { name: 'Changes' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', 'Turn off Edit to see changes');
+    expect(screen.getByText('Turn off Edit to see changes')).toBeVisible();
+    expect(button).toHaveAccessibleDescription('Turn off Edit to see changes');
   });
 
-  test('Changes is disabled when the session saved no copy of the note', async () => {
+  test('hides Changes when the session saved no copy of the note', async () => {
     // given
     const before = vi.fn(() => Promise.resolve(null));
     // when
     renderNote({ before });
-    await screen.findByRole('heading', { name: 'Findings' });
     // then
-    const button = await screen.findByRole('button', { name: 'Changes' });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', 'No saved copy of this note from this session');
+    expect(await screen.findByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Changes' })).not.toBeInTheDocument();
   });
 
   test('re-reads the saved copy when the vault changes', async () => {

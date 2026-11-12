@@ -235,6 +235,76 @@ describe('HomeTab', () => {
     });
   });
 
+  test('Start reads Starting… until the card starts', async () => {
+    // given
+    let finish: (t: TabState) => void = () => undefined;
+    const startCard = vi.fn(
+      () =>
+        new Promise<TabState>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    // then
+    expect(screen.getByRole('button', { name: 'Starting…' })).toBeDisabled();
+    // when
+    await act(async () => {
+      finish(tab('t9', 'DIG-41'));
+      await Promise.resolve();
+    });
+    // then
+    expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
+  });
+
+  test('Start (N) reads Starting… until every card has started', async () => {
+    // given
+    const { onBatch, emit } = batchEvents();
+    const pending: ((t: TabState) => void)[] = [];
+    const startCard = vi.fn(
+      (_projectKey: string, cardKey: string) =>
+        new Promise<TabState>((resolve) => {
+          pending.push(() => {
+            resolve(tab(`t-${cardKey}`, cardKey));
+          });
+        }),
+    );
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: WITH_DIG_46, error: null, fetchedAt: null }) },
+      session: { onBatch },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByTestId('claude-pane');
+    emit(['DIG-41', 'DIG-46']);
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: 'Start (2)' }));
+    await act(async () => {
+      pending[0](tab('t-DIG-41', 'DIG-41'));
+      await Promise.resolve();
+    });
+    // then
+    await waitFor(() => {
+      expect(startCard).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByRole('button', { name: 'Starting…' })).toBeDisabled();
+    // when
+    await act(async () => {
+      pending[1](tab('t-DIG-46', 'DIG-46'));
+      await Promise.resolve();
+    });
+    // then
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Starting…' })).not.toBeInTheDocument();
+    });
+  });
+
   test('Open opens the card and activates its tab', async () => {
     // given
     const openCard = vi.fn(() => Promise.resolve(tab('t8', 'DIG-44')));
