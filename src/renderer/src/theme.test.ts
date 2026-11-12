@@ -45,7 +45,7 @@ const palette = [
   ['--success', '#57ab5a'],
   ['--idle', '#8b949e'],
   ['--diff-add-bg', 'rgba(87, 171, 90, 0.15)'],
-  ['--diff-chg-bg', 'rgba(212, 177, 6, 0.15)'],
+  ['--diff-chg-bg', 'rgba(79, 163, 224, 0.15)'],
   ['--diff-del', '#e5534b'],
   ['--overlay', 'rgb(0 0 0 / 60%)'],
   ['--minimap-slider', 'rgba(121, 121, 121, 0.2)'],
@@ -309,6 +309,17 @@ describe('theme', () => {
     // then
     expect(ring).toContain('outline: 2px solid var(--focus-ring)');
     expect(ring).toContain('outline-offset: 2px');
+  });
+
+  test('only warnings use the warning colors', () => {
+    // given
+    const warning = /var\(--warning/;
+
+    // when
+    const paths = modules.filter(([, css]) => warning.test(css)).map(([path]) => path);
+
+    // then
+    expect(paths).toEqual(['./card/PrSummary.module.css', './home/HomeTab.module.css']);
   });
 
   test('every variable a module uses is defined', () => {

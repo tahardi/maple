@@ -4,6 +4,7 @@ import { useMaple } from '../store';
 import styles from './Inbox.module.css';
 import { tabLabel } from '@renderer/shell/tabs/tabLabel';
 import { useDismiss } from '@renderer/shell/menu/useDismiss';
+import { DOT_LABELS } from '@shared/status/dots';
 
 function pointsLabel(points: number | null): string {
   return points === null ? '–' : `${String(points)} pts`;
@@ -77,7 +78,7 @@ export function Inbox() {
                         go(item);
                       }}
                     >
-                      {[tabLabel(item), projectName(item.projectKey), item.dot].join(' · ')}
+                      {[tabLabel(item), projectName(item.projectKey), DOT_LABELS[item.dot]].join(' · ')}
                     </button>
                   </li>
                 ))}

@@ -6,6 +6,7 @@ import { ProjectMenu } from '@renderer/shell/ProjectMenu';
 import styles from './TabBar.module.css';
 import { tabLabel } from './tabLabel';
 import { errorText } from '@shared/errors/errorText';
+import { DOT_LABELS } from '@shared/status/dots';
 
 const SYNC_LABELS = { queued: 'Sync queued', syncing: 'Syncing with main' } as const;
 
@@ -82,7 +83,7 @@ export function TabBar() {
   const renderItem = ({ id, ...item }: (typeof pinned)[number] | (typeof cardItems)[number]) => (
     <div key={item.key} className={item.selected ? `${styles.item} ${styles.active}` : styles.item}>
       <button role="tab" aria-selected={item.selected} className={styles.tab} onClick={item.onClick}>
-        {item.dot && <span className={styles.dot} data-dot={item.dot} />}
+        {item.dot && <span role="img" className={styles.dot} data-dot={item.dot} aria-label={DOT_LABELS[item.dot]} />}
         {item.label}
         {item.sync !== null && (
           <span
