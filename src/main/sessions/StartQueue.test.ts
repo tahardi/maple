@@ -50,17 +50,18 @@ function setup(given: Setup = {}) {
   const load: HostLoad = { loadAverage: 1, cores: 8, freeBytes: 8 * GIB, ...given.load };
   const save = vi.fn<(cards: QueuedCard[]) => Promise<void>>(() => Promise.resolve());
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  const limits: StartLimits = {
+    startAtOnce: 4,
+    maxWorking: 8,
+    maxLoadPerCore: 0.8,
+    minFreeMegabytes: 2048,
+    startGapSeconds: 15,
+    ...given.limits,
+  };
   const queue = new StartQueue({
     sessions: sessions as unknown as SessionManager,
     status: engine as unknown as StatusEngine,
-    limits: () => ({
-      startAtOnce: 4,
-      maxWorking: 8,
-      maxLoadPerCore: 0.8,
-      minFreeMegabytes: 2048,
-      startGapSeconds: 15,
-      ...given.limits,
-    }),
+    limits: () => limits,
     load: () => load,
     queued: given.queued ?? [],
     save,
@@ -70,7 +71,7 @@ function setup(given: Setup = {}) {
     statuses = working(count);
     engine.emit('status', status('w0', 'idle'), 'working');
   };
-  return { queue, sessions, engine, startCard, save, logger, load, tabs, setWorking };
+  return { queue, sessions, engine, startCard, save, logger, load, limits, tabs, setWorking };
 }
 
 describe('StartQueue', () => {
@@ -245,6 +246,38 @@ describe('StartQueue', () => {
     vi.advanceTimersByTime(1);
     // then
     expect(startCard).toHaveBeenCalledTimes(2);
+  });
+
+  test('a start gap that grows while a card waits holds the start until the new gap', () => {
+    // given
+    const { queue, startCard, limits } = setup({ working: 4 });
+    queue.start();
+    queue.add('DIG', 'DIG-45');
+    queue.add('DIG', 'DIG-46');
+    limits.startGapSeconds = 90;
+    // when
+    vi.advanceTimersByTime(89_999);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(1);
+    expect(queue.state()).toMatchObject({ waitingFor: 'pace', gapSeconds: 90 });
+    // when
+    vi.advanceTimersByTime(1);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(2);
+  });
+
+  test('a start gap that shrinks while a card waits starts it on the next recheck', () => {
+    // given
+    const { queue, startCard, limits } = setup({ working: 4, limits: { startGapSeconds: 90 } });
+    queue.start();
+    queue.add('DIG', 'DIG-45');
+    queue.add('DIG', 'DIG-46');
+    limits.startGapSeconds = 15;
+    // when
+    vi.advanceTimersByTime(RECHECK_MS);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(2);
+    expect(queue.state().cards).toEqual([]);
   });
 
   test('a long start gap still rechecks CPU and memory every 15 seconds', () => {
