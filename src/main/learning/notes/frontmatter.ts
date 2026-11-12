@@ -39,15 +39,19 @@ function editBlock(block: string, fields: Record<string, unknown>): string {
   for (const [key, value] of Object.entries(fields)) {
     const pair = map?.items.find((p) => isScalar(p.key) && p.key.value === key);
     const node = pair?.value;
+    if (!isPlainValue(value)) {
+      return reprint(doc, fields);
+    }
     if (pair === undefined) {
       added.push(stringify({ [key]: value }));
       continue;
     }
-    if (!isPlainValue(value) || !isScalar(node) || node.range === undefined || node.range === null) {
-      doc.set(key, value);
-      return doc.toString();
+    if (!isScalar(node) || node.range == null) {
+      return reprint(doc, fields);
     }
-    edits.push({ start: node.range[0], end: node.range[1], text: stringify(value).trimEnd() });
+    const [start, end] = node.range;
+    const lead = block[start - 1] === ':' ? ' ' : '';
+    edits.push({ start, end, text: lead + stringify(value).trimEnd() });
   }
   const edited = edits
     .sort((a, b) => b.start - a.start)
@@ -55,7 +59,16 @@ function editBlock(block: string, fields: Record<string, unknown>): string {
   return edited + added.join('');
 }
 
+function reprint(doc: Document, fields: Record<string, unknown>): string {
+  for (const [key, value] of Object.entries(fields)) {
+    doc.set(key, value);
+  }
+  return doc.toString();
+}
+
 export function writeFrontmatter(text: string, fields: Record<string, unknown>): string {
   const { block, body } = split(text);
-  return `---\n${editBlock(block ?? '', fields)}---\n${body}`;
+  const newline = text.startsWith('---\r\n') ? '\r\n' : '\n';
+  const edited = editBlock(block ?? '', fields).replace(/\r?\n/g, newline);
+  return `---${newline}${edited}---${newline}${body}`;
 }

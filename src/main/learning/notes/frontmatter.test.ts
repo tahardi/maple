@@ -19,6 +19,11 @@ describe('frontmatter', () => {
       want: { data: {}, body: '# Title\n' },
     },
     {
+      name: 'reads a note with Windows line endings',
+      text: '---\r\nstatus: learned\r\n---\r\n# Title\r\n',
+      want: { data: { status: 'learned' }, body: '# Title\r\n' },
+    },
+    {
       name: 'keeps grade dates as text',
       text: '---\ngrades:\n  - { date: 2026-11-12, score: 4, total: 5 }\n---\n',
       want: { data: { grades: [{ date: '2026-11-12', score: 4, total: 5 }] }, body: '' },
@@ -60,6 +65,24 @@ describe('frontmatter', () => {
       text: '---\nclass: xss\n---\n# XSS\n',
       fields: { comfortable: true },
       want: '---\nclass: xss\ncomfortable: true\n---\n# XSS\n',
+    },
+    {
+      name: 'fills a key that has no value',
+      text: '---\nclass: xss\ncomfortable:\n---\n# XSS\n',
+      fields: { comfortable: true },
+      want: '---\nclass: xss\ncomfortable: true\n---\n# XSS\n',
+    },
+    {
+      name: 'keeps Windows line endings',
+      text: '---\r\nclass: xss\r\ncomfortable: false\r\n---\r\n# XSS\r\n',
+      fields: { comfortable: true, status: 'learned' },
+      want: '---\r\nclass: xss\r\ncomfortable: true\r\nstatus: learned\r\n---\r\n# XSS\r\n',
+    },
+    {
+      name: 'writes a list and a plain value together',
+      text: '---\nstatus: to-learn\ngrades: []\n---\n# XSS\n',
+      fields: { status: 'learned', grades: [{ date: '2026-11-12', score: 4, total: 5 }] },
+      want: '---\nstatus: learned\ngrades:\n  - date: 2026-11-12\n    score: 4\n    total: 5\n---\n# XSS\n',
     },
     {
       name: 'adds a block when there is none',
