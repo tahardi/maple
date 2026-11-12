@@ -123,6 +123,8 @@ function register(
       seen: () => Promise.resolve({}),
       startQueue: new EventEmitter() as StartQueue,
       prs: { latest: latestPr, refresh: refreshPrs },
+      jira: new Promise<never>(() => undefined),
+      jiraCreds: new Promise<never>(() => undefined),
     },
     logger,
     events as unknown as PrEvents,

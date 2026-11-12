@@ -97,6 +97,8 @@ function setup(
     seen: () => Promise.resolve(seen),
     startQueue: new EventEmitter() as StartQueue,
     prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
+    jira: new Promise<never>(() => undefined),
+    jiraCreds: new Promise<never>(() => undefined),
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];
   const confirmQuit = on.mock.calls.find(([name]) => name === 'app:confirmQuit')?.[1];

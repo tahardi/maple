@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { IpcMainInvokeEvent } from 'electron';
@@ -9,6 +9,8 @@ import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import type { SessionManager } from '@main/sessions/SessionManager';
 import type { StatusEngine } from '@main/sessions/StatusEngine';
 import type { Terminals } from '@main/sessions/Terminals';
+import { JiraClient } from '@main/jira/JiraClient';
+import type { JiraCreds } from '@main/jira/readCreds';
 import { registerJira } from './jira';
 import type { StartQueue } from '@main/sessions/StartQueue';
 import { errorText } from '@shared/errors/errorText';
@@ -36,7 +38,7 @@ const project: ProjectConfig = {
 const sessions = { sessionOf } as unknown as SessionManager;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const fixtures = resolve(import.meta.dirname, '../../../test/fixtures/jira');
-const deps = {
+const base = {
   window: () => null,
   worktreeFor: () => null,
   project: (k: string) => Promise.resolve(k === 'HALO' ? project : null),
@@ -62,10 +64,21 @@ function fixture(name: string): string {
 
 const TOKEN = 'tok-3f9a1c77e2';
 
-async function writeCreds(): Promise<string> {
-  const path = join(await mkdtemp(join(tmpdir(), 'maple-jira-')), 'env');
-  await writeFile(path, `JIRA_SITE=example.atlassian.net\nJIRA_EMAIL=me@example.com\nJIRA_TOKEN=${TOKEN}\n`);
-  return path;
+const creds: JiraCreds = { site: 'https://example.atlassian.net', email: 'me@example.com', token: TOKEN };
+
+function rejected<T>(err: Error): Promise<T> {
+  const promise = Promise.reject(err);
+  promise.catch(() => undefined);
+  return promise;
+}
+
+function withJira(fetchFn: typeof fetch) {
+  return { ...base, jira: Promise.resolve(new JiraClient(creds, fetchFn, logger)), jiraCreds: Promise.resolve(creds) };
+}
+
+function withoutCreds() {
+  const err = new Error('reading jira creds: JIRA_TOKEN is missing');
+  return { ...base, jira: rejected<JiraClient>(err), jiraCreds: rejected<JiraCreds>(err) };
 }
 
 function jiraFetch(issuesStatus: () => number): typeof fetch {
@@ -113,7 +126,7 @@ describe('registerJira', () => {
     { name: 'unknown project', channel: 'jira:backlog', key: 'NOPE', want: 'fetching backlog: unknown project NOPE' },
   ])('returns the error for $name on $channel', async ({ channel, key, want }) => {
     // given
-    registerJira(deps, logger);
+    registerJira(withoutCreds(), logger);
     // when
     const got = await handler(channel)({} as IpcMainInvokeEvent, key);
     // then
@@ -122,118 +135,54 @@ describe('registerJira', () => {
 
   test('returns the active sprint for a known project', async () => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
-    vi.stubGlobal(
-      'fetch',
-      jiraFetch(() => 200),
-    );
-    registerJira(deps, logger);
+    registerJira(withJira(jiraFetch(() => 200)), logger);
     // when
     const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
     expect(got).toMatchObject({ data: { name: 'HALO Sprint 1' }, error: null });
   });
 
-  test('deletes the snapshots of Done cards and keeps the others', async () => {
+  test('deletes no snapshots when it reads the sprint', async () => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
-    vi.stubGlobal(
-      'fetch',
-      jiraFetch(() => 200),
-    );
     sessionOf.mockImplementation((key) => `s-${key}`);
-    removeSnapshots.mockResolvedValue(undefined);
-    registerJira(deps, logger);
-    // when
-    await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
-    // then
-    expect(removeSnapshots.mock.calls).toEqual([['s-HALO-11']]);
-  });
-
-  test('deletes no snapshots for a Done card with no session', async () => {
-    // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
-    vi.stubGlobal(
-      'fetch',
-      jiraFetch(() => 200),
-    );
-    sessionOf.mockReturnValue(null);
-    registerJira(deps, logger);
+    registerJira(withJira(jiraFetch(() => 200)), logger);
     // when
     await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
     expect(removeSnapshots).not.toHaveBeenCalled();
   });
 
-  test('logs a failure to delete snapshots and still returns the sprint', async () => {
+  test('fetches with the client from the deps and reads no creds file', async () => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
-    vi.stubGlobal(
-      'fetch',
-      jiraFetch(() => 200),
-    );
-    sessionOf.mockImplementation((key) => `s-${key}`);
-    removeSnapshots.mockRejectedValue(new Error('removing: busy'));
-    registerJira(deps, logger);
+    vi.stubEnv('MAPLE_JIRA_ENV', join(tmpdir(), 'maple-no-creds', 'env'));
+    registerJira(withJira(jiraFetch(() => 200)), logger);
     // when
     const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
     expect(got).toMatchObject({ data: { name: 'HALO Sprint 1' }, error: null });
-    await vi.waitFor(() => {
-      expect(logger.warn).toHaveBeenCalledWith('vault', 'failed', {
-        operation: 'removeSnapshots',
-        args: ['s-HALO-11'],
-        error: 'removing: busy',
-      });
-    });
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   test('returns the backlog for a known project', async () => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
-    vi.stubGlobal(
-      'fetch',
-      vi.fn<typeof fetch>((input) => {
-        const url = new URL(input instanceof Request ? input.url : input.toString());
-        const name = url.pathname === '/rest/agile/1.0/board/7/epic' ? 'board-epics.json' : 'backlog-issues.json';
-        return Promise.resolve(new Response(fixture(name)));
-      }),
-    );
-    registerJira(deps, logger);
+    const fetchFn = vi.fn<typeof fetch>((input) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      const name = url.pathname === '/rest/agile/1.0/board/7/epic' ? 'board-epics.json' : 'backlog-issues.json';
+      return Promise.resolve(new Response(fixture(name)));
+    });
+    registerJira(withJira(fetchFn), logger);
     // when
     const got = await handler('jira:backlog')({} as IpcMainInvokeEvent, 'HALO');
     // then
     expect(got).toMatchObject({ data: [{ epic: { key: 'HALO-2', color: 'purple' } }, { epic: null }], error: null });
   });
 
-  test('reads creds once at startup', async () => {
-    // given
-    const path = await writeCreds();
-    vi.stubEnv('MAPLE_JIRA_ENV', path);
-    vi.stubGlobal(
-      'fetch',
-      jiraFetch(() => 200),
-    );
-    registerJira(deps, logger);
-    await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
-    await rm(path);
-    // when
-    const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
-    // then
-    expect(got).toMatchObject({ data: { name: 'HALO Sprint 1' }, error: null });
-  });
-
   test('keeps the last sprint when Jira fails', async () => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
     const statuses = [200, 500];
-    vi.stubGlobal(
-      'fetch',
-      jiraFetch(() => statuses.shift() ?? 500),
-    );
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(Date.UTC(2026, 10, 11));
-    registerJira(deps, logger);
+    registerJira(withJira(jiraFetch(() => statuses.shift() ?? 500)), logger);
     const first = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     vi.setSystemTime(Date.UTC(2026, 10, 11, 0, 0, 16));
     // when
@@ -245,10 +194,8 @@ describe('registerJira', () => {
 
   test('moveToSprint makes the next sprint read go to Jira', async () => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
     const fetchFn = jiraFetch(() => 200);
-    vi.stubGlobal('fetch', fetchFn);
-    registerJira(deps, logger);
+    registerJira(withJira(fetchFn), logger);
     await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     await handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']);
     // when
@@ -269,9 +216,7 @@ describe('registerJira', () => {
     { name: 'a network error', fetchFn: () => Promise.reject(new Error('fetch failed')) },
   ])('never returns the token after $name', async ({ fetchFn }) => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
-    vi.stubGlobal('fetch', vi.fn<typeof fetch>(fetchFn));
-    registerJira(deps, logger);
+    registerJira(withJira(vi.fn<typeof fetch>(fetchFn)), logger);
     // when
     const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
@@ -283,13 +228,9 @@ describe('registerJira', () => {
 
   test('moveToSprint moves the cards with the startup creds', async () => {
     // given
-    const path = await writeCreds();
-    vi.stubEnv('MAPLE_JIRA_ENV', path);
     const fetchFn = vi.fn<typeof fetch>(() => Promise.resolve(new Response(null, { status: 204 })));
-    vi.stubGlobal('fetch', fetchFn);
-    registerJira(deps, logger);
+    registerJira(withJira(fetchFn), logger);
     await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
-    await rm(path);
     // when
     await handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']);
     // then
@@ -299,7 +240,7 @@ describe('registerJira', () => {
     expect(logger.warn).not.toHaveBeenCalledWith(
       'jira',
       'failed',
-      expect.objectContaining({ operation: 'moveToSprint' }),
+      expect.objectContaining({ operation: 'jira:moveToSprint' }),
     );
   });
 
@@ -313,7 +254,7 @@ describe('registerJira', () => {
     { name: 'a missing key list', args: [6] },
   ])('moveToSprint rejects $name', async ({ args }) => {
     // given
-    registerJira(deps, logger);
+    registerJira(withoutCreds(), logger);
     // when
     const got = Promise.resolve().then(() => handler('jira:moveToSprint')({} as IpcMainInvokeEvent, ...args));
     // then
@@ -322,7 +263,7 @@ describe('registerJira', () => {
 
   test('moveToSprint rejects with the creds error when creds are unreadable', async () => {
     // given
-    registerJira(deps, logger);
+    registerJira(withoutCreds(), logger);
     // when
     const got = handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']);
     // then
@@ -334,9 +275,7 @@ describe('registerJira', () => {
     { name: 'a network error', fetchFn: () => Promise.reject(new Error('fetch failed')) },
   ])('moveToSprint never rejects with the token after $name', async ({ fetchFn }) => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
-    vi.stubGlobal('fetch', vi.fn<typeof fetch>(fetchFn));
-    registerJira(deps, logger);
+    registerJira(withJira(vi.fn<typeof fetch>(fetchFn)), logger);
     // when
     const got = await handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']).catch(
       (err: unknown) => err,
@@ -350,25 +289,20 @@ describe('registerJira', () => {
 
   test('logs a failed move at warn', async () => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
-    vi.stubGlobal(
-      'fetch',
-      vi.fn<typeof fetch>(() => Promise.resolve(new Response('', { status: 400 }))),
-    );
-    registerJira(deps, logger);
+    registerJira(withJira(vi.fn<typeof fetch>(() => Promise.resolve(new Response('', { status: 400 })))), logger);
     // when
     const got = handler('jira:moveToSprint')({} as IpcMainInvokeEvent, 6, ['HALO-20']);
     // then
     await expect(got).rejects.toThrow('moving cards to sprint: Jira returned 400');
     expect(logger.warn).toHaveBeenCalledWith('jira', 'failed', {
-      operation: 'moveToSprint',
+      operation: 'jira:moveToSprint',
       error: 'moving cards to sprint: Jira returned 400',
     });
   });
 
   test('logs unreadable creds at warn', async () => {
     // given
-    registerJira(deps, logger);
+    registerJira(withoutCreds(), logger);
     // when
     await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
@@ -380,12 +314,7 @@ describe('registerJira', () => {
 
   test('logs a failed sprint fetch at warn', async () => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
-    vi.stubGlobal(
-      'fetch',
-      jiraFetch(() => 500),
-    );
-    registerJira(deps, logger);
+    registerJira(withJira(jiraFetch(() => 500)), logger);
     // when
     await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
@@ -435,11 +364,9 @@ describe('registerJira', () => {
       { kind: 'feature', parent: undefined, labels: ['needs-refinement'], first: undefined, last: undefined },
     ])('files a $kind in MPL', async ({ kind, parent, labels, first, last }) => {
       // given
-      vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
       await useConfigDir(`${lines.join('\n')}\n`);
       const fetchFn = createFetch();
-      vi.stubGlobal('fetch', fetchFn);
-      registerJira(deps, logger);
+      registerJira(withJira(fetchFn), logger);
       // when
       const got = await handler('jira:report')({} as IpcMainInvokeEvent, { kind, title: 'Crash', description: 'x' });
       // then
@@ -458,11 +385,9 @@ describe('registerJira', () => {
 
     test('files a bug without a log file', async () => {
       // given
-      vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
       await useConfigDir(null);
       const fetchFn = createFetch();
-      vi.stubGlobal('fetch', fetchFn);
-      registerJira(deps, logger);
+      registerJira(withJira(fetchFn), logger);
       // when
       await handler('jira:report')({} as IpcMainInvokeEvent, { kind: 'bug', title: 'Crash', description: '' });
       // then
@@ -475,10 +400,8 @@ describe('registerJira', () => {
       { name: 'a description over 10,000 characters', title: 'Crash', description: 'x'.repeat(10_001) },
     ])('refuses $name before any request', async ({ title, description }) => {
       // given
-      vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
       const fetchFn = createFetch();
-      vi.stubGlobal('fetch', fetchFn);
-      registerJira(deps, logger);
+      registerJira(withJira(fetchFn), logger);
       // when
       const got = (async () => handler('jira:report')({} as IpcMainInvokeEvent, { kind: 'bug', title, description }))();
       // then
@@ -486,12 +409,25 @@ describe('registerJira', () => {
       expect(fetchFn).not.toHaveBeenCalled();
     });
 
+    test('logs a failed report at warn', async () => {
+      // given
+      await useConfigDir(null);
+      registerJira(withJira(createFetch(500)), logger);
+      // when
+      const got = handler('jira:report')({} as IpcMainInvokeEvent, { kind: 'bug', title: 'Crash', description: '' });
+      // then
+      await expect(got).rejects.toThrow('filing report:');
+      expect(logger.warn).toHaveBeenCalledWith('jira', 'failed', {
+        operation: 'jira:report',
+        kind: 'bug',
+        error: expect.stringContaining('filing report:') as unknown,
+      });
+    });
+
     test('rejects with filing report when Jira fails', async () => {
       // given
-      vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
       await useConfigDir(null);
-      vi.stubGlobal('fetch', createFetch(400));
-      registerJira(deps, logger);
+      registerJira(withJira(createFetch(400)), logger);
       // when
       const got = handler('jira:report')({} as IpcMainInvokeEvent, { kind: 'bug', title: 'Crash', description: '' });
       // then
@@ -501,12 +437,7 @@ describe('registerJira', () => {
 
   test('logs nothing when the sprint loads', async () => {
     // given
-    vi.stubEnv('MAPLE_JIRA_ENV', await writeCreds());
-    vi.stubGlobal(
-      'fetch',
-      jiraFetch(() => 200),
-    );
-    registerJira(deps, logger);
+    registerJira(withJira(jiraFetch(() => 200)), logger);
     // when
     await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
