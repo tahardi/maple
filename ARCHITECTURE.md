@@ -160,8 +160,8 @@ The inputs:
   `backgroundWaitMinutes`, then runs the Stop check.
 - **Stop check.** A Stop hook runs it from any dot, not only `working`. Planner, vault, and learning tabs go to
   `idle`. A card tab looks up the card in Jira and its PRs from the PR poller, waiting for a fresh poll, with a 15 s
-  timeout each. Done is `merged`; In Review with at least one open PR and no failed checks on any open PR is `ready`; anything else,
-  or a failed lookup, is `waiting`.
+  timeout each. Done is `merged`; In Review with at least one open PR and no failed checks on any open PR is `ready`;
+  anything else, or a failed lookup, is `waiting`.
 - **Esc or Ctrl+C** typed while `working` (and not waiting on background tasks) runs the Stop check.
 - **Claude exits:** `working` becomes `idle`; other dots stay. A non-zero exit within 5 s of a resume marks the
   resume failed.

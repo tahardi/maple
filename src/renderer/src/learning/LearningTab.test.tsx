@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
-import { lesson } from './lessonFixture';
+import { lesson } from '@renderer/testing/lessonFixture';
 import { LearningTab } from './LearningTab';
 
 vi.mock('@renderer/card/viewer/editor/monacoSetup', () => ({}));
@@ -75,5 +75,6 @@ describe('LearningTab', () => {
     render(<LearningTab tab={learningTab} />);
     // then
     expect(await screen.findByText('reading lessons: no vaultDir in config')).toBeInTheDocument();
+    expect(screen.queryByText(/^No lessons yet/)).not.toBeInTheDocument();
   });
 });

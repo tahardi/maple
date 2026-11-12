@@ -230,21 +230,25 @@ describe('TabBar', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  test('shows why the vault tab failed to open', async () => {
+  test.each([
+    { name: 'Vault', method: 'openVault', channel: 'tabs:openVault', reason: 'opening vault: no vaultDir in config' },
+    {
+      name: 'Learning',
+      method: 'openLearning',
+      channel: 'tabs:openLearning',
+      reason: 'opening learning: no vaultDir in config',
+    },
+  ] as const)('shows why the $name tab failed to open', async ({ name, method, channel, reason }) => {
     // given
     const activate = vi.fn();
-    const openVault = vi.fn(() =>
-      Promise.reject(
-        new Error("Error invoking remote method 'tabs:openVault': Error: opening vault: no vaultDir in config"),
-      ),
-    );
-    fakeMaple({ tabs: { openVault } });
+    const open = vi.fn(() => Promise.reject(new Error(`Error invoking remote method '${channel}': Error: ${reason}`)));
+    fakeMaple({ tabs: { [method]: open } });
     useMaple.setState({ config: VAULT_CONFIG, activate });
     render(<TabBar />);
     // when
-    await userEvent.click(screen.getByRole('tab', { name: 'Vault' }));
+    await userEvent.click(screen.getByRole('tab', { name }));
     // then
-    expect(await screen.findByRole('alert')).toHaveTextContent(/^opening vault: no vaultDir in config$/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(new RegExp(`^${reason}$`));
     expect(activate).not.toHaveBeenCalled();
   });
 

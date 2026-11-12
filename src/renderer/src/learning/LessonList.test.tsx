@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
-import { lesson } from './lessonFixture';
+import { lesson } from '@renderer/testing/lessonFixture';
 import { LessonList } from './LessonList';
 
 function rowOf(title: string): HTMLElement {
@@ -30,7 +30,7 @@ describe('LessonList', () => {
       }),
     ];
     // when
-    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} />);
+    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} onSaved={vi.fn()} />);
     // then
     expect(within(rowOf('XSS')).getByText('To learn')).toHaveAttribute('data-tone', 'warning');
     expect(within(rowOf('XSS')).getByText('2 findings')).toBeInTheDocument();
@@ -50,7 +50,7 @@ describe('LessonList', () => {
       lesson('d', { title: 'D' }),
     ];
     // when
-    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} />);
+    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} onSaved={vi.fn()} />);
     // then
     const titles = screen.getAllByRole('listitem').map((li) => within(li).getAllByRole('button')[0].textContent);
     expect(titles).toEqual(['C', 'D', 'A', 'B']);
@@ -59,7 +59,9 @@ describe('LessonList', () => {
   test('clicking a title selects the note', async () => {
     // given
     const onSelect = vi.fn();
-    render(<LessonList lessons={[lesson('xss', { title: 'XSS' })]} selected={null} onSelect={onSelect} />);
+    render(
+      <LessonList lessons={[lesson('xss', { title: 'XSS' })]} selected={null} onSelect={onSelect} onSaved={vi.fn()} />,
+    );
     // when
     await userEvent.click(screen.getByRole('button', { name: 'XSS' }));
     // then
@@ -76,11 +78,13 @@ describe('LessonList', () => {
         }),
     );
     fakeMaple({ learning: { setComfortable } });
+    const onSaved = vi.fn();
     render(
       <LessonList
         lessons={[lesson('xss', { title: 'XSS' }), lesson('csrf', { title: 'CSRF', comfortable: true })]}
         selected={null}
         onSelect={vi.fn()}
+        onSaved={onSaved}
       />,
     );
     expect(within(rowOf('CSRF')).getByRole('button', { name: 'Not comfortable' })).toBeInTheDocument();
@@ -91,24 +95,47 @@ describe('LessonList', () => {
     expect(within(rowOf('XSS')).getByRole('button', { name: 'Saving…' })).toBeDisabled();
     finish();
     expect(await within(rowOf('XSS')).findByRole('button', { name: 'Mark comfortable' })).toBeEnabled();
+    expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  test('Not comfortable clears the flag', async () => {
+    // given
+    const setComfortable = vi.fn(() => Promise.resolve());
+    fakeMaple({ learning: { setComfortable } });
+    render(
+      <LessonList
+        lessons={[lesson('csrf', { title: 'CSRF', comfortable: true })]}
+        selected={null}
+        onSelect={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Not comfortable' }));
+    // then
+    expect(setComfortable).toHaveBeenCalledWith('Learning/Security/csrf.md', false);
   });
 
   test('shows why saving failed', async () => {
     // given
     const setComfortable = vi.fn(() => Promise.reject(new Error('marking comfortable: x is not a lesson note')));
     fakeMaple({ learning: { setComfortable } });
-    render(<LessonList lessons={[lesson('xss', { title: 'XSS' })]} selected={null} onSelect={vi.fn()} />);
+    const onSaved = vi.fn();
+    render(
+      <LessonList lessons={[lesson('xss', { title: 'XSS' })]} selected={null} onSelect={vi.fn()} onSaved={onSaved} />,
+    );
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Mark comfortable' }));
     // then
     expect(await screen.findByText('marking comfortable: x is not a lesson note')).toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
   });
 
   test('shows the empty text with no notes', () => {
     // given
     const lessons: [] = [];
     // when
-    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} />);
+    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} onSaved={vi.fn()} />);
     // then
     expect(
       screen.getByText('No lessons yet. They come from findings: choose Learn now or Learn later on a finding.'),
@@ -119,16 +146,18 @@ describe('LessonList', () => {
     // given
     const lessons = [lesson('csrf', { title: 'CSRF', error: 'reading frontmatter: bad indentation' })];
     // when
-    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} />);
+    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} onSaved={vi.fn()} />);
     // then
     expect(within(rowOf('CSRF')).getByText('reading frontmatter: bad indentation')).toBeInTheDocument();
+    expect(within(rowOf('CSRF')).getByRole('button', { name: 'Mark comfortable' })).toBeDisabled();
+    expect(within(rowOf('CSRF')).getByText("Fix this note's frontmatter first")).toBeInTheDocument();
   });
 
   test('marks the selected note', () => {
     // given
     const lessons = [lesson('xss', { title: 'XSS' }), lesson('csrf', { title: 'CSRF' })];
     // when
-    render(<LessonList lessons={lessons} selected="Learning/Security/xss.md" onSelect={vi.fn()} />);
+    render(<LessonList lessons={lessons} selected="Learning/Security/xss.md" onSelect={vi.fn()} onSaved={vi.fn()} />);
     // then
     expect(rowOf('XSS')).toHaveAttribute('aria-current', 'true');
     expect(rowOf('CSRF')).not.toHaveAttribute('aria-current');

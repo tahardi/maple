@@ -19,10 +19,12 @@ export function LessonList({
   lessons,
   selected,
   onSelect,
+  onSaved,
 }: {
   lessons: readonly LessonSummary[];
   selected: string | null;
   onSelect: (path: string) => void;
+  onSaved: () => void;
 }) {
   const [saving, setSaving] = useState<string | null>(null);
   const [failed, setFailed] = useState<{ path: string; error: string } | null>(null);
@@ -36,6 +38,7 @@ export function LessonList({
     setFailed(null);
     window.maple.learning
       .setComfortable(path, comfortable)
+      .then(onSaved)
       .catch((err: unknown) => {
         setFailed({ path, error: errorText(err) });
       })
@@ -72,6 +75,8 @@ export function LessonList({
               label={l.comfortable ? 'Not comfortable' : 'Mark comfortable'}
               busy={saving === l.path}
               busyLabel="Saving…"
+              disabled={l.error !== null}
+              reason={l.error === null ? null : "Fix this note's frontmatter first"}
               onClick={() => {
                 setComfortable(l.path, !l.comfortable);
               }}

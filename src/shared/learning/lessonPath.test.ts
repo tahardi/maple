@@ -22,5 +22,4 @@ describe('lessonPath', () => {
     // then
     expect(got).toBe(want);
   });
-
 });

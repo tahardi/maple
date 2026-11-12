@@ -1,10 +1,10 @@
 import type { LessonSummary } from '@shared/types/learning/lessonSummary';
 import { errorText } from '@shared/errors/errorText';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 type Lessons = { lessons: LessonSummary[]; error: string | null };
 
-export function useLessons(): Lessons {
+export function useLessons(): Lessons & { reload: () => void } {
   const [state, setState] = useState<Lessons>({ lessons: [], error: null });
   const [version, setVersion] = useState(0);
 
@@ -31,5 +31,9 @@ export function useLessons(): Lessons {
     };
   }, [version]);
 
-  return state;
+  const reload = useCallback(() => {
+    setVersion((v) => v + 1);
+  }, []);
+
+  return { ...state, reload };
 }

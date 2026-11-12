@@ -13,7 +13,7 @@ import styles from './LearningTab.module.css';
 
 export function LearningTab({ tab }: { tab: TabState }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const { lessons, error } = useLessons();
+  const { lessons, error, reload } = useLessons();
   const body = useRef<HTMLDivElement>(null);
   const left = useColumnDrag(body, {
     storageKey: 'maple.split.learningList',
@@ -37,7 +37,9 @@ export function LearningTab({ tab }: { tab: TabState }) {
     <div ref={body} className={styles.tab} data-testid="learning-tab">
       <div className={styles.left} style={{ width: left.size }}>
         {error !== null && <Notice tone="danger">{error}</Notice>}
-        <LessonList lessons={lessons} selected={selected} onSelect={setSelected} />
+        {(error === null || lessons.length > 0) && (
+          <LessonList lessons={lessons} selected={selected} onSelect={setSelected} onSaved={reload} />
+        )}
       </div>
       <SplitHandle drag={left} axis="x" label="Resize lesson list" />
       <div className={styles.middle}>
