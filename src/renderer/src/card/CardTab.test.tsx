@@ -155,7 +155,7 @@ function fakeVault(
 describe('CardTab', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
-    useMaple.setState({ config: FAKE_CONFIG });
+    useMaple.setState({ config: FAKE_CONFIG, activeTabId: 't1' });
     localStorage.clear();
     vi.stubGlobal(
       'ResizeObserver',
@@ -390,7 +390,8 @@ describe('CardTab', () => {
   test('uses saved column widths', () => {
     // given
     fakeMaple();
-    localStorage.setItem('maple.columns', '{"left":300,"right":40}');
+    localStorage.setItem('maple.columns.left', '300');
+    localStorage.setItem('maple.columns.right', '40');
     // when
     render(<CardTab tab={tab} />);
     // then
@@ -398,6 +399,31 @@ describe('CardTab', () => {
     expect(screen.getByTestId('viewer-slot').previousElementSibling?.previousElementSibling).toHaveStyle({
       width: '300px',
     });
+  });
+
+  test('dragging a column divider saves the width once on release', () => {
+    // given
+    fakeMaple();
+    render(<CardTab tab={tab} />);
+    const divider = screen.getByTestId('viewer-slot').previousElementSibling;
+    if (divider === null) {
+      throw new Error('finding the column divider: missing');
+    }
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    try {
+      // when
+      fireEvent.pointerDown(divider);
+      act(() => {
+        window.dispatchEvent(new PointerEvent('pointermove', { clientX: 300 }));
+        window.dispatchEvent(new PointerEvent('pointermove', { clientX: 320 }));
+        window.dispatchEvent(new PointerEvent('pointerup'));
+      });
+      // then
+      const leftWrites = setItem.mock.calls.filter(([key]) => key === 'maple.columns.left');
+      expect(leftWrites).toEqual([['maple.columns.left', '320']]);
+    } finally {
+      setItem.mockRestore();
+    }
   });
 
   test('marks the files that have review comments in the tree', async () => {
@@ -1774,9 +1800,11 @@ describe('CardTab', () => {
   test('Ctrl+P does nothing in a card tab that is not active', async () => {
     // given
     fakeRepo(false);
-    useMaple.setState({ activeTabId: 'other' });
     render(<CardTab tab={tab} />);
     await screen.findByText('README.md');
+    act(() => {
+      useMaple.setState({ activeTabId: 'other' });
+    });
     // when
     await userEvent.keyboard('{Control>}p{/Control}');
     // then

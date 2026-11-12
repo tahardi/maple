@@ -3,7 +3,7 @@ import type { DiffLines } from '@shared/types/files/diffLines';
 import type { FilePair } from '@shared/types/files/filePair';
 import type { Review } from '@shared/types/github/review';
 import type { ReviewComment } from '@shared/types/github/reviewComment';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
@@ -290,6 +290,7 @@ describe('FileViewer', () => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
     useMaple.setState(useMaple.getInitialState(), true);
+    useMaple.setState({ activeTabId: 't1' });
     resize.value = () => undefined;
     vi.stubGlobal(
       'ResizeObserver',
@@ -1665,6 +1666,89 @@ describe('FileViewer', () => {
     expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'b\n');
   });
 
+  test('a hidden tab reads the file once and skips repo changes', async () => {
+    // given
+    useMaple.setState({ activeTabId: 'other' });
+    const readFile = vi.fn(() => Promise.resolve(changed));
+    const onChanged = vi.fn(() => vi.fn());
+    fakeMaple({ repo: { readFile, onChanged } });
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFiles={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+      />,
+    );
+    await screen.findByTestId('editor');
+    // then
+    expect(readFile).toHaveBeenCalledOnce();
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  test('a hidden tab re-reads the file and listens again when shown', async () => {
+    // given
+    useMaple.setState({ activeTabId: 'other' });
+    const readFile = vi.fn(() => Promise.resolve(changed));
+    const onChanged = vi.fn(() => vi.fn());
+    fakeMaple({ repo: { readFile, onChanged } });
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFiles={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+      />,
+    );
+    await screen.findByTestId('editor');
+    // when
+    act(() => {
+      useMaple.setState({ activeTabId: 't1' });
+    });
+    // then
+    await waitFor(() => {
+      expect(readFile).toHaveBeenCalledTimes(2);
+    });
+    expect(onChanged).toHaveBeenCalledOnce();
+  });
+
+  test('a tab that is hidden stops listening for repo changes', async () => {
+    // given
+    const stop = vi.fn();
+    fakeMaple({ repo: { readFile: () => Promise.resolve(changed), onChanged: () => stop } });
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFiles={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+      />,
+    );
+    await screen.findByTestId('editor');
+    // when
+    act(() => {
+      useMaple.setState({ activeTabId: 'other' });
+    });
+    // then
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
   test('stops listening for repo changes on unmount', async () => {
     // given
     const stop = vi.fn();
@@ -1865,6 +1949,45 @@ describe('FileViewer', () => {
     expect(repoRead).not.toHaveBeenCalled();
     expect(editor).toHaveAttribute('data-readonly', 'true');
     expect(editor).toHaveAttribute('data-value', 'new\n');
+  });
+
+  test('a review file is not read again when the tab is hidden and shown', async () => {
+    // given
+    const pinned: Review = {
+      number: 7,
+      headSha: 'a'.repeat(40),
+      baseSha: 'c'.repeat(40),
+      added: 0,
+      removed: 0,
+      files: [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: 'f'.repeat(40) }],
+      findings: [],
+    };
+    const prRead = vi.fn(() => Promise.resolve(changed));
+    fakeMaple({ pr: { readFile: prRead } });
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={['src/a.ts']}
+        activeFile="src/a.ts"
+        onActivate={vi.fn()}
+        onCloseFiles={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+        review={pinned}
+      />,
+    );
+    await screen.findByTestId('editor');
+    // when
+    act(() => {
+      useMaple.setState({ activeTabId: 'other' });
+    });
+    act(() => {
+      useMaple.setState({ activeTabId: 't1' });
+    });
+    // then
+    expect(prRead).toHaveBeenCalledOnce();
   });
 
   test('shows why a file from GitHub could not be read', async () => {

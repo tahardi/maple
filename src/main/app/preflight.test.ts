@@ -1,9 +1,18 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { PreflightProblem } from '@shared/types/app/preflightProblem';
 import { defaultRunner, runPreflight, type Runner } from './preflight';
+
+const timeout = vi.hoisted(() => ({ ms: 30_000 }));
+
+vi.mock('@main/util/commandTimeout', () => ({
+  get COMMAND_TIMEOUT_MS() {
+    return timeout.ms;
+  },
+  MERGE_TIMEOUT_MS: 120_000,
+}));
 
 const dir = mkdtempSync(join(tmpdir(), 'maple-preflight-'));
 const presentEnv = join(dir, 'env');
@@ -337,6 +346,10 @@ describe('runPreflight claude sandbox', () => {
 });
 
 describe('defaultRunner', () => {
+  afterEach(() => {
+    timeout.ms = 30_000;
+  });
+
   test.each([
     { name: 'success', cmd: process.execPath, args: ['-e', 'process.stdout.write("ok")'], code: 0, stdout: 'ok' },
     { name: 'exit code', cmd: process.execPath, args: ['-e', 'process.exit(3)'], code: 3, stdout: '' },
@@ -355,6 +368,17 @@ describe('defaultRunner', () => {
     const run = defaultRunner;
     // when
     const result = await run(process.execPath, ['-e', 'setTimeout(() => undefined, 5000)'], undefined, 50);
+    // then
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toBe('timing out after 50ms');
+  });
+
+  test('stops a command after the command timeout when none is given', async () => {
+    // given
+    timeout.ms = 50;
+    const run = defaultRunner;
+    // when
+    const result = await run(process.execPath, ['-e', 'setTimeout(() => undefined, 5000)']);
     // then
     expect(result.code).not.toBe(0);
     expect(result.stderr).toBe('timing out after 50ms');

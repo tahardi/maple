@@ -85,12 +85,14 @@ export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
     'jira:moveToSprint',
     z.tuple([z.number().int().positive(), z.array(cardKeyArg).min(1).max(50)]),
     async (sprintId, keys) => {
-      const { client, error } = await ready;
+      const { caches, client, error } = await ready;
       if (!client) {
         throw new Error(error);
       }
       try {
         await client.moveToSprint(sprintId, keys);
+        caches.sprint.clear();
+        caches.backlog.clear();
       } catch (err) {
         logger.warn('jira', 'failed', {
           operation: 'moveToSprint',
