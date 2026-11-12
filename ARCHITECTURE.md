@@ -15,6 +15,8 @@ Maple is one Electron app that drives Claude sessions running in tmux.
   only way to reach the main process.
 - **tmux.** One tmux server, `tmux -L maple`, holds one tmux session `maple-<tabId>` per tab. Each runs `claude`. The
   main process attaches to it through `node-pty` and streams the terminal to the renderer.
+- **Shell terminals.** A card tab can also open plain shells (`src/main/sessions/Terminals.ts`). They run through
+  `node-pty` outside tmux, back the `terminal` IPC area, and close on quit.
 - **Hook script.** Claude runs `resources/maple-hook.mjs` on each hook. It sends one JSON line to Maple's hook socket.
 - **Outside tools.** `git` and `gh` run as child processes with argument arrays and timeouts. Jira is called over REST
   by one client, `src/main/jira/JiraClient.ts`. `src/shared/` holds types and pure helpers both sides import.
@@ -64,7 +66,8 @@ Every method is one of three channel kinds:
   becomes channel `<area>:data`, plus any keys such as a tab id (`src/shared/api/eventChannel.ts`).
 
 `handle` and `on` check every argument against a zod schema before the handler runs; a bad `invoke` throws and a bad
-`send` is dropped. Every accepted call is also recorded in the event log as a UI action. See the README's Security
+`send` is dropped. Accepted calls on a fixed list of channels, such as starting, closing, and prompting a tab, are
+also recorded in the event log as UI actions (`src/main/events/uiActions.ts`). See the README's Security
 Model for what the main process will and won't do for the renderer.
 
 ## Session Lifecycle
@@ -100,8 +103,8 @@ card may have several worktrees; the tab keeps one selected.
 **Closing.** Closing a tab kills its tmux session and remembers the card's session id in `closedSessions`. Opening the
 same card later resumes that session.
 
-**Quitting** stops the pollers and the start queue, kills the tmux server, and waits up to two seconds for the event
-recorder to finish writing.
+**Quitting** stops the pollers and the start queue, kills the tmux server, closes the shell terminals, and waits up to
+two seconds for the event recorder to finish writing.
 
 **Launch.** Maple loads `config.json` and `state.json`, then `src/main/sessions/restore.ts` reopens every saved tab with
 its session id, so each one resumes. A tab whose project is gone from config is dropped with a warning. A tab that
@@ -119,13 +122,13 @@ since the last start).
 Each tab has one status dot. `nextDot` in `src/shared/status/dots.ts` maps an input to a dot, and `StatusEngine` in
 `src/main/sessions/StatusEngine.ts` feeds it inputs and emits each change. The on-screen labels come from `DOT_LABELS`.
 
-| State     | On screen        | Meaning                                                    |
-| --------- | ---------------- | ---------------------------------------------------------- |
-| `working` | Working          | Claude is running a turn or waiting on background tasks.   |
-| `waiting` | Needs you        | Claude stopped and the card is not ready for review.       |
-| `ready`   | Ready for review | Card is In Review and every open PR has no failed checks.  |
-| `merged`  | Merged           | Card is Done.                                              |
-| `idle`    | Idle             | No turn has run, the session exited, or a planner stopped. |
+| State     | On screen        | Meaning                                                              |
+| --------- | ---------------- | -------------------------------------------------------------------- |
+| `working` | Working          | Claude is running a turn or waiting on background tasks.             |
+| `waiting` | Needs you        | Claude stopped and the card is not ready for review.                 |
+| `ready`   | Ready for review | Card is In Review with an open PR, and no open PR has failed checks. |
+| `merged`  | Merged           | Card is Done.                                                        |
+| `idle`    | Idle             | No turn has run, Claude exited mid-turn, or a planner stopped.       |
 
 ```mermaid
 stateDiagram-v2
@@ -139,6 +142,7 @@ stateDiagram-v2
   working --> waiting: permission prompt
   working --> working: Stop with background tasks
   working --> stop: Stop, Esc or Ctrl+C, wait limit
+  waiting --> stop: Stop after a permission prompt
   stop --> merged: card is Done
   stop --> ready: In Review, open PRs, no failed checks
   stop --> waiting: anything else, or a lookup failed
@@ -154,16 +158,19 @@ The inputs:
 - **Stop with background tasks** stays `working`. `src/main/sessions/backgroundWait.ts` sorts the task kinds: a
   subagent or workflow waits until the next Stop; a shell task or a session cron waits at most
   `backgroundWaitMinutes`, then runs the Stop check.
-- **Stop check.** Planner and vault tabs go to `idle`. A card tab looks up the card in Jira and its PRs from the PR
-  poller, waiting for a fresh poll, with a 15 s timeout each. Done is `merged`; In Review with at least one open PR
-  and no failed checks on any open PR is `ready`; anything else, or a failed lookup, is `waiting`.
+- **Stop check.** A Stop hook runs it from any dot, not only `working`. Planner and vault tabs go to `idle`. A card
+  tab looks up the card in Jira and its PRs from the PR poller, waiting for a fresh poll, with a 15 s timeout each.
+  Done is `merged`; In Review with at least one open PR and no failed checks on any open PR is `ready`; anything else,
+  or a failed lookup, is `waiting`.
 - **Esc or Ctrl+C** typed while `working` (and not waiting on background tasks) runs the Stop check.
-- **Claude exits:** `working` becomes `idle`; other dots stay. An exit within 5 s of a resume marks the resume failed.
+- **Claude exits:** `working` becomes `idle`; other dots stay. A non-zero exit within 5 s of a resume marks the
+  resume failed.
 - **Resumed tab:** a card tab spawned with `--resume` gets its dot from Jira and its PRs, like a Stop check, but keeps
   `idle` if the lookup fails. A new tab spawned without a prompt only changes, to `merged`, when its card is Done.
 
 Separate from the dot, each tab has a **sync state** set by auto-sync: `queued` while a merge-main prompt waits for the
-tab to stop working, and `syncing` while Claude runs it. It clears when that turn ends or the session exits.
+tab to stop working, and `syncing` while Claude runs it. It clears when that turn ends, the session exits, or the
+user switches away while it is still `queued`.
 
 ## Pollers
 
@@ -185,13 +192,14 @@ tab to stop working, and `syncing` while Claude runs it. It clears when that tur
 `MAPLE_CONFIG_DIR`, default `~/.config/maple`, holds:
 
 - `config.json`: user config, read by `src/main/app/config/config.ts`. See the README's Config section.
-- `state.json`: open tabs, closed sessions, the start queue, zoom, and seen dots (`src/main/app/state/state.ts`).
+- `state.json`: a format `version`, open tabs, closed sessions, the start queue, the notifications toggle, zoom,
+  the last chosen project, and seen dots (`src/main/app/state/state.ts`).
 - `state.json.1` to `.N`: launch backups, newest first, `stateBackups` kept (`src/main/app/state/backupState.ts`).
 - `state.json.corrupt`: an unreadable `state.json`, moved aside at launch.
 - `hooksFile.json`: Claude settings that register the hooks; rewritten each launch.
 - `tmux.conf`: config for the `maple` tmux server; rewritten each launch.
-- `maple.sock`: the hook socket, here only when `MAPLE_CONFIG_DIR` is set; otherwise in `XDG_RUNTIME_DIR` when
-  that is set.
+- `maple.sock`: the hook socket. It lives in `XDG_RUNTIME_DIR` instead when that is set and `MAPLE_CONFIG_DIR` is
+  not.
 - `logs/main.log`: the main process log with secrets scrubbed (`src/main/app/log/log.ts`).
 - `events/<YYYY-MM-DD>.jsonl`: the event log, one file per local day (`src/main/events/eventLog.ts`).
 - `snapshots/<sessionId>/`: vault notes as they were before a card session first wrote them
@@ -214,13 +222,13 @@ Terms are sorted A to Z. Dot states use the code's names, with the on-screen lab
   its own.
 - **Hook**: a command Claude runs on an event such as Stop. Maple's hook script reports each one to the hook socket.
 - **Hook socket**: the Unix socket, `maple.sock`, the hook server listens on.
-- **`idle`** (Idle): no turn has run since spawn, the session exited, or a planner or vault turn ended.
+- **`idle`** (Idle): no turn has run since spawn, Claude exited mid-turn, or a planner or vault turn ended.
 - **`merged`** (Merged): the card is Done.
 - **Planner**: a project's Claude session in its `plannerDir`, shown in the Home tab's planner pane, for planning and
   suggesting batches of cards to start. It is a tab of kind `planner`.
 - **PR poller**: the one place PR data comes from; see Pollers.
 - **Project**: one entry in `config.json`, tied to a Jira project key, a `plannerDir`, and GitHub repos.
-- **`ready`** (Ready for review): the card is In Review and every open PR has no failed checks.
+- **`ready`** (Ready for review): the card is In Review with at least one open PR, and no open PR has failed checks.
 - **Session**: one Claude conversation. Its session id survives closing the tab, so reopening the card resumes it.
 - **Snapshot**: a copy of a vault note taken before a card session first changes it, so Maple can show the diff.
 - **Start queue**: cards waiting to start until the working, load, memory, and pace limits allow.
