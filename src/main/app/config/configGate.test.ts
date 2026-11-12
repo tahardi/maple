@@ -42,15 +42,19 @@ describe('createConfigGate', () => {
     expect(onFirstConfig).toHaveBeenCalledExactlyOnceWith(config);
   });
 
-  test('ignores a reload with no config', async () => {
+  test.each([
+    { name: 'no config yet', initial: null },
+    { name: 'a loaded config', initial: config },
+  ])('ignores a reload with no config when it has $name', async ({ initial }) => {
     // given
     const onFirstConfig = vi.fn(() => Promise.resolve());
-    const gate = createConfigGate(null, onFirstConfig);
+    const gate = createConfigGate(initial, onFirstConfig);
     await gate.start();
+    onFirstConfig.mockClear();
     // when
     await gate.loaded(null);
     // then
-    expect(gate.current()).toBeNull();
+    expect(gate.current()).toBe(initial);
     expect(onFirstConfig).not.toHaveBeenCalled();
   });
 
