@@ -52,6 +52,19 @@ describe('reloadOnCrash', () => {
     contents.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 });
     // then
     expect(contents.reload).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith('app', 'renderer gone', { reason: 'crashed', exitCode: 1 });
+  });
+
+  test('reloads a crash right after a clean exit', () => {
+    // given
+    const contents = fakeContents();
+    const logger = fakeLogger();
+    reloadOnCrash(contents, logger, () => 50_000);
+    contents.emit('render-process-gone', {}, { reason: 'clean-exit', exitCode: 0 });
+    // when
+    contents.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 });
+    // then
+    expect(contents.reload).toHaveBeenCalledOnce();
   });
 
   test('does not reload a second crash within 10 seconds', () => {
