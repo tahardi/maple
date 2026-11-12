@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -148,6 +149,13 @@ describe('readFindings', () => {
       name: 'a folder',
       make: async (path: string) => {
         await mkdir(path);
+      },
+    },
+    {
+      name: 'a named pipe',
+      make: (path: string) => {
+        execFileSync('mkfifo', [path]);
+        return Promise.resolve();
       },
     },
   ])('throws on $name in place of the file', async ({ make }) => {
