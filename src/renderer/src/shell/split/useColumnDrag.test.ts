@@ -14,6 +14,8 @@ function renderDrag(ref: { current: HTMLDivElement | null } = container()) {
     useColumnDrag(ref, {
       storageKey: KEY,
       initial: 240,
+      min: 120,
+      max: 480,
       toSize: (rect, pointer) => pointer.clientX - rect.left,
     }),
   );
@@ -35,6 +37,8 @@ describe('useColumnDrag', () => {
     { name: 'nothing saved', saved: null, expected: 240 },
     { name: 'a saved size', saved: '300', expected: 300 },
     { name: 'a saved value that is not a number', saved: 'wide', expected: 240 },
+    { name: 'a saved value below min', saved: '100', expected: 240 },
+    { name: 'a saved value above max', saved: '500', expected: 240 },
   ])('starts at the initial or saved size with $name', ({ saved, expected }) => {
     // given
     if (saved !== null) {

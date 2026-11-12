@@ -23,6 +23,8 @@ import { useCardData } from './useCardData';
 import { useApproveFlow } from './useApproveFlow';
 import { useWorktreeState } from './useWorktreeState';
 import { useColumnDrag } from '@renderer/shell/split/useColumnDrag';
+import { SplitHandle } from '@renderer/shell/split/SplitHandle';
+import { splitSize } from '@renderer/shell/split/splitSize';
 import { useOpenFiles } from '@renderer/card/viewer/tabs/useOpenFiles';
 import { useQuickOpenKeys, type QuickOpenMode } from '@renderer/card/viewer/quickOpen/useQuickOpenKeys';
 import { namedNotes } from '@renderer/card/vault/namedNotes';
@@ -42,15 +44,30 @@ export function CardTab({ tab }: { tab: TabState }) {
   const closeTab = useMaple((s) => s.closeTab);
   const active = useMaple((s) => s.activeTabId === tab.id);
   const body = useRef<HTMLDivElement>(null);
+  const middle = useRef<HTMLDivElement>(null);
   const left = useColumnDrag(body, {
     storageKey: 'maple.columns.left',
     initial: 240,
-    toSize: (rect, p) => Math.max(120, p.clientX - rect.left),
+    min: 120,
+    max: 480,
+    toSize: (rect, p) =>
+      splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'x', edge: 'start', unit: 'px', min: 120, max: 480 }),
   });
   const right = useColumnDrag(body, {
     storageKey: 'maple.columns.right',
     initial: 32,
-    toSize: (rect, p) => Math.min(80, Math.max(10, ((rect.right - p.clientX) / rect.width) * 100)),
+    min: 10,
+    max: 80,
+    toSize: (rect, p) =>
+      splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'x', edge: 'end', unit: '%', min: 10, max: 80 }),
+  });
+  const terminalDrag = useColumnDrag(middle, {
+    storageKey: 'maple.split.cardTerminal',
+    initial: 35,
+    min: 10,
+    max: 80,
+    toSize: (rect, p) =>
+      splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'y', edge: 'end', unit: '%', min: 10, max: 80 }),
   });
   const [changedOverride, setChangedOverride] = useWorktreeState<boolean | null>(tab.worktreePath, null);
   const openFiles = useOpenFiles(tab.worktreePath, {
@@ -216,8 +233,8 @@ export function CardTab({ tab }: { tab: TabState }) {
             />
           )}
         </div>
-        <div className={styles.divider} onPointerDown={left.start} />
-        <div className={styles.middle} data-testid="viewer-slot">
+        <SplitHandle drag={left} axis="x" label="Resize file tree" />
+        <div ref={middle} className={styles.middle} data-testid="viewer-slot">
           <div className={styles.viewer}>
             {tab.worktreePath === null && !showsVault ? (
               <div className={styles.waiting}>{placeholder}</div>
@@ -257,13 +274,18 @@ export function CardTab({ tab }: { tab: TabState }) {
               Terminal
             </button>
           </div>
+          {terminal === 'shown' && <SplitHandle drag={terminalDrag} axis="y" label="Resize terminal" />}
           {terminal !== 'closed' && (
-            <div className={styles.terminal} hidden={terminal === 'hidden'}>
+            <div
+              className={styles.terminal}
+              style={{ height: `${String(terminalDrag.size)}%` }}
+              hidden={terminal === 'hidden'}
+            >
               <TerminalPane tabId={tab.id} worktreePath={tab.worktreePath} tryRuns={tryRuns} />
             </div>
           )}
         </div>
-        <div className={styles.divider} onPointerDown={right.start} />
+        <SplitHandle drag={right} axis="x" label="Resize Claude pane" />
         <div className={styles.right} style={{ width: `${String(right.size)}%` }} data-testid="claude-slot">
           {card?.status === 'Done' && !worktreeExists && (
             <Notice tone="success">

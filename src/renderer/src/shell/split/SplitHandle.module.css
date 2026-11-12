@@ -1,0 +1,64 @@
+.handle {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.handle::before {
+  content: '';
+  position: absolute;
+  background: var(--border);
+}
+
+.handle:hover::before {
+  background: var(--accent);
+}
+
+.grip {
+  position: relative;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1.5px);
+}
+
+.handle:hover .grip {
+  background-image: radial-gradient(circle, var(--accent) 1px, transparent 1.5px);
+}
+
+.handle[aria-orientation='vertical'] {
+  width: 8px;
+  cursor: col-resize;
+}
+
+.handle[aria-orientation='vertical']::before {
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+}
+
+.handle[aria-orientation='vertical'] .grip {
+  width: 4px;
+  height: 18px;
+  background-size: 4px 6px;
+}
+
+.handle[aria-orientation='horizontal'] {
+  height: 8px;
+  cursor: row-resize;
+}
+
+.handle[aria-orientation='horizontal']::before {
+  left: 0;
+  right: 0;
+  top: calc(50% - 0.5px);
+  height: 1px;
+}
+
+.handle[aria-orientation='horizontal'] .grip {
+  width: 18px;
+  height: 4px;
+  background-size: 6px 4px;
+}

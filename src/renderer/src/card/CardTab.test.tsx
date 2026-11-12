@@ -401,6 +401,44 @@ describe('CardTab', () => {
     });
   });
 
+  test('double-clicking the Claude handle restores its default width', () => {
+    // given
+    fakeMaple();
+    localStorage.setItem('maple.columns.right', '40');
+    render(<CardTab tab={tab} />);
+    // when
+    fireEvent.doubleClick(screen.getByRole('separator', { name: 'Resize Claude pane' }));
+    // then
+    expect(screen.getByTestId('claude-slot')).toHaveStyle({ width: '32%' });
+  });
+
+  test('uses the saved terminal height', async () => {
+    // given
+    fakeMaple();
+    localStorage.setItem('maple.split.cardTerminal', '50');
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    // then
+    expect(screen.getByTestId('terminal-pane').parentElement).toHaveStyle({ height: '50%' });
+  });
+
+  test('shows the terminal resize handle only while the terminal is shown', async () => {
+    // given
+    fakeMaple();
+    render(<CardTab tab={tab} />);
+    const handle = () => screen.queryByRole('separator', { name: 'Resize terminal' });
+    expect(handle()).not.toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    // then
+    expect(handle()).toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    // then
+    expect(handle()).not.toBeInTheDocument();
+  });
+
   test('dragging a column divider saves the width once on release', () => {
     // given
     fakeMaple();

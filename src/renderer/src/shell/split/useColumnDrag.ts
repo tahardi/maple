@@ -3,24 +3,26 @@ import { useState, type RefObject } from 'react';
 type ColumnDragOptions = {
   storageKey: string;
   initial: number;
+  min: number;
+  max: number;
   toSize: (rect: DOMRect, pointer: PointerEvent) => number;
 };
 
 export type ColumnDrag = { size: number; start: (e: { preventDefault: () => void }) => void; reset: () => void };
 
-function load(storageKey: string, initial: number): number {
+function load(storageKey: string, initial: number, min: number, max: number): number {
   try {
     const raw = localStorage.getItem(storageKey);
     const saved = raw === null ? NaN : Number(raw);
-    return Number.isFinite(saved) ? saved : initial;
+    return Number.isFinite(saved) && saved >= min && saved <= max ? saved : initial;
   } catch {
     return initial;
   }
 }
 
 export function useColumnDrag(container: RefObject<HTMLElement | null>, options: ColumnDragOptions): ColumnDrag {
-  const { storageKey, initial, toSize } = options;
-  const [size, setSize] = useState(() => load(storageKey, initial));
+  const { storageKey, initial, min, max, toSize } = options;
+  const [size, setSize] = useState(() => load(storageKey, initial, min, max));
 
   const start = (e: { preventDefault: () => void }) => {
     const rect = container.current?.getBoundingClientRect();

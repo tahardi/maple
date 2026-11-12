@@ -1,49 +1,67 @@
 import type { BacklogGroup } from '@shared/types/jira/backlogGroup';
+import { useState } from 'react';
 import { EpicLozenge } from '@renderer/home/EpicLozenge';
+import { SplitHandle } from '@renderer/shell/split/SplitHandle';
+import type { ColumnDrag } from '@renderer/shell/split/useColumnDrag';
 import styles from './Backlog.module.css';
 
-type Props = { groups: readonly BacklogGroup[]; highlighted?: readonly string[]; onSelect: (key: string) => void };
+type Props = {
+  groups: readonly BacklogGroup[];
+  highlighted?: readonly string[];
+  onSelect: (key: string) => void;
+  drag: ColumnDrag;
+};
 
-export function Backlog({ groups, highlighted = [], onSelect }: Props) {
+export function Backlog({ groups, highlighted = [], onSelect, drag }: Props) {
+  const [open, setOpen] = useState(false);
   const count = groups.reduce((sum, g) => sum + g.cards.length, 0);
 
   return (
-    <details className={styles.backlog}>
-      <summary className={styles.summary}>{`Backlog (${String(count)})`}</summary>
-      {groups.length === 0 && <p className={styles.empty}>Nothing in the backlog</p>}
-      {groups.map((group) => (
-        <section key={group.epic?.key ?? ''} className={styles.group}>
-          <h3>
-            {group.epic ? (
-              <>
-                {group.epic.key} <EpicLozenge epic={group.epic} />
-              </>
-            ) : (
-              'No epic'
-            )}
-          </h3>
-          <ul>
-            {group.cards.map((card) => (
-              <li
-                key={card.key}
-                className={styles.card}
-                data-highlighted={highlighted.includes(card.key) ? 'true' : undefined}
-              >
-                <button
-                  className={styles.button}
-                  onClick={() => {
-                    onSelect(card.key);
-                  }}
+    <>
+      {open && <SplitHandle drag={drag} axis="y" label="Resize backlog" />}
+      <details
+        className={styles.backlog}
+        style={{ maxHeight: `${String(drag.size)}%` }}
+        onToggle={(e) => {
+          setOpen(e.currentTarget.open);
+        }}
+      >
+        <summary className={styles.summary}>{`Backlog (${String(count)})`}</summary>
+        {groups.length === 0 && <p className={styles.empty}>Nothing in the backlog</p>}
+        {groups.map((group) => (
+          <section key={group.epic?.key ?? ''} className={styles.group}>
+            <h3>
+              {group.epic ? (
+                <>
+                  {group.epic.key} <EpicLozenge epic={group.epic} />
+                </>
+              ) : (
+                'No epic'
+              )}
+            </h3>
+            <ul>
+              {group.cards.map((card) => (
+                <li
+                  key={card.key}
+                  className={styles.card}
+                  data-highlighted={highlighted.includes(card.key) ? 'true' : undefined}
                 >
-                  <span className={styles.key}>{card.key}</span>
-                  <span>{card.summary}</span>
-                  {card.points !== null && <span className={styles.points}>{`${String(card.points)} pts`}</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </details>
+                  <button
+                    className={styles.button}
+                    onClick={() => {
+                      onSelect(card.key);
+                    }}
+                  >
+                    <span className={styles.key}>{card.key}</span>
+                    <span>{card.summary}</span>
+                    {card.points !== null && <span className={styles.points}>{`${String(card.points)} pts`}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </details>
+    </>
   );
 }

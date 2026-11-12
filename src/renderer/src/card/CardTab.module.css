@@ -43,7 +43,6 @@
 }
 
 .terminal {
-  height: 35%;
   flex-shrink: 0;
 }
 
@@ -52,12 +51,6 @@
   flex-direction: column;
   flex-shrink: 0;
   min-height: 0;
-}
-
-.divider {
-  width: 4px;
-  cursor: col-resize;
-  background: var(--border);
 }
 
 .waiting {

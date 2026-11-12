@@ -1,7 +1,6 @@
 .planner {
   display: flex;
   flex-direction: column;
-  width: 40%;
   min-width: 320px;
   border-left: 1px solid var(--border);
 }
