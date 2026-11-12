@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
-import type { Logger } from '@main/app/log';
+import type { Logger } from '@main/app/log/log';
 import { createEventLog } from './eventLog';
 import { KEEP_DAYS } from './pruneEvents';
 

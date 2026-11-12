@@ -1,4 +1,4 @@
-import type { MapleApi } from '@shared/ipc';
+import type { MapleApi } from '@shared/api/mapleApi';
 import type { Fetched } from '@shared/types/app';
 import type { MapleConfig } from '@shared/types/config';
 import type { TabState, TabStatus } from '@shared/types/tabs';

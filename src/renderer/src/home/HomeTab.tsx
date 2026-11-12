@@ -3,15 +3,15 @@ import type { TabState } from '@shared/types/tabs';
 import { useCallback, useState } from 'react';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
-import { Backlog } from './Backlog';
+import { Backlog } from '@renderer/home/backlog/Backlog';
 import { Board } from './Board';
 import { CardDetail } from './CardDetail';
 import styles from './HomeTab.module.css';
 import { PlannerPane } from './PlannerPane';
-import { readyToStart } from './readyToStart';
-import { useBacklog } from './useBacklog';
+import { readyToStart } from '@renderer/home/startQueue/readyToStart';
+import { useBacklog } from '@renderer/home/backlog/useBacklog';
 import { useSprint } from './useSprint';
-import { useStartQueue } from './useStartQueue';
+import { useStartQueue } from '@renderer/home/startQueue/useStartQueue';
 
 type Props = { projectKey: string };
 

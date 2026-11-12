@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { extname, relative, resolve } from 'node:path';
 import { z } from 'zod';
-import { isInside } from '@main/app/paths';
-import { projectsDir, transcriptFiles } from '@main/sessions/transcripts';
+import { isInside } from '@main/util/paths';
+import { projectsDir, transcriptFiles } from '@main/sessions/transcripts/transcripts';
 
 const FILE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
 const NOTE_TOOL = 'mcp__anchorhold__anchorhold_write_note';

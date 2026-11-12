@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { HookEvent } from '@shared/types/tabs';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { startHookServer } from '../../src/main/sessions/hookServer';
-import { writeHooksFile } from '../../src/main/sessions/hooksFile';
-import { createLogger } from '../../src/main/app/log';
-import { hasTranscript } from '../../src/main/sessions/transcripts';
+import { startHookServer } from '../../src/main/sessions/hooks/hookServer';
+import { writeHooksFile } from '../../src/main/sessions/hooks/hooksFile';
+import { createLogger } from '../../src/main/app/log/log';
+import { hasTranscript } from '../../src/main/sessions/transcripts/transcripts';
 
 function runClaude(args: string[], env: Record<string, string>): Promise<{ code: number | null; stdout: string }> {
   return new Promise((done, fail) => {

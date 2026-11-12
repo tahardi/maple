@@ -1,7 +1,7 @@
 import type { ActionConfig } from '@shared/types/config';
 import type { EventRefs, UiActionData } from '@shared/types/events';
 import type { TabState } from '@shared/types/tabs';
-import { appLogger, logFailure, type Logger } from '@main/app/log';
+import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import type { ActionRecorder } from '@main/ipc/validated';
 
 const RECORDED_CHANNELS: ReadonlySet<string> = new Set([

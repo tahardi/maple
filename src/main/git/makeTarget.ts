@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { MAX_BYTES } from '@main/app/paths';
+import { MAX_BYTES } from '@main/util/paths';
 
 export async function hasTryTarget(dir: string): Promise<boolean> {
   const path = join(dir, 'Makefile');

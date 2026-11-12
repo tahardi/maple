@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { appLogger, logsDir, type Logger } from './log';
+import { appLogger, logsDir, type Logger } from '@main/app/log/log';
 
 type Deps = {
   showErrorBox: (title: string, content: string) => void;

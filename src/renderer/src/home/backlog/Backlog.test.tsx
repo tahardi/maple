@@ -1,0 +1,77 @@
+import type { BacklogGroup } from '@shared/types/jira';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { card } from '@renderer/testing/sprintFixture';
+import { Backlog } from './Backlog';
+
+const GROUPS: BacklogGroup[] = [
+  {
+    epic: { key: 'HALO-2', summary: 'Search', color: 'purple' },
+    cards: [card('HALO-11', 'To Do'), card('HALO-13', 'To Do')],
+  },
+  { epic: null, cards: [card('HALO-19', 'To Do', { points: null })] },
+];
+
+describe('Backlog', () => {
+  test('shows the card count and groups cards under each epic', () => {
+    // given
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} />);
+    // when
+    const headings = screen.getAllByRole('heading', { level: 3, hidden: true });
+    // then
+    expect(screen.getByText('Backlog (3)')).toBeInTheDocument();
+    expect(headings.map((h) => h.textContent)).toEqual(['HALO-2 Search', 'No epic']);
+  });
+
+  test('colors each epic heading', () => {
+    // given
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} />);
+    // when
+    const heading = screen.getByRole('heading', { level: 3, name: /^HALO-2/, hidden: true });
+    // then
+    expect(within(heading).getByText('Search')).toHaveAttribute('data-color', 'purple');
+  });
+
+  test('each card shows key, summary, and points', () => {
+    // given
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} />);
+    // when
+    const items = screen.getAllByRole('listitem', { hidden: true });
+    // then
+    expect(items.map((i) => i.textContent)).toEqual([
+      'HALO-11Summary of HALO-113 pts',
+      'HALO-13Summary of HALO-133 pts',
+      'HALO-19Summary of HALO-19',
+    ]);
+  });
+
+  test('highlights the given keys', () => {
+    // given
+    render(<Backlog groups={GROUPS} highlighted={['HALO-13']} onSelect={vi.fn()} />);
+    // when
+    const items = screen.getAllByRole('listitem', { hidden: true });
+    // then
+    expect(items.map((i) => i.getAttribute('data-highlighted'))).toEqual([null, 'true', null]);
+  });
+
+  test('clicking a card calls onSelect with its key', async () => {
+    // given
+    const onSelect = vi.fn();
+    render(<Backlog groups={GROUPS} onSelect={onSelect} />);
+    await userEvent.click(screen.getByText('Backlog (3)'));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /HALO-13/ }));
+    // then
+    expect(onSelect).toHaveBeenCalledWith('HALO-13');
+  });
+
+  test('shows nothing to plan when the backlog is empty', () => {
+    // given
+    render(<Backlog groups={[]} onSelect={vi.fn()} />);
+    // when
+    const summary = screen.getByText('Backlog (0)');
+    // then
+    expect(summary).toBeInTheDocument();
+    expect(screen.getByText('Nothing in the backlog')).toBeInTheDocument();
+  });
+});

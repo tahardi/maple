@@ -1,7 +1,7 @@
 import { readFile, rm, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { configDir } from '@main/app/config';
-import { isInside, MAX_BYTES } from '@main/app/paths';
+import { configDir } from '@main/app/config/config';
+import { isInside, MAX_BYTES } from '@main/util/paths';
 
 export function snapshotDir(sessionId: string): string {
   return join(configDir(), 'snapshots', sessionId);

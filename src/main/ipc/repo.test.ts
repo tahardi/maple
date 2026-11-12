@@ -1,11 +1,11 @@
 import { EventEmitter } from 'node:events';
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SessionManager } from '@main/sessions/sessions';
-import type { StatusEngine } from '@main/sessions/status';
-import type { Terminals } from '@main/sessions/terminals';
+import type { SessionManager } from '@main/sessions/SessionManager';
+import type { StatusEngine } from '@main/sessions/StatusEngine';
+import type { Terminals } from '@main/sessions/Terminals';
 import { registerRepo } from './repo';
-import type { StartQueue } from '@main/sessions/startQueue';
+import type { StartQueue } from '@main/sessions/StartQueue';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 

@@ -1,4 +1,4 @@
-import type { ChannelKind } from '../ipc';
+import type { ChannelKind } from './mapleApi';
 import type { DiffLines, FilePair } from '../types/files';
 import type { Fetched } from '../types/app';
 import type { PrInfo, Review, ReviewComment } from '../types/github';

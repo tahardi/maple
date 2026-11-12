@@ -1,4 +1,4 @@
-import type { ChannelKind } from '../ipc';
+import type { ChannelKind } from './mapleApi';
 import type { BacklogGroup, Filed, Report, Sprint } from '../types/jira';
 import type { Fetched } from '../types/app';
 

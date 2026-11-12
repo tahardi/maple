@@ -1,7 +1,7 @@
-import { appLogger, type Logger } from '@main/app/log';
+import { appLogger, type Logger } from '@main/app/log/log';
 import type { TabState } from '@shared/types/tabs';
-import type { SessionManager } from './sessions';
-import type { SavedState } from '@main/app/state';
+import type { SessionManager } from './SessionManager';
+import type { SavedState } from '@main/app/state/state';
 
 function reopen(tab: TabState, sessions: SessionManager): TabState {
   if (tab.kind === 'vault') {

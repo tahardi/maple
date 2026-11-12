@@ -1,4 +1,4 @@
-import type { ChannelKind } from '../ipc';
+import type { ChannelKind } from './mapleApi';
 import type { CloseResult, SessionCost, TabState, TabStatus } from '../types/tabs';
 import type { Unsubscribe } from '../types/app';
 import type { QueueState } from '../types/queue';

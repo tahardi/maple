@@ -6,13 +6,13 @@ import { spawn } from 'node-pty';
 import type { HookEvent } from '@shared/types/tabs';
 import type { MapleConfig } from '@shared/types/config';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { expandHome } from '../../src/main/app/config';
-import { startHookServer } from '../../src/main/sessions/hookServer';
-import { writeHooksFile } from '../../src/main/sessions/hooksFile';
-import { createLogger } from '../../src/main/app/log';
-import { SessionManager } from '../../src/main/sessions/sessions';
+import { expandHome } from '../../src/main/app/config/config';
+import { startHookServer } from '../../src/main/sessions/hooks/hookServer';
+import { writeHooksFile } from '../../src/main/sessions/hooks/hooksFile';
+import { createLogger } from '../../src/main/app/log/log';
+import { SessionManager } from '../../src/main/sessions/SessionManager';
 import { endTmux, writeTmuxConf } from '../../src/main/sessions/tmux';
-import { hasTranscript } from '../../src/main/sessions/transcripts';
+import { hasTranscript } from '../../src/main/sessions/transcripts/transcripts';
 
 const silent = createLogger(() => undefined);
 

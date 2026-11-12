@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { App } from 'electron';
-import { configDir } from './config';
+import { configDir } from '@main/app/config/config';
 
 export function claimInstance(app: Pick<App, 'setPath' | 'requestSingleInstanceLock'>): boolean {
   if (process.env.MAPLE_CONFIG_DIR) {

@@ -1,4 +1,4 @@
-import type { ChannelKind } from '../ipc';
+import type { ChannelKind } from './mapleApi';
 import type { ChangeSet, FilePair, RepoInfo, SearchHit } from '../types/files';
 import type { Unsubscribe } from '../types/app';
 

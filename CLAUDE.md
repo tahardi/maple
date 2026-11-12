@@ -7,8 +7,10 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
 - Never add code comments unless the card asks for one - the code and the card are the documentation.
 - Keep lines at 120 characters or less - Prettier enforces it with `.prettierrc`.
 - One component, hook, or module per file - small focused files are easier to review.
-- Group files by topic in folders: `src/main/<topic>/`, `src/renderer/src/<area>/<topic>/`, `src/shared/types/<subject>.ts` - put a new file next to what it works with, and start a new folder once a topic has more than one file.
-- Name components `PascalCase.tsx` and everything else `camelCase.ts` - the name tells you what the file holds.
+- Group files by topic in folders: `src/main/<topic>/`, `src/renderer/src/<area>/<topic>/`, `src/shared/<topic>/` - put a new file next to what it works with, and start a new folder once a topic has more than one file.
+- Keep about 8 files in a folder, counting a file's test and stylesheet with it, then split it into topic subfolders - a target, not a limit; a short folder is quick to scan.
+- One type per file; a small helper type used only by that type may stay with it - you find a type by its file name.
+- Name each file after its main export: `PascalCase.tsx` for components, `PascalCase.ts` for classes, `camelCase.ts` for everything else - the name tells you what the file holds.
 - Error messages are present tense and start with an "-ing" verb, like `reading config: x` - they read as a trail.
 - Pin dependencies exactly with `npm install --save-exact` - builds stay reproducible.
 - Jira status names are exactly `To Do`, `In Progress`, `In Review`, `Done` - other spellings break transitions.
@@ -44,6 +46,8 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
 - The config dir is `MAPLE_CONFIG_DIR`, default `~/.config/maple` - tests point it at a temp dir.
 - Read Jira credentials from `MAPLE_JIRA_ENV`, default `~/.config/jira/env` - the file other tools share.
 - Never log or display the Jira token - logs and screenshots get shared.
+- Every git, gh, and Jira call has a timeout - one stuck call must not freeze Maple.
+- PR data comes only from the PR poller - every view shows the same PR state.
 
 ## Tests
 

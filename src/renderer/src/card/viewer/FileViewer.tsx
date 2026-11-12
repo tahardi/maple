@@ -1,25 +1,25 @@
 import { DiffEditor, Editor, useMonaco } from '@monaco-editor/react';
-import { lineMarks } from '@shared/diffMarks';
+import { lineMarks } from '@shared/diff/diffMarks';
 import type { DiffLines, Draft, FilePair } from '@shared/types/files';
 import type { Review, ReviewComment } from '@shared/types/github';
 import type { editor, IRange } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { MarkdownText } from '@renderer/shell/MarkdownText';
+import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { useMaple } from '@renderer/store';
 import { CommentThread } from '@renderer/card/comments/CommentThread';
-import { linesLabel, selectedLines, type Lines } from './selectedLines';
+import { linesLabel, selectedLines, type Lines } from '@renderer/card/viewer/editor/selectedLines';
 import { toThreads } from '@renderer/card/comments/commentThreads';
-import { toDecorations } from './inFileDecorations';
+import { toDecorations } from '@renderer/card/viewer/editor/inFileDecorations';
 import { LineComment } from '@renderer/card/comments/LineComment';
-import './monacoSetup';
-import { PR_DESCRIPTION } from '@renderer/card/prDescription';
-import { CARD_DESCRIPTION } from '@renderer/card/cardDescription';
+import '@renderer/card/viewer/editor/monacoSetup';
+import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
+import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
 import { useLineZones } from '@renderer/card/comments/useLineZones';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
 import { NoteOverview } from './overview/NoteOverview';
-import { FileTabMenu } from './FileTabMenu';
-import styles from './viewer.module.css';
+import { FileTabMenu } from '@renderer/card/viewer/tabs/FileTabMenu';
+import styles from './FileViewer.module.css';
 
 type Props = {
   tabId: string;

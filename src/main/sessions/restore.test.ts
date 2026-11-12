@@ -1,8 +1,8 @@
 import { describe, expect, test, vi } from 'vitest';
 import type { TabState } from '@shared/types/tabs';
 import { restoreTabs } from './restore';
-import type { SessionManager } from './sessions';
-import type { SavedState } from '@main/app/state';
+import type { SessionManager } from './SessionManager';
+import type { SavedState } from '@main/app/state/state';
 
 function savedTab(kind: TabState['kind'], projectKey: string, cardKey: string | null, sessionId: string): TabState {
   return { id: `old-${sessionId}`, projectKey, kind, cardKey, sessionId, worktreePath: '/wts/old', worktreePaths: [] };

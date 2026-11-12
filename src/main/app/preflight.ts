@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
 import type { PreflightProblem } from '@shared/types/app';
-import { appLogger, type Logger } from './log';
+import { appLogger, type Logger } from '@main/app/log/log';
 
 export type Runner = (
   cmd: string,

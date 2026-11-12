@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { VaultTab } from './VaultTab';
 
-vi.mock('@renderer/card/viewer/monacoSetup', () => ({}));
+vi.mock('@renderer/card/viewer/editor/monacoSetup', () => ({}));
 
 vi.mock('../claude/ClaudePane', () => ({
   ClaudePane: ({ tabId }: { tabId: string }) => <div data-testid="claude-pane">{tabId}</div>,

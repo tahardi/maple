@@ -12,8 +12,8 @@ import {
   type EventRefs,
   type EventSchemas,
 } from '@shared/types/events';
-import { configDir } from '@main/app/config';
-import { appLogger, logFailure, redact, type Logger } from '@main/app/log';
+import { configDir } from '@main/app/config/config';
+import { appLogger, logFailure, redact, type Logger } from '@main/app/log/log';
 import { closeTornLine } from './closeTornLine';
 import { dayFiles } from './dayFiles';
 import { dayName } from './dayName';

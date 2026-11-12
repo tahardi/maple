@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import type { Runner as CommandRunner } from '@main/app/preflight';
-import { MAX_BYTES } from '@main/app/paths';
+import { MAX_BYTES } from '@main/util/paths';
 import { reviewFilePair, reviewFiles } from './reviewDiff';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');

@@ -1,5 +1,5 @@
 import type { PrInfo } from '@shared/types/github';
-import { prRepo } from '@shared/prRepo';
+import { prRepo } from '@shared/github/prRepo';
 
 export function prLabel(info: PrInfo, projectRepo: string | null): string {
   const repo = prRepo(info.url);

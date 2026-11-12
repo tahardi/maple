@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { MAX_BYTES } from '@main/app/paths';
+import { MAX_BYTES } from '@main/util/paths';
 import { hasTryTarget } from './makeTarget';
 
 describe('hasTryTarget', () => {

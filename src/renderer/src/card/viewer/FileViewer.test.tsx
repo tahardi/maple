@@ -1,4 +1,4 @@
-import type { MapleApi } from '@shared/ipc';
+import type { MapleApi } from '@shared/api/mapleApi';
 import type { DiffLines, FilePair } from '@shared/types/files';
 import type { Review, ReviewComment } from '@shared/types/github';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
@@ -6,10 +6,10 @@ import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { FileViewer } from './FileViewer';
-import { PR_DESCRIPTION } from '@renderer/card/prDescription';
-import { CARD_DESCRIPTION } from '@renderer/card/cardDescription';
+import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
+import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
 
-vi.mock('./monacoSetup', () => ({}));
+vi.mock('@renderer/card/viewer/editor/monacoSetup', () => ({}));
 
 const monaco = vi.hoisted(() => {
   const collection = { clear: vi.fn() };
