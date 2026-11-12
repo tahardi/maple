@@ -42,8 +42,10 @@ describe('tapDoneSnapshots', () => {
     // when
     await tapped('MPL-1');
     await tapped('MPL-1');
+    await tapped('MPL-2');
+    await tapped('MPL-2');
     // then
-    expect(remove).toHaveBeenCalledTimes(1);
+    expect(remove.mock.calls).toEqual([['s1'], ['s2']]);
   });
 
   test.each([{ status: 'To Do' as const }, { status: 'In Progress' as const }, { status: 'In Review' as const }])(
@@ -57,17 +59,6 @@ describe('tapDoneSnapshots', () => {
       expect(remove).not.toHaveBeenCalled();
     },
   );
-
-  test('removes each Done session once', async () => {
-    // given
-    const { remove, tapped } = setup('Done', 's1');
-    // when
-    await tapped('MPL-1');
-    await tapped('MPL-2');
-    await tapped('MPL-2');
-    // then
-    expect(remove.mock.calls).toEqual([['s1'], ['s2']]);
-  });
 
   test('rejects and removes nothing when the card lookup fails', async () => {
     // given
