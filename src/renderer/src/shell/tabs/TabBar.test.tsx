@@ -257,11 +257,14 @@ describe('TabBar', () => {
 
   test('pulses the working dot only when motion is allowed', () => {
     // given
-    const media = /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+    const mediaBlock = /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/;
     // when
+    const media = mediaBlock.exec(css)?.[1] ?? '';
     const working = /\.dot\[data-dot='working'\] \{([^}]*)\}/.exec(media)?.[1] ?? '';
     // then
-    expect(working).toMatch(/animation:/);
+    expect(working).toMatch(/animation: pulse /);
+    expect(css).toMatch(/@keyframes pulse \{/);
+    expect(css.replace(mediaBlock, '')).not.toMatch(/animation:/);
   });
 
   test.each([
