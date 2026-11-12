@@ -350,4 +350,14 @@ describe('CardDetail', () => {
     expect(onDismiss).toHaveBeenCalledOnce();
     expect(handlers.onClose).not.toHaveBeenCalled();
   });
+
+  test('a queued To Do card shows its place instead of Start', () => {
+    // given
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    // when
+    render(<CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} queuePlace={2} {...handlers} />);
+    // then
+    expect(screen.getByText('Queued #2')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+  });
 });

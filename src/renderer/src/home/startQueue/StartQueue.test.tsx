@@ -86,4 +86,29 @@ describe('StartQueue', () => {
     // then
     expect(screen.queryByRole('list', { name: 'Start queue' })).not.toBeInTheDocument();
   });
+
+  test('a second click on the pill closes the list', async () => {
+    // given
+    setup(queueOf('DIG-45'));
+    const pill = screen.getByRole('button', { name: /^1 queued/ });
+    await userEvent.click(pill);
+    // when
+    await userEvent.click(pill);
+    // then
+    expect(pill).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('list', { name: 'Start queue' })).not.toBeInTheDocument();
+  });
+
+  test('an open list closes when the queue empties and stays closed when cards return', async () => {
+    // given
+    const titles = new Map<string, string>();
+    const { rerender } = render(<StartQueue queue={queueOf('DIG-45')} titles={titles} />);
+    await userEvent.click(screen.getByRole('button', { name: /^1 queued/ }));
+    rerender(<StartQueue queue={queueOf()} titles={titles} />);
+    // when
+    rerender(<StartQueue queue={queueOf('DIG-46')} titles={titles} />);
+    // then
+    expect(screen.getByRole('button', { name: /^1 queued/ })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('list', { name: 'Start queue' })).not.toBeInTheDocument();
+  });
 });

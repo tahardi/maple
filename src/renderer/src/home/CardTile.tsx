@@ -47,13 +47,13 @@ export function CardTile({ card, selected, onSelect, onToggle, onStart, starting
   }
   if (place >= 0) {
     return (
-      <div className={styles.selectable}>
+      <div className={styles.selectable} data-queued="true">
         {tile}
-        <span className={styles.chip}>
+        <span className={styles.queue}>
+          <span className={styles.queueControls}>
+            <QueueControls cardKey={card.key} index={place} count={queued.length} />
+          </span>
           <Badge tone="info">{`Queued #${String(place + 1)}`}</Badge>
-        </span>
-        <span className={styles.queueControls}>
-          <QueueControls cardKey={card.key} index={place} count={queued.length} />
         </span>
       </div>
     );

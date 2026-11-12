@@ -11,8 +11,11 @@ export function StartQueue({ queue, titles }: { queue: QueueState; titles: Reado
   const close = useCallback(() => {
     setOpen(false);
   }, []);
-  useDismiss(root, open, close);
   const { cards } = queue;
+  if (open && cards.length === 0) {
+    setOpen(false);
+  }
+  useDismiss(root, open, close);
   if (cards.length === 0) {
     return null;
   }

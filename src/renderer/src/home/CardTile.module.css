@@ -56,17 +56,21 @@
   opacity: 0;
 }
 
-.chip {
+.selectable[data-queued='true'] .tile {
+  padding-right: var(--space-2);
+  padding-bottom: calc(var(--space-2) + 2em);
+}
+
+.queue {
   position: absolute;
   right: var(--space-2);
   bottom: var(--space-2);
-  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .queueControls {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
   display: flex;
   gap: 2px;
   opacity: 0;

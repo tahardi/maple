@@ -1515,4 +1515,54 @@ describe('HomeTab', () => {
     expect(screen.getByRole('banner')).not.toContainElement(alert);
     expect(screen.getByTestId('planner')).toContainElement(alert);
   });
+
+  test('a queued card shows its place in the details instead of Start', async () => {
+    // given
+    const queue = {
+      cards: [{ projectKey: 'DIG', cardKey: 'DIG-41' }],
+      working: 4,
+      limit: 4,
+      waitingFor: 'room' as const,
+      gapSeconds: 90,
+      failure: null,
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByText('Queued #1');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /^DIG-41/ }));
+    // then
+    const details = screen.getByRole('complementary');
+    expect(within(details).getByText('Queued #1')).toBeInTheDocument();
+    expect(within(details).queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+  });
+
+  test('Escape closes the queue list and leaves the details open', async () => {
+    // given
+    const queue = {
+      cards: [{ projectKey: 'DIG', cardKey: 'DIG-41' }],
+      working: 4,
+      limit: 4,
+      waitingFor: 'room' as const,
+      gapSeconds: 90,
+      failure: null,
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-42/ }));
+    screen.getByRole('button', { name: /^1 queued/ }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('list', { name: 'Start queue' })).toBeInTheDocument();
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(screen.queryByRole('list', { name: 'Start queue' })).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
 });

@@ -260,6 +260,7 @@ export function HomeTab({ projectKey }: Props) {
             }}
             onClose={closeDetail}
             onAddToSprint={backlogCard ? onAddToSprint : undefined}
+            queuePlace={queuedKeys.includes(card.key) ? queuedKeys.indexOf(card.key) + 1 : undefined}
           />
         )}
       </div>

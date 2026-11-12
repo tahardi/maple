@@ -16,6 +16,7 @@ type Props = {
   onGoTo: () => void;
   onClose: () => void;
   onAddToSprint?: (() => void) | null;
+  queuePlace?: number;
 };
 
 type Action = { label: string; busyLabel?: string; run: () => void };
@@ -34,7 +35,7 @@ function action(card: Card, tab: TabState | null, props: Props): Action | null {
 }
 
 export function CardDetail(props: Props) {
-  const { card, tab, busy, onClose, onAddToSprint } = props;
+  const { card, tab, busy, onClose, onAddToSprint, queuePlace } = props;
   const next = action(card, tab, props);
   const ref = useRef<HTMLElement>(null);
 
@@ -95,6 +96,8 @@ export function CardDetail(props: Props) {
             busy={busy}
             busyLabel="Moving…"
           />
+        ) : queuePlace !== undefined && tab === null ? (
+          <Badge tone="info">{`Queued #${String(queuePlace)}`}</Badge>
         ) : (
           next && (
             <Button label={next.label} variant="primary" onClick={next.run} busy={busy} busyLabel={next.busyLabel} />
