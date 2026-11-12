@@ -1,24 +1,14 @@
-import type { IPty, spawn } from 'node-pty';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { findWorktrees } from '@main/git/findWorktrees';
+import { fakeSpawn, type FakePty } from '@main/testing/fakeSpawn';
 import { SessionManager } from './SessionManager';
 import { tmuxArgs } from './tmux';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
 
 vi.mock('@main/git/findWorktrees', () => ({ findWorktrees: vi.fn() }));
 vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktrees: vi.fn() }));
-
-type FakePty = {
-  args: string[];
-  options: { cwd?: string; cols?: number; rows?: number; env?: Record<string, string | undefined> };
-  written: string[];
-  resized: [number, number][];
-  killed: boolean;
-  emitData: (data: string) => void;
-  emitExit: (exitCode: number) => void;
-};
 
 const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
@@ -48,47 +38,6 @@ const config: MapleConfig = {
 };
 
 const vaultConfig: MapleConfig = { ...config, vaultDir: '/tmp/vault' };
-
-function fakeSpawn(ptys: FakePty[]): typeof spawn {
-  return vi.fn<typeof spawn>((_file, args, options) => {
-    let onData: (data: string) => void = () => undefined;
-    let onExit: (e: { exitCode: number }) => void = () => undefined;
-    const fake: FakePty = {
-      args: typeof args === 'string' ? [args] : args,
-      options,
-      written: [],
-      resized: [],
-      killed: false,
-      emitData: (data) => {
-        onData(data);
-      },
-      emitExit: (exitCode) => {
-        onExit({ exitCode });
-      },
-    };
-    ptys.push(fake);
-    const pty = {
-      onData: (cb: (data: string) => void) => {
-        onData = cb;
-        return { dispose: () => undefined };
-      },
-      onExit: (cb: (e: { exitCode: number }) => void) => {
-        onExit = cb;
-        return { dispose: () => undefined };
-      },
-      write: (data: string) => {
-        fake.written.push(data);
-      },
-      resize: (cols: number, rows: number) => {
-        fake.resized.push([cols, rows]);
-      },
-      kill: () => {
-        fake.killed = true;
-      },
-    };
-    return pty as unknown as IPty;
-  });
-}
 
 const JIRA_ENV = { JIRA_SITE: 'https://x.atlassian.net', JIRA_EMAIL: 'me@example.com', JIRA_TOKEN: 'tok-1' };
 
