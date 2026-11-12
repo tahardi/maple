@@ -74,6 +74,17 @@ button.title:hover {
   color: var(--danger);
 }
 
-.cost {
+.cost,
+.approve {
   margin-left: auto;
+}
+
+.cost + .approve {
+  margin-left: 0;
+}
+
+.approve {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }

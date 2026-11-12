@@ -25,40 +25,16 @@ describe('ActionBar', () => {
     expect(onClick).toHaveBeenCalledOnce();
   });
 
-  test('a disabled action shows its reason beside it and does not call onClick', async () => {
+  test('a disabled action does not call onClick', async () => {
     // given
     const onClick = vi.fn();
-    render(<ActionBar actions={[{ label: 'Approve', onClick, disabled: true, reason: 'No PR yet' }]} />);
-    const button = screen.getByRole('button', { name: 'Approve' });
+    render(<ActionBar actions={[{ label: 'Ship', onClick, disabled: true }]} />);
+    const button = screen.getByRole('button', { name: 'Ship' });
     // when
     await userEvent.click(button);
     // then
     expect(button).toBeDisabled();
-    expect(screen.getByText('No PR yet')).toBeVisible();
-    expect(button).toHaveAccessibleDescription('No PR yet');
     expect(onClick).not.toHaveBeenCalled();
-  });
-
-  test('a busy action shows its busy label', () => {
-    // when
-    render(<ActionBar actions={[{ label: 'Approve & merge', onClick: vi.fn(), busy: true, busyLabel: 'Merging…' }]} />);
-    // then
-    expect(screen.getByRole('button', { name: 'Merging…' })).toBeDisabled();
-  });
-
-  test('marks each action with its variant', () => {
-    // given
-    const actions = [
-      { label: 'Approve', onClick: vi.fn(), variant: 'primary' as const },
-      { label: 'Close', onClick: vi.fn(), variant: 'danger' as const },
-      { label: 'Ship', onClick: vi.fn() },
-    ];
-    // when
-    render(<ActionBar actions={actions} />);
-    // then
-    expect(screen.getByRole('button', { name: 'Approve' })).toHaveAttribute('data-variant', 'primary');
-    expect(screen.getByRole('button', { name: 'Close' })).toHaveAttribute('data-variant', 'danger');
-    expect(screen.getByRole('button', { name: 'Ship' })).not.toHaveAttribute('data-variant');
   });
 
   test('no actions renders no buttons', () => {

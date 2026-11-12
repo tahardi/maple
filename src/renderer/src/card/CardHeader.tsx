@@ -16,6 +16,7 @@ type Props = {
   ci: ReactNode;
   reviewedSha: string | null;
   reviewUpdated: boolean;
+  approve: ReactNode;
   branch: string | null;
   changes: Pick<ChangeSet, 'files' | 'added' | 'removed'> | null;
   cost: SessionCost | null;
@@ -52,6 +53,7 @@ export function CardHeader({
   ci,
   reviewedSha,
   reviewUpdated,
+  approve,
   branch,
   changes,
   cost,
@@ -111,6 +113,7 @@ export function CardHeader({
           {costLabel(cost)}
         </span>
       )}
+      {approve != null && <span className={styles.approve}>{approve}</span>}
     </header>
   );
 }

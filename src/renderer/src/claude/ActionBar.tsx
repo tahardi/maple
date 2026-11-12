@@ -9,17 +9,7 @@ export function ActionBar({ actions, children }: ActionBarProps) {
   return (
     <div className={styles.bar}>
       {actions.map((a) => (
-        <Button
-          key={a.label}
-          label={a.label}
-          onClick={a.onClick}
-          disabled={a.disabled}
-          reason={a.reason}
-          fix={a.fix}
-          busy={a.busy}
-          busyLabel={a.busyLabel}
-          variant={a.variant}
-        />
+        <Button key={a.label} label={a.label} onClick={a.onClick} disabled={a.disabled} />
       ))}
       {children}
     </div>

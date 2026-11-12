@@ -19,7 +19,9 @@ import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 import { useCardData } from './useCardData';
-import { useApproveFlow } from './useApproveFlow';
+import { useApproveFlow } from './approve/useApproveFlow';
+import { approveBlocker } from './approve/approveBlocker';
+import { ApproveButton } from './approve/ApproveButton';
 import { useWorktreeState } from './useWorktreeState';
 import { useColumnDrag } from '@renderer/shell/split/useColumnDrag';
 import { SplitHandle } from '@renderer/shell/split/SplitHandle';
@@ -121,15 +123,10 @@ export function CardTab({ tab }: { tab: TabState }) {
           config,
           cardKey,
           pr: pr?.data ?? null,
-          review: pinned,
-          dot,
           worktreeExists,
-          approving: approval.approving,
           send: (text) => {
             window.maple.session.sendPrompt(tab.id, text);
           },
-          approve: approval.approve,
-          reloadReview: reloadPinnedReview,
         });
 
   const toggleTerminal = () => {
@@ -162,6 +159,14 @@ export function CardTab({ tab }: { tab: TabState }) {
         ci={pr?.data && <CiBadge pr={pr.data} reviewError={review?.error ?? null} findings={pinned?.findings ?? []} />}
         reviewedSha={pinned?.headSha ?? null}
         reviewUpdated={reviewUpdated}
+        approve={
+          <ApproveButton
+            blocker={approveBlocker({ dot, pr: pr?.data ?? null, review: pinned, worktreeExists })}
+            busy={approval.approving}
+            onClick={approval.approve}
+            onReloadReview={reloadPinnedReview}
+          />
+        }
         branch={repo?.branch ?? null}
         changes={pinned ?? changes}
         cost={cost}
@@ -173,6 +178,11 @@ export function CardTab({ tab }: { tab: TabState }) {
           openFile(PR_DESCRIPTION, null, true);
         }}
       />
+      {approval.error !== null && (
+        <div className={styles.approveError}>
+          <Notice tone="danger">{approval.error}</Notice>
+        </div>
+      )}
       <div ref={body} className={styles.body}>
         <div className={styles.left} style={{ width: left.size }} data-testid="tree-slot">
           {hasVault && <VaultSwitch view={view} onChange={setViewOverride} onRefresh={vault.refresh} />}
@@ -289,7 +299,6 @@ export function CardTab({ tab }: { tab: TabState }) {
               <button onClick={() => void closeTab(tab.id, false)}>Close tab</button>
             </Notice>
           )}
-          {approval.error !== null && <Notice tone="danger">{approval.error}</Notice>}
           <ClaudePane tabId={tab.id} actions={actions} />
         </div>
       </div>
@@ -297,8 +306,8 @@ export function CardTab({ tab }: { tab: TabState }) {
         <ConfirmDialog
           title={approval.dialog.title}
           body={approval.dialog.body}
-          confirmLabel="Approve anyway"
-          danger
+          confirmLabel="Approve & merge"
+          danger={approval.dialog.danger}
           onConfirm={approval.confirm}
           onCancel={approval.cancel}
         />
