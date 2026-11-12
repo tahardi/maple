@@ -79,6 +79,7 @@ function batchEvents() {
 
 describe('HomeTab', () => {
   beforeEach(() => {
+    localStorage.clear();
     useMaple.setState(useMaple.getInitialState(), true);
     useMaple.setState({ projectKey: 'DIG' });
   });
@@ -113,6 +114,38 @@ describe('HomeTab', () => {
     render(<HomeTab projectKey="DIG" />);
     // then
     expect(await screen.findByText('Backlog (1)')).toBeInTheDocument();
+  });
+
+  test('uses the saved planner width', async () => {
+    // given
+    fakeMaple();
+    localStorage.setItem('maple.split.homePlanner', '55');
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    expect(await screen.findByTestId('planner')).toHaveStyle({ width: '55%' });
+  });
+
+  test('uses the saved backlog height', async () => {
+    // given
+    fakeMaple({
+      jira: { backlog: () => Promise.resolve({ data: BACKLOG, error: null, fetchedAt: null }) },
+    });
+    localStorage.setItem('maple.split.homeBacklog', '25');
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    expect((await screen.findByText('Backlog (2)')).parentElement).toHaveStyle({ maxHeight: '25%' });
+  });
+
+  test('shows a resize handle between the board and the planner', async () => {
+    // given
+    fakeMaple();
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    const planner = await screen.findByTestId('planner');
+    expect(planner.previousElementSibling).toBe(screen.getByRole('separator', { name: 'Resize planner' }));
   });
 
   test('Refine counts open needs-refinement cards in the sprint and backlog', async () => {

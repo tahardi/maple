@@ -1,6 +1,5 @@
 .backlog {
   flex-shrink: 0;
-  max-height: 40%;
   overflow: auto;
   padding: 0 var(--space-3) var(--space-3);
 }

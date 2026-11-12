@@ -1,6 +1,6 @@
 import type { Card } from '@shared/types/jira/card';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
 import { Backlog } from '@renderer/home/backlog/Backlog';
@@ -14,6 +14,9 @@ import { useBacklog } from '@renderer/home/backlog/useBacklog';
 import { useSprint } from './useSprint';
 import { useStartQueue } from '@renderer/home/startQueue/useStartQueue';
 import { errorText } from '@shared/errors/errorText';
+import { SplitHandle } from '@renderer/shell/split/SplitHandle';
+import { splitSize } from '@renderer/shell/split/splitSize';
+import { useColumnDrag } from '@renderer/shell/split/useColumnDrag';
 
 type Props = { projectKey: string };
 
@@ -38,6 +41,24 @@ export function HomeTab({ projectKey }: Props) {
   const tabs = useMaple((s) => s.tabs);
   const queue = useStartQueue();
   const activate = useMaple((s) => s.activate);
+  const home = useRef<HTMLDivElement>(null);
+  const main = useRef<HTMLDivElement>(null);
+  const planner = useColumnDrag(home, {
+    storageKey: 'maple.split.homePlanner',
+    initial: 40,
+    min: 20,
+    max: 70,
+    toSize: (rect, p) =>
+      splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'x', edge: 'end', unit: '%', min: 20, max: 70 }),
+  });
+  const backlogDrag = useColumnDrag(main, {
+    storageKey: 'maple.split.homeBacklog',
+    initial: 40,
+    min: 10,
+    max: 80,
+    toSize: (rect, p) =>
+      splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'y', edge: 'end', unit: '%', min: 10, max: 80 }),
+  });
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [picked, setPicked] = useState<readonly string[]>([]);
@@ -154,15 +175,15 @@ export function HomeTab({ projectKey }: Props) {
     : null;
 
   return (
-    <div className={styles.home} data-testid="home">
-      <div className={styles.main}>
+    <div ref={home} className={styles.home} data-testid="home">
+      <div ref={main} className={styles.main}>
         {sprint && sprint.error !== null && <Notice tone="warning">{staleMessage(sprint.fetchedAt)}</Notice>}
         {sprint?.data ? (
           <Board sprint={sprint.data} selected={new Set(selected)} onSelect={select} onToggle={toggle} />
         ) : (
           sprint?.error === null && <p className={styles.empty}>No active sprint</p>
         )}
-        {backlog?.data && <Backlog groups={backlog.data} highlighted={toAccept} onSelect={select} />}
+        {backlog?.data && <Backlog groups={backlog.data} highlighted={toAccept} onSelect={select} drag={backlogDrag} />}
       </div>
       {card && (
         <CardDetail
@@ -187,8 +208,10 @@ export function HomeTab({ projectKey }: Props) {
           onAddToSprint={backlogCard ? onAddToSprint : undefined}
         />
       )}
+      <SplitHandle drag={planner} axis="x" label="Resize planner" />
       <PlannerPane
         projectKey={projectKey}
+        width={planner.size}
         onBatch={onBatch}
         selected={selected}
         readyCount={ready.length}

@@ -66,6 +66,7 @@ function setup(
       onAcceptAndStart={onAcceptAndStart}
       failure={failure}
       queue={queue}
+      width={40}
     />,
   );
   return {

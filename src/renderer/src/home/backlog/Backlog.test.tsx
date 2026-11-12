@@ -1,5 +1,5 @@
 import type { BacklogGroup } from '@shared/types/jira/backlogGroup';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { card } from '@renderer/testing/sprintFixture';
 import { Backlog } from './Backlog';
@@ -12,10 +12,12 @@ const GROUPS: BacklogGroup[] = [
   { epic: null, cards: [card('HALO-19', 'To Do', { points: null })] },
 ];
 
+const DRAG = { size: 25, start: vi.fn(), reset: vi.fn() };
+
 describe('Backlog', () => {
   test('shows the card count and groups cards under each epic', () => {
     // given
-    render(<Backlog groups={GROUPS} onSelect={vi.fn()} />);
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} drag={DRAG} />);
     // when
     const headings = screen.getAllByRole('heading', { level: 3, hidden: true });
     // then
@@ -25,7 +27,7 @@ describe('Backlog', () => {
 
   test('colors each epic heading', () => {
     // given
-    render(<Backlog groups={GROUPS} onSelect={vi.fn()} />);
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} drag={DRAG} />);
     // when
     const heading = screen.getByRole('heading', { level: 3, name: /^HALO-2/, hidden: true });
     // then
@@ -34,7 +36,7 @@ describe('Backlog', () => {
 
   test('each card shows key, summary, and points', () => {
     // given
-    render(<Backlog groups={GROUPS} onSelect={vi.fn()} />);
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} drag={DRAG} />);
     // when
     const items = screen.getAllByRole('listitem', { hidden: true });
     // then
@@ -47,7 +49,7 @@ describe('Backlog', () => {
 
   test('highlights the given keys', () => {
     // given
-    render(<Backlog groups={GROUPS} highlighted={['HALO-13']} onSelect={vi.fn()} />);
+    render(<Backlog groups={GROUPS} highlighted={['HALO-13']} onSelect={vi.fn()} drag={DRAG} />);
     // when
     const items = screen.getAllByRole('listitem', { hidden: true });
     // then
@@ -57,7 +59,7 @@ describe('Backlog', () => {
   test('clicking a card calls onSelect with its key', async () => {
     // given
     const onSelect = vi.fn();
-    render(<Backlog groups={GROUPS} onSelect={onSelect} />);
+    render(<Backlog groups={GROUPS} onSelect={onSelect} drag={DRAG} />);
     await userEvent.click(screen.getByText('Backlog (3)'));
     // when
     await userEvent.click(screen.getByRole('button', { name: /HALO-13/ }));
@@ -67,11 +69,38 @@ describe('Backlog', () => {
 
   test('shows nothing to plan when the backlog is empty', () => {
     // given
-    render(<Backlog groups={[]} onSelect={vi.fn()} />);
+    render(<Backlog groups={[]} onSelect={vi.fn()} drag={DRAG} />);
     // when
     const summary = screen.getByText('Backlog (0)');
     // then
     expect(summary).toBeInTheDocument();
     expect(screen.getByText('Nothing in the backlog')).toBeInTheDocument();
+  });
+
+  test('shows the resize handle only while the backlog is open', async () => {
+    // given
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} drag={DRAG} />);
+    expect(screen.queryByRole('separator', { name: 'Resize backlog' })).not.toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByText('Backlog (3)'));
+    // then
+    expect(await screen.findByRole('separator', { name: 'Resize backlog' })).toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByText('Backlog (3)'));
+    // then
+    await waitFor(() => {
+      expect(screen.queryByRole('separator', { name: 'Resize backlog' })).not.toBeInTheDocument();
+    });
+  });
+
+  test('caps the open backlog at the given height', async () => {
+    // given
+    render(<Backlog groups={GROUPS} onSelect={vi.fn()} drag={DRAG} />);
+    // when
+    await userEvent.click(screen.getByText('Backlog (3)'));
+    const backlog = screen.getByText('Backlog (3)').parentElement;
+    // then
+    expect(backlog).toHaveAttribute('open');
+    expect(backlog).toHaveStyle({ maxHeight: '25%' });
   });
 });

@@ -21,6 +21,7 @@ type Props = {
   onAcceptAndStart: () => void;
   failure: string | null;
   queue: QueueState;
+  width: number;
 };
 
 export function PlannerPane({
@@ -37,6 +38,7 @@ export function PlannerPane({
   onAcceptAndStart,
   failure,
   queue,
+  width,
 }: Props) {
   const [tabId, setTabId] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
@@ -81,7 +83,7 @@ export function PlannerPane({
   const nothingToStart = answered && selected.length === 0 && toAccept.length === 0;
 
   return (
-    <div className={styles.planner}>
+    <div className={styles.planner} style={{ width: `${String(width)}%` }} data-testid="planner">
       <div className={styles.bar}>
         <div role="group" aria-label="Plan" className={styles.group}>
           <button onClick={suggest} disabled={tabId === null}>
