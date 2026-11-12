@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { Fetched } from '@shared/types/app/fetched';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { ProjectConfig } from '@shared/types/config/projectConfig';
-import { notificationsDefault, projectByKey, reloadConfig } from './configCache';
+import { currentConfig, notificationsDefault, projectByKey, projects, reloadConfig, vaultDir } from './configCache';
 
 const { loadConfig } = vi.hoisted(() => ({ loadConfig: vi.fn() }));
 
@@ -44,6 +44,11 @@ const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleC
   error: null,
   fetchedAt: '2026-10-18T00:00:00.000Z',
 });
+
+function withVault(dir: string): Fetched<MapleConfig> {
+  const config = loaded([halo]);
+  return { ...config, data: config.data === null ? null : { ...config.data, vaultDir: dir } };
+}
 
 describe('projectByKey', () => {
   beforeEach(() => {
@@ -118,5 +123,98 @@ describe('notificationsDefault', () => {
     const got = await fresh.notificationsDefault();
     // then
     expect(got).toBe(true);
+  });
+});
+
+describe('currentConfig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test('returns null before the config loads', async () => {
+    // given
+    vi.resetModules();
+    const fresh = await import('./configCache');
+    // when
+    const got = fresh.currentConfig();
+    // then
+    expect(got).toBeNull();
+  });
+
+  test('returns the newest load after a reload', async () => {
+    // given
+    loadConfig
+      .mockReset()
+      .mockResolvedValueOnce(loaded([halo]))
+      .mockResolvedValueOnce(loaded([dig]));
+    await reloadConfig();
+    await reloadConfig();
+    // when
+    const got = await currentConfig();
+    // then
+    expect(got).toEqual(loaded([dig]));
+  });
+});
+
+describe('projects', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test.each([
+    { name: 'a loaded config', loads: [loaded([halo, dig])], want: [halo, dig] },
+    { name: 'a failed load', loads: [first], want: [] },
+    { name: 'a reloaded config', loads: [loaded([halo]), loaded([dig])], want: [dig] },
+  ])('lists the projects for $name', async ({ loads, want }) => {
+    // given
+    loadConfig.mockReset();
+    loads.forEach((result) => loadConfig.mockResolvedValueOnce(result));
+    for (let i = 0; i < loads.length; i++) {
+      await reloadConfig();
+    }
+    // when
+    const got = await projects();
+    // then
+    expect(got).toEqual(want);
+  });
+
+  test('is empty before the config loads', async () => {
+    // given
+    vi.resetModules();
+    const fresh = await import('./configCache');
+    // when
+    const got = await fresh.projects();
+    // then
+    expect(got).toEqual([]);
+  });
+});
+
+describe('vaultDir', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test.each([
+    { name: 'a set vault dir', load: withVault('/notes'), want: '/notes' },
+    { name: 'no vault dir', load: loaded([halo]), want: null },
+    { name: 'a failed load', load: first, want: null },
+  ])('returns $want for $name', async ({ load, want }) => {
+    // given
+    loadConfig.mockReset().mockResolvedValueOnce(load);
+    await reloadConfig();
+    // when
+    const got = await vaultDir();
+    // then
+    expect(got).toBe(want);
+  });
+
+  test('returns null before the config loads', async () => {
+    // given
+    vi.resetModules();
+    const fresh = await import('./configCache');
+    // when
+    const got = await fresh.vaultDir();
+    // then
+    expect(got).toBeNull();
   });
 });

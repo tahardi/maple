@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { currentBranch, defaultBranch, gitCommonDir, headSha, repoName } from './repoIdentity';
+import { commitExists, currentBranch, defaultBranch, gitCommonDir, headSha, repoName } from './repoIdentity';
 import { buildRepo, gitIn } from './testRepo';
 
 const timeout = vi.hoisted(() => ({ ms: 30_000 }));
@@ -178,5 +178,18 @@ describe('repoIdentity', () => {
     const sha = headSha(outside);
     // then
     await expect(sha).rejects.toThrow();
+  });
+
+  test.each([
+    { name: 'an existing branch', ref: 'main', want: true },
+    { name: 'a missing name', ref: 'nope', want: false },
+    { name: 'a tree', ref: 'HEAD^{tree}', want: false },
+  ])('commitExists returns $want for $name', async ({ ref, want }) => {
+    // given
+    const name = ref;
+    // when
+    const got = await commitExists(worktree, name);
+    // then
+    expect(got).toBe(want);
   });
 });
