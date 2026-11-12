@@ -167,6 +167,15 @@ describe('readFindings', () => {
     await expect(read).rejects.toThrow('reading findings: MPL-1.json is not a regular file');
   });
 
+  test('throws on a file over 2 MB without parsing it', async () => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), ' '.repeat(2 * 1024 * 1024 + 1));
+    // when
+    const read = readFindings(dir, 'MPL-1');
+    // then
+    await expect(read).rejects.toThrow('reading findings: MPL-1.json is over 2 MB');
+  });
+
   test.each(['../MPL-1', 'mpl-1', 'MPL-1.json', 'MPL-'])('throws on the bad card key %s', async (key) => {
     // given
     // when
