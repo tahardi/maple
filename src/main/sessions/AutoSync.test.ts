@@ -295,6 +295,23 @@ describe('AutoSync', () => {
     expect(sessions.sendPrompt).toHaveBeenCalledWith('t1', syncPrompt('DIG-44', ['/wts/b']));
   });
 
+  test('a failed PR poll that still holds a conflicting PR warns and sends nothing', async () => {
+    // given
+    const { sessions, pr, logger, syncOf, activate, stop } = setup();
+    pr.mockResolvedValue({ data: conflicting, error: 'listing PRs: down', fetchedAt: null });
+    await stop('t1');
+    // when
+    await activate('t1');
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('session', 'auto-sync failed', {
+      operation: 'pr',
+      worktree: '/wts/dig-44',
+      error: 'listing PRs: down',
+    });
+    expect(sessions.sendPrompt).not.toHaveBeenCalled();
+    expect(syncOf('t1')).toBeNull();
+  });
+
   test('start checks the active tab every 2 minutes until stopped', async () => {
     // given
     const { auto, pr, activate } = setup();

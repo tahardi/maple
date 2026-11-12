@@ -332,6 +332,22 @@ describe('registerPr', () => {
     });
   });
 
+  test.each([
+    { name: 'pr:approve', args: ['t1', head], posted: () => gh },
+    { name: 'pr:comment', args: ['t1', 'src/a.ts', null, 3, 'why?', head], posted: () => commentOnLine },
+    { name: 'pr:reply', args: ['t1', 101, 'thanks'], posted: () => replyToComment },
+  ])('$name acts on the last good PR when the latest poll failed', async ({ name, args, posted }) => {
+    // given
+    latestPr.mockResolvedValue({ data: pr, error: 'listing PRs: offline', fetchedAt: '2026-11-11T12:00:00.000Z' });
+    const call = name === 'pr:approve' ? approver({ [viewPin]: pinned(head) }).approve : register(name, '/wt');
+    // when
+    const result = call(...args);
+    // then
+    await expect(result).resolves.toBeUndefined();
+    expect(posted()).toHaveBeenCalled();
+    expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
+  });
+
   test('pr:approve records the approval after it merges', async () => {
     // given
     latestPr.mockResolvedValue(polled(pr));
@@ -583,6 +599,18 @@ describe('registerPr', () => {
     expect(result).toEqual(pair);
     expect(reviewFilePair).toHaveBeenCalledWith(gh, 'src/a.ts', 'src/old.ts', base, head);
     expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
+  });
+
+  test('readFile rejects and reads nothing when the tab has no worktree', async () => {
+    // given
+    const readFile = register('pr:readFile', null);
+    // when
+    const result = readFile('t1', 'src/a.ts', null, base, head);
+    // then
+    await expect(result).rejects.toThrow(/^reading PR file: tab has no PR$/);
+    expect(latestPr).not.toHaveBeenCalled();
+    expect(ghRunner).not.toHaveBeenCalled();
+    expect(reviewFilePair).not.toHaveBeenCalled();
   });
 
   test('readFile rejects when the tab has no PR', async () => {
