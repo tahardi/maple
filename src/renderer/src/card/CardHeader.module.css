@@ -41,6 +41,23 @@ button.title:hover {
   text-decoration: underline;
 }
 
+.pr {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pr:hover {
+  text-decoration: underline;
+}
+
+.error {
+  color: var(--danger);
+}
+
 .branch {
   font-family: monospace;
   max-width: 30ch;

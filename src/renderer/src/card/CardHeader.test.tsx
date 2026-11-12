@@ -1,5 +1,6 @@
 import type { Card } from '@shared/types/jira/card';
 import type { ChangeSet } from '@shared/types/files/changeSet';
+import type { Fetched } from '@shared/types/app/fetched';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { SessionCost } from '@shared/types/tabs/sessionCost';
 import { render, screen } from '@testing-library/react';
@@ -44,25 +45,49 @@ const pr: PrInfo = {
   checks: { passed: 0, failed: 0, pending: 0, total: 0, runs: [] },
 };
 
+const fetched = (data: PrInfo | null, error: string | null = null): Fetched<PrInfo> => ({
+  data,
+  error,
+  fetchedAt: '2026-10-18T12:00:00.000Z',
+});
+
+const base = {
+  cardKey: 'MPL-20',
+  card: null,
+  pr: null,
+  branch: null,
+  changes: null,
+  cost: null,
+  projectRepo: 'tahardi/maple',
+  onOpenCard: vi.fn(),
+  searchedRepos: [],
+  ci: null,
+  onOpenPr: vi.fn(),
+};
+
 describe('CardHeader', () => {
   test('shows the card, status, PR link, branch, and change counts', () => {
     // given
     const props = {
       cardKey: 'MPL-20',
       card,
-      pr,
+      pr: fetched(pr),
       branch: 'mpl-20-file-tree',
       changes,
       cost: null,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     render(<CardHeader {...props} />);
     // then
     expect(screen.getByText('MPL-20 File Tree and PR Summary')).toBeInTheDocument();
     expect(screen.getByText('In Progress')).toBeInTheDocument();
-    const link = screen.getByRole('link', { name: 'PR #33 ↗' });
+    expect(screen.getByRole('button', { name: 'PR #33' })).toHaveAttribute('title', 'Open PR description');
+    const link = screen.getByRole('link', { name: '↗' });
     expect(link).toHaveAttribute('href', pr.url);
     expect(link).toHaveAttribute('title', 'Open on GitHub');
     expect(screen.getByText('mpl-20-file-tree')).toBeInTheDocument();
@@ -82,6 +107,9 @@ describe('CardHeader', () => {
       cost: null,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     render(<CardHeader {...props} />);
@@ -90,24 +118,28 @@ describe('CardHeader', () => {
   });
 
   test.each([
-    { name: 'the project repo', url: pr.url, want: 'PR #33 ↗' },
-    { name: 'another repo', url: 'https://github.com/tahardi/dotclaude/pull/33', want: 'tahardi/dotclaude PR #33 ↗' },
-  ])('names the PR link for a PR in $name', ({ url, want }) => {
+    { name: 'the project repo', url: pr.url, want: 'PR #33' },
+    { name: 'another repo', url: 'https://github.com/tahardi/dotclaude/pull/33', want: 'tahardi/dotclaude PR #33' },
+  ])('names the PR button for a PR in $name', ({ url, want }) => {
     // given
     const props = {
       cardKey: 'MPL-20',
       card: null,
-      pr: { ...pr, url },
+      pr: fetched({ ...pr, url }),
       branch: null,
       changes: null,
       cost: null,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     render(<CardHeader {...props} />);
     // then
-    expect(screen.getByRole('link', { name: want })).toHaveAttribute('href', url);
+    expect(screen.getByRole('button', { name: want })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '↗' })).toHaveAttribute('href', url);
   });
 
   test.each([
@@ -125,6 +157,9 @@ describe('CardHeader', () => {
       cost: null,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     render(<CardHeader {...props} />);
@@ -144,6 +179,9 @@ describe('CardHeader', () => {
       cost: null,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     render(<CardHeader {...props} />);
@@ -165,6 +203,9 @@ describe('CardHeader', () => {
       cost: null,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     render(<CardHeader {...props} />);
@@ -185,6 +226,9 @@ describe('CardHeader', () => {
       cost: null,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     render(<CardHeader {...props} />);
@@ -215,6 +259,9 @@ describe('CardHeader', () => {
       cost: null,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     const { container } = render(<CardHeader {...props} />);
@@ -235,6 +282,9 @@ describe('CardHeader', () => {
       cost: null,
       projectRepo: 'tahardi/maple',
       onOpenCard,
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     render(<CardHeader {...props} />);
     const title = screen.getByRole('button', { name: 'MPL-20 File Tree and PR Summary' });
@@ -256,6 +306,9 @@ describe('CardHeader', () => {
       cost: null,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     render(<CardHeader {...props} />);
@@ -282,6 +335,9 @@ describe('CardHeader', () => {
       cost,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     render(<CardHeader {...props} />);
@@ -305,6 +361,9 @@ describe('CardHeader', () => {
       cost: unpriced,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     render(<CardHeader {...props} />);
@@ -330,10 +389,74 @@ describe('CardHeader', () => {
       cost,
       projectRepo: 'tahardi/maple',
       onOpenCard: vi.fn(),
+      searchedRepos: [],
+      ci: null,
+      onOpenPr: vi.fn(),
     };
     // when
     const { container } = render(<CardHeader {...props} />);
     // then
     expect(container.textContent).toBe(`MPL-20${want}`);
+  });
+
+  test('the PR number opens the PR description', async () => {
+    // given
+    const onOpenPr = vi.fn();
+    render(<CardHeader {...base} pr={fetched(pr)} onOpenPr={onOpenPr} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'PR #33' }));
+    // then
+    expect(onOpenPr).toHaveBeenCalledOnce();
+  });
+
+  test('shows the CI badge after the PR number', () => {
+    // given
+    const ci = <span data-testid="ci">CI</span>;
+    // when
+    render(<CardHeader {...base} pr={fetched(pr)} ci={ci} />);
+    // then
+    expect(screen.getByRole('link', { name: '↗' }).nextElementSibling).toBe(screen.getByTestId('ci'));
+    expect(screen.getByRole('button', { name: 'PR #33' }).nextElementSibling).toBe(
+      screen.getByRole('link', { name: '↗' }),
+    );
+  });
+
+  test.each([
+    { name: 'before any data', pr: fetched(null, 'listing PRs: network down'), button: false },
+    { name: 'with the last data', pr: fetched(pr, 'listing PRs: network down'), button: true },
+  ])('shows GitHub unreachable when the PR fetch fails $name', ({ pr: input, button }) => {
+    // given
+    const props = { ...base, pr: input, ci: <span data-testid="ci">CI</span> };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    expect(screen.getByText('GitHub unreachable')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'PR #33' }) !== null).toBe(button);
+    expect(screen.queryByTestId('ci') !== null).toBe(button);
+  });
+
+  test('names the searched repos when no PR is found', () => {
+    // given
+    const props = { ...base, pr: fetched(null), searchedRepos: ['tahardi/xena', 'tahardi/dotclaude'] };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    expect(screen.getByText('No PR in tahardi/xena, tahardi/dotclaude')).toHaveAttribute(
+      'title',
+      'If the PR is in another repo, add that repo to otherRepos in config.json, then choose File > Reload config.',
+    );
+  });
+
+  test.each<{ name: string; pr: Fetched<PrInfo>; searchedRepos: readonly string[] }>([
+    { name: 'no repos searched', pr: fetched(null), searchedRepos: [] },
+    { name: 'not fetched yet', pr: { data: null, error: null, fetchedAt: null }, searchedRepos: ['tahardi/xena'] },
+    { name: 'fetch error', pr: fetched(null, 'boom'), searchedRepos: ['tahardi/xena'] },
+  ])('shows no hint when $name', ({ pr: input, searchedRepos }) => {
+    // given
+    const props = { ...base, pr: input, searchedRepos };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    expect(screen.queryByText(/No PR in/)).toBeNull();
   });
 });

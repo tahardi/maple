@@ -11,8 +11,7 @@ import styles from './CardTab.module.css';
 import { FileTree } from '@renderer/card/viewer/tree/FileTree';
 import { FileViewer } from '@renderer/card/viewer/FileViewer';
 import { Notice } from '../shell/blocks/Notice';
-import { PrSummary } from './PrSummary';
-import { RepoBranch } from '@renderer/card/viewer/tree/RepoBranch';
+import { CiBadge } from './CiBadge';
 import { WorktreeMenu } from '@renderer/card/viewer/tree/WorktreeMenu';
 import { folderName } from '@renderer/card/viewer/tree/folderName';
 import { QuickOpen } from '@renderer/card/viewer/quickOpen/QuickOpen';
@@ -158,7 +157,20 @@ export function CardTab({ tab }: { tab: TabState }) {
       <CardHeader
         cardKey={cardKey}
         card={card}
-        pr={pr?.data ?? null}
+        pr={pr}
+        searchedRepos={searchedRepos}
+        ci={
+          pr?.data && (
+            <CiBadge
+              pr={pr.data}
+              reviewedSha={pinned?.headSha ?? null}
+              updated={reviewUpdated}
+              reviewError={review?.error ?? null}
+              findings={pinned?.findings ?? []}
+              onReloadReview={reloadPinnedReview}
+            />
+          )
+        }
         branch={repo?.branch ?? null}
         changes={pinned ?? changes}
         cost={cost}
@@ -166,21 +178,20 @@ export function CardTab({ tab }: { tab: TabState }) {
         onOpenCard={() => {
           openFile(CARD_DESCRIPTION, null, true);
         }}
+        onOpenPr={() => {
+          openFile(PR_DESCRIPTION, null, true);
+        }}
       />
       <div ref={body} className={styles.body}>
         <div className={styles.left} style={{ width: left.size }} data-testid="tree-slot">
           {hasVault && <VaultSwitch view={view} onChange={setViewOverride} onRefresh={vault.refresh} />}
-          {!showsVault && tab.worktreePath !== null && tab.worktreePaths.length > 1 ? (
+          {!showsVault && tab.worktreePath !== null && tab.worktreePaths.length > 1 && (
             <WorktreeMenu
-              label={repo === null ? folderName(tab.worktreePath) : `${repo.name} · ${repo.branch}`}
+              label={repo?.name ?? folderName(tab.worktreePath)}
               paths={tab.worktreePaths}
               selected={tab.worktreePath}
               onSelect={(path) => void window.maple.tabs.selectWorktree(tab.id, path)}
-            >
-              {repo === null ? undefined : <RepoBranch repo={repo} />}
-            </WorktreeMenu>
-          ) : (
-            !showsVault && worktreeExists && repo !== null && <RepoBranch repo={repo} />
+            />
           )}
           {showsVault ? (
             <FileTree
@@ -218,21 +229,6 @@ export function CardTab({ tab }: { tab: TabState }) {
               viewed={viewed}
               onToggleViewed={toggleViewed}
               commented={commented}
-            />
-          )}
-          {pr && (
-            <PrSummary
-              pr={pr}
-              onReloadReview={reloadPinnedReview}
-              reviewError={review?.error ?? null}
-              findings={pinned?.findings ?? []}
-              projectRepo={project?.repo ?? null}
-              headSha={pinned?.headSha ?? null}
-              updated={reviewUpdated}
-              searchedRepos={searchedRepos}
-              onOpenDescription={() => {
-                openFile(PR_DESCRIPTION, null, true);
-              }}
             />
           )}
         </div>

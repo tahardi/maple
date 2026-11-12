@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useDismiss } from '@renderer/shell/menu/useDismiss';
 import { useMenuKeys } from '@renderer/shell/menu/useMenuKeys';
 import { folderName } from './folderName';
@@ -9,13 +9,11 @@ export function WorktreeMenu({
   paths,
   selected,
   onSelect,
-  children,
 }: {
   label: string;
   paths: readonly string[];
   selected: string | null;
   onSelect: (path: string) => void;
-  children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -38,7 +36,9 @@ export function WorktreeMenu({
           setOpen(!open);
         }}
       >
-        <span className={styles.label}>{children ?? <span className={styles.plain}>{label}</span>}</span>
+        <span className={styles.label}>
+          <span className={styles.plain}>{label}</span>
+        </span>
         <span className={styles.arrow}>▾</span>
       </button>
       {open && (
