@@ -4,6 +4,7 @@ import { configDir } from '@main/app/config/config';
 import { errorText } from '@shared/errors/errorText';
 import { isPlainObject } from './isPlainObject';
 import { redact } from './redact';
+import { scrubSecrets } from './scrubSecrets';
 
 export type LogScope =
   | 'session'
@@ -29,6 +30,16 @@ export type Logger = Record<Level, (scope: LogScope, msg: string, fields?: Field
 
 const MAX_SIZE = 5 * 1024 * 1024;
 
+let logSecrets: readonly string[] = [];
+
+export function setLogSecrets(secrets: readonly string[]): void {
+  logSecrets = secrets;
+}
+
+export function scrubLine(text: string): string {
+  return scrubSecrets(text, logSecrets);
+}
+
 function format(value: unknown): string {
   const text = Array.isArray(value)
     ? value.map(String).join(',')
@@ -43,7 +54,7 @@ export function createLogger(write: (level: Level, line: string) => void): Logge
     (level: Level) =>
     (scope: LogScope, msg: string, fields: Fields = {}) => {
       const pairs = Object.entries(redact(fields)).map(([key, value]) => ` ${key}=${format(value)}`);
-      write(level, `${scope} ${msg}${pairs.join('')}`);
+      write(level, scrubLine(`${scope} ${msg}${pairs.join('')}`));
     };
   return { info: at('info'), warn: at('warn'), error: at('error') };
 }

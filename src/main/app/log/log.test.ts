@@ -1,5 +1,5 @@
-import { describe, expect, test, vi } from 'vitest';
-import { createLogger, logFailure } from './log';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import { createLogger, logFailure, setLogSecrets } from './log';
 
 function setup() {
   const write = vi.fn<(level: 'info' | 'warn' | 'error', line: string) => void>();
@@ -7,6 +7,29 @@ function setup() {
 }
 
 describe('createLogger', () => {
+  afterEach(() => {
+    setLogSecrets([]);
+  });
+
+  test('replaces a registered secret in the message and inside field values', () => {
+    // given
+    const { write, logger } = setup();
+    setLogSecrets(['tok-3f9a1c77e2']);
+    // when
+    logger.info('jira', 'failed tok-3f9a1c77e2', { error: 'bad tok-3f9a1c77e2' });
+    // then
+    expect(write).toHaveBeenCalledWith('info', 'jira failed [redacted] error="bad [redacted]"');
+  });
+
+  test('replaces a Bearer credential inside a field value', () => {
+    // given
+    const { write, logger } = setup();
+    // when
+    logger.warn('gh', 'failed', { error: 'sent Bearer abc.def-123' });
+    // then
+    expect(write).toHaveBeenCalledWith('warn', 'gh failed error="sent Bearer [redacted]"');
+  });
+
   test('writes the scope, message, and fields at info', () => {
     // given
     const { write, logger } = setup();

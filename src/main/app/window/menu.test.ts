@@ -1,18 +1,29 @@
 import type { MenuItemConstructorOptions } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { aboutDetail } from '../buildInfo';
 import { checkNotifications, setAppMenu } from './menu';
 
-const { buildFromTemplate, setApplicationMenu, getApplicationMenu, openPath } = vi.hoisted(() => ({
+const { buildFromTemplate, setApplicationMenu, getApplicationMenu, openPath, showMessageBox } = vi.hoisted(() => ({
   buildFromTemplate: vi.fn((template: MenuItemConstructorOptions[]) => template),
   setApplicationMenu: vi.fn(),
   getApplicationMenu: vi.fn(),
   openPath: vi.fn(() => Promise.resolve('')),
+  showMessageBox: vi.fn(() => Promise.resolve({ response: 0, checkboxChecked: false })),
 }));
 
 vi.mock('electron', () => ({
   Menu: { buildFromTemplate, setApplicationMenu, getApplicationMenu },
   shell: { openPath },
+  dialog: { showMessageBox },
+  app: { getVersion: () => '0.1.0' },
 }));
+
+vi.mock('../buildInfo', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../buildInfo')>()),
+  readBuildInfo: vi.fn(() => Promise.resolve(BUILD)),
+}));
+
+const BUILD = { sha: 'abc1234', date: '2026-11-11T10:00:00.000Z' };
 
 function menuItems(): MenuItemConstructorOptions[] {
   const template = buildFromTemplate.mock.calls[0]?.[0] ?? [];
@@ -131,6 +142,28 @@ describe('setAppMenu', () => {
     expect(reportBug).toHaveBeenCalledOnce();
     expect(labels.indexOf('Report a bug…')).toBeGreaterThanOrEqual(0);
     expect(labels.indexOf('Report a bug…')).toBeLessThan(labels.indexOf('Open logs'));
+  });
+
+  test('Help > About Maple shows the version, commit, and build date', async () => {
+    // given
+    setAppMenu(
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+      vi.fn(),
+    );
+    const help = buildFromTemplate.mock.calls[0]?.[0].find((top) => top.label === 'Help');
+    const labels = Array.isArray(help?.submenu) ? help.submenu.map((entry) => entry.label) : [];
+    const item = menuItems().find((entry) => entry.label === 'About Maple');
+    // when
+    item?.click?.({} as never, undefined, {});
+    // then
+    expect(labels).toContain('About Maple');
+    await vi.waitFor(() => {
+      expect(showMessageBox).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'About Maple', detail: aboutDetail('0.1.0', BUILD) }),
+      );
+    });
   });
 
   test('the Desktop notifications checkbox sits under Settings', () => {
