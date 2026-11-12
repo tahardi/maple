@@ -13,10 +13,6 @@ export type PaneAction = {
   onClick: () => void;
   disabled?: boolean;
   reason?: string;
-  fix?: { label: string; onClick: () => void };
-  busy?: boolean;
-  busyLabel?: string;
-  variant?: 'primary' | 'danger';
 };
 
 type ClaudePaneProps = { tabId: string; actions: readonly PaneAction[] };

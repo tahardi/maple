@@ -64,6 +64,7 @@ const base = {
   ci: null,
   reviewedSha: null,
   reviewUpdated: false,
+  approve: null,
   onOpenPr: vi.fn(),
 };
 
@@ -335,5 +336,31 @@ describe('CardHeader', () => {
     render(<CardHeader {...props} />);
     // then
     expect(screen.queryByText(/Reviewing|Updated to/)).toBeNull();
+  });
+
+  test('shows the approve slot last, after the cost', () => {
+    // given
+    const cost: SessionCost = {
+      inputTokens: 1,
+      outputTokens: 1,
+      cacheWriteTokens: 0,
+      cacheReadTokens: 0,
+      dollars: null,
+    };
+    const props = { ...base, pr: fetched(pr), cost, approve: <button>Approve & merge</button> };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    const slot = screen.getByRole('button', { name: 'Approve & merge' }).parentElement;
+    expect(slot?.className).toMatch(/approve/);
+    expect(slot?.previousElementSibling).toBe(screen.getByText('2 tokens'));
+    expect(slot?.nextElementSibling).toBeNull();
+  });
+
+  test('shows no approve slot without one', () => {
+    // when
+    const { container } = render(<CardHeader {...base} />);
+    // then
+    expect(container.querySelector('[class*="approve"]')).toBeNull();
   });
 });

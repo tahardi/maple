@@ -1,10 +1,10 @@
 import type { FindingSeverity } from '@shared/types/github/securityFinding';
 import type { Review } from '@shared/types/github/review';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeMaple } from '../testing/fakeMaple';
+import { fakeMaple } from '../../testing/fakeMaple';
 import { useApproveFlow } from './useApproveFlow';
 
-type Props = { worktree: string | null; review: Review | null; unviewed: number };
+type Props = { worktree: string | null; review: Review | null; unviewed: number; blocked?: boolean };
 
 function reviewAt(headSha: string, severities: readonly FindingSeverity[] = []): Review {
   return {
@@ -19,9 +19,11 @@ function reviewAt(headSha: string, severities: readonly FindingSeverity[] = []):
 }
 
 function renderFlow(initialProps: Props) {
-  return renderHook(({ worktree, review, unviewed }: Props) => useApproveFlow('t1', worktree, review, unviewed), {
-    initialProps,
-  });
+  return renderHook(
+    ({ worktree, review, unviewed, blocked }: Props) =>
+      useApproveFlow('t1', worktree, review, unviewed, blocked ?? false),
+    { initialProps },
+  );
 }
 
 function fakeApprove() {
@@ -40,22 +42,36 @@ function failingApprove() {
   });
 }
 
+type Flow = { current: ReturnType<typeof useApproveFlow> };
+
+function approveAndConfirm(result: Flow) {
+  act(() => {
+    result.current.approve();
+  });
+  act(() => {
+    result.current.confirm();
+  });
+}
+
 describe('useApproveFlow', () => {
   test.each([
-    { name: 'no high findings and every file viewed', severities: [], unviewed: 0, dialog: null },
+    { name: 'nothing open', severities: [], unviewed: 0, body: 'Approves PR #13 and merges it.', danger: false },
     {
       name: 'one high finding',
       severities: ['high' as const],
       unviewed: 0,
-      dialog: { title: 'Open security findings', body: '1 open high-severity finding. Approve anyway?' },
+      body: '1 open high-severity finding.',
+      danger: true,
     },
+    { name: 'two unviewed files', severities: [], unviewed: 2, body: '2 changed files not viewed.', danger: true },
     {
-      name: 'two unviewed files',
-      severities: [],
-      unviewed: 2,
-      dialog: { title: 'Unviewed files', body: '2 changed files not viewed. Approve anyway?' },
+      name: 'medium and low findings',
+      severities: ['medium' as const, 'low' as const],
+      unviewed: 0,
+      body: 'Approves PR #13 and merges it.',
+      danger: false,
     },
-  ])('approve with $name asks $dialog', ({ severities, unviewed, dialog }) => {
+  ])('approve with $name always asks first', ({ severities, unviewed, body, danger }) => {
     // given
     const approve = fakeApprove();
     const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1', severities), unviewed });
@@ -64,53 +80,50 @@ describe('useApproveFlow', () => {
       result.current.approve();
     });
     // then
-    expect(result.current.dialog).toEqual(dialog);
-    expect(approve).toHaveBeenCalledTimes(dialog === null ? 1 : 0);
-    if (dialog === null) {
-      expect(approve).toHaveBeenCalledWith('t1', 'h1');
-    }
-  });
-
-  test('confirming the findings still asks about unviewed files', () => {
-    // given
-    const approve = fakeApprove();
-    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1', ['high', 'high']), unviewed: 1 });
-    // when
-    act(() => {
-      result.current.approve();
-    });
-    // then
-    expect(result.current.dialog?.body).toBe('2 open high-severity findings. Approve anyway?');
-    // when
-    act(() => {
-      result.current.confirm();
-    });
-    // then
-    expect(result.current.dialog).toEqual({
-      title: 'Unviewed files',
-      body: '1 changed file not viewed. Approve anyway?',
-    });
+    expect(result.current.dialog).toEqual({ title: 'Approve & merge PR #13?', body, danger });
     expect(approve).not.toHaveBeenCalled();
+  });
+
+  test('confirm approves the reviewed head and closes the dialog', () => {
+    // given
+    const approve = fakeApprove();
+    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1', ['high']), unviewed: 1 });
     // when
-    act(() => {
-      result.current.confirm();
-    });
+    approveAndConfirm(result);
     // then
     expect(result.current.dialog).toBeNull();
     expect(approve).toHaveBeenCalledWith('t1', 'h1');
   });
 
-  test('medium and low findings do not ask', () => {
+  test('the dialog closes and confirm approves nothing once a blocker appears', () => {
     // given
     const approve = fakeApprove();
-    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1', ['medium', 'low']), unviewed: 0 });
-    // when
+    const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
     act(() => {
       result.current.approve();
     });
+    // when
+    rerender({ worktree: '/a', review: reviewAt('h1'), unviewed: 0, blocked: true });
+    act(() => {
+      result.current.confirm();
+    });
     // then
     expect(result.current.dialog).toBeNull();
-    expect(approve).toHaveBeenCalledWith('t1', 'h1');
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  test('the dialog stays closed when the blocker clears', () => {
+    // given
+    fakeApprove();
+    const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
+    act(() => {
+      result.current.approve();
+    });
+    rerender({ worktree: '/a', review: reviewAt('h1'), unviewed: 0, blocked: true });
+    // when
+    rerender({ worktree: '/a', review: reviewAt('h1'), unviewed: 0, blocked: false });
+    // then
+    expect(result.current.dialog).toBeNull();
   });
 
   test('cancel closes the dialog without approving', () => {
@@ -134,9 +147,7 @@ describe('useApproveFlow', () => {
     failingApprove();
     const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
     // when
-    act(() => {
-      result.current.approve();
-    });
+    approveAndConfirm(result);
     // then
     await waitFor(() => {
       expect(result.current.error).toBe('approving PR: offline');
@@ -147,9 +158,7 @@ describe('useApproveFlow', () => {
     // given
     failingApprove();
     const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
-    act(() => {
-      result.current.approve();
-    });
+    approveAndConfirm(result);
     await waitFor(() => {
       expect(result.current.error).not.toBeNull();
     });
@@ -163,9 +172,7 @@ describe('useApproveFlow', () => {
     // given
     failingApprove();
     const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
-    act(() => {
-      result.current.approve();
-    });
+    approveAndConfirm(result);
     await waitFor(() => {
       expect(result.current.error).not.toBeNull();
     });
@@ -179,9 +186,7 @@ describe('useApproveFlow', () => {
     // given
     failingApprove();
     const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
-    act(() => {
-      result.current.approve();
-    });
+    approveAndConfirm(result);
     await waitFor(() => {
       expect(result.current.error).not.toBeNull();
     });
@@ -211,17 +216,13 @@ describe('useApproveFlow', () => {
     // given
     const maple = failingApprove();
     const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
-    act(() => {
-      result.current.approve();
-    });
+    approveAndConfirm(result);
     await waitFor(() => {
       expect(result.current.error).not.toBeNull();
     });
     maple.pr.approve = vi.fn(() => new Promise<void>(() => undefined));
     // when
-    act(() => {
-      result.current.approve();
-    });
+    approveAndConfirm(result);
     // then
     expect(result.current.error).toBeNull();
   });
@@ -259,9 +260,7 @@ describe('useApproveFlow', () => {
     });
     const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
     // when
-    act(() => {
-      result.current.approve();
-    });
+    approveAndConfirm(result);
     // then
     expect(result.current.approving).toBe(true);
     // when
@@ -274,31 +273,11 @@ describe('useApproveFlow', () => {
     });
   });
 
-  test('approving is set when the approve goes through Approve anyway', () => {
-    // given
-    fakeMaple({ pr: { approve: vi.fn(() => new Promise<void>(() => undefined)) } });
-    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 1 });
-    // when
-    act(() => {
-      result.current.approve();
-    });
-    // then
-    expect(result.current.approving).toBe(false);
-    // when
-    act(() => {
-      result.current.confirm();
-    });
-    // then
-    expect(result.current.approving).toBe(true);
-  });
-
   test('approving stays with the worktree being merged', () => {
     // given
     fakeMaple({ pr: { approve: vi.fn(() => new Promise<void>(() => undefined)) } });
     const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0 });
-    act(() => {
-      result.current.approve();
-    });
+    approveAndConfirm(result);
     // when
     rerender({ worktree: '/b', review: reviewAt('h1'), unviewed: 0 });
     // then
@@ -323,13 +302,9 @@ describe('useApproveFlow', () => {
       },
     });
     const { result, rerender } = renderFlow({ worktree: '/a', review: reviewAt('ha'), unviewed: 0 });
-    act(() => {
-      result.current.approve();
-    });
+    approveAndConfirm(result);
     rerender({ worktree: '/b', review: reviewAt('hb'), unviewed: 0 });
-    act(() => {
-      result.current.approve();
-    });
+    approveAndConfirm(result);
     // when
     await act(async () => {
       settle.get('ha')?.();
