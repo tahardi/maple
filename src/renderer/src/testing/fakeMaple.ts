@@ -165,6 +165,7 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       seen: vi.fn(() => Promise.resolve({})),
       onQuitRequested: vi.fn(unsubscribe),
       confirmQuit: vi.fn(),
+      onReportRequested: vi.fn(unsubscribe),
       ...overrides.app,
     },
   };

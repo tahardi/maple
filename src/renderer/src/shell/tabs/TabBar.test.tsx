@@ -331,12 +331,12 @@ describe('TabBar', () => {
     expect(activate).not.toHaveBeenCalled();
   });
 
-  test('Report opens the report form', async () => {
+  test('has no Report button', () => {
     // given
     render(<TabBar />);
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Report' }));
+    const report = screen.queryByRole('button', { name: 'Report' });
     // then
-    expect(screen.getByRole('dialog', { name: 'Report a bug or feature' })).toBeInTheDocument();
+    expect(report).not.toBeInTheDocument();
   });
 });

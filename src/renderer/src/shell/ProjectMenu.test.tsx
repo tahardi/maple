@@ -72,14 +72,41 @@ describe('ProjectMenu', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
-  test('names the current project to screen readers and in the tooltip', () => {
+  test('names the current project to screen readers without a tooltip', () => {
     // given
     useMaple.setState({ projectKey: 'DIG' });
     // when
     render(<ProjectMenu />);
     // then
     const button = screen.getByRole('button', { name: 'Project: Dig Days (DIG)' });
-    expect(button).toHaveAttribute('title', 'Dig Days (DIG)');
+    expect(button).not.toHaveAttribute('title');
+  });
+
+  test('the button shows only the project while the list shows its counts', async () => {
+    // given
+    useMaple.setState({
+      projectKey: 'DIG',
+      tabs: [
+        {
+          id: '1',
+          projectKey: 'DIG',
+          kind: 'card',
+          cardKey: 'DIG-1',
+          sessionId: '1',
+          worktreePath: null,
+          worktreePaths: [],
+        },
+      ],
+      statuses: {
+        '1': { tabId: '1', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+      },
+    });
+    render(<ProjectMenu />);
+    // when
+    await openMenu();
+    // then
+    expect(screen.getByRole('button', { name: /^Project/ })).toHaveTextContent(/^Dig Days \(DIG\)▾$/);
+    expect(rows()).toEqual(['Bearclave (BEAR)', 'Dig Days (DIG) · 1 waiting · 0 ready']);
   });
 
   test('says when no project is selected', () => {

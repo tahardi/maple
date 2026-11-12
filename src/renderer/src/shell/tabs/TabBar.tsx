@@ -3,7 +3,6 @@ import { useMaple } from '@renderer/store';
 import { ConfirmDialog } from '@renderer/shell/ConfirmDialog';
 import { Inbox } from '@renderer/shell/Inbox';
 import { ProjectMenu } from '@renderer/shell/ProjectMenu';
-import { ReportDialog } from '@renderer/shell/ReportDialog';
 import styles from './TabBar.module.css';
 import { tabLabel } from './tabLabel';
 import { errorText } from '@shared/errors/errorText';
@@ -20,7 +19,6 @@ export function TabBar() {
   const closeTab = useMaple((s) => s.closeTab);
   const cancelClose = useMaple((s) => s.cancelClose);
   const vaultDir = useMaple((s) => s.config?.data?.vaultDir ?? null);
-  const [reporting, setReporting] = useState(false);
   const [vaultError, setVaultError] = useState<string | null>(null);
   const cardTabs = tabs.filter((t) => t.projectKey === projectKey && t.kind === 'card');
   const vaultTab = tabs.find((t) => t.projectKey === projectKey && t.kind === 'vault');
@@ -119,21 +117,6 @@ export function TabBar() {
         <div className={styles.error} role="alert">
           {vaultError}
         </div>
-      )}
-      <button
-        className={styles.report}
-        onClick={() => {
-          setReporting(true);
-        }}
-      >
-        Report
-      </button>
-      {reporting && (
-        <ReportDialog
-          onClose={() => {
-            setReporting(false);
-          }}
-        />
       )}
       {closing && (
         <ConfirmDialog

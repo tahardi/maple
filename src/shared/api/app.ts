@@ -11,6 +11,7 @@ export type AppApi = {
   seen(): Promise<Record<string, Dot>>;
   onQuitRequested(cb: (workingCardKeys: string[]) => void): Unsubscribe;
   confirmQuit(): void;
+  onReportRequested(cb: () => void): Unsubscribe;
 };
 
 export const APP_CHANNELS = {
@@ -22,4 +23,5 @@ export const APP_CHANNELS = {
   seen: 'invoke',
   onQuitRequested: 'event',
   confirmQuit: 'send',
+  onReportRequested: 'event',
 } as const satisfies { [M in keyof AppApi]: ChannelKind };
