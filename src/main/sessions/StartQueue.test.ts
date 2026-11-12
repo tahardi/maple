@@ -543,7 +543,7 @@ describe('StartQueue', () => {
     {
       name: 'move',
       act: (q: StartQueue) => {
-        q.move('DIG-99', 1);
+        q.move('DIG-99', 0);
       },
     },
   ])('$name of a card not in the queue changes nothing', ({ act }) => {
@@ -570,21 +570,12 @@ describe('StartQueue', () => {
   });
 
   test.each([
-    { name: 'DIG-46 up', cardKey: 'DIG-46', offset: -1 as const, want: ['DIG-46', 'DIG-45', 'DIG-47'] },
-    { name: 'DIG-46 down', cardKey: 'DIG-46', offset: 1 as const, want: ['DIG-45', 'DIG-47', 'DIG-46'] },
-    {
-      name: 'the first card up stays put',
-      cardKey: 'DIG-45',
-      offset: -1 as const,
-      want: ['DIG-45', 'DIG-46', 'DIG-47'],
-    },
-    {
-      name: 'the last card down stays put',
-      cardKey: 'DIG-47',
-      offset: 1 as const,
-      want: ['DIG-45', 'DIG-46', 'DIG-47'],
-    },
-  ])('move $name', ({ cardKey, offset, want }) => {
+    { name: 'DIG-46 up one', cardKey: 'DIG-46', index: 0, want: ['DIG-46', 'DIG-45', 'DIG-47'] },
+    { name: 'DIG-46 down one', cardKey: 'DIG-46', index: 2, want: ['DIG-45', 'DIG-47', 'DIG-46'] },
+    { name: 'the last card to the front', cardKey: 'DIG-47', index: 0, want: ['DIG-47', 'DIG-45', 'DIG-46'] },
+    { name: 'the first card to the end', cardKey: 'DIG-45', index: 2, want: ['DIG-46', 'DIG-47', 'DIG-45'] },
+    { name: 'past the end stays put', cardKey: 'DIG-47', index: 3, want: ['DIG-45', 'DIG-46', 'DIG-47'] },
+  ])('move $name', ({ cardKey, index, want }) => {
     // given
     const { queue } = setup({
       working: 4,
@@ -592,7 +583,7 @@ describe('StartQueue', () => {
       queued: queued('DIG-45', 'DIG-46', 'DIG-47'),
     });
     // when
-    queue.move(cardKey, offset);
+    queue.move(cardKey, index);
     // then
     expect(queue.state().cards).toEqual(queued(...want));
   });

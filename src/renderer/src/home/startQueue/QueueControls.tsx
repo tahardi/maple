@@ -4,14 +4,14 @@ export function QueueControls({ cardKey, index, count }: { cardKey: string; inde
       <button
         aria-label={`Move ${cardKey} up`}
         disabled={index === 0}
-        onClick={() => void window.maple.tabs.moveQueued(cardKey, -1)}
+        onClick={() => void window.maple.tabs.moveQueued(cardKey, index - 1)}
       >
         ↑
       </button>
       <button
         aria-label={`Move ${cardKey} down`}
         disabled={index === count - 1}
-        onClick={() => void window.maple.tabs.moveQueued(cardKey, 1)}
+        onClick={() => void window.maple.tabs.moveQueued(cardKey, index + 1)}
       >
         ↓
       </button>

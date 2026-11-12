@@ -20,8 +20,8 @@ describe('QueueControls', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Move DIG-46 down' }));
     // then
     expect(moveQueued.mock.calls).toEqual([
-      ['DIG-46', -1],
-      ['DIG-46', 1],
+      ['DIG-46', 0],
+      ['DIG-46', 2],
     ]);
   });
 

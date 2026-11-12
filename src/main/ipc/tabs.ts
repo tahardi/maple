@@ -63,8 +63,8 @@ export function registerTabs(
   handle('tabs:unqueue', z.tuple([cardKeyArg]), (cardKey) => {
     startQueue.remove(cardKey);
   });
-  handle('tabs:moveQueued', z.tuple([cardKeyArg, z.union([z.literal(-1), z.literal(1)])]), (cardKey, offset) => {
-    startQueue.move(cardKey, offset);
+  handle('tabs:moveQueued', z.tuple([cardKeyArg, z.number().int().nonnegative()]), (cardKey, index) => {
+    startQueue.move(cardKey, index);
   });
   ipcMain.handle('tabs:statuses', () => status.statuses());
   status.on('status', (s) => {

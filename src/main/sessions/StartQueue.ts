@@ -74,14 +74,13 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
     }
   }
 
-  move(cardKey: string, offset: -1 | 1): void {
+  move(cardKey: string, index: number): void {
     const from = this.cards.findIndex((c) => c.cardKey === cardKey);
-    const to = from + offset;
-    if (from === -1 || to < 0 || to >= this.cards.length) {
+    if (from === -1 || index === from || index < 0 || index >= this.cards.length) {
       return;
     }
     const cards = [...this.cards];
-    [cards[from], cards[to]] = [cards[to], cards[from]];
+    cards.splice(index, 0, ...cards.splice(from, 1));
     this.cards = cards;
     this.changed(true);
   }
