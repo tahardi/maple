@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';
 import { FAKE_CONFIG, fakeMaple } from '@renderer/testing/fakeMaple';
 import { TabBar } from './TabBar';
+import css from './TabBar.module.css?raw';
 
 const tab = (id: string, projectKey: string, kind: TabState['kind'], cardKey: string | null): TabState => ({
   id,
@@ -220,18 +221,61 @@ describe('TabBar', () => {
     expect(activate.mock.calls).toEqual([['t2'], [null]]);
   });
 
-  test('shows each tab status as a dot', () => {
+  test.each([
+    { dot: 'working' as const, label: 'Working' },
+    { dot: 'waiting' as const, label: 'Needs you' },
+    { dot: 'ready' as const, label: 'Ready for review' },
+    { dot: 'merged' as const, label: 'Merged' },
+    { dot: 'idle' as const, label: 'Idle' },
+  ])('shows a $dot dot labeled $label', ({ dot, label }) => {
     // given
     useMaple.setState({
-      statuses: {
-        t2: { tabId: 't2', dot: 'waiting', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
-      },
+      statuses: { t2: { tabId: 't2', dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null } },
     });
     // when
     render(<TabBar />);
     // then
-    const dot = screen.getByRole('tab', { name: 'BEAR-2' }).querySelector('[data-dot]');
-    expect(dot).toHaveAttribute('data-dot', 'waiting');
+    const img = within(screen.getByRole('tab', { name: /BEAR-2/ })).getByRole('img', { name: label });
+    expect(img).toHaveAttribute('data-dot', dot);
+    expect(img).not.toHaveAttribute('title');
+  });
+
+  test('names a hovered dot with a themed tooltip instead of the native one', () => {
+    // given
+    const hover = /\.dot:hover::after \{([^}]*)\}/;
+    // when
+    const tooltip = hover.exec(css)?.[1] ?? '';
+    // then
+    expect(tooltip).toMatch(/content: attr\(aria-label\)/);
+    expect(tooltip).toMatch(/border: 1px solid var\(--border\)/);
+    expect(tooltip).toMatch(/z-index: var\(--z-menu\)/);
+  });
+
+  test.each([
+    ['working', '--idle'],
+    ['waiting', '--accent-strong'],
+    ['ready', '--success'],
+    ['merged', '--merged'],
+    ['idle', '--idle'],
+  ])('colors the %s dot with %s', (dot, token) => {
+    // given
+    const rule = new RegExp(`\\.dot\\[data-dot='${dot}'\\] \\{\\s*background: var\\(${token}\\)`);
+    // when
+    const matched = rule.test(css);
+    // then
+    expect(matched).toBe(true);
+  });
+
+  test('pulses the working dot only when motion is allowed', () => {
+    // given
+    const mediaBlock = /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/;
+    // when
+    const media = mediaBlock.exec(css)?.[1] ?? '';
+    const working = /\.dot\[data-dot='working'\] \{([^}]*)\}/.exec(media)?.[1] ?? '';
+    // then
+    expect(working).toMatch(/animation: pulse /);
+    expect(css).toMatch(/@keyframes pulse \{/);
+    expect(css.replace(mediaBlock, '')).not.toMatch(/animation:/);
   });
 
   test.each([

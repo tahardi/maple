@@ -35,7 +35,7 @@ function toDecoration(mark: LineMark): DecorationSpec {
         endLine: mark.line,
         className: 'line-chg',
         marginClassName: 'margin-chg',
-        overviewColor: '#d4b106',
+        overviewColor: '#4fa3e0',
         hover: was(mark.oldText),
       };
     case 'del': {

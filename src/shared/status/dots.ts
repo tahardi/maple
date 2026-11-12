@@ -4,6 +4,14 @@ import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import type { JiraStatus } from '@shared/types/jira/jiraStatus';
 import type { PrInfo } from '@shared/types/github/prInfo';
 
+export const DOT_LABELS: Record<Dot, string> = {
+  working: 'Working',
+  waiting: 'Needs you',
+  ready: 'Ready for review',
+  merged: 'Merged',
+  idle: 'Idle',
+};
+
 export type DotInput =
   | { type: 'prompt' }
   | { type: 'permission' }

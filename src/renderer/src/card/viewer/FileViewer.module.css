@@ -109,7 +109,7 @@
 }
 
 :global(.margin-chg) {
-  border-left: 3px solid var(--warning);
+  border-left: 3px solid var(--accent-strong);
 }
 
 :global(.margin-del) {

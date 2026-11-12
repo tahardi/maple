@@ -7,9 +7,37 @@ vi.mock('./claude/ClaudePane', () => ({
   ClaudePane: () => <div data-testid="claude-pane" />,
 }));
 
+vi.mock('./card/CardTab', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./card/CardTab')>();
+  return {
+    CardTab: (props: Parameters<typeof actual.CardTab>[0]) => {
+      if (props.tab.cardKey === 'BEAR-9') {
+        throw new Error('rendering card: boom');
+      }
+      return <actual.CardTab {...props} />;
+    },
+  };
+});
+
+vi.mock('./vault/VaultTab', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./vault/VaultTab')>();
+  return {
+    VaultTab: (props: Parameters<typeof actual.VaultTab>[0]) => {
+      if (props.tab.id === 'v9') {
+        throw new Error('rendering vault: boom');
+      }
+      return <actual.VaultTab {...props} />;
+    },
+  };
+});
+
 describe('App', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   test('shows the Home tab of the first project', async () => {
@@ -242,6 +270,42 @@ describe('App', () => {
     expect(screen.getByTestId('card-tab')).toBeVisible();
     expect(screen.getByTestId('home')).toBeInTheDocument();
     expect(screen.getByTestId('home')).not.toBeVisible();
+  });
+
+  test.each([
+    { kind: 'card' as const, healthyId: 't1', brokenId: 't9', healthyCard: 'BEAR-1', brokenCard: 'BEAR-9' },
+    { kind: 'vault' as const, healthyId: 'v1', brokenId: 'v9', healthyCard: null, brokenCard: null },
+  ])('a $kind tab that throws shows Reload tab while Home keeps working', async (row) => {
+    // given
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const tab = (id: string, cardKey: string | null) => ({
+      id,
+      projectKey: 'BEAR',
+      kind: row.kind,
+      cardKey,
+      sessionId: `s-${id}`,
+      worktreePath: null,
+      worktreePaths: [],
+    });
+    fakeMaple({
+      tabs: {
+        list: () => Promise.resolve([tab(row.healthyId, row.healthyCard), tab(row.brokenId, row.brokenCard)]),
+      },
+    });
+    render(<App />);
+    await screen.findByTestId('home');
+    // when
+    act(() => {
+      useMaple.getState().activate(row.brokenId);
+    });
+    // then
+    expect(await screen.findByRole('button', { name: 'Reload tab' })).toBeVisible();
+    act(() => {
+      useMaple.getState().activate(row.healthyId);
+    });
+    expect(await screen.findByTestId(`${row.kind}-tab`)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Reload tab', hidden: true })).not.toBeVisible();
+    expect(screen.getByTestId('home')).toBeInTheDocument();
   });
 
   test('shows the active vault tab', async () => {

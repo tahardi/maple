@@ -6,6 +6,7 @@ import { VaultTab } from './vault/VaultTab';
 import { Notice } from './shell/blocks/Notice';
 import { QuitGuard } from './shell/QuitGuard';
 import { ReportLauncher } from './shell/ReportLauncher';
+import { TabErrorBoundary } from './shell/TabErrorBoundary';
 import { TabBar } from '@renderer/shell/tabs/TabBar';
 import { useMaple } from './store';
 
@@ -58,17 +59,23 @@ export function App() {
       <TabBar />
       {cardTabs.map((tab) => (
         <div key={tab.id} className={styles.slot} hidden={tab.id !== activeTabId}>
-          <CardTab tab={tab} />
+          <TabErrorBoundary>
+            <CardTab tab={tab} />
+          </TabErrorBoundary>
         </div>
       ))}
       {vaultTabs.map((tab) => (
         <div key={tab.id} className={styles.slot} hidden={tab.id !== activeTabId}>
-          <VaultTab tab={tab} />
+          <TabErrorBoundary>
+            <VaultTab tab={tab} />
+          </TabErrorBoundary>
         </div>
       ))}
       {visited.map((key) => (
         <div key={key} className={styles.slot} hidden={key !== projectKey || tabActive}>
-          <HomeTab projectKey={key} />
+          <TabErrorBoundary>
+            <HomeTab projectKey={key} />
+          </TabErrorBoundary>
         </div>
       ))}
       <QuitGuard />
