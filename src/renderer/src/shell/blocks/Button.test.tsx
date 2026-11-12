@@ -37,7 +37,6 @@ describe('Button', () => {
     { busy: false, text: 'Start' },
     { busy: true, text: 'Starting…' },
   ])('an ariaLabel names the button and busy=$busy shows "$text"', ({ busy, text }) => {
-    // given
     // when
     render(<Button label="Start" ariaLabel="Start DIG-41" onClick={vi.fn()} busy={busy} busyLabel="Starting…" />);
     // then
