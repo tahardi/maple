@@ -36,27 +36,28 @@ describe('saveFindings', () => {
     expect(await readdir(dir)).toEqual(['MPL-1.json']);
   });
 
-  test('refuses a temp file that is a symlink', async () => {
+  test('never writes through a file planted at a temp name', async () => {
     // given
     const target = join(dir, 'target.txt');
     await writeFile(target, 'keep');
     await symlink(target, join(dir, 'MPL-1.json.maple.tmp'));
     // when
-    const run = saveFindings(dir, file);
+    await saveFindings(dir, file);
     // then
-    await expect(run).rejects.toThrow('saving findings: MPL-1.json');
     expect(await readFile(target, 'utf8')).toBe('keep');
+    expect(JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8'))).toEqual(file);
   });
 
-  test('a failed save leaves the old file and names it in the error', async () => {
+  test('a failed save leaves the old file, removes its temp file, and names the file in the error', async () => {
     // given
-    await writeFile(join(dir, 'MPL-1.json'), '{"old":true}');
-    await mkdir(join(dir, 'MPL-1.json.maple.tmp'));
+    await mkdir(join(dir, 'MPL-1.json'));
+    await writeFile(join(dir, 'MPL-1.json', 'old'), 'keep');
     // when
     const run = saveFindings(dir, file);
     // then
     await expect(run).rejects.toThrow(/^saving findings: MPL-1\.json: /);
-    expect(await readFile(join(dir, 'MPL-1.json'), 'utf8')).toBe('{"old":true}');
+    expect(await readdir(dir)).toEqual(['MPL-1.json']);
+    expect(await readFile(join(dir, 'MPL-1.json', 'old'), 'utf8')).toBe('keep');
   });
 
   test('keeps fields and chips from the base that the file does not list', async () => {
