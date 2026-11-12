@@ -87,6 +87,39 @@ describe('loadConfig', () => {
   });
 
   test.each([
+    { name: 'no version', version: undefined },
+    { name: 'version 1', version: 1 },
+  ])('loads a config with $name', async ({ version }) => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify({ ...validConfig, version }));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBeNull();
+  });
+
+  test('refuses a config from a newer Maple', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify({ ...validConfig, version: 2 }));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBe(
+      `reading config: ${join(dir, 'config.json')} is from a newer Maple (version 2, this build reads up to 1)`,
+    );
+    expect(result.data).toBeNull();
+  });
+
+  test('reports a config version that is not a whole number', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify({ ...validConfig, version: 'x' }));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBe('reading config: upgrading: version must be a whole number of 1 or more');
+  });
+
+  test.each([
     {
       name: 'expanded when set',
       vaultDir: '~/Documents/obsidian-vault',

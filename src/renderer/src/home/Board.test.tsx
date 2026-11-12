@@ -3,7 +3,13 @@ import userEvent from '@testing-library/user-event';
 import { card, SPRINT } from '../testing/sprintFixture';
 import { Board } from './Board';
 
-const START = { openKeys: new Set<string>(), starting: new Set<string>(), onStart: vi.fn() };
+const START = {
+  openKeys: new Set<string>(),
+  starting: new Set<string>(),
+  onStart: vi.fn(),
+  queued: [],
+  status: null,
+};
 
 describe('Board', () => {
   beforeEach(() => {
@@ -229,6 +235,8 @@ describe('Board', () => {
         openKeys={new Set(['DIG-42'])}
         starting={new Set()}
         onStart={vi.fn()}
+        queued={[]}
+        status={null}
       />,
     );
     // then
@@ -250,11 +258,56 @@ describe('Board', () => {
         openKeys={new Set()}
         starting={new Set(['DIG-41'])}
         onStart={vi.fn()}
+        queued={[]}
+        status={null}
       />,
     );
     // then
     expect(screen.getByRole('button', { name: 'Start DIG-41' })).toHaveTextContent(/^Starting…$/);
     expect(screen.getByRole('button', { name: 'Start DIG-41' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Start DIG-42' })).toBeEnabled();
+  });
+
+  test('a queued To Do tile shows its place and cannot be ticked', () => {
+    // given
+    const sprint = { ...SPRINT, cards: [...SPRINT.cards, card('DIG-42', 'To Do')] };
+    // when
+    render(
+      <Board
+        projectKey="DIG"
+        sprint={sprint}
+        selected={new Set()}
+        onSelect={vi.fn()}
+        onToggle={vi.fn()}
+        {...START}
+        queued={['DIG-41']}
+      />,
+    );
+    // then
+    const tile = screen.getByRole('button', { name: /^DIG-41/ }).parentElement ?? document.body;
+    expect(within(tile).getByText('Queued #1')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Select DIG-41' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start DIG-41' })).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select DIG-42' })).toBeInTheDocument();
+  });
+
+  test('the header shows the status at its end', () => {
+    // given
+    // when
+    render(
+      <Board
+        projectKey="DIG"
+        sprint={SPRINT}
+        selected={new Set()}
+        onSelect={vi.fn()}
+        onToggle={vi.fn()}
+        {...START}
+        status={<span>2 queued</span>}
+      />,
+    );
+    // then
+    const header = screen.getByRole('banner');
+    expect(within(header).getByText('2 queued')).toBeInTheDocument();
+    expect(header.lastElementChild).toHaveTextContent('2 queued');
   });
 });

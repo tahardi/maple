@@ -55,3 +55,7 @@
   color: var(--text-muted);
   font-size: var(--font-sm);
 }
+
+.chip {
+  margin-left: auto;
+}

@@ -103,4 +103,15 @@ describe('Backlog', () => {
     expect(backlog).toHaveAttribute('open');
     expect(backlog).toHaveStyle({ maxHeight: '25%' });
   });
+
+  test('a queued row shows Queued #N', async () => {
+    // given
+    const groups: BacklogGroup[] = [{ epic: null, cards: [card('DIG-50', 'To Do'), card('DIG-51', 'To Do')] }];
+    render(<Backlog groups={groups} queued={['BEAR-7', 'DIG-51']} onSelect={vi.fn()} drag={DRAG} />);
+    // when
+    await userEvent.click(screen.getByText('Backlog (2)'));
+    // then
+    expect(screen.getByRole('button', { name: /^DIG-51/ }).closest('li')).toHaveTextContent('Queued #2');
+    expect(screen.getByRole('button', { name: /^DIG-50/ }).closest('li')).not.toHaveTextContent(/Queued/);
+  });
 });

@@ -10,6 +10,7 @@ import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './HomeTab.module.css';
 import { PlannerPane } from './PlannerPane';
 import { readyToStart } from '@renderer/home/startQueue/readyToStart';
+import { StartQueue } from '@renderer/home/startQueue/StartQueue';
 import { useBacklog } from '@renderer/home/backlog/useBacklog';
 import { useSprint } from './useSprint';
 import { useStartQueue } from '@renderer/home/startQueue/useStartQueue';
@@ -75,10 +76,12 @@ export function HomeTab({ projectKey }: Props) {
     (c) => c.status !== 'Done' && c.labels.includes('needs-refinement'),
   ).length;
   const toDo = sprint?.data?.cards.filter((c) => c.status === 'To Do') ?? [];
-  const selected = toDo.map((c) => c.key).filter((key) => picked.includes(key));
+  const queuedKeys = queue.cards.map((c) => c.cardKey);
+  const titles = new Map([...(sprint?.data?.cards ?? []), ...backlogCards].map((c) => [c.key, c.summary]));
+  const selected = toDo.map((c) => c.key).filter((key) => picked.includes(key) && !queuedKeys.includes(key));
   const openKeys = new Set([
     ...tabs.filter((t) => t.projectKey === projectKey).flatMap((t) => t.cardKey ?? []),
-    ...queue.cards.map((c) => c.cardKey),
+    ...queuedKeys,
   ]);
   const ready = readyToStart(toDo, openKeys);
   const sprintCard = sprint?.data?.cards.find((c) => c.key === detailKey) ?? null;
@@ -223,11 +226,21 @@ export function HomeTab({ projectKey }: Props) {
             onStart={(key) => {
               void start([key]);
             }}
+            queued={queuedKeys}
+            status={<StartQueue queue={queue} titles={titles} />}
           />
         ) : (
           sprint?.error === null && <p className={styles.empty}>No active sprint</p>
         )}
-        {backlog?.data && <Backlog groups={backlog.data} highlighted={toAccept} onSelect={select} drag={backlogDrag} />}
+        {backlog?.data && (
+          <Backlog
+            groups={backlog.data}
+            highlighted={toAccept}
+            queued={queuedKeys}
+            onSelect={select}
+            drag={backlogDrag}
+          />
+        )}
         {card && (
           <CardDetail
             card={card}
@@ -247,6 +260,7 @@ export function HomeTab({ projectKey }: Props) {
             }}
             onClose={closeDetail}
             onAddToSprint={backlogCard ? onAddToSprint : undefined}
+            queuePlace={queuedKeys.includes(card.key) ? queuedKeys.indexOf(card.key) + 1 : undefined}
           />
         )}
       </div>
@@ -278,8 +292,7 @@ export function HomeTab({ projectKey }: Props) {
         onAcceptAndStart={() => {
           setConfirming('acceptAndStart');
         }}
-        failure={failure}
-        queue={queue}
+        failure={failure ?? queue.failure}
         busy={batch}
       />
       {confirming && (

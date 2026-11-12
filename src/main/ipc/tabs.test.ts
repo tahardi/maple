@@ -212,20 +212,23 @@ describe('registerTabs', () => {
     expect(startQueue.remove).toHaveBeenCalledWith('DIG-45');
   });
 
-  test('tabs:moveQueued moves the card by the offset', () => {
+  test('tabs:moveQueued moves the card to the index', () => {
     // given
     const { startQueue } = setup();
     // when
-    invoke('tabs:moveQueued', 'DIG-45', -1);
+    invoke('tabs:moveQueued', 'DIG-45', 2);
     // then
-    expect(startQueue.move).toHaveBeenCalledWith('DIG-45', -1);
+    expect(startQueue.move).toHaveBeenCalledWith('DIG-45', 2);
   });
 
-  test('tabs:moveQueued rejects an offset other than -1 or 1', () => {
+  test.each([
+    { name: 'a negative index', index: -1 },
+    { name: 'a fraction', index: 1.5 },
+  ])('tabs:moveQueued rejects $name', ({ index }) => {
     // given
     const { startQueue } = setup();
     // when
-    const run = () => invoke('tabs:moveQueued', 'DIG-45', 2);
+    const run = () => invoke('tabs:moveQueued', 'DIG-45', index);
     // then
     expect(run).toThrow('handling tabs:moveQueued: arguments are invalid');
     expect(startQueue.move).not.toHaveBeenCalled();

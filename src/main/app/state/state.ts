@@ -8,6 +8,11 @@ import { backupState, STATE_BACKUPS } from './backupState';
 import { configDir } from '@main/app/config/config';
 import { dotSchema } from './dotSchema';
 import { errorText } from '@shared/errors/errorText';
+import { upgrade, type UpgradeStep } from '@main/util/upgrade';
+
+export const STATE_VERSION = 1;
+
+export const stateUpgrades: Readonly<Record<number, UpgradeStep>> = {};
 
 export type SavedState = {
   version: 1;
@@ -68,16 +73,23 @@ async function keepCorrupt(path: string): Promise<string> {
 export async function loadState(
   dir: string = configDir(),
   keep: number = STATE_BACKUPS,
-): Promise<{ state: SavedState; warning: string | null }> {
+): Promise<{ state: SavedState; warning: string | null; readOnly: boolean }> {
   const path = join(dir, 'state.json');
   let state: SavedState;
   try {
-    const parsed = stateSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+    const upgraded = upgrade(JSON.parse(await readFile(path, 'utf8')), STATE_VERSION, stateUpgrades);
+    if (upgraded.newer) {
+      const warning =
+        `reading state: ${path} is from a newer Maple (version ${String(upgraded.version)}, ` +
+        `this build reads up to ${String(STATE_VERSION)}), starting with no tabs and not saving until Maple is updated`;
+      return { state: emptyState(), warning, readOnly: true };
+    }
+    const parsed = stateSchema.parse(upgraded.raw);
     const tabIds = new Set(parsed.tabs.map((t) => t.id));
     state = { ...parsed, seen: Object.fromEntries(Object.entries(parsed.seen).filter(([id]) => tabIds.has(id))) };
   } catch (err) {
     if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-      return { state: emptyState(), warning: null };
+      return { state: emptyState(), warning: null, readOnly: false };
     }
     const warning = await keepCorrupt(path);
     const backup = `${path}.1`;
@@ -85,13 +97,17 @@ export async function loadState(
       () => true,
       () => false,
     );
-    return { state: emptyState(), warning: hasBackup ? `${warning} (newest backup: ${backup})` : warning };
+    return {
+      state: emptyState(),
+      warning: hasBackup ? `${warning} (newest backup: ${backup})` : warning,
+      readOnly: false,
+    };
   }
   try {
     await backupState(path, keep);
-    return { state, warning: null };
+    return { state, warning: null, readOnly: false };
   } catch (err) {
-    return { state, warning: `backing up state: ${errorText(err)}` };
+    return { state, warning: `backing up state: ${errorText(err)}`, readOnly: false };
   }
 }
 
