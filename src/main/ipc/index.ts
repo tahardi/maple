@@ -9,7 +9,7 @@ import type { StatusEngine } from '@main/sessions/StatusEngine';
 import type { Terminals } from '@main/sessions/Terminals';
 import type { JiraClient } from '@main/jira/JiraClient';
 import type { JiraCreds } from '@main/jira/readCreds';
-import type { ZoomChange } from '@main/app/window/zoom';
+import type { ZoomChange } from '@main/app/window/zoom/zoom';
 import { registerApp } from './app';
 import { registerConfig } from './config';
 import { registerJira } from './jira';

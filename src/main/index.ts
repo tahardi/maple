@@ -56,8 +56,8 @@ import { AutoSync } from '@main/sessions/AutoSync';
 import { endTmux, writeTmuxConf } from '@main/sessions/tmux';
 import { hasTranscript, transcriptOffset } from '@main/sessions/transcripts/transcripts';
 import { windowTitle } from '@main/app/window/windowTitle';
-import { createZoom, type Zoom } from '@main/app/window/windowZoom';
-import { zoomKey } from '@main/app/window/zoomKey';
+import { createZoom, type Zoom } from '@main/app/window/zoom/windowZoom';
+import { zoomKey } from '@main/app/window/zoom/zoomKey';
 
 let mainWindow: BrowserWindow | null = null;
 let quitting = false;

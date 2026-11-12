@@ -1,7 +1,7 @@
 import { app, dialog, Menu, shell } from 'electron';
 import { logsDir } from '@main/app/log/log';
 import { aboutDetail, readBuildInfo } from '@main/app/buildInfo';
-import type { ZoomChange } from './zoom';
+import type { ZoomChange } from './zoom/zoom';
 
 const NOTIFICATIONS_ID = 'notifications';
 

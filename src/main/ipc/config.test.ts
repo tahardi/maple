@@ -8,7 +8,7 @@ import type { Fetched } from '@shared/types/app/fetched';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import { registerConfig } from './config';
-import type { ZoomChange } from '@main/app/window/zoom';
+import type { ZoomChange } from '@main/app/window/zoom/zoom';
 import type { StartQueue } from '@main/sessions/StartQueue';
 
 type Handler = (event: IpcMainInvokeEvent) => Promise<unknown>;
