@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { isLessonPath, LESSON_DIR } from './lessonPath';
+import { isLessonPath } from './lessonPath';
 
 describe('lessonPath', () => {
   test.each([
@@ -23,12 +23,4 @@ describe('lessonPath', () => {
     expect(got).toBe(want);
   });
 
-  test('names the lesson folder', () => {
-    // given
-    const dir = LESSON_DIR;
-    // when
-    const got = dir;
-    // then
-    expect(got).toBe('Learning/Security');
-  });
 });

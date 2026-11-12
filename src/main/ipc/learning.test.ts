@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { IpcMainInvokeEvent } from 'electron';
@@ -75,6 +75,39 @@ describe('registerLearning', () => {
     expect(readFileSync(join(vault, 'Learning', 'Security', 'xss.md'), 'utf8')).toBe(
       NOTE.replace('comfortable: false', 'comfortable: true'),
     );
+  });
+
+  test('learning:setComfortable can unmark a note', async () => {
+    // given
+    const marked = NOTE.replace('comfortable: false', 'comfortable: true');
+    writeFileSync(join(vault, 'Learning', 'Security', 'xss.md'), marked);
+    const { invoke } = register(vault);
+    // when
+    await invoke('learning:setComfortable', 'Learning/Security/xss.md', false);
+    // then
+    expect(readFileSync(join(vault, 'Learning', 'Security', 'xss.md'), 'utf8')).toBe(NOTE);
+  });
+
+  test('learning:setComfortable leaves a note with bad YAML unchanged', async () => {
+    // given
+    const bad = '---\nstatus: [x\n---\n# XSS\n';
+    writeFileSync(join(vault, 'Learning', 'Security', 'xss.md'), bad);
+    const { invoke } = register(vault);
+    // when
+    const got = invoke('learning:setComfortable', 'Learning/Security/xss.md', true);
+    // then
+    await expect(got).rejects.toThrow(/^writing frontmatter: /);
+    expect(readFileSync(join(vault, 'Learning', 'Security', 'xss.md'), 'utf8')).toBe(bad);
+  });
+
+  test('learning:setComfortable creates nothing for a missing note', async () => {
+    // given
+    const { invoke } = register(vault);
+    // when
+    const got = invoke('learning:setComfortable', 'Learning/Security/gone.md', true);
+    // then
+    await expect(got).rejects.toThrow('ENOENT');
+    expect(existsSync(join(vault, 'Learning', 'Security', 'gone.md'))).toBe(false);
   });
 
   test.each(['Inbox.md', '../x.md', 'Learning/Security/../../Inbox.md'])(
