@@ -8,7 +8,7 @@ import { eventEnvelopeSchema, type EventRecord, type EventRefs } from '@shared/t
 import { eventSchemas, type EventSchemas } from '@shared/types/events/eventSchemas';
 import type { EventFilter } from '@shared/types/events/eventFilter';
 import { configDir } from '@main/app/config/config';
-import { appLogger, logFailure, type Logger } from '@main/app/log/log';
+import { appLogger, logFailure, scrubLine, type Logger } from '@main/app/log/log';
 import { redact } from '@main/app/log/redact';
 import { closeTornLine } from './closeTornLine';
 import { dayFiles } from './dayFiles';
@@ -90,7 +90,7 @@ export function createEventLog<S extends EventSchemas = typeof eventSchemas>(
         data: redact(parsed.data),
       };
       const path = join(dir, `${dayName(at)}.jsonl`);
-      queue = queue.catch(() => undefined).then(() => appendFile(path, JSON.stringify(record) + '\n'));
+      queue = queue.catch(() => undefined).then(() => appendFile(path, scrubLine(JSON.stringify(record)) + '\n'));
       await queue;
     },
     async readEvents(filter) {

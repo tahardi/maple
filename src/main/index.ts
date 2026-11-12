@@ -31,7 +31,8 @@ import { closeNeedsConfirm } from '@main/sessions/closeNeedsConfirm';
 import { recordActions } from '@main/ipc/validated';
 import { JiraClient } from '@main/jira/JiraClient';
 import { jiraEnvPath, readCreds } from '@main/jira/readCreds';
-import { appLogger, startLogging } from '@main/app/log/log';
+import { appLogger, setLogSecrets, startLogging } from '@main/app/log/log';
+import { readBuildInfo } from '@main/app/buildInfo';
 import { logUncaught } from '@main/app/log/logUncaught';
 import { askDeleteToday } from '@main/events/askDeleteToday';
 import { eventLog, startEventLog } from '@main/events/eventLog';
@@ -104,6 +105,8 @@ function createWindow(zoom: Zoom): Promise<void> {
 
 async function start(): Promise<Zoom> {
   startLogging(!app.isPackaged);
+  const build = await readBuildInfo(import.meta.dirname);
+  appLogger.info('app', 'started', { version: app.getVersion(), sha: build.sha, built: build.date });
   logUncaught();
   process.on('uncaughtException', (err) => {
     dialog.showErrorBox('A JavaScript error occurred in the main process', err.stack ?? err.message);
@@ -119,6 +122,12 @@ async function start(): Promise<Zoom> {
   const tmuxConf = await writeTmuxConf(configDir());
   const socketPath = hookSocketPath();
   const creds = readCreds(jiraEnvPath());
+  void creds.then(
+    (c) => {
+      setLogSecrets([c.token, Buffer.from(`${c.email}:${c.token}`).toString('base64')]);
+    },
+    () => undefined,
+  );
   const jiraEnv = await creds.then(
     (c): Record<string, string> => ({ JIRA_SITE: c.site, JIRA_EMAIL: c.email, JIRA_TOKEN: c.token }),
     () => ({}),
