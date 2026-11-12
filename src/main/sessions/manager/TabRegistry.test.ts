@@ -47,6 +47,20 @@ describe('TabRegistry', () => {
     expect(registry.list()).toEqual([updated]);
   });
 
+  test('update of a closed tab throws and does not bring it back', () => {
+    // given
+    const registry = new TabRegistry({});
+    registry.add(tab('t9', 'card', 'DIG-44'));
+    registry.close('t9');
+    // when
+    const update = () => {
+      registry.update(tab('t9', 'card', 'DIG-44'));
+    };
+    // then
+    expect(update).toThrow('finding tab: t9 does not exist');
+    expect(registry.list()).toEqual([]);
+  });
+
   test('findCard and findKind find open tabs of the project', () => {
     // given
     const registry = new TabRegistry({});

@@ -175,6 +175,19 @@ describe('ClaudeProcesses', () => {
     expect(ptys[0].written).toEqual(['hi', '\r']);
   });
 
+  test('sendPrompt sends no carriage return when the session exits before 100 ms', () => {
+    // given
+    vi.useFakeTimers();
+    const { processes, ptys } = setup();
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    processes.sendPrompt('t1', 'hi');
+    // when
+    ptys[0].emitExit(0);
+    vi.advanceTimersByTime(100);
+    // then
+    expect(ptys[0].written).toEqual(['hi']);
+  });
+
   test('resize ignores sizes below 1', () => {
     // given
     const { processes, ptys } = setup();

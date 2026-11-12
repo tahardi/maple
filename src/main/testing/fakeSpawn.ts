@@ -2,6 +2,7 @@ import type { IPty, spawn } from 'node-pty';
 import { vi } from 'vitest';
 
 export type FakePty = {
+  file: string;
   args: string[];
   options: { cwd?: string; cols?: number; rows?: number; env?: Record<string, string | undefined> };
   written: string[];
@@ -12,10 +13,11 @@ export type FakePty = {
 };
 
 export function fakeSpawn(ptys: FakePty[]): typeof spawn {
-  return vi.fn<typeof spawn>((_file, args, options) => {
+  return vi.fn<typeof spawn>((file, args, options) => {
     let onData: (data: string) => void = () => undefined;
     let onExit: (e: { exitCode: number }) => void = () => undefined;
     const fake: FakePty = {
+      file,
       args: typeof args === 'string' ? [args] : args,
       options,
       written: [],
