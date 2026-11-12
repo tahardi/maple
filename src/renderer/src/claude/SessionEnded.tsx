@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from '../shell/blocks/Button';
+import { Button } from '@renderer/shell/blocks/Button';
 import styles from './SessionEnded.module.css';
 
 type SessionEndedProps = { tabId: string; exitCode: number | null; resumeFailed: boolean };
@@ -9,9 +9,11 @@ export function SessionEnded({ tabId, exitCode, resumeFailed }: SessionEndedProp
 
   const run = (kind: 'resume' | 'fresh', request: Promise<unknown>) => {
     setPending(kind);
-    void request.finally(() => {
-      setPending(null);
-    });
+    request
+      .catch(() => undefined)
+      .finally(() => {
+        setPending(null);
+      });
   };
 
   return (

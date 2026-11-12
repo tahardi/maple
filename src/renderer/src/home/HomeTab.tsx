@@ -67,7 +67,7 @@ export function HomeTab({ projectKey }: Props) {
   const [confirming, setConfirming] = useState<'accept' | 'acceptAndStart' | null>(null);
   const [moveFailure, setMoveFailure] = useState<string | null>(null);
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
-  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [busyKeys, setBusyKeys] = useState<ReadonlySet<string>>(new Set());
   const [batch, setBatch] = useState<'start' | 'accept' | 'acceptAndStart' | null>(null);
   const backlogCards = backlog?.data?.flatMap((g) => g.cards) ?? [];
   const backlogToDo = backlogCards.filter((c) => c.status === 'To Do');
@@ -97,8 +97,19 @@ export function HomeTab({ projectKey }: Props) {
     setDetailKey(key);
     setFailure(null);
   };
+  const markBusy = (key: string, busy: boolean) => {
+    setBusyKeys((now) => {
+      const next = new Set(now);
+      if (busy) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  };
   const run = (key: string, action: Promise<TabState | null>) => {
-    setBusyKey(key);
+    markBusy(key, true);
     action
       .then((tab) => {
         setFailure(null);
@@ -110,7 +121,7 @@ export function HomeTab({ projectKey }: Props) {
         setFailure(errorText(err));
       })
       .finally(() => {
-        setBusyKey(null);
+        markBusy(key, false);
       });
   };
   const toggle = (key: string) => {
@@ -196,7 +207,7 @@ export function HomeTab({ projectKey }: Props) {
           card={card}
           tab={tabFor(card.key)}
           failure={failure}
-          busy={busyKey === card.key}
+          busy={busyKeys.has(card.key)}
           onStart={() => {
             run(card.key, window.maple.tabs.startCard(projectKey, card.key));
           }}
@@ -270,9 +281,10 @@ export function HomeTab({ projectKey }: Props) {
           body={addBody(confirmCard, activeSprint.name)}
           confirmLabel="Move to sprint"
           onConfirm={() => {
-            setBusyKey(confirmCard.key);
-            void addToSprint(confirmCard.key, activeSprint.id).finally(() => {
-              setBusyKey(null);
+            const key = confirmCard.key;
+            markBusy(key, true);
+            void addToSprint(key, activeSprint.id).finally(() => {
+              markBusy(key, false);
             });
           }}
           onCancel={() => {

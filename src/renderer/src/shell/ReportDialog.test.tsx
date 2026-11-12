@@ -130,4 +130,16 @@ describe('ReportDialog', () => {
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute('aria-busy', 'true');
   });
+
+  test('a failed filing brings Submit back', async () => {
+    // given
+    fakeMaple({ jira: { report: vi.fn(() => Promise.reject(new Error('filing report: offline'))) } });
+    renderDialog();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), 'Crash');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent('filing report: offline');
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
+  });
 });

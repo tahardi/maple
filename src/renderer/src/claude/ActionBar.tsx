@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button } from '../shell/blocks/Button';
+import { Button } from '@renderer/shell/blocks/Button';
 import styles from './ActionBar.module.css';
 import type { PaneAction } from './ClaudePane';
 

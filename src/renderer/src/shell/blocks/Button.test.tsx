@@ -79,4 +79,49 @@ describe('Button', () => {
     // then
     expect(screen.getAllByRole('button').filter((b) => b.hasAttribute('title'))).toEqual([]);
   });
+
+  test('a button with no type does not submit its form', async () => {
+    // given
+    const onSubmit = vi.fn((e: { preventDefault: () => void }) => {
+      e.preventDefault();
+    });
+    render(
+      <form onSubmit={onSubmit}>
+        <Button label="Cancel" />
+      </form>,
+    );
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    // then
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'pressed', pressed: true, want: 'true' },
+    { name: 'not pressed', pressed: false, want: 'false' },
+    { name: 'not a toggle', pressed: undefined, want: null },
+  ])('a $name button sets aria-pressed to $want', ({ pressed, want }) => {
+    // when
+    render(<Button label="Changes" pressed={pressed} />);
+    // then
+    expect(screen.getByRole('button', { name: 'Changes' }).getAttribute('aria-pressed')).toBe(want);
+  });
+
+  test('a reason wins over a hint', () => {
+    // when
+    render(<Button label="Comment" reason="Review not loaded" hint="Select lines to comment on" />);
+    // then
+    expect(screen.getByRole('button', { name: 'Comment' })).toHaveAccessibleDescription('Review not loaded');
+    expect(screen.getByText('Review not loaded')).not.toHaveAttribute('data-kind');
+    expect(screen.queryByText('Select lines to comment on')).not.toBeInTheDocument();
+  });
+
+  test('a button with no reason, hint, or fix draws nothing after it', () => {
+    // when
+    render(<Button label="Start" reason={null} hint={null} fix={null} />);
+    // then
+    const button = screen.getByRole('button', { name: 'Start' });
+    expect(button).not.toHaveAccessibleDescription();
+    expect(button.nextSibling).toBeNull();
+  });
 });

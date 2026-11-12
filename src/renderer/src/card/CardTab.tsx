@@ -257,6 +257,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 onComments={showComments}
                 line={openFiles.line}
                 review={pinned}
+                onReloadReview={reloadPinnedReview}
                 noteChanges
               />
             )}

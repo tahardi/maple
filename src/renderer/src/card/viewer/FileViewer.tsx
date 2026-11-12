@@ -30,6 +30,7 @@ type Props = {
   review?: Review | null;
   preview?: string | null;
   onPin?: (path: string) => void;
+  onReloadReview?: () => void;
 };
 
 const NO_DRAFTS: Record<string, Draft> = {};
@@ -50,6 +51,7 @@ export function FileViewer({
   review = null,
   preview = null,
   onPin,
+  onReloadReview,
 }: Props) {
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
@@ -89,6 +91,7 @@ export function FileViewer({
         diff={diff}
         onCommentsChanged={refresh}
         onPin={onPin}
+        onReloadReview={onReloadReview}
         toolbar={toolbar}
       />
     );

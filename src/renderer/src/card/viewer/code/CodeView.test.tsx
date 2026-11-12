@@ -26,6 +26,7 @@ function Harness({
   prFetchedAt,
   review = null,
   onPin,
+  onReloadReview,
 }: {
   tabId: string;
   path: string;
@@ -34,6 +35,7 @@ function Harness({
   prFetchedAt: string | null;
   review?: Review | null;
   onPin?: (path: string) => void;
+  onReloadReview?: () => void;
 }) {
   const { comments, diff, refresh } = useFileComments({ tabId, canComment, review, activeFile: path, prFetchedAt });
   return (
@@ -47,6 +49,7 @@ function Harness({
       diff={diff}
       onCommentsChanged={refresh}
       onPin={onPin}
+      onReloadReview={onReloadReview}
       toolbar={slot}
     />
   );
@@ -1308,7 +1311,7 @@ describe('CodeView', () => {
     {
       name: 'the no-review reason once lines are selected',
       cursor: select(3, 3),
-      want: 'Review not loaded: click Reload review to pin comments to the reviewed commit',
+      want: 'Review not loaded',
       kind: null,
     },
     {
@@ -1481,6 +1484,29 @@ describe('CodeView', () => {
     });
   });
 
+  test('offers Reload review beside Comment without a loaded review', async () => {
+    // given
+    const onReloadReview = vi.fn();
+    fakeMaple({ repo: { readFile: () => Promise.resolve(changed) } });
+    render(
+      <Harness
+        tabId="t1"
+        path="src/a.ts"
+        line={null}
+        canComment
+        prFetchedAt={null}
+        review={null}
+        onReloadReview={onReloadReview}
+      />,
+    );
+    await screen.findByRole('button', { name: 'Comment' });
+    await moveCursor(select(3, 3));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Reload review' }));
+    // then
+    expect(onReloadReview).toHaveBeenCalledOnce();
+  });
+
   test('explains why Comment does nothing without a loaded review', async () => {
     // given
     const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } }));
@@ -1491,9 +1517,7 @@ describe('CodeView', () => {
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     // then
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      "Can't comment on line 3. Review not loaded: click Reload review to pin comments to the reviewed commit",
-    );
+    expect(await screen.findByRole('alert')).toHaveTextContent("Can't comment on line 3. Review not loaded");
     expect(diffLines).not.toHaveBeenCalled();
   });
 

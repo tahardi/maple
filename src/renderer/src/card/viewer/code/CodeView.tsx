@@ -31,7 +31,7 @@ const NO_DRAFTS: Record<string, Draft> = {};
 
 const OUTSIDE_DIFF = 'GitHub only accepts comments on lines in the PR diff';
 
-const NO_REVIEW = 'Review not loaded: click Reload review to pin comments to the reviewed commit';
+const NO_REVIEW = 'Review not loaded';
 
 const NO_SELECTION = 'Select lines to comment on';
 
@@ -53,6 +53,7 @@ export function CodeView({
   diff,
   onCommentsChanged,
   onPin,
+  onReloadReview,
   toolbar,
 }: {
   tabId: string;
@@ -64,6 +65,7 @@ export function CodeView({
   diff: ({ headSha: string } & DiffLines) | null;
   onCommentsChanged: () => void;
   onPin?: (path: string) => void;
+  onReloadReview?: () => void;
   toolbar: HTMLElement | null;
 }) {
   const monaco = useMonaco();
@@ -287,6 +289,11 @@ export function CodeView({
                 disabled={!commentable || selected === null}
                 hint={selected === null ? NO_SELECTION : null}
                 reason={selected === null ? null : blocked}
+                fix={
+                  selected !== null && blocked === NO_REVIEW && onReloadReview !== undefined
+                    ? { label: 'Reload review', onClick: onReloadReview }
+                    : null
+                }
                 onClick={() => {
                   if (!commentable || selected === null) {
                     return;

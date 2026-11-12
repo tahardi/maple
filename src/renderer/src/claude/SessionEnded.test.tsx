@@ -53,8 +53,8 @@ describe('SessionEnded', () => {
   });
 
   test.each([
-    { label: 'Resume', busyLabel: 'Resuming…', other: 'Start fresh', settle: 'resume' },
-    { label: 'Start fresh', busyLabel: 'Starting…', other: 'Resume', settle: 'startFresh' },
+    { label: 'Resume', busyLabel: 'Resuming…', other: 'Start fresh' },
+    { label: 'Start fresh', busyLabel: 'Starting…', other: 'Resume' },
   ] as const)('$label reads $busyLabel and disables both buttons until it settles', async (row) => {
     // given
     let finish: () => void = () => undefined;
@@ -79,5 +79,19 @@ describe('SessionEnded', () => {
     // then
     expect(screen.getByRole('button', { name: row.label })).toBeEnabled();
     expect(screen.getByRole('button', { name: row.other })).toBeEnabled();
+  });
+
+  test.each(['Resume', 'Start fresh'])('a failed %s enables both buttons again', async (label) => {
+    // given
+    const failing = vi.fn(() => Promise.reject(new Error('resuming session: no transcript')));
+    fakeMaple({ tabs: { resume: failing, startFresh: failing } });
+    render(<SessionEnded tabId="t1" exitCode={0} resumeFailed={false} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: label }));
+    // then
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    });
+    expect(screen.getByRole('button', { name: 'Start fresh' })).toBeEnabled();
   });
 });
