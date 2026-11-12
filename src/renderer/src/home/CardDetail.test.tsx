@@ -3,6 +3,9 @@ import type { TabState } from '@shared/types/tabs/tabState';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { card } from '../testing/sprintFixture';
+import { useRef } from 'react';
+import { Dialog } from '@renderer/shell/blocks/Dialog';
+import { useDismiss } from '@renderer/shell/menu/useDismiss';
 import { CardDetail } from './CardDetail';
 
 const tab: TabState = {
@@ -14,6 +17,12 @@ const tab: TabState = {
   worktreePath: null,
   worktreePaths: [],
 };
+
+function OpenMenu({ onDismiss }: { onDismiss: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, true, onDismiss);
+  return <div ref={ref}>menu</div>;
+}
 
 function renderDetail(c: Card, t: TabState | null, busy = false) {
   const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
@@ -320,14 +329,37 @@ describe('CardDetail', () => {
     expect(handlers.onClose).not.toHaveBeenCalled();
   });
 
-  test('an Escape another handler already took does not call onClose', () => {
+  test('Escape while a dialog is open does not call onClose', async () => {
     // given
-    const { onClose } = renderDetail(card('DIG-41', 'To Do'), null);
-    const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
-    event.preventDefault();
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    render(
+      <>
+        <CardDetail card={card('DIG-41', 'To Do')} tab={null} failure={null} busy={false} {...handlers} />
+        <Dialog title="Keyboard shortcuts" onClose={vi.fn()}>
+          <p>sheet</p>
+        </Dialog>
+      </>,
+    );
     // when
-    document.dispatchEvent(event);
+    await userEvent.keyboard('{Escape}');
     // then
-    expect(onClose).not.toHaveBeenCalled();
+    expect(handlers.onClose).not.toHaveBeenCalled();
+  });
+
+  test('Escape that closes an open menu does not call onClose', async () => {
+    // given
+    const onDismiss = vi.fn();
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    render(
+      <>
+        <CardDetail card={card('DIG-41', 'To Do')} tab={null} failure={null} busy={false} {...handlers} />
+        <OpenMenu onDismiss={onDismiss} />
+      </>,
+    );
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(handlers.onClose).not.toHaveBeenCalled();
   });
 });

@@ -7,6 +7,7 @@ export function useDismiss(root: RefObject<HTMLElement | null>, open: boolean, o
     }
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
         onDismiss();
       }
     };

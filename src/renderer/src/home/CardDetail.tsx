@@ -42,7 +42,9 @@ export function CardDetail(props: Props) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented && ref.current?.closest('[hidden]') === null) {
+      const visible = ref.current?.closest('[hidden]') === null;
+      const dialogOpen = document.querySelector('dialog[open]') !== null;
+      if (e.key === 'Escape' && !e.defaultPrevented && visible && !dialogOpen) {
         onClose();
       }
     };
