@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import type { Fetched } from '@shared/types/app/fetched';
 import type { Card } from '@shared/types/jira/card';
 import type { ChangeSet } from '@shared/types/files/changeSet';
 import type { PrInfo } from '@shared/types/github/prInfo';
@@ -9,13 +11,21 @@ import styles from './CardHeader.module.css';
 type Props = {
   cardKey: string;
   card: Card | null;
-  pr: PrInfo | null;
+  pr: Fetched<PrInfo> | null;
+  searchedRepos: readonly string[];
+  ci: ReactNode;
+  reviewedSha: string | null;
+  reviewUpdated: boolean;
   branch: string | null;
   changes: Pick<ChangeSet, 'files' | 'added' | 'removed'> | null;
   cost: SessionCost | null;
   projectRepo: string | null;
   onOpenCard: () => void;
+  onOpenPr: () => void;
 };
+
+const NO_PR_HINT =
+  'If the PR is in another repo, add that repo to otherRepos in config.json, then choose File > Reload config.';
 
 const compact = new Intl.NumberFormat('en', { notation: 'compact' });
 
@@ -34,7 +44,23 @@ function costBreakdown(cost: SessionCost): string {
   ].join(' · ');
 }
 
-export function CardHeader({ cardKey, card, pr, branch, changes, cost, projectRepo, onOpenCard }: Props) {
+export function CardHeader({
+  cardKey,
+  card,
+  pr,
+  searchedRepos,
+  ci,
+  reviewedSha,
+  reviewUpdated,
+  branch,
+  changes,
+  cost,
+  projectRepo,
+  onOpenCard,
+  onOpenPr,
+}: Props) {
+  const info = pr?.data ?? null;
+  const noPr = pr !== null && info === null && pr.error === null && pr.fetchedAt !== null && searchedRepos.length > 0;
   return (
     <header className={styles.header}>
       {card ? (
@@ -49,11 +75,25 @@ export function CardHeader({ cardKey, card, pr, branch, changes, cost, projectRe
         <span className={styles.title}>{cardKey}</span>
       )}
       {card && <Badge>{card.status}</Badge>}
-      {pr && (
-        <a href={pr.url} target="_blank" rel="noreferrer" title="Open on GitHub">
-          {`${prLabel(pr, projectRepo)} ↗`}
-        </a>
+      {info && (
+        <>
+          <button className={styles.pr} title="Open PR description" onClick={onOpenPr}>
+            {prLabel(info, projectRepo)}
+          </button>
+          <a href={info.url} target="_blank" rel="noreferrer" title="Open on GitHub">
+            ↗
+          </a>
+          {ci}
+          {reviewedSha !== null &&
+            (info.state === 'OPEN' && reviewUpdated ? (
+              <Badge tone="warning">{`Updated to ${reviewedSha.slice(0, 7)}`}</Badge>
+            ) : (
+              <span>{`Reviewing ${reviewedSha.slice(0, 7)}`}</span>
+            ))}
+        </>
       )}
+      {pr !== null && pr.error !== null && <Badge tone="danger">GitHub unreachable</Badge>}
+      {noPr && <span title={NO_PR_HINT}>{`No PR in ${searchedRepos.join(', ')}`}</span>}
       {branch !== null && (
         <span className={styles.branch} title={branch}>
           {branch}

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { WorktreeMenu } from './WorktreeMenu';
 
 const props = {
-  label: 'xena · xena-62-vm-net',
+  label: 'xena',
   paths: ['/wts/halo-xena-62-config', '/wts/xena-xena-62-vm-net'],
   selected: '/wts/xena-xena-62-vm-net',
 };
@@ -11,20 +11,16 @@ const props = {
 describe('WorktreeMenu', () => {
   const openMenu = () => userEvent.click(screen.getByRole('button', { name: /^Repo/ }));
 
-  test('shows the selected repo and branch on the button', () => {
+  test('shows the selected repo on the button', () => {
     // given
     const onSelect = vi.fn();
     // when
-    render(
-      <WorktreeMenu {...props} onSelect={onSelect}>
-        <span>xena on xena-62-vm-net</span>
-      </WorktreeMenu>,
-    );
+    render(<WorktreeMenu {...props} onSelect={onSelect} />);
     // then
-    const button = screen.getByRole('button', { name: 'Repo: xena · xena-62-vm-net' });
-    expect(button).toHaveAttribute('title', 'xena · xena-62-vm-net');
+    const button = screen.getByRole('button', { name: 'Repo: xena' });
+    expect(button).toHaveAttribute('title', 'xena');
     expect(button).toHaveAttribute('aria-haspopup', 'menu');
-    expect(button).toHaveTextContent('xena on xena-62-vm-net');
+    expect(button).toHaveTextContent(/^xena▾$/);
   });
 
   test('lists every worktree by folder name with the selected one checked', async () => {
