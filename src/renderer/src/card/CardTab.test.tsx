@@ -1305,14 +1305,13 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     const banner = within(screen.getByRole('banner'));
     const claude = within(screen.getByTestId('claude-slot'));
-    await openCi();
     expect(await banner.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
     // when
     act(() => {
       changed.value();
     });
     // then
-    expect(await banner.findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(await banner.findByText('Updated to ddddddd')).toBeInTheDocument();
     expect(claude.getByRole('button', { name: 'Approve & merge' })).toBeEnabled();
   });
 
@@ -1350,8 +1349,7 @@ describe('CardTab', () => {
       changed.value();
     });
     // then
-    await openCi();
-    expect(await within(screen.getByRole('banner')).findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(await within(screen.getByRole('banner')).findByText('Updated to ddddddd')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Viewed a.ts' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Viewed b.ts' })).not.toBeChecked();
   });
@@ -1382,8 +1380,7 @@ describe('CardTab', () => {
       changed.value();
     });
     // then
-    await openCi();
-    expect(await within(screen.getByRole('banner')).findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(await within(screen.getByRole('banner')).findByText('Updated to ddddddd')).toBeInTheDocument();
     expect(claude.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -1447,35 +1444,8 @@ describe('CardTab', () => {
     await vi.waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
-    await openCi();
-    expect(await within(screen.getByRole('banner')).findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(await within(screen.getByRole('banner')).findByText('Updated to ddddddd')).toBeInTheDocument();
     expect(approve).not.toHaveBeenCalled();
-  });
-
-  test('Reload review clears the Approve error', async () => {
-    // given
-    fakeMaple({
-      pr: {
-        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
-        review: reviewOf([]),
-        approve: vi
-          .fn<() => Promise<void>>()
-          .mockRejectedValue(
-            new Error(
-              'approving PR: the PR has new commits since the review loaded; Approve again once the review updates',
-            ),
-          ),
-      },
-    });
-    render(<CardTab tab={tab} />);
-    const claude = within(screen.getByTestId('claude-slot'));
-    await userEvent.click(await claude.findByRole('button', { name: 'Approve & merge' }));
-    await claude.findByRole('alert');
-    await openCi();
-    // when
-    await userEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Reload review' }));
-    // then
-    expect(claude.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   test.each([
@@ -1648,7 +1618,6 @@ describe('CardTab', () => {
     const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
     fakeApprove([], undefined, [finding]);
     render(<CardTab tab={tab} />);
-    await openCi();
     await screen.findByText('Reviewing aaaaaaa');
     // when
     await userEvent.click(
@@ -1715,7 +1684,7 @@ describe('CardTab', () => {
     expect(screen.getByText('−4')).toBeInTheDocument();
   });
 
-  test('shows the reviewed commit and findings in the CI badge', async () => {
+  test('shows the reviewed commit in the header and findings in the CI badge', async () => {
     // given
     const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
     fakeApprove([], undefined, [finding]);
@@ -1736,7 +1705,6 @@ describe('CardTab', () => {
     const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
     const approve = fakeApprove([], undefined, [finding]);
     render(<CardTab tab={tab} />);
-    await openCi();
     await screen.findByText('Reviewing aaaaaaa');
     // when
     await userEvent.click(
@@ -1774,7 +1742,6 @@ describe('CardTab', () => {
     const finding: SecurityFinding = { id: 'F2', severity: 'medium', summary: 'Wide scope', url: 'https://x/2' };
     const approve = fakeApprove([], undefined, [finding]);
     render(<CardTab tab={tab} />);
-    await openCi();
     await screen.findByText('Reviewing aaaaaaa');
     // when
     await userEvent.click(

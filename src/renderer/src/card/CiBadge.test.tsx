@@ -26,12 +26,8 @@ type Props = Parameters<typeof CiBadge>[0];
 function renderBadge(overrides: Partial<Props> = {}) {
   const props: Props = {
     pr,
-    reviewedSha: null,
-    updated: false,
     reviewError: null,
     findings: [],
-    reloading: false,
-    onReloadReview: vi.fn(),
     ...overrides,
   };
   return render(<CiBadge {...props} />);
@@ -121,52 +117,6 @@ describe('CiBadge', () => {
     expect(anchor.closest('li')?.textContent).toBe(`${symbol} lint`);
   });
 
-  test.each<{ name: string; updated: boolean; state: PrInfo['state']; want: string; other: string }>([
-    {
-      name: 'the review did not reload',
-      updated: false,
-      state: 'OPEN',
-      want: 'Reviewing ddddddd',
-      other: 'Updated to',
-    },
-    {
-      name: 'the review reloaded itself',
-      updated: true,
-      state: 'OPEN',
-      want: 'Updated to ddddddd',
-      other: 'Reviewing',
-    },
-    { name: 'a merged PR reloaded', updated: true, state: 'MERGED', want: 'Reviewing ddddddd', other: 'Updated to' },
-  ])('shows $want when $name', async ({ updated, state, want, other }) => {
-    // given
-    renderBadge({ pr: { ...pr, state }, reviewedSha: 'd'.repeat(40), updated });
-    // when
-    await openPopover();
-    // then
-    expect(screen.getByText(want)).toBeInTheDocument();
-    expect(screen.queryByText(new RegExp(other))).toBeNull();
-  });
-
-  test('Reload review calls onReloadReview', async () => {
-    // given
-    const onReloadReview = vi.fn();
-    renderBadge({ onReloadReview });
-    await openPopover();
-    // when
-    await userEvent.click(screen.getByRole('button', { name: 'Reload review' }));
-    // then
-    expect(onReloadReview).toHaveBeenCalledOnce();
-  });
-
-  test('Reload review reads Reloading… and is disabled while reloading', async () => {
-    // given
-    renderBadge({ reloading: true });
-    // when
-    await openPopover();
-    // then
-    expect(screen.getByRole('button', { name: 'Reloading…' })).toBeDisabled();
-  });
-
   test('says no checks ran when the PR has none', async () => {
     // given
     renderBadge({ pr: { ...pr, checks: { passed: 0, failed: 0, pending: 0, total: 0, runs: [] } } });
@@ -193,18 +143,19 @@ describe('CiBadge', () => {
     renderBadge();
     await openPopover();
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Reload review' }));
+    await userEvent.click(screen.getByText('Checks on aaaaaaa'));
     // then
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  test('shows no Reload review on a merged PR', async () => {
+  test('shows no Reload review or reviewed commit on an open PR', async () => {
     // given
-    renderBadge({ pr: { ...pr, state: 'MERGED' } });
+    renderBadge();
     // when
     await openPopover();
     // then
     expect(screen.queryByRole('button', { name: 'Reload review' })).toBeNull();
+    expect(screen.queryByText(/Reviewing|Updated to/)).toBeNull();
   });
 
   test('shows why the review failed to load', async () => {

@@ -62,6 +62,8 @@ const base = {
   onOpenCard: vi.fn(),
   searchedRepos: [],
   ci: null,
+  reviewedSha: null,
+  reviewUpdated: false,
   onOpenPr: vi.fn(),
 };
 
@@ -303,5 +305,35 @@ describe('CardHeader', () => {
     render(<CardHeader {...props} />);
     // then
     expect(screen.queryByText(/No PR in/)).toBeNull();
+  });
+
+  test.each<{ name: string; updated: boolean; state: PrInfo['state']; want: string; tone: string | null }>([
+    { name: 'the review did not reload', updated: false, state: 'OPEN', want: 'Reviewing ddddddd', tone: null },
+    { name: 'the review reloaded itself', updated: true, state: 'OPEN', want: 'Updated to ddddddd', tone: 'warning' },
+    { name: 'a merged PR reloaded', updated: true, state: 'MERGED', want: 'Reviewing ddddddd', tone: null },
+  ])('shows $want after the CI badge when $name', ({ updated, state, want, tone }) => {
+    // given
+    const props = {
+      ...base,
+      pr: fetched({ ...pr, state }),
+      ci: <span data-testid="ci">CI</span>,
+      reviewedSha: 'd'.repeat(40),
+      reviewUpdated: updated,
+    };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    const note = screen.getByText(want);
+    expect(note.getAttribute('data-tone')).toBe(tone);
+    expect(screen.getByTestId('ci').nextElementSibling).toBe(note);
+  });
+
+  test('shows no reviewed commit without a loaded review', () => {
+    // given
+    const props = { ...base, pr: fetched(pr) };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    expect(screen.queryByText(/Reviewing|Updated to/)).toBeNull();
   });
 });

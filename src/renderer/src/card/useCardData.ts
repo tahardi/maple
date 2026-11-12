@@ -23,7 +23,6 @@ type CardData = {
 type CardDataWithReview = CardData & {
   review: Fetched<Review> | null;
   reviewUpdated: boolean;
-  reloadingReview: boolean;
   reloadReview: () => void;
 };
 
@@ -48,7 +47,6 @@ export function useCardData(tab: TabState): CardDataWithReview {
     review: Fetched<Review>;
     firstHead: string | null;
   } | null>(null);
-  const [reloadingReview, setReloadingReview] = useState(false);
   const latest = useRef(0);
   const latestReview = useRef(0);
   const { id, projectKey, cardKey, worktreePath } = tab;
@@ -96,39 +94,25 @@ export function useCardData(tab: TabState): CardDataWithReview {
   const openNumber = shown.pr?.data?.state === 'OPEN' ? shown.pr.data.number : null;
   const openHead = shown.pr?.data?.state === 'OPEN' ? shown.pr.data.headSha : null;
 
-  const fetchReview = useCallback((): void => {
+  const reloadReview = useCallback((): void => {
     if (openNumber === null) {
       return;
     }
     const seq = ++latestReview.current;
-    void window.maple.pr
-      .review(id)
-      .then((review) => {
-        if (seq === latestReview.current) {
-          setLoaded((prev) => {
-            const same = prev?.worktreePath === worktreePath && prev.number === openNumber && prev.firstHead !== null;
-            const firstHead = same ? prev.firstHead : (review.data?.headSha ?? null);
-            return { worktreePath, number: openNumber, review, firstHead };
-          });
-        }
-      })
-      .finally(() => {
-        if (seq === latestReview.current) {
-          setReloadingReview(false);
-        }
-      });
+    void window.maple.pr.review(id).then((review) => {
+      if (seq === latestReview.current) {
+        setLoaded((prev) => {
+          const same = prev?.worktreePath === worktreePath && prev.number === openNumber && prev.firstHead !== null;
+          const firstHead = same ? prev.firstHead : (review.data?.headSha ?? null);
+          return { worktreePath, number: openNumber, review, firstHead };
+        });
+      }
+    });
   }, [id, worktreePath, openNumber]);
 
-  const reloadReview = useCallback((): void => {
-    if (openNumber !== null) {
-      setReloadingReview(true);
-    }
-    fetchReview();
-  }, [fetchReview, openNumber]);
-
   useEffect(() => {
-    fetchReview();
-  }, [fetchReview, openHead]);
+    reloadReview();
+  }, [reloadReview, openHead]);
 
   const current = loaded?.worktreePath === worktreePath && loaded.number === openNumber ? loaded : null;
   const reviewHead = current?.review.data?.headSha ?? null;
@@ -136,7 +120,6 @@ export function useCardData(tab: TabState): CardDataWithReview {
     ...shown,
     review: current?.review ?? null,
     reviewUpdated: current !== null && reviewHead !== null && reviewHead !== current.firstHead,
-    reloadingReview,
     reloadReview,
   };
 }

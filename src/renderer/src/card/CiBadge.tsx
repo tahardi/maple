@@ -4,7 +4,6 @@ import type { SecurityFinding } from '@shared/types/github/securityFinding';
 import { useCallback, useRef, useState } from 'react';
 import { useDismiss } from '@renderer/shell/menu/useDismiss';
 import { Badge } from '../shell/blocks/Badge';
-import { Button } from '../shell/blocks/Button';
 import { Notice } from '../shell/blocks/Notice';
 import type { Tone } from '../shell/blocks/tone';
 import styles from './CiBadge.module.css';
@@ -48,22 +47,17 @@ function sortedRuns(runs: readonly CheckRun[]): CheckRun[] {
 
 type Props = {
   pr: PrInfo;
-  reviewedSha: string | null;
-  updated: boolean;
   reviewError: string | null;
   findings: readonly SecurityFinding[];
-  reloading: boolean;
-  onReloadReview: () => void;
 };
 
-export function CiBadge({ pr, reviewedSha, updated, reviewError, findings, reloading, onReloadReview }: Props) {
+export function CiBadge({ pr, reviewError, findings }: Props) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
   const close = useCallback(() => {
     setOpen(false);
   }, []);
   useDismiss(root, open, close);
-  const isOpen = pr.state === 'OPEN';
 
   return (
     <span ref={root} className={styles.ci}>
@@ -94,13 +88,6 @@ export function CiBadge({ pr, reviewedSha, updated, reviewError, findings, reloa
               ))}
             </ul>
           )}
-          {reviewedSha !== null &&
-            (isOpen && updated ? (
-              <Notice tone="warning">{`Updated to ${reviewedSha.slice(0, 7)}`}</Notice>
-            ) : (
-              <div className={styles.muted}>{`Reviewing ${reviewedSha.slice(0, 7)}`}</div>
-            ))}
-          {isOpen && <Button label="Reload review" busy={reloading} busyLabel="Reloading…" onClick={onReloadReview} />}
           {reviewError !== null && <Notice tone="danger">{reviewError}</Notice>}
           {findings.length > 0 && (
             <>

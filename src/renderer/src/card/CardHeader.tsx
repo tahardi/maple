@@ -14,6 +14,8 @@ type Props = {
   pr: Fetched<PrInfo> | null;
   searchedRepos: readonly string[];
   ci: ReactNode;
+  reviewedSha: string | null;
+  reviewUpdated: boolean;
   branch: string | null;
   changes: Pick<ChangeSet, 'files' | 'added' | 'removed'> | null;
   cost: SessionCost | null;
@@ -48,6 +50,8 @@ export function CardHeader({
   pr,
   searchedRepos,
   ci,
+  reviewedSha,
+  reviewUpdated,
   branch,
   changes,
   cost,
@@ -80,6 +84,12 @@ export function CardHeader({
             ↗
           </a>
           {ci}
+          {reviewedSha !== null &&
+            (info.state === 'OPEN' && reviewUpdated ? (
+              <Badge tone="warning">{`Updated to ${reviewedSha.slice(0, 7)}`}</Badge>
+            ) : (
+              <span>{`Reviewing ${reviewedSha.slice(0, 7)}`}</span>
+            ))}
         </>
       )}
       {pr !== null && pr.error !== null && <Badge tone="danger">GitHub unreachable</Badge>}
