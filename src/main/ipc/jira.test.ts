@@ -154,11 +154,13 @@ describe('registerJira', () => {
 
   test('fetches with the client from the deps and reads no creds file', async () => {
     // given
+    vi.stubEnv('MAPLE_JIRA_ENV', join(tmpdir(), 'maple-no-creds', 'env'));
     registerJira(withJira(jiraFetch(() => 200)), logger);
     // when
     const got = await sprintHandler()({} as IpcMainInvokeEvent, 'HALO');
     // then
     expect(got).toMatchObject({ data: { name: 'HALO Sprint 1' }, error: null });
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   test('returns the backlog for a known project', async () => {
