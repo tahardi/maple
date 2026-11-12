@@ -56,8 +56,3 @@ export type MethodOf<A extends IpcArea, K extends ChannelKind> = {
   [M in keyof MapleApi[A] & keyof (typeof IPC_CHANNELS)[A]]: (typeof IPC_CHANNELS)[A][M] extends K ? M : never;
 }[keyof MapleApi[A] & keyof (typeof IPC_CHANNELS)[A]] &
   string;
-
-export type ApiMethod<A extends IpcArea, M extends keyof MapleApi[A]> = Extract<
-  MapleApi[A][M],
-  (...args: never) => unknown
->;

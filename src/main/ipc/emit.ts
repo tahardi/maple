@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron';
 import { eventChannel } from '@shared/api/eventChannel';
-import type { ApiMethod, IpcArea, MethodOf } from '@shared/api/mapleApi';
+import type { ApiMethod } from '@shared/api/apiMethod';
+import type { IpcArea, MethodOf } from '@shared/api/mapleApi';
 
 type Callback = (...args: never) => unknown;
 
@@ -8,9 +9,9 @@ type EmitKeys<A extends IpcArea, M extends MethodOf<A, 'event'>> =
   Parameters<ApiMethod<A, M>> extends [...infer K, Callback] ? K : never;
 
 type EmitPayload<A extends IpcArea, M extends MethodOf<A, 'event'>> =
-  Parameters<ApiMethod<A, M>> extends [...unknown[], (...args: infer P) => unknown] ? P : never;
+  Parameters<ApiMethod<A, M>> extends [...unknown[], (...args: infer P extends [] | [unknown]) => unknown] ? P : never;
 
-type EmitArgs<A extends IpcArea, M extends MethodOf<A, 'event'>> = [...EmitKeys<A, M>, ...EmitPayload<A, M>];
+export type EmitArgs<A extends IpcArea, M extends MethodOf<A, 'event'>> = [...EmitKeys<A, M>, ...EmitPayload<A, M>];
 
 const KEY_COUNTS: { [A in IpcArea]: { [M in MethodOf<A, 'event'>]: EmitKeys<A, M>['length'] } } = {
   config: { onChanged: 0 },

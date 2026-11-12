@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import type { z } from 'zod';
-import type { ApiMethod, IpcArea, MethodOf } from '@shared/api/mapleApi';
+import type { ApiMethod } from '@shared/api/apiMethod';
+import type { IpcArea, MethodOf } from '@shared/api/mapleApi';
 import { recordAction } from './recordActions';
 
 export type Handler<A extends IpcArea, M extends MethodOf<A, 'invoke'>> = (

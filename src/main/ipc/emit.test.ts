@@ -1,7 +1,7 @@
 import type { BrowserWindow } from 'electron';
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, expectTypeOf, test, vi } from 'vitest';
 import type { TabStatus } from '@shared/types/tabs/tabStatus';
-import { emit } from './emit';
+import { emit, type EmitArgs } from './emit';
 
 const status: TabStatus = {
   tabId: 't1',
@@ -89,5 +89,18 @@ describe('emit', () => {
 
     // then
     expect(call).not.toThrow();
+  });
+
+  test('types the arguments from the API event', () => {
+    // given
+    type Exit = EmitArgs<'terminal', 'onExit'>;
+
+    // when
+    const exit = expectTypeOf<Exit>();
+
+    // then
+    exit.toEqualTypeOf<[string, number]>();
+    expectTypeOf<EmitArgs<'tabs', 'onStatus'>>().toEqualTypeOf<[TabStatus]>();
+    expectTypeOf<EmitArgs<'vault', 'onChanged'>>().toEqualTypeOf<[]>();
   });
 });
