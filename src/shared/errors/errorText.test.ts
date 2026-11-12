@@ -19,6 +19,11 @@ describe('errorText', () => {
       err: new Error("Error invoking remote method 'pr:approve': TypeError: x"),
       want: 'TypeError: x',
     },
+    {
+      name: 'IPC prefix not at the start',
+      err: new Error("retrying: Error invoking remote method 'x:y': Error: z"),
+      want: "retrying: Error invoking remote method 'x:y': Error: z",
+    },
     { name: 'thrown string', err: 'offline', want: 'offline' },
     { name: 'thrown number', err: 42, want: '42' },
   ])('$name gives "$want"', ({ err, want }) => {

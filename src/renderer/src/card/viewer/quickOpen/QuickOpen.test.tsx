@@ -48,7 +48,8 @@ describe('QuickOpen', () => {
     { name: 'No matches for an empty result', search: () => Promise.resolve([]), want: 'No matches' },
     {
       name: 'the error when the search fails',
-      search: () => Promise.reject(new Error('running git grep: bad')),
+      search: () =>
+        Promise.reject(new Error("Error invoking remote method 'repo:search': Error: running git grep: bad")),
       want: 'running git grep: bad',
     },
   ])('text mode shows $name', async ({ search, want }) => {
