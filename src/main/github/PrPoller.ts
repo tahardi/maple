@@ -3,6 +3,7 @@ import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Dot } from '@shared/types/tabs/dot';
 import type { TabState } from '@shared/types/tabs/tabState';
+import { SETTLED_DOTS } from '@shared/status/dots';
 import { worktreeRepo } from '@shared/worktree/worktree';
 import { tabWorktrees } from '@shared/worktree/tabWorktrees';
 import { appLogger, type Logger } from '@main/app/log/log';
@@ -22,8 +23,6 @@ export type PrPollerDeps = {
 
 type Target = { tabId: string; worktree: string; branch: string; repos: string[] };
 type Outcome = Target | { tabId: string; worktree: string; error: Error };
-
-const SETTLED: readonly Dot[] = ['idle', 'ready', 'merged', 'waiting'];
 
 const EMPTY: Fetched<PrInfo> = { data: null, error: null, fetchedAt: null };
 
@@ -92,7 +91,7 @@ export class PrPoller {
   }
 
   dotChanged(dot: Dot, prev: Dot): void {
-    if (dot !== prev && SETTLED.includes(dot)) {
+    if (dot !== prev && SETTLED_DOTS.includes(dot)) {
       this.refresh();
     }
   }
@@ -106,6 +105,14 @@ export class PrPoller {
       await this.poll();
     }
     return this.results.get(key) ?? EMPTY;
+  }
+
+  async fresh(tabId: string, worktree: string): Promise<Fetched<PrInfo>> {
+    this.refresh();
+    while (this.running !== null) {
+      await this.running;
+    }
+    return this.results.get(keyOf(tabId, worktree)) ?? EMPTY;
   }
 
   private async pollOnce(): Promise<void> {

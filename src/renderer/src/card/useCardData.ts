@@ -6,6 +6,7 @@ import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Review } from '@shared/types/github/review';
 import type { SessionCost } from '@shared/types/tabs/sessionCost';
 import type { TabState } from '@shared/types/tabs/tabState';
+import { SETTLED_DOTS } from '@shared/status/dots';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMaple } from '../store';
 
@@ -83,7 +84,7 @@ export function useCardData(tab: TabState): CardDataWithReview {
   }, [active, id, load]);
 
   useEffect(() => {
-    if (dot === 'idle' || dot === 'merged' || dot === 'ready' || dot === 'waiting') {
+    if (dot !== null && SETTLED_DOTS.includes(dot)) {
       void load();
     }
   }, [dot, load]);

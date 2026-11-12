@@ -16,6 +16,7 @@ function node(repo: string, pr: Pr) {
     state: pr.state,
     body: '',
     isCrossRepository: false,
+    mergeable: 'MERGEABLE',
     headRefName: 'x',
     headRefOid: 'a'.repeat(40),
     statusCheckRollup: null,
@@ -424,6 +425,32 @@ describe('PrPoller', () => {
     // when
     const result = await prs.latest('1', '/a');
     // then
+    expect(result.data?.number).toBe(5);
+  });
+
+  test('fresh waits for a poll that starts after the call', async () => {
+    // given
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 2, state: 'OPEN' }] });
+    run.mockImplementationOnce(github({ 'tahardi/maple@b/a': [{ number: 1, state: 'OPEN' }] }).run);
+    const prs = poller(() => [tab('1', ['/a'])], run);
+    const running = prs.poll();
+    // when
+    const result = await prs.fresh('1', '/a');
+    await running;
+    // then
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(result.data?.number).toBe(2);
+  });
+
+  test('fresh starts a poll when none is running', async () => {
+    // given
+    const { run } = github({ 'tahardi/maple@b/a': [{ number: 5, state: 'OPEN' }] });
+    const prs = poller(() => [tab('1', ['/a'])], run);
+    await prs.poll();
+    // when
+    const result = await prs.fresh('1', '/a');
+    // then
+    expect(run).toHaveBeenCalledTimes(2);
     expect(result.data?.number).toBe(5);
   });
 

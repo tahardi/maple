@@ -34,6 +34,7 @@ const pr: PrInfo = {
   cardImpacts: null,
   body: '',
   headSha: 'a'.repeat(40),
+  mergeable: 'MERGEABLE',
   checks: { passed: 3, failed: 0, pending: 0, total: 3, runs: [] },
 };
 

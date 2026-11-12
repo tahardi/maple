@@ -1,28 +1,7 @@
 import { hunkLines } from '@shared/diff/hunkLines';
-import { parsePrBody } from '@shared/github/prBody';
-import type { ChecksSummary } from '@shared/types/github/checksSummary';
-import type { PrInfo } from '@shared/types/github/prInfo';
 import { z } from 'zod';
 import type { Runner } from '@main/app/preflight';
 import { MERGE_TIMEOUT_MS } from '@main/util/commandTimeout';
-
-const prSchema = z.object({
-  number: z.number(),
-  url: z.string(),
-  title: z.string(),
-  state: z.enum(['OPEN', 'MERGED', 'CLOSED']),
-  body: z.string(),
-});
-
-const listSchema = z.array(prSchema.extend({ headRefOid: z.string(), isCrossRepository: z.boolean() }));
-
-const checksSchema = z.array(
-  z.object({
-    name: z.string(),
-    bucket: z.enum(['pass', 'fail', 'pending', 'skipping', 'cancel']),
-    link: z.string(),
-  }),
-);
 
 const filesSchema = z.array(z.object({ filename: z.string(), patch: z.string().optional() }));
 
@@ -33,67 +12,7 @@ const pinSchema = z.object({
   isCrossRepository: z.boolean(),
 });
 
-const pendingExitCode = 8;
-
 const SELF_APPROVAL = 'Can not approve your own pull request';
-
-export const PR_LIST_LIMIT = '100';
-
-async function checksFor(run: Runner, worktree: string, num: number): Promise<ChecksSummary> {
-  const { code, stdout, stderr } = await run(
-    'gh',
-    ['pr', 'checks', String(num), '--json', 'name,bucket,link'],
-    worktree,
-  );
-  if (code !== 0 && code !== pendingExitCode) {
-    if (stderr.includes('no checks reported')) {
-      return { passed: 0, failed: 0, pending: 0, total: 0, runs: [] };
-    }
-    throw new Error(`checking PR: ${stderr}`);
-  }
-  const runs = checksSchema.parse(JSON.parse(stdout));
-  const count = (names: string[]) => runs.filter((r) => names.includes(r.bucket)).length;
-  return {
-    passed: count(['pass', 'skipping']),
-    failed: count(['fail', 'cancel']),
-    pending: count(['pending']),
-    total: runs.length,
-    runs,
-  };
-}
-
-export async function prForBranch(run: Runner, worktree: string, branch: string): Promise<PrInfo | null> {
-  const { code, stdout, stderr } = await run(
-    'gh',
-    [
-      'pr',
-      'list',
-      '--head',
-      branch,
-      '--state',
-      'all',
-      '--limit',
-      PR_LIST_LIMIT,
-      '--json',
-      'number,url,title,state,body,headRefOid,isCrossRepository',
-    ],
-    worktree,
-  );
-  if (code !== 0) {
-    throw new Error(`listing PRs: ${stderr}`);
-  }
-  const listed = listSchema.parse(JSON.parse(stdout)).find((entry) => !entry.isCrossRepository);
-  if (!listed) {
-    return null;
-  }
-  const pr = prSchema.parse(listed);
-  return {
-    ...pr,
-    headSha: listed.headRefOid,
-    ...parsePrBody(pr.body),
-    checks: await checksFor(run, worktree, pr.number),
-  };
-}
 
 export async function diffLines(
   run: Runner,

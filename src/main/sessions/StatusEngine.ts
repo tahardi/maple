@@ -6,6 +6,7 @@ import type { Dot } from '@shared/types/tabs/dot';
 import type { HookEvent } from '@shared/types/tabs/hookEvent';
 import type { SyncState, TabStatus } from '@shared/types/tabs/tabStatus';
 import type { TabState } from '@shared/types/tabs/tabState';
+import type { Fetched } from '@shared/types/app/fetched';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { withTimeout } from '@main/util/withTimeout';
@@ -16,7 +17,7 @@ import { errorText } from '@shared/errors/errorText';
 export type StatusDeps = {
   sessions: SessionManager;
   getCard: (key: string) => Promise<Card>;
-  prFor: (worktree: string, projectKey: string) => Promise<PrInfo | null>;
+  prFor: (tabId: string, worktree: string) => Promise<Fetched<PrInfo>>;
   waitLimitMs: () => number;
   logger?: Logger;
 };
@@ -217,9 +218,14 @@ export class StatusEngine extends EventEmitter<Events> {
   private async prsFor(tab: TabState): Promise<PrInfo[]> {
     const prs = await Promise.all(
       tabWorktrees(tab).map((path) =>
-        withTimeout(this.deps.prFor(path, tab.projectKey), LOOKUP_TIMEOUT_MS).catch((err: unknown) =>
-          this.fail('gh', 'prFor', err),
-        ),
+        withTimeout(this.deps.prFor(tab.id, path), LOOKUP_TIMEOUT_MS)
+          .then(({ data, error }) => {
+            if (error !== null) {
+              throw new Error(error);
+            }
+            return data;
+          })
+          .catch((err: unknown) => this.fail('gh', 'prFor', err)),
       ),
     );
     return prs.filter((pr) => pr !== null);
