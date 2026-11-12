@@ -87,7 +87,7 @@ describe('DecisionButtons', () => {
 
   test.each<{ option: string; severity: Severity | null }>([
     { option: 'low', severity: 'low' },
-    { option: 'As reported', severity: null },
+    { option: 'As reported (high)', severity: null },
   ])('choosing $option calls override', async ({ option, severity }) => {
     // given
     const { override } = fakeFindings();
@@ -122,5 +122,59 @@ describe('DecisionButtons', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('deciding finding: Claude is working');
     });
+  });
+
+  test('a failed Accept risk keeps the dialog open with the error inside it', async () => {
+    // given
+    fakeMaple({ findings: { decide: vi.fn(() => Promise.reject(new Error('saving findings: MPL-20.json: EACCES'))) } });
+    render(<DecisionButtons tabId="t1" finding={finding()} working={false} applying={false} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Accept risk' }));
+    const dialog = screen.getByRole('dialog', { name: 'Accept risk' });
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Reason' }), 'Local only');
+    // when
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Accept risk' }));
+    // then
+    await waitFor(() => {
+      expect(within(dialog).getByRole('alert')).toHaveTextContent('saving findings: MPL-20.json: EACCES');
+    });
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  test('clicking a pressed Accept risk clears it without opening the dialog', async () => {
+    // given
+    const { decide } = fakeFindings();
+    const decision = { kind: 'accept-risk' as const, reason: 'Local only', decidedAt: '2026-11-12T12:00:00Z' };
+    render(<DecisionButtons tabId="t1" finding={finding({ decision })} working={false} applying={false} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Accept risk' }));
+    // then
+    expect(decide).toHaveBeenCalledWith('t1', 'F1', null);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  test('a failed severity change shows its error', async () => {
+    // given
+    fakeMaple({
+      findings: { override: vi.fn(() => Promise.reject(new Error('overriding severity: Claude is working'))) },
+    });
+    render(<DecisionButtons tabId="t1" finding={finding()} working={false} applying={false} />);
+    // when
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Severity' }), 'low');
+    // then
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('overriding severity: Claude is working');
+    });
+  });
+
+  test('a severity change waiting on IPC disables the decision buttons', async () => {
+    // given
+    fakeMaple({ findings: { override: vi.fn(() => new Promise<void>(() => undefined)) } });
+    render(<DecisionButtons tabId="t1" finding={finding()} working={false} applying={false} />);
+    // when
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Severity' }), 'low');
+    // then
+    for (const label of ['Fix now', 'Fix later', 'Accept risk', 'Not real']) {
+      expect(screen.getByRole('button', { name: label })).toBeDisabled();
+    }
   });
 });

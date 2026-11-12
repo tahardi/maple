@@ -45,4 +45,22 @@ describe('AcceptRiskDialog', () => {
     expect(onClose).toHaveBeenCalledOnce();
     expect(onConfirm).not.toHaveBeenCalled();
   });
+
+  test('shows the error inside the dialog', () => {
+    // given
+    // when
+    render(<AcceptRiskDialog busy={false} error="saving findings: EACCES" onConfirm={vi.fn()} onClose={vi.fn()} />);
+    // then
+    expect(screen.getByRole('alert')).toHaveTextContent('saving findings: EACCES');
+  });
+
+  test('busy shows Saving… on the confirm button', async () => {
+    // given
+    const { rerender } = render(<AcceptRiskDialog busy={false} error={null} onConfirm={vi.fn()} onClose={vi.fn()} />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Reason' }), 'Local only');
+    // when
+    rerender(<AcceptRiskDialog busy error={null} onConfirm={vi.fn()} onClose={vi.fn()} />);
+    // then
+    expect(screen.getByRole('button', { name: 'Saving…' })).toHaveAttribute('aria-busy', 'true');
+  });
 });

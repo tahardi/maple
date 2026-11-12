@@ -89,7 +89,7 @@ export function DecisionButtons({ tabId, finding, working, applying }: DecisionB
               void run('override', () => window.maple.findings.override(tabId, finding.id, severity));
             }}
           >
-            <option value="">As reported</option>
+            <option value="">{`As reported (${finding.severity})`}</option>
             <option value="high">high</option>
             <option value="medium">medium</option>
             <option value="low">low</option>

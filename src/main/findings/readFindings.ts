@@ -39,6 +39,13 @@ async function readRegular(path: string): Promise<Read> {
 }
 
 export async function readFindings(dir: string, key: string): Promise<FindingsFile | null> {
+  return (await readFindingsWithJson(dir, key))?.file ?? null;
+}
+
+export async function readFindingsWithJson(
+  dir: string,
+  key: string,
+): Promise<{ file: FindingsFile; json: unknown } | null> {
   if (!KEY.test(key)) {
     throw new Error(`reading findings: bad card key ${key}`);
   }
@@ -71,5 +78,5 @@ export async function readFindings(dir: string, key: string): Promise<FindingsFi
     const issue = parsed.error.issues[0];
     throw new Error(`reading findings: ${name}: ${issue.path.join('.')}: ${issue.message}`);
   }
-  return parsed.data;
+  return { file: parsed.data, json: data };
 }

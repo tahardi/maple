@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
@@ -46,6 +46,46 @@ describe('saveFindings', () => {
     // then
     await expect(run).rejects.toThrow('saving findings: MPL-1.json');
     expect(await readFile(target, 'utf8')).toBe('keep');
+  });
+
+  test('a failed save leaves the old file and names it in the error', async () => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), '{"old":true}');
+    await mkdir(join(dir, 'MPL-1.json.maple.tmp'));
+    // when
+    const run = saveFindings(dir, file);
+    // then
+    await expect(run).rejects.toThrow(/^saving findings: MPL-1\.json: /);
+    expect(await readFile(join(dir, 'MPL-1.json'), 'utf8')).toBe('{"old":true}');
+  });
+
+  test('keeps fields and chips from the base that the file does not list', async () => {
+    // given
+    const base = { ...file, extra: 1, findings: [{ id: 'F1', chips: ['future-chip'], note: 'kept' }] };
+    const finding = {
+      id: 'F1',
+      identity: { kind: 'code' as const, class: 'xss', file: 'a.ts', hash: '0' },
+      line: null,
+      severity: 'high' as const,
+      sources: [],
+      title: 't',
+      what: '',
+      how: '',
+      impact: '',
+      defense: '',
+      chips: [],
+      applied: null,
+      decision: null,
+      severityOverride: 'low' as const,
+    };
+    // when
+    await saveFindings(dir, { ...file, findings: [finding] }, base);
+    // then
+    expect(JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8'))).toEqual({
+      ...file,
+      extra: 1,
+      findings: [{ ...finding, chips: ['future-chip'], note: 'kept' }],
+    });
   });
 
   test('refuses a bad card key', async () => {

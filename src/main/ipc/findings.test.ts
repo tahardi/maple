@@ -212,18 +212,88 @@ describe('registerFindings', () => {
   });
 
   test.each([
-    { name: 'an unknown finding', id: 'F3', error: 'deciding finding: no finding F3 on MPL-1' },
-    { name: 'a missing file', id: 'F1', error: 'deciding finding: no findings for MPL-1' },
-  ])('findings:decide refuses $name', async ({ name, id, error }) => {
+    {
+      name: 'an unknown finding',
+      tabId: 'card',
+      saved: { ...file, findings: [finding({ id: 'F1' })] },
+      id: 'F3',
+      error: 'deciding finding: no finding F3 on MPL-1',
+    },
+    { name: 'a missing file', tabId: 'card', saved: null, id: 'F1', error: 'deciding finding: no findings for MPL-1' },
+    { name: 'a tab with no card', tabId: 'planner', saved: null, id: 'F1', error: 'deciding finding: tab has no card' },
+    {
+      name: 'a file for another card',
+      tabId: 'card',
+      saved: { ...file, card: 'MPL-2', findings: [finding({ id: 'F1' })] },
+      id: 'F1',
+      error: 'deciding finding: MPL-1.json is for MPL-2',
+    },
+    {
+      name: 'a round Claude is applying',
+      tabId: 'card',
+      saved: { ...file, resume: { round: 1, sentAt: '2026-11-12T12:10:00.000Z' }, findings: [finding({ id: 'F1' })] },
+      id: 'F1',
+      error: 'deciding finding: Claude is applying your decisions',
+    },
+  ])('findings:decide refuses $name and logs it', async ({ tabId, saved, id, error }) => {
     // given
-    if (name === 'an unknown finding') {
-      await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
+    if (saved !== null) {
+      await writeFile(join(dir, 'MPL-1.json'), JSON.stringify(saved));
     }
     const invoke = register(dir);
     // when
-    const run = invoke('findings:decide', 'card', id, { kind: 'fix-now', reason: null });
+    const run = invoke('findings:decide', tabId, id, { kind: 'fix-now', reason: null });
     // then
     await expect(run).rejects.toThrow(error);
+    expect(logger.warn).toHaveBeenCalledWith('findings', 'failed', { operation: 'findings:decide', tabId, error });
+  });
+
+  test('findings:decide with null clears the decision', async () => {
+    // given
+    const decision = { kind: 'fix-now' as const, reason: null, decidedAt: '2026-11-12T12:00:00.000Z' };
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1', decision })] }));
+    const invoke = register(dir);
+    // when
+    await invoke('findings:decide', 'card', 'F1', null);
+    // then
+    const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as typeof file;
+    expect(saved.findings).toEqual([finding({ id: 'F1' })]);
+  });
+
+  test('findings:decide keeps fields and chips Maple does not know', async () => {
+    // given
+    const raw = {
+      ...file,
+      extra: { kept: true },
+      findings: [{ ...finding({ id: 'F1' }), chips: ['runs-code', 'future-chip'], note: 'kept' }],
+    };
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify(raw));
+    const invoke = register(dir);
+    // when
+    await invoke('findings:decide', 'card', 'F1', { kind: 'not-real', reason: null });
+    // then
+    const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as typeof raw;
+    expect(saved).toEqual({
+      ...raw,
+      findings: [
+        { ...raw.findings[0], decision: { kind: 'not-real', reason: null, decidedAt: expect.any(String) as string } },
+      ],
+    });
+  });
+
+  test('two decisions sent together are both saved', async () => {
+    // given
+    const findings = [finding({ id: 'F1' }), finding({ id: 'F2' })];
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings }));
+    const invoke = register(dir);
+    // when
+    await Promise.all([
+      invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null }),
+      invoke('findings:decide', 'card', 'F2', { kind: 'not-real', reason: null }),
+    ]);
+    // then
+    const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as { findings: Finding[] };
+    expect(saved.findings.map((f) => f.decision?.kind)).toEqual(['fix-now', 'not-real']);
   });
 
   test.each([
@@ -248,6 +318,15 @@ describe('registerFindings', () => {
     // then
     const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as typeof file;
     expect(saved.findings).toEqual([finding({ id: 'F1', severityOverride: 'low' })]);
+  });
+
+  test('findings:override rejects an unknown severity', () => {
+    // given
+    const invoke = register(dir);
+    // when
+    const run = () => invoke('findings:override', 'card', 'F1', 'critical');
+    // then
+    expect(run).toThrow('handling findings:override: arguments are invalid');
   });
 
   test('findings:override refuses while the tab is working', async () => {

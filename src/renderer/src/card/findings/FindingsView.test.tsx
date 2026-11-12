@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { finding, findingsFile } from '@renderer/testing/findingsFixture';
+import { useMaple } from '@renderer/store';
 import { FindingsView } from './FindingsView';
 
 const decided = { kind: 'fix-later' as const, reason: null, decidedAt: '2026-11-12T12:00:00.000Z' };
@@ -95,5 +96,32 @@ describe('FindingsView', () => {
     render(<FindingsView tabId="t1" file={null} error={null} />);
     // then
     expect(screen.getByText('No findings')).toBeInTheDocument();
+  });
+
+  test.each([
+    { name: 'the tab is working', dot: 'working' as const, resume: null, reason: 'Claude is working' },
+    {
+      name: 'Claude is applying this round',
+      dot: 'idle' as const,
+      resume: { round: 1, sentAt: '2026-11-12T12:10:00.000Z' },
+      reason: 'Claude is applying your decisions',
+    },
+    { name: 'an older round was resumed', dot: 'idle' as const, resume: { round: 0, sentAt: '' }, reason: null },
+  ])('locks the controls when $name', ({ dot, resume, reason }) => {
+    // given
+    useMaple.setState({
+      statuses: { t1: { tabId: 't1', dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null } },
+    });
+    const file = { ...findingsFile([finding()]), resume };
+    // when
+    render(<FindingsView tabId="t1" file={file} error={null} />);
+    // then
+    const fixNow = screen.getByRole('button', { name: 'Fix now' });
+    if (reason === null) {
+      expect(fixNow).toBeEnabled();
+    } else {
+      expect(fixNow).toBeDisabled();
+      expect(screen.getByText(reason)).toBeInTheDocument();
+    }
   });
 });
