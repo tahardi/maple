@@ -95,7 +95,6 @@ const reviewed: Review = {
   added: 0,
   removed: 0,
   files: [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: 'f'.repeat(40) }],
-  findings: [],
 };
 
 function renderViewer(
@@ -722,7 +721,6 @@ describe('CodeView', () => {
       added: 0,
       removed: 0,
       files: [{ path: 'src/a.ts', status: 'R', oldPath: 'src/old.ts', stamp: 'f'.repeat(40) }],
-      findings: [],
     };
     const prRead = vi.fn(() => Promise.resolve(changed));
     const repoRead = vi.fn(() => Promise.resolve(changed));
@@ -746,7 +744,6 @@ describe('CodeView', () => {
       added: 0,
       removed: 0,
       files: [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: 'f'.repeat(40) }],
-      findings: [],
     };
     const prRead = vi.fn(() => Promise.resolve(changed));
     fakeMaple({ pr: { readFile: prRead } });
@@ -772,7 +769,6 @@ describe('CodeView', () => {
       added: 0,
       removed: 0,
       files: [],
-      findings: [],
     };
     fakeMaple({
       pr: { readFile: vi.fn(() => Promise.reject(new Error("Error invoking remote method 'pr:readFile': Error: x"))) },

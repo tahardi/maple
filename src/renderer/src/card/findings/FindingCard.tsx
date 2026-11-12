@@ -4,6 +4,7 @@ import type { Tone } from '@renderer/shell/blocks/tone';
 import { effectiveSeverity } from '@shared/findings/effectiveSeverity';
 import { Badge } from '@renderer/shell/blocks/Badge';
 import { chipLabel } from './chipLabel';
+import { DecisionButtons } from './DecisionButtons';
 import styles from './FindingCard.module.css';
 
 const SECTIONS = [
@@ -22,7 +23,9 @@ function place(finding: Finding): string {
   return finding.line === null ? finding.identity.file : `${finding.identity.file}:${String(finding.line)}`;
 }
 
-export function FindingCard({ finding }: { finding: Finding }) {
+type FindingCardProps = { tabId: string; finding: Finding; working: boolean; applying: boolean };
+
+export function FindingCard({ tabId, finding, working, applying }: FindingCardProps) {
   const severity = effectiveSeverity(finding);
   return (
     <article className={styles.finding}>
@@ -44,6 +47,7 @@ export function FindingCard({ finding }: { finding: Finding }) {
           <p className={styles.text}>{finding[field]}</p>
         </section>
       ))}
+      <DecisionButtons tabId={tabId} finding={finding} working={working} applying={applying} />
     </article>
   );
 }

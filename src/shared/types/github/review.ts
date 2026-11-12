@@ -1,5 +1,4 @@
 import type { FileChange } from '../files/fileChange';
-import type { SecurityFinding } from './securityFinding';
 
 export type Review = {
   number: number;
@@ -8,5 +7,4 @@ export type Review = {
   added: number;
   removed: number;
   files: FileChange[];
-  findings: SecurityFinding[];
 };

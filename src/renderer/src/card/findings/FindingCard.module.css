@@ -50,3 +50,49 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.decisions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.severity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.locked,
+.reason {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.form {
+  width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dialogButtons {
+  composes: buttons from '../../shell/ConfirmDialog.module.css';
+}

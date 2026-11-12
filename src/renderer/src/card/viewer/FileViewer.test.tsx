@@ -44,7 +44,6 @@ const reviewed: Review = {
   added: 0,
   removed: 0,
   files: [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: 'f'.repeat(40) }],
-  findings: [],
 };
 
 function renderViewer(

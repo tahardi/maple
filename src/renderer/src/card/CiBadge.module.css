@@ -48,7 +48,3 @@
 .muted {
   color: var(--text-muted);
 }
-
-.high {
-  color: var(--danger);
-}

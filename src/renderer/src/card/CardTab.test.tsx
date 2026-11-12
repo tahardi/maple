@@ -2,7 +2,6 @@ import type { Card } from '@shared/types/jira/card';
 import type { Fetched } from '@shared/types/app/fetched';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Review } from '@shared/types/github/review';
-import type { SecurityFinding } from '@shared/types/github/securityFinding';
 import type { TabState } from '@shared/types/tabs/tabState';
 import type { VaultNote } from '@shared/types/files/vaultNote';
 import type { PaneAction } from '../claude/ClaudePane';
@@ -79,14 +78,19 @@ async function confirmApprove() {
   await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve & merge' }));
 }
 
-function reviewOf(paths: readonly string[], findings: SecurityFinding[] = []): () => Promise<Fetched<Review>> {
+function reviewOf(paths: readonly string[]): () => Promise<Fetched<Review>> {
   const files = paths.map((path) => ({ path, status: 'M' as const, oldPath: null, stamp: 'f'.repeat(40) }));
   return () =>
     Promise.resolve({
-      data: { number: 13, headSha: head, baseSha: 'c'.repeat(40), added: 9, removed: 4, files, findings },
+      data: { number: 13, headSha: head, baseSha: 'c'.repeat(40), added: 9, removed: 4, files },
       error: null,
       fetchedAt: null,
     });
+}
+
+function undecidedFindings(count: number) {
+  const file = findingsFile(Array.from({ length: count }, (_, i) => finding({ id: `F${String(i + 1)}` })));
+  return vi.fn(() => Promise.resolve({ data: file, error: null, fetchedAt: null }));
 }
 
 function fakeRepo(withPr: boolean, cards: readonly Card[] = []) {
@@ -160,10 +164,6 @@ function fakeVault(
     },
   });
   return vault;
-}
-
-async function openCi() {
-  await userEvent.click(await within(screen.getByRole('banner')).findByTitle('Show CI checks'));
 }
 
 describe('CardTab', () => {
@@ -1337,7 +1337,7 @@ describe('CardTab', () => {
       .fn<() => Promise<Fetched<Review>>>()
       .mockImplementationOnce(reviewOf([]))
       .mockResolvedValue({
-        data: { number: 13, headSha: moved, baseSha: 'c'.repeat(40), added: 9, removed: 4, files: [], findings: [] },
+        data: { number: 13, headSha: moved, baseSha: 'c'.repeat(40), added: 9, removed: 4, files: [] },
         error: null,
         fetchedAt: null,
       });
@@ -1370,7 +1370,6 @@ describe('CardTab', () => {
         added: 9,
         removed: 4,
         files: [file('a.ts', 'f'.repeat(40)), file('b.ts', bStamp)],
-        findings: [],
       },
       error: null,
       fetchedAt: null,
@@ -1404,7 +1403,7 @@ describe('CardTab', () => {
       .fn<() => Promise<Fetched<Review>>>()
       .mockImplementationOnce(reviewOf([]))
       .mockResolvedValue({
-        data: { number: 13, headSha: moved, baseSha: 'c'.repeat(40), added: 9, removed: 4, files: [], findings: [] },
+        data: { number: 13, headSha: moved, baseSha: 'c'.repeat(40), added: 9, removed: 4, files: [] },
         error: null,
         fetchedAt: null,
       });
@@ -1448,18 +1447,15 @@ describe('CardTab', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('approving PR: offline');
   });
 
-  test.each<{ name: string; findings: SecurityFinding[] }>([
-    { name: 'unviewed files', findings: [] },
-    {
-      name: 'open security findings',
-      findings: [{ id: 'F1', severity: 'high', summary: 'Shell injection', url: 'https://example.com/f1' }],
-    },
-  ])('a review reload at a new commit closes the $name confirm without approving', async ({ findings }) => {
+  test.each([
+    { name: 'unviewed files', undecided: 0 },
+    { name: 'undecided findings', undecided: 1 },
+  ])('a review reload at a new commit closes the $name confirm without approving', async ({ undecided }) => {
     // given
     const moved = 'd'.repeat(40);
     const files = [{ path: 'src/a.ts', status: 'M' as const, oldPath: null, stamp: 'f'.repeat(40) }];
     const reviewAt = (headSha: string): Fetched<Review> => ({
-      data: { number: 13, headSha, baseSha: 'c'.repeat(40), added: 9, removed: 4, files, findings },
+      data: { number: 13, headSha, baseSha: 'c'.repeat(40), added: 9, removed: 4, files },
       error: null,
       fetchedAt: null,
     });
@@ -1472,7 +1468,10 @@ describe('CardTab', () => {
       .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
       .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
     const approve = vi.fn<() => Promise<void>>(() => Promise.resolve());
-    const changed = captureRepoChanged({ pr: { get, review, approve } });
+    const changed = captureRepoChanged({
+      pr: { get, review, approve },
+      findings: { get: undecidedFindings(undecided) },
+    });
     render(<CardTab tab={tab} />);
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
     await clickApprove();
@@ -1582,7 +1581,7 @@ describe('CardTab', () => {
   function fakeApprove(
     paths: readonly string[] = ['src/a.ts'],
     approve = vi.fn<(tabId: string, headSha: string) => Promise<void>>(() => Promise.resolve()),
-    findings: SecurityFinding[] = [],
+    undecided = 0,
   ) {
     fakeMaple({
       repo: {
@@ -1597,9 +1596,10 @@ describe('CardTab', () => {
       },
       pr: {
         get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
-        review: reviewOf(paths, findings),
+        review: reviewOf(paths),
         approve,
       },
+      findings: { get: undecidedFindings(undecided) },
     });
     return approve;
   }
@@ -1621,28 +1621,28 @@ describe('CardTab', () => {
     expect(approve).not.toHaveBeenCalled();
   });
 
-  test('the approve dialog lists open high findings', async () => {
+  test('the approve dialog lists undecided findings', async () => {
     // given
-    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
-    fakeApprove([], undefined, [finding]);
+    fakeApprove([], undefined, 1);
     render(<CardTab tab={tab} />);
     await screen.findByText('Reviewing aaaaaaa');
     // when
     await clickApprove();
     // then
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('1 open high-severity finding.');
+    await vi.waitFor(() => {
+      expect(dialog).toHaveTextContent('1 finding not decided.');
+    });
     expect(within(dialog).getByRole('button', { name: 'Approve & merge' })).toHaveAttribute('data-variant', 'danger');
   });
 
   test('one dialog lists both findings and unviewed files, and confirming approves', async () => {
     // given
-    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
-    const approve = fakeApprove(['src/a.ts'], undefined, [finding]);
+    const approve = fakeApprove(['src/a.ts'], undefined, 1);
     render(<CardTab tab={tab} />);
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
     await clickApprove();
-    expect(screen.getByRole('dialog')).toHaveTextContent('1 open high-severity finding. 1 changed file not viewed.');
+    expect(screen.getByRole('dialog')).toHaveTextContent('1 finding not decided. 1 changed file not viewed.');
     // when
     await confirmApprove();
     // then
@@ -1650,10 +1650,12 @@ describe('CardTab', () => {
     expect(approve).toHaveBeenCalledWith('t1', head);
   });
 
-  test('medium and low findings add no warning to the approve dialog', async () => {
+  test('decided findings add no warning to the approve dialog', async () => {
     // given
-    const finding: SecurityFinding = { id: 'F2', severity: 'medium', summary: 'Wide scope', url: 'https://x/2' };
-    fakeApprove([], undefined, [finding]);
+    fakeApprove([], undefined);
+    const decision = { kind: 'fix-later' as const, reason: null, decidedAt: '2026-11-12T12:00:00.000Z' };
+    const file = findingsFile([finding({ decision })]);
+    window.maple.findings.get = vi.fn(() => Promise.resolve({ data: file, error: null, fetchedAt: null }));
     render(<CardTab tab={tab} />);
     await screen.findByText('Reviewing aaaaaaa');
     // when
@@ -1687,17 +1689,14 @@ describe('CardTab', () => {
     expect(screen.getByText('−4')).toBeInTheDocument();
   });
 
-  test('shows the reviewed commit in the header and findings in the CI badge', async () => {
+  test('shows the reviewed commit in the header', async () => {
     // given
-    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
-    fakeApprove([], undefined, [finding]);
-    render(<CardTab tab={tab} />);
+    fakeApprove([], undefined);
     // when
-    await openCi();
+    render(<CardTab tab={tab} />);
     // then
     const banner = within(screen.getByRole('banner'));
     expect(await banner.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
-    expect(banner.getByRole('link', { name: 'Token logged' })).toBeInTheDocument();
   });
 
   test('an open PR without a loaded review disables Approve', async () => {

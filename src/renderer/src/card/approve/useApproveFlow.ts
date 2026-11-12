@@ -19,6 +19,7 @@ export function useApproveFlow(
   worktreePath: string | null,
   review: Review | null,
   unviewed: number,
+  undecided: number,
   blocked: boolean,
 ): ApproveFlow {
   const [error, setError] = useWorktreeState<{ headSha: string; message: string } | null>(worktreePath, null);
@@ -29,7 +30,6 @@ export function useApproveFlow(
     setPendingSha(null);
   }
   const asking = review !== null && pendingSha === headSha && !blocked;
-  const highFindings = review?.findings.filter((f) => f.severity === 'high').length ?? 0;
 
   const send = (sha: string) => {
     setError(() => null);
@@ -52,7 +52,7 @@ export function useApproveFlow(
   return {
     error: error !== null && error.headSha === headSha ? error.message : null,
     approving: merging.has(worktreePath),
-    dialog: asking ? approveConfirm({ number: review.number, highFindings, unviewed }) : null,
+    dialog: asking ? approveConfirm({ number: review.number, undecided, unviewed }) : null,
     approve: () => {
       setPendingSha(headSha);
     },

@@ -84,7 +84,7 @@ export function FileViewer({
       return <DescriptionView text={cardBody ?? ''} />;
     }
     if (activeFile === FINDINGS) {
-      return <FindingsView file={findings?.data ?? null} error={findings?.error ?? null} />;
+      return <FindingsView tabId={tabId} file={findings?.data ?? null} error={findings?.error ?? null} />;
     }
     if (activeFile.startsWith(VAULT_PREFIX)) {
       return <NoteView tabId={tabId} path={activeFile} noteChanges={noteChanges} onPin={onPin} toolbar={toolbar} />;

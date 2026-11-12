@@ -20,6 +20,7 @@ import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
 import { FINDINGS } from '@renderer/card/viewer/tabs/findingsTab';
 import { useFindings } from '@renderer/card/findings/useFindings';
 import { findingsLabel } from '@renderer/card/findings/findingsLabel';
+import { undecided } from '@shared/findings/undecided';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 import { useCardData } from './useCardData';
 import { useApproveFlow } from './approve/useApproveFlow';
@@ -116,7 +117,14 @@ export function CardTab({ tab }: { tab: TabState }) {
     ),
   ]);
   const blocker = approveBlocker({ dot, pr: pr?.data ?? null, review: pinned, worktreeExists });
-  const approval = useApproveFlow(tab.id, tab.worktreePath, pinned, unviewed, blocker !== null);
+  const approval = useApproveFlow(
+    tab.id,
+    tab.worktreePath,
+    pinned,
+    unviewed,
+    undecided(findings.data),
+    blocker !== null,
+  );
   const reloadPinnedReview = () => {
     approval.clearError();
     reloadReview();
@@ -161,7 +169,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         card={card}
         pr={pr}
         searchedRepos={searchedRepos}
-        ci={pr?.data && <CiBadge pr={pr.data} reviewError={review?.error ?? null} findings={pinned?.findings ?? []} />}
+        ci={pr?.data && <CiBadge pr={pr.data} reviewError={review?.error ?? null} />}
         reviewedSha={pinned?.headSha ?? null}
         reviewUpdated={reviewUpdated}
         approve={

@@ -19,11 +19,11 @@ describe('FindingsView', () => {
       }),
     ]);
     // when
-    render(<FindingsView file={file} error={null} />);
+    render(<FindingsView tabId="t1" file={file} error={null} />);
     // then
     const [first, second] = screen.getAllByRole('article');
     expect(within(first).getByRole('heading', { name: 'Branch name reaches a shell' })).toBeInTheDocument();
-    expect(within(first).getByText('high')).toHaveAttribute('data-tone', 'danger');
+    expect(within(first).getByText('high', { selector: 'span' })).toHaveAttribute('data-tone', 'danger');
     expect(within(first).getByText('could run attacker code')).toHaveAttribute('data-tone', 'neutral');
     expect(within(first).getByText('could leak credentials')).toBeInTheDocument();
     expect(within(first).getByText('src/main/x.ts:42')).toBeInTheDocument();
@@ -36,7 +36,7 @@ describe('FindingsView', () => {
       expect(within(first).getByRole('heading', { name: label })).toBeInTheDocument();
       expect(within(first).getByText(text)).toBeInTheDocument();
     }
-    expect(within(second).getByText('medium')).toHaveAttribute('data-tone', 'warning');
+    expect(within(second).getByText('medium', { selector: 'span' })).toHaveAttribute('data-tone', 'warning');
     expect(within(second).getByText('could sneak in bad code')).toBeInTheDocument();
     expect(within(second).getByText('lodash GHSA-1234-5678-9abc')).toBeInTheDocument();
   });
@@ -45,10 +45,10 @@ describe('FindingsView', () => {
     // given
     const file = findingsFile([finding({ severity: 'high', severityOverride: 'medium' })]);
     // when
-    render(<FindingsView file={file} error={null} />);
+    render(<FindingsView tabId="t1" file={file} error={null} />);
     // then
-    expect(screen.getByText('medium')).toHaveAttribute('data-tone', 'warning');
-    expect(screen.queryByText('high')).not.toBeInTheDocument();
+    expect(screen.getByText('medium', { selector: 'span' })).toHaveAttribute('data-tone', 'warning');
+    expect(screen.queryByText('high', { selector: 'span' })).not.toBeInTheDocument();
   });
 
   test('renders Markdown and HTML in finding text as plain text', () => {
@@ -56,7 +56,7 @@ describe('FindingsView', () => {
     const title = '**bold** <img src=x onerror=alert(1)>';
     const file = findingsFile([finding({ title, what: '<b>y</b> [link](https://x.test)' })]);
     // when
-    const { container } = render(<FindingsView file={file} error={null} />);
+    const { container } = render(<FindingsView tabId="t1" file={file} error={null} />);
     // then
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
     expect(screen.getByText('<b>y</b> [link](https://x.test)')).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe('FindingsView', () => {
       finding({ id: 'F4', title: 'undecided medium overridden high', severity: 'medium', severityOverride: 'high' }),
     ]);
     // when
-    render(<FindingsView file={file} error={null} />);
+    render(<FindingsView tabId="t1" file={file} error={null} />);
     // then
     const titles = screen.getAllByRole('article').map((a) => within(a).getAllByRole('heading')[0].textContent);
     expect(titles).toEqual(['undecided high', 'undecided medium overridden high', 'undecided medium', 'decided high']);
@@ -84,7 +84,7 @@ describe('FindingsView', () => {
     // given
     const error = 'reading findings: MPL-20.json is from a newer Maple';
     // when
-    render(<FindingsView file={null} error={error} />);
+    render(<FindingsView tabId="t1" file={null} error={error} />);
     // then
     expect(screen.getByRole('alert')).toHaveTextContent(error);
   });
@@ -92,7 +92,7 @@ describe('FindingsView', () => {
   test('says there are no findings without a file', () => {
     // given
     // when
-    render(<FindingsView file={null} error={null} />);
+    render(<FindingsView tabId="t1" file={null} error={null} />);
     // then
     expect(screen.getByText('No findings')).toBeInTheDocument();
   });

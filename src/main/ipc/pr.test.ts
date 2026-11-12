@@ -23,8 +23,6 @@ const {
   gh,
   reviewFiles,
   reviewFilePair,
-  openFindings,
-  ghLogin,
   latestPr,
   refreshPrs,
   ghRunner,
@@ -38,8 +36,6 @@ const {
   gh: vi.fn<CommandRunner>(),
   reviewFiles: vi.fn(),
   reviewFilePair: vi.fn(),
-  openFindings: vi.fn(),
-  ghLogin: vi.fn(),
   latestPr: vi.fn(),
   refreshPrs: vi.fn(),
   ghRunner: vi.fn(),
@@ -53,8 +49,6 @@ vi.mock('@main/github/pr', async (importOriginal) => ({
 vi.mock('@main/github/comments', () => ({ commentOnLine, replyToComment, resolveThread, reviewComments }));
 vi.mock('@main/github/ghRunner', () => ({ ghRunner }));
 vi.mock('@main/github/reviewDiff', () => ({ reviewFiles, reviewFilePair }));
-vi.mock('@main/github/securityFindings', () => ({ openFindings }));
-vi.mock('@main/github/ghLogin', () => ({ ghLogin }));
 
 const event = {} as IpcMainInvokeEvent;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -497,27 +491,21 @@ describe('registerPr', () => {
     expect(sendPrompt).not.toHaveBeenCalled();
   });
 
-  test('pr:review returns files and open findings for the open PR', async () => {
+  test('pr:review returns the files for the open PR', async () => {
     // given
     latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: null });
     const files = [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: 'f'.repeat(40) }];
     reviewFiles.mockResolvedValue({ number: 33, headSha: head, baseSha: base, files });
-    const findings = [{ id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://github.com/x' }];
-    openFindings.mockResolvedValue(findings);
-    ghLogin.mockResolvedValue('tahardi');
     const review = register('pr:review', '/wt');
     // when
     const result = await review('t1');
-    await review('t1');
     // then
     expect(result).toEqual({
-      data: { number: 33, headSha: head, baseSha: base, files, findings },
+      data: { number: 33, headSha: head, baseSha: base, files },
       error: null,
       fetchedAt: expect.any(String) as string,
     });
     expect(reviewFiles).toHaveBeenCalledWith(gh, 33);
-    expect(openFindings).toHaveBeenCalledWith(gh, 33, 'tahardi');
-    expect(ghLogin).toHaveBeenCalledTimes(1);
     expect(latestPr).toHaveBeenCalledWith('t1', '/wt');
     expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
   });
@@ -552,8 +540,6 @@ describe('registerPr', () => {
     // given
     latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: null });
     reviewFiles.mockRejectedValue(new Error('fetching review: the PR head moved, try again'));
-    openFindings.mockResolvedValue([]);
-    ghLogin.mockResolvedValue('tahardi');
     const review = register('pr:review', '/wt');
     // when
     const result = await review('t1');
@@ -561,34 +547,6 @@ describe('registerPr', () => {
     const error = 'fetching review: the PR head moved, try again';
     expect(result).toEqual({ data: null, error, fetchedAt: null });
     expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', { operation: 'pr:review', tabId: 't1', error });
-  });
-
-  test('pr:review asks for the gh login again after a failed lookup', async () => {
-    // given
-    latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: null });
-    reviewFiles.mockResolvedValue({ number: 33, headSha: head, baseSha: base, files: [] });
-    openFindings.mockResolvedValue([]);
-    ghLogin.mockRejectedValueOnce(new Error('reading gh login: offline')).mockResolvedValue('tahardi');
-    const review = register('pr:review', '/wt');
-    const first = await review('t1');
-    // when
-    const second = await review('t1');
-    // then
-    expect(first).toEqual({ data: null, error: 'reading gh login: offline', fetchedAt: null });
-    expect(second).toMatchObject({ data: { headSha: head, findings: [] }, error: null });
-  });
-
-  test('pr:review returns no review when the findings cannot be listed', async () => {
-    // given
-    latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: null });
-    reviewFiles.mockResolvedValue({ number: 33, headSha: head, baseSha: base, files: [] });
-    openFindings.mockRejectedValue(new Error('listing findings: offline'));
-    ghLogin.mockResolvedValue('tahardi');
-    const review = register('pr:review', '/wt');
-    // when
-    const result = await review('t1');
-    // then
-    expect(result).toEqual({ data: null, error: 'listing findings: offline', fetchedAt: null });
   });
 
   test('pr:readFile logs and rethrows a failed read', async () => {
