@@ -1,8 +1,9 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { Card } from '@shared/types/jira';
-import type { PrInfo } from '@shared/types/github';
-import type { TabState, TabStatus } from '@shared/types/tabs';
+import type { Card } from '@shared/types/jira/card';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import type { SessionManager } from './SessionManager';
 import { StatusEngine } from './StatusEngine';
 

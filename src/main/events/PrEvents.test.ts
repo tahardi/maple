@@ -1,8 +1,10 @@
 import { describe, expect, test, vi } from 'vitest';
-import { eventSchemas, type EventRecord, type EventRefs } from '@shared/types/events';
-import type { ChecksSummary, PrInfo } from '@shared/types/github';
-import type { Card } from '@shared/types/jira';
-import type { TabState } from '@shared/types/tabs';
+import { eventSchemas } from '@shared/types/events/eventSchemas';
+import type { EventRecord, EventRefs } from '@shared/types/events/eventRecord';
+import type { ChecksSummary } from '@shared/types/github/checksSummary';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { Card } from '@shared/types/jira/card';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { PrEvents, type PrEventsDeps } from './PrEvents';
 
 const tab: TabState = {

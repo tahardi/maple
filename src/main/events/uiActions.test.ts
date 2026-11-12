@@ -1,7 +1,8 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { ActionConfig } from '@shared/types/config';
-import { eventSchemas, type EventRefs, type UiActionData } from '@shared/types/events';
-import type { TabState } from '@shared/types/tabs';
+import type { ActionConfig } from '@shared/types/config/actionConfig';
+import { eventSchemas, type UiActionData } from '@shared/types/events/eventSchemas';
+import type { EventRefs } from '@shared/types/events/eventRecord';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { redact } from '@main/app/log/log';
 import { uiActionRecorder } from './uiActions';
 

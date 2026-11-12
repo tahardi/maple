@@ -1,6 +1,6 @@
 import { readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { VaultNote } from '@shared/types/files';
+import type { VaultNote } from '@shared/types/files/vaultNote';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/util/paths';
 
 async function walk(vaultDir: string, dir: string): Promise<VaultNote[]> {

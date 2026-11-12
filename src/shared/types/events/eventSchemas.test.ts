@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { eventSchemas } from './events';
+import { eventSchemas } from './eventSchemas';
 
 const transcript = { session: 's1', offset: 120 };
 

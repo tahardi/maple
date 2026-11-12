@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog } from 'electron';
 import { spawn } from 'node-pty';
-import type { MapleConfig } from '@shared/types/config';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import {
   configDir,
   DEFAULT_MAX_LOAD_PER_CORE,

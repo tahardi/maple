@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
-import type { QueuedCard, QueueState, WaitReason } from '@shared/types/queue';
-import type { TabState } from '@shared/types/tabs';
+import type { QueuedCard, QueueState, WaitReason } from '@shared/types/queue/queueState';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { appLogger, type Logger } from '@main/app/log/log';
 import type { SessionManager } from './SessionManager';
 import type { StatusEngine } from './StatusEngine';

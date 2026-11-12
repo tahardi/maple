@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
-import type { PreflightProblem } from '@shared/types/app';
+import type { PreflightProblem } from '@shared/types/app/preflightProblem';
 import { appLogger, type Logger } from '@main/app/log/log';
 
 export type Runner = (

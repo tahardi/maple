@@ -1,4 +1,4 @@
-import type { FileChange } from '@shared/types/files';
+import type { FileChange } from '@shared/types/files/fileChange';
 import { buildTree, type TreeNode } from './buildTree';
 
 const changes: FileChange[] = [

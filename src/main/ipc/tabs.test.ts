@@ -1,8 +1,10 @@
 import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SessionCost, TabState, TabStatus } from '@shared/types/tabs';
-import type { QueueState } from '@shared/types/queue';
+import type { SessionCost } from '@shared/types/tabs/sessionCost';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
+import type { QueueState } from '@shared/types/queue/queueState';
 import type { SessionManager } from '@main/sessions/SessionManager';
 import type { StartQueue } from '@main/sessions/StartQueue';
 import type { StatusEngine } from '@main/sessions/StatusEngine';

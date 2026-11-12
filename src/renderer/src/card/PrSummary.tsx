@@ -1,5 +1,7 @@
-import type { CheckRun, ChecksSummary, PrInfo, SecurityFinding } from '@shared/types/github';
-import type { Fetched } from '@shared/types/app';
+import type { CheckRun, ChecksSummary } from '@shared/types/github/checksSummary';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { SecurityFinding } from '@shared/types/github/securityFinding';
+import type { Fetched } from '@shared/types/app/fetched';
 import { prLabel } from './prLabel';
 import styles from './PrSummary.module.css';
 

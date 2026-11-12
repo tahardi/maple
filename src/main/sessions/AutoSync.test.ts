@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { syncPrompt } from '@shared/prompts/prompts';
-import type { Card } from '@shared/types/jira';
-import type { PrInfo } from '@shared/types/github';
-import type { TabState, TabStatus } from '@shared/types/tabs';
+import { syncPrompt } from '@shared/prompts/syncPrompt';
+import type { Card } from '@shared/types/jira/card';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import type { MergeState } from '@main/github/mergeState';
 import { AutoSync, LOOKUP_TIMEOUT_MS, POLL_MS } from './AutoSync';
 import type { SessionManager } from './SessionManager';

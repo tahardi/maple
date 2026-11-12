@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { z } from 'zod';
-import type { CloseResult } from '@shared/types/tabs';
+import type { CloseResult } from '@shared/types/tabs/closeResult';
 import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { sessionCost } from '@main/sessions/transcripts/sessionCost';
 import { send, type IpcDeps } from './index';

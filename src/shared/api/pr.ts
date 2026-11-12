@@ -1,7 +1,10 @@
 import type { ChannelKind } from './mapleApi';
-import type { DiffLines, FilePair } from '../types/files';
-import type { Fetched } from '../types/app';
-import type { PrInfo, Review, ReviewComment } from '../types/github';
+import type { DiffLines } from '../types/files/diffLines';
+import type { FilePair } from '../types/files/filePair';
+import type { Fetched } from '../types/app/fetched';
+import type { PrInfo } from '../types/github/prInfo';
+import type { Review } from '../types/github/review';
+import type { ReviewComment } from '../types/github/reviewComment';
 
 export type PrApi = {
   get(tabId: string): Promise<Fetched<PrInfo>>;

@@ -1,4 +1,4 @@
-import type { TabState } from '@shared/types/tabs';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { useState } from 'react';
 import { ClaudePane } from '@renderer/claude/ClaudePane';
 import { buildTree } from '@renderer/card/viewer/tree/buildTree';

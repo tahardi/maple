@@ -1,5 +1,5 @@
 import type { ChannelKind } from './mapleApi';
-import type { PreflightProblem } from '../types/app';
+import type { PreflightProblem } from '../types/app/preflightProblem';
 
 export type PreflightApi = {
   run(): Promise<PreflightProblem[]>;

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import type { PreflightProblem } from '@shared/types/app';
+import type { PreflightProblem } from '@shared/types/app/preflightProblem';
 import { defaultRunner, runPreflight, type Runner } from './preflight';
 
 const dir = mkdtempSync(join(tmpdir(), 'maple-preflight-'));

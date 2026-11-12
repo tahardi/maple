@@ -1,7 +1,8 @@
-import type { Fetched } from '@shared/types/app';
-import type { ProjectConfig } from '@shared/types/config';
-import type { PrInfo } from '@shared/types/github';
-import type { Dot, TabState } from '@shared/types/tabs';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { worktreeRepo } from '@shared/worktree/worktree';
 import { tabWorktrees } from '@shared/worktree/tabWorktrees';
 import { appLogger, type Logger } from '@main/app/log/log';

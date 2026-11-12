@@ -1,7 +1,7 @@
-import type { Card } from '@shared/types/jira';
-import type { ChangeSet } from '@shared/types/files';
-import type { PrInfo } from '@shared/types/github';
-import type { SessionCost } from '@shared/types/tabs';
+import type { Card } from '@shared/types/jira/card';
+import type { ChangeSet } from '@shared/types/files/changeSet';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { SessionCost } from '@shared/types/tabs/sessionCost';
 import { prLabel } from './prLabel';
 import styles from './CardHeader.module.css';
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { FindingSeverity, SecurityFinding } from '@shared/types/github';
+import type { FindingSeverity, SecurityFinding } from '@shared/types/github/securityFinding';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 
 export const FINDING_MARKER = /^<!-- xena-security-finding severity=(high|medium|low) id=([A-Za-z0-9-]{1,40}) -->/;

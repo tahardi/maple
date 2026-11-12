@@ -1,9 +1,12 @@
 import { EventEmitter } from 'node:events';
 import { nextDot, type DotInput } from '@shared/status/dots';
 import { tabWorktrees } from '@shared/worktree/tabWorktrees';
-import type { Card } from '@shared/types/jira';
-import type { Dot, HookEvent, SyncState, TabState, TabStatus } from '@shared/types/tabs';
-import type { PrInfo } from '@shared/types/github';
+import type { Card } from '@shared/types/jira/card';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { HookEvent } from '@shared/types/tabs/hookEvent';
+import type { SyncState, TabStatus } from '@shared/types/tabs/tabStatus';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { PrInfo } from '@shared/types/github/prInfo';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { withTimeout } from '@main/util/withTimeout';
 import { backgroundWait, unknownTasks, type BackgroundWait } from './backgroundWait';

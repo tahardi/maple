@@ -4,14 +4,9 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { z } from 'zod';
-import {
-  eventEnvelopeSchema,
-  eventSchemas,
-  type EventFilter,
-  type EventRecord,
-  type EventRefs,
-  type EventSchemas,
-} from '@shared/types/events';
+import { eventEnvelopeSchema, type EventRecord, type EventRefs } from '@shared/types/events/eventRecord';
+import { eventSchemas, type EventSchemas } from '@shared/types/events/eventSchemas';
+import type { EventFilter } from '@shared/types/events/eventFilter';
 import { configDir } from '@main/app/config/config';
 import { appLogger, logFailure, redact, type Logger } from '@main/app/log/log';
 import { closeTornLine } from './closeTornLine';

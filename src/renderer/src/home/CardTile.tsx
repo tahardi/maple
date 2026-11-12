@@ -1,4 +1,4 @@
-import type { Card } from '@shared/types/jira';
+import type { Card } from '@shared/types/jira/card';
 import { EpicLozenge } from './EpicLozenge';
 import styles from './CardTile.module.css';
 

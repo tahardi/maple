@@ -1,7 +1,8 @@
 import { access, mkdir, open, readFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { QueuedCard } from '@shared/types/queue';
-import type { Dot, TabState } from '@shared/types/tabs';
+import type { QueuedCard } from '@shared/types/queue/queueState';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { z } from 'zod';
 import { backupState, STATE_BACKUPS } from './backupState';
 import { configDir } from '@main/app/config/config';

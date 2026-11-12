@@ -1,5 +1,5 @@
-import type { BacklogGroup } from '@shared/types/jira';
-import type { Fetched } from '@shared/types/app';
+import type { BacklogGroup } from '@shared/types/jira/backlogGroup';
+import type { Fetched } from '@shared/types/app/fetched';
 import { useCallback, useEffect, useState } from 'react';
 
 const REFRESH_MS = 60_000;

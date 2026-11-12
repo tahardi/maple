@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { ProjectConfig } from '@shared/types/config';
-import type { TabState } from '@shared/types/tabs';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import type { TabState } from '@shared/types/tabs/tabState';
 import type { SessionManager } from '@main/sessions/SessionManager';
 import type { StatusEngine } from '@main/sessions/StatusEngine';
 import type { Terminals } from '@main/sessions/Terminals';

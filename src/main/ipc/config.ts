@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
-import type { Fetched } from '@shared/types/app';
-import type { MapleConfig, ProjectConfig } from '@shared/types/config';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import { loadConfig } from '@main/app/config/config';
 import { setAppMenu } from '@main/app/window/menu';
 import { send, type IpcDeps } from './index';

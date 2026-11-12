@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { z } from 'zod';
-import type { ProjectConfig } from '@shared/types/config';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 import { PR_LIST_LIMIT } from '@main/github/pr';
 import { worktreeRepo } from '@shared/worktree/worktree';

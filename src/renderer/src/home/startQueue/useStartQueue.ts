@@ -1,4 +1,4 @@
-import type { QueueState } from '@shared/types/queue';
+import type { QueueState } from '@shared/types/queue/queueState';
 import { useEffect, useState } from 'react';
 
 const EMPTY: QueueState = { cards: [], working: 0, limit: 0, waitingFor: null, failure: null };

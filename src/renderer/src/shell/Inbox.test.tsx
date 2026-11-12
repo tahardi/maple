@@ -1,5 +1,8 @@
-import type { Card, Sprint } from '@shared/types/jira';
-import type { Dot, TabState, TabStatus } from '@shared/types/tabs';
+import type { Card } from '@shared/types/jira/card';
+import type { Sprint } from '@shared/types/jira/sprint';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';

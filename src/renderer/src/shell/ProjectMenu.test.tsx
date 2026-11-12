@@ -1,4 +1,5 @@
-import type { Dot, TabState } from '@shared/types/tabs';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';

@@ -1,4 +1,4 @@
-import type { QueueState, WaitReason } from '@shared/types/queue';
+import type { QueueState, WaitReason } from '@shared/types/queue/queueState';
 import styles from './StartQueue.module.css';
 
 const WAITING_FOR: Record<'cpu' | 'memory', string> = { cpu: 'CPU', memory: 'memory' };

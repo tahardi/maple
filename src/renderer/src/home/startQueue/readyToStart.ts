@@ -1,4 +1,4 @@
-import type { Card } from '@shared/types/jira';
+import type { Card } from '@shared/types/jira/card';
 
 export function readyToStart(cards: readonly Card[], openKeys: ReadonlySet<string>): string[] {
   return cards

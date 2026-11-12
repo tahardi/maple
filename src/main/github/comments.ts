@@ -1,4 +1,4 @@
-import type { ReviewComment } from '@shared/types/github';
+import type { ReviewComment } from '@shared/types/github/reviewComment';
 import { z } from 'zod';
 import type { Runner } from '@main/app/preflight';
 

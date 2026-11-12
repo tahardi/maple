@@ -1,4 +1,4 @@
-import type { QueueState } from '@shared/types/queue';
+import type { QueueState } from '@shared/types/queue/queueState';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { useStartQueue } from './useStartQueue';

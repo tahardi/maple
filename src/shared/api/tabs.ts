@@ -1,7 +1,10 @@
 import type { ChannelKind } from './mapleApi';
-import type { CloseResult, SessionCost, TabState, TabStatus } from '../types/tabs';
-import type { Unsubscribe } from '../types/app';
-import type { QueueState } from '../types/queue';
+import type { CloseResult } from '../types/tabs/closeResult';
+import type { SessionCost } from '../types/tabs/sessionCost';
+import type { TabState } from '../types/tabs/tabState';
+import type { TabStatus } from '../types/tabs/tabStatus';
+import type { Unsubscribe } from '../types/app/unsubscribe';
+import type { QueueState } from '../types/queue/queueState';
 
 export type TabsApi = {
   list(): Promise<TabState[]>;

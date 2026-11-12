@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { TabState } from '@shared/types/tabs';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { tabWorktrees } from './tabWorktrees';
 
 const tab: TabState = {

@@ -1,9 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { BacklogGroup, Filed, Report, Sprint } from '@shared/types/jira';
-import type { Fetched } from '@shared/types/app';
-import type { ProjectConfig } from '@shared/types/config';
+import type { BacklogGroup } from '@shared/types/jira/backlogGroup';
+import type { Filed } from '@shared/types/jira/filed';
+import type { Report } from '@shared/types/jira/report';
+import type { Sprint } from '@shared/types/jira/sprint';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import { JiraClient, jiraEnvPath, readCreds, type JiraCreds } from '@main/jira/JiraClient';
 import { appLogger, logsDir, type Logger } from '@main/app/log/log';
 import { logTail, reportDescription } from '@main/jira/report';

@@ -1,10 +1,13 @@
 import type { z } from 'zod';
 import { prRepo } from '@shared/github/prRepo';
 import { tabWorktrees } from '@shared/worktree/tabWorktrees';
-import { eventSchemas, type EventRecord } from '@shared/types/events';
-import type { PrInfo } from '@shared/types/github';
-import type { Card, JiraStatus } from '@shared/types/jira';
-import type { HookEvent, TabState } from '@shared/types/tabs';
+import { eventSchemas } from '@shared/types/events/eventSchemas';
+import type { EventRecord } from '@shared/types/events/eventRecord';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { Card } from '@shared/types/jira/card';
+import type { JiraStatus } from '@shared/types/jira/jiraStatus';
+import type { HookEvent } from '@shared/types/tabs/hookEvent';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { eventKeepDays, eventLog, type EventLog } from './eventLog';
 import { KEEP_DAYS } from './pruneEvents';

@@ -1,4 +1,4 @@
-import type { QueueState } from '@shared/types/queue';
+import type { QueueState } from '@shared/types/queue/queueState';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '@renderer/testing/fakeMaple';

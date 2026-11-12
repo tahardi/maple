@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
-import type { SessionCost } from '@shared/types/tabs';
+import type { SessionCost } from '@shared/types/tabs/sessionCost';
 import { projectsDir, transcriptFiles } from './transcripts';
 import { usageDollars } from './usageDollars';
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { ProjectConfig } from '@shared/types/config';
-import type { TabState } from '@shared/types/tabs';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import type { TabState } from '@shared/types/tabs/tabState';
 import type { Runner } from '@main/app/preflight';
 import { POLL_MS, PrPoller } from './PrPoller';
 

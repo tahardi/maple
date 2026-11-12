@@ -1,4 +1,4 @@
-import type { ProjectConfig } from '@shared/types/config';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import { projectCounts } from '@shared/status/dots';
 import { useCallback, useRef, useState } from 'react';
 import { useMaple } from '../store';

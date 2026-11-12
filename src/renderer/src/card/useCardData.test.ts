@@ -1,8 +1,10 @@
-import type { Fetched } from '@shared/types/app';
-import type { PrInfo, Review } from '@shared/types/github';
-import type { RepoInfo } from '@shared/types/files';
-import type { SessionCost, TabState } from '@shared/types/tabs';
-import type { Sprint } from '@shared/types/jira';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { Review } from '@shared/types/github/review';
+import type { RepoInfo } from '@shared/types/files/repoInfo';
+import type { SessionCost } from '@shared/types/tabs/sessionCost';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { Sprint } from '@shared/types/jira/sprint';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';
