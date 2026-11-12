@@ -18,7 +18,8 @@ import { hookSocketPath, startHookServer } from '@main/sessions/hooks/hookServer
 import { claimInstance } from '@main/app/instance';
 import { defaultRunner } from '@main/app/preflight';
 import { writeHooksFile } from '@main/sessions/hooks/hooksFile';
-import { currentBranch, findWorktrees, headSha } from '@main/git/git';
+import { findWorktrees } from '@main/git/findWorktrees';
+import { currentBranch, headSha } from '@main/git/repoIdentity';
 import { projectRunner } from '@main/github/ghRunner';
 import { prForBranch } from '@main/github/pr';
 import { openPrMergeState } from '@main/github/mergeState';

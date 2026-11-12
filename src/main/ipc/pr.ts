@@ -9,7 +9,7 @@ import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Review } from '@shared/types/github/review';
 import type { ReviewComment } from '@shared/types/github/reviewComment';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { currentBranch } from '@main/git/git';
+import { currentBranch } from '@main/git/repoIdentity';
 import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@main/github/comments';
 import { ghRunner, projectRunner } from '@main/github/ghRunner';
 import { approveAndMerge, diffLines, prForBranch } from '@main/github/pr';

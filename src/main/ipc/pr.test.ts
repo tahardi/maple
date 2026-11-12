@@ -59,7 +59,7 @@ const {
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('@main/git/git', () => ({ currentBranch }));
+vi.mock('@main/git/repoIdentity', () => ({ currentBranch }));
 vi.mock('@main/github/pr', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@main/github/pr')>()),
   prForBranch,
