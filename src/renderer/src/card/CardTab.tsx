@@ -5,8 +5,6 @@ import { ClaudePane } from '../claude/ClaudePane';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
 import { buildTree } from '@renderer/card/viewer/tree/buildTree';
-import { closeFiles } from '@renderer/card/viewer/tabs/closeFiles';
-import { close, openPreview, pin, type OpenFileList } from '@renderer/card/viewer/tabs/openFileList';
 import { cardActions } from './cardActions';
 import { CardHeader } from './CardHeader';
 import styles from './CardTab.module.css';
@@ -22,14 +20,16 @@ import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 import { useCardData } from './useCardData';
-import { useColumns } from './useColumns';
+import { useApproveFlow } from './useApproveFlow';
+import { useWorktreeState } from './useWorktreeState';
+import { useColumnDrag } from '@renderer/shell/split/useColumnDrag';
+import { useOpenFiles } from '@renderer/card/viewer/tabs/useOpenFiles';
 import { useQuickOpenKeys, type QuickOpenMode } from '@renderer/card/viewer/quickOpen/useQuickOpenKeys';
 import { namedNotes } from '@renderer/card/vault/namedNotes';
 import { useVault } from '@renderer/card/vault/useVault';
 import { writtenNotes } from '@renderer/card/vault/writtenNotes';
 import { useViewed } from '@renderer/card/viewer/tree/useViewed';
 import { VAULT_PREFIX, VaultSwitch, type TreeView } from '@renderer/card/vault/VaultSwitch';
-import { errorText } from '@shared/errors/errorText';
 
 const WAITING = 'Waiting for worktree…';
 const MERGED = 'Merged, worktree removed';
@@ -41,23 +41,28 @@ export function CardTab({ tab }: { tab: TabState }) {
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
   const active = useMaple((s) => s.activeTabId === tab.id);
-  const [columns, setColumns] = useColumns();
-  const [changedOverride, setChangedOverride] = useState<boolean | null>(null);
-  const [list, setList] = useState<OpenFileList>({ files: [], preview: null });
-  const [activeFile, setActiveFile] = useState<string | null>(null);
-  const [line, setLine] = useState<number | null>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const left = useColumnDrag(body, {
+    storageKey: 'maple.columns.left',
+    initial: 240,
+    toSize: (rect, p) => Math.max(120, p.clientX - rect.left),
+  });
+  const right = useColumnDrag(body, {
+    storageKey: 'maple.columns.right',
+    initial: 32,
+    toSize: (rect, p) => Math.min(80, Math.max(10, ((rect.right - p.clientX) / rect.width) * 100)),
+  });
+  const [changedOverride, setChangedOverride] = useWorktreeState<boolean | null>(tab.worktreePath, null);
+  const openFiles = useOpenFiles(tab.worktreePath, {
+    pr: Boolean(pr?.data),
+    card: card !== null && pr !== null && pr.data === null,
+  });
+  const { activeFile, open: openFile, pin: pinFile } = openFiles;
   const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
-  const [approveError, setApproveError] = useState<{ headSha: string; message: string } | null>(null);
-  const [confirmApprove, setConfirmApprove] = useState<string | null>(null);
-  const [confirmFindings, setConfirmFindings] = useState<string | null>(null);
-  const [descriptionOpened, setDescriptionOpened] = useState(false);
-  const [cardOpened, setCardOpened] = useState(false);
   const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
   const [tryRuns, setTryRuns] = useState(0);
   const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
   const [vaultChangedOnly, setVaultChangedOnly] = useState(true);
-  const [shownWorktree, setShownWorktree] = useState(tab.worktreePath);
-  const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const pinned = review?.data ?? null;
@@ -88,26 +93,7 @@ export function CardTab({ tab }: { tab: TabState }) {
       vault.notes.map((note) => note.path),
     ),
   ]);
-  const highFindings = pinned?.findings.filter((f) => f.severity === 'high').length ?? 0;
-  const approvePr = () => {
-    if (pinned === null) {
-      return;
-    }
-    setApproveError(null);
-    const { headSha } = pinned;
-    window.maple.pr.approve(tab.id, headSha).catch((err: unknown) => {
-      setApproveError({ headSha, message: errorText(err) });
-    });
-  };
-  const findingNoun = highFindings === 1 ? 'finding' : 'findings';
-  const findingsWarning = `${String(highFindings)} open high-severity ${findingNoun}. Approve anyway?`;
-  const confirmViewed = () => {
-    if (unviewed > 0 && pinned !== null) {
-      setConfirmApprove(pinned.headSha);
-    } else {
-      approvePr();
-    }
-  };
+  const approval = useApproveFlow(tab.id, tab.worktreePath, pinned, unviewed);
   const actions =
     config === null
       ? []
@@ -121,13 +107,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           send: (text) => {
             window.maple.session.sendPrompt(tab.id, text);
           },
-          approve: () => {
-            if (highFindings > 0 && pinned !== null) {
-              setConfirmFindings(pinned.headSha);
-            } else {
-              confirmViewed();
-            }
-          },
+          approve: approval.approve,
         });
 
   const toggleTerminal = () => {
@@ -150,75 +130,6 @@ export function CardTab({ tab }: { tab: TabState }) {
     };
   }, [active]);
 
-  const openFile = (path: string, at: number | null = null, keep = false) => {
-    setList((now) => (keep ? pin(now, path) : openPreview(now, path)));
-    setActiveFile(path);
-    setLine(at);
-  };
-
-  const pinFile = (path: string) => {
-    setList((now) => pin(now, path));
-  };
-
-  const activateFile = (path: string | null) => {
-    setActiveFile(path);
-    setLine(null);
-  };
-
-  if (shownWorktree !== tab.worktreePath) {
-    setShownWorktree(tab.worktreePath);
-    if (shownWorktree !== null && tab.worktreePath !== null) {
-      setList({ files: [], preview: null });
-      setActiveFile(null);
-      setChangedOverride(null);
-      setApproveError(null);
-      setDescriptionOpened(false);
-      setCardOpened(false);
-    }
-  }
-
-  if (!descriptionOpened && pr?.data) {
-    setDescriptionOpened(true);
-    setList((now) => ({ ...now, files: [PR_DESCRIPTION, ...now.files] }));
-    setActiveFile((active) => active ?? PR_DESCRIPTION);
-  }
-
-  if (!cardOpened && card !== null && pr !== null && pr.data === null) {
-    setCardOpened(true);
-    setList((now) => ({ ...now, files: [CARD_DESCRIPTION, ...now.files] }));
-    setActiveFile((active) => active ?? CARD_DESCRIPTION);
-  }
-
-  const closeTabs = (paths: readonly string[]) => {
-    const next = closeFiles(list.files, activeFile, paths);
-    setList((now) => close(now, paths));
-    if (next.activeFile !== activeFile) {
-      activateFile(next.activeFile);
-    }
-  };
-
-  const drag = (side: 'left' | 'right') => (e: React.PointerEvent) => {
-    const rect = body.current?.getBoundingClientRect();
-    if (!rect) {
-      return;
-    }
-    e.preventDefault();
-    let next = columns;
-    const move = (ev: PointerEvent) => {
-      next =
-        side === 'left'
-          ? { ...columns, left: Math.max(120, ev.clientX - rect.left) }
-          : { ...columns, right: Math.min(80, Math.max(10, ((rect.right - ev.clientX) / rect.width) * 100)) };
-      setColumns(next);
-    };
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
-
   return (
     <div className={styles.tab} data-testid="card-tab">
       <CardHeader
@@ -234,7 +145,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         }}
       />
       <div ref={body} className={styles.body}>
-        <div className={styles.left} style={{ width: columns.left }} data-testid="tree-slot">
+        <div className={styles.left} style={{ width: left.size }} data-testid="tree-slot">
           {hasVault && <VaultSwitch view={view} onChange={setViewOverride} onRefresh={vault.refresh} />}
           {!showsVault && tab.worktreePath !== null && tab.worktreePaths.length > 1 ? (
             <WorktreeMenu
@@ -277,7 +188,9 @@ export function CardTab({ tab }: { tab: TabState }) {
               onSelect={openFile}
               onPin={pinFile}
               changedOnly={changedOnly}
-              onToggle={setChangedOverride}
+              onToggle={(on) => {
+                setChangedOverride(() => on);
+              }}
               changedCount={changed.length}
               viewed={viewed}
               onToggleViewed={toggleViewed}
@@ -288,7 +201,7 @@ export function CardTab({ tab }: { tab: TabState }) {
             <PrSummary
               pr={pr}
               onReloadReview={() => {
-                setApproveError(null);
+                approval.clearError();
                 reloadReview();
               }}
               reviewError={review?.error ?? null}
@@ -303,7 +216,7 @@ export function CardTab({ tab }: { tab: TabState }) {
             />
           )}
         </div>
-        <div className={styles.divider} onPointerDown={drag('left')} />
+        <div className={styles.divider} onPointerDown={left.start} />
         <div className={styles.middle} data-testid="viewer-slot">
           <div className={styles.viewer}>
             {tab.worktreePath === null && !showsVault ? (
@@ -311,18 +224,18 @@ export function CardTab({ tab }: { tab: TabState }) {
             ) : (
               <FileViewer
                 tabId={tab.id}
-                openFiles={list.files}
-                preview={list.preview}
+                openFiles={openFiles.files}
+                preview={openFiles.preview}
                 onPin={pinFile}
                 activeFile={activeFile}
-                onActivate={activateFile}
-                onCloseFiles={closeTabs}
+                onActivate={openFiles.activate}
+                onCloseFiles={openFiles.close}
                 prBody={pr?.data?.body ?? null}
                 cardBody={card?.descriptionMd}
                 canComment={pr?.data?.state === 'OPEN'}
                 prFetchedAt={pr?.fetchedAt ?? null}
                 onComments={showComments}
-                line={line}
+                line={openFiles.line}
                 review={pinned}
                 noteChanges
               />
@@ -350,48 +263,26 @@ export function CardTab({ tab }: { tab: TabState }) {
             </div>
           )}
         </div>
-        <div className={styles.divider} onPointerDown={drag('right')} />
-        <div className={styles.right} style={{ width: `${String(columns.right)}%` }} data-testid="claude-slot">
+        <div className={styles.divider} onPointerDown={right.start} />
+        <div className={styles.right} style={{ width: `${String(right.size)}%` }} data-testid="claude-slot">
           {card?.status === 'Done' && !worktreeExists && (
             <Notice tone="success">
               <span>{wontDo ? 'Closed' : 'Merged'}</span>
               <button onClick={() => void closeTab(tab.id, false)}>Close tab</button>
             </Notice>
           )}
-          {approveError !== null && approveError.headSha === pinned?.headSha && (
-            <Notice tone="danger">{approveError.message}</Notice>
-          )}
+          {approval.error !== null && <Notice tone="danger">{approval.error}</Notice>}
           <ClaudePane tabId={tab.id} actions={actions} />
         </div>
       </div>
-      {confirmFindings !== null && confirmFindings === pinned?.headSha && (
+      {approval.dialog !== null && (
         <ConfirmDialog
-          title="Open security findings"
-          body={findingsWarning}
+          title={approval.dialog.title}
+          body={approval.dialog.body}
           confirmLabel="Approve anyway"
           danger
-          onConfirm={() => {
-            setConfirmFindings(null);
-            confirmViewed();
-          }}
-          onCancel={() => {
-            setConfirmFindings(null);
-          }}
-        />
-      )}
-      {confirmApprove !== null && confirmApprove === pinned?.headSha && (
-        <ConfirmDialog
-          title="Unviewed files"
-          body={`${String(unviewed)} changed ${unviewed === 1 ? 'file' : 'files'} not viewed. Approve anyway?`}
-          confirmLabel="Approve anyway"
-          danger
-          onConfirm={() => {
-            setConfirmApprove(null);
-            approvePr();
-          }}
-          onCancel={() => {
-            setConfirmApprove(null);
-          }}
+          onConfirm={approval.confirm}
+          onCancel={approval.cancel}
         />
       )}
       {quickOpen !== null && (

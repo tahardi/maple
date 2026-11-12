@@ -39,6 +39,7 @@ export function useCardData(tab: TabState): CardDataWithReview {
     outsideSprint: false,
   });
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : null));
+  const active = useMaple((s) => s.activeTabId === tab.id);
   const [loaded, setLoaded] = useState<{
     worktreePath: string | null;
     number: number;
@@ -68,6 +69,9 @@ export function useCardData(tab: TabState): CardDataWithReview {
   }, [id, projectKey, cardKey, worktreePath]);
 
   useEffect(() => {
+    if (!active) {
+      return;
+    }
     const refresh = () => void load();
     refresh();
     const timer = setInterval(refresh, REFRESH_MS);
@@ -76,7 +80,7 @@ export function useCardData(tab: TabState): CardDataWithReview {
       clearInterval(timer);
       unsubscribe();
     };
-  }, [id, load]);
+  }, [active, id, load]);
 
   useEffect(() => {
     if (dot === 'idle' || dot === 'merged' || dot === 'ready' || dot === 'waiting') {

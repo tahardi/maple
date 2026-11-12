@@ -76,6 +76,7 @@ function watchRejections(): RejectionListener {
 describe('useCardData', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
+    useMaple.setState({ activeTabId: 't1' });
   });
 
   test('loads the session cost for the tab', async () => {
@@ -316,6 +317,74 @@ describe('useCardData', () => {
     // then
     expect(changes).toHaveBeenCalledTimes(2);
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  test('a hidden tab skips the timer and repo changes', () => {
+    // given
+    vi.useFakeTimers();
+    useMaple.setState({ activeTabId: 'other' });
+    let changed: () => void = () => undefined;
+    const changes = vi.fn(() => Promise.resolve(null));
+    const sprint = vi.fn(() => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }));
+    fakeMaple({
+      repo: {
+        changes,
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+      jira: { sprint },
+    });
+    renderHook(() => useCardData(tab));
+    // when
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+      changed();
+    });
+    vi.useRealTimers();
+    // then
+    expect(changes).not.toHaveBeenCalled();
+    expect(sprint).not.toHaveBeenCalled();
+  });
+
+  test('a tab that is hidden stops its timer and repo changes', async () => {
+    // given
+    const unsubscribe = vi.fn();
+    const changes = vi.fn(() => Promise.resolve(null));
+    fakeMaple({ repo: { changes, onChanged: vi.fn(() => unsubscribe) } });
+    renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(changes).toHaveBeenCalledTimes(1);
+    });
+    vi.useFakeTimers();
+    // when
+    act(() => {
+      useMaple.setState({ activeTabId: 'other' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    vi.useRealTimers();
+    // then
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(changes).toHaveBeenCalledTimes(1);
+  });
+
+  test('a hidden tab loads as soon as it is shown', async () => {
+    // given
+    useMaple.setState({ activeTabId: 'other' });
+    const changes = vi.fn(() => Promise.resolve(null));
+    fakeMaple({ repo: { changes } });
+    renderHook(() => useCardData(tab));
+    // when
+    act(() => {
+      useMaple.setState({ activeTabId: 't1' });
+    });
+    // then
+    await waitFor(() => {
+      expect(changes).toHaveBeenCalledTimes(1);
+    });
   });
 
   test('finds the card in the sprint and skips the repo without a worktree', async () => {
