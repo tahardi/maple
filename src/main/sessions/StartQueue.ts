@@ -161,8 +161,9 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
   }
 
   private startNow(card: QueuedCard): TabState {
+    const tab = this.deps.sessions.startCard(card.projectKey, card.cardKey);
     this.lastStart = Date.now();
-    return this.deps.sessions.startCard(card.projectKey, card.cardKey);
+    return tab;
   }
 
   private working(): number {
@@ -183,7 +184,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
       return 'memory';
     }
     if (
-      working >= limits.startAtOnce &&
+      (working >= limits.startAtOnce || this.cards.length > 0) &&
       this.lastStart !== null &&
       Date.now() - this.lastStart < limits.startGapSeconds * 1000
     ) {

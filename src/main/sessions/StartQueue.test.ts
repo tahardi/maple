@@ -167,27 +167,70 @@ describe('StartQueue', () => {
     expect(queue.state().cards).toEqual([]);
   });
 
-  test('starts below startAtOnce without waiting for the start gap', () => {
+  test('starts below startAtOnce without waiting for the start gap when nothing is queued', () => {
+    // given
+    const { queue, startCard } = setup({ working: 0 });
+    queue.start();
+    // when
+    const results = ['DIG-45', 'DIG-46', 'DIG-47', 'DIG-48', 'DIG-49'].map((key) => queue.add('DIG', key));
+    // then
+    expect(startCard).toHaveBeenCalledTimes(4);
+    expect(results[4]).toBeNull();
+    expect(queue.state()).toMatchObject({ cards: queued('DIG-49'), waitingFor: 'pace' });
+  });
+
+  test('a queued card waits the start gap even below startAtOnce', () => {
     // given
     const { queue, startCard, setWorking } = setup({ working: 4 });
     queue.add('DIG', 'DIG-44');
     vi.advanceTimersByTime(1_000);
     queue.add('DIG', 'DIG-45');
     queue.add('DIG', 'DIG-46');
-    queue.add('DIG', 'DIG-47');
     setWorking(2);
     startCard.mockClear();
     // when
     queue.start();
     // then
+    expect(startCard).not.toHaveBeenCalled();
+    expect(queue.state()).toMatchObject({ cards: queued('DIG-45', 'DIG-46'), waitingFor: 'pace' });
+    // when
+    vi.advanceTimersByTime(14_000);
+    // then
+    expect(startCard.mock.calls).toEqual([['DIG', 'DIG-45']]);
+  });
+
+  test('cards waiting for room start one start gap apart once room opens', () => {
+    // given
+    const { queue, startCard, setWorking } = setup({ limits: { maxWorking: 1, startGapSeconds: 300 } });
+    queue.start();
+    queue.add('DIG', 'DIG-45');
+    queue.add('DIG', 'DIG-46');
+    queue.add('DIG', 'DIG-47');
+    vi.advanceTimersByTime(10_000);
+    // when
+    setWorking(0);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(1);
+    expect(queue.state()).toMatchObject({ cards: queued('DIG-46', 'DIG-47'), waitingFor: 'pace' });
+    // when
+    vi.advanceTimersByTime(290_000);
+    // then
     expect(startCard.mock.calls).toEqual([
       ['DIG', 'DIG-45'],
       ['DIG', 'DIG-46'],
     ]);
-    expect(queue.state()).toMatchObject({ cards: queued('DIG-47'), waitingFor: 'pace' });
+    // when
+    setWorking(0);
+    vi.advanceTimersByTime(299_999);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(2);
+    // when
+    vi.advanceTimersByTime(1);
+    // then
+    expect(startCard).toHaveBeenCalledTimes(3);
   });
 
-  test('starts a batch of 8 four at once and then one per start gap', () => {
+  test('a saved queue starts its first card at once and then one per start gap', () => {
     // given
     const { queue, startCard } = setup({
       queued: queued('DIG-41', 'DIG-42', 'DIG-43', 'DIG-44', 'DIG-45', 'DIG-46', 'DIG-47', 'DIG-48'),
@@ -195,20 +238,20 @@ describe('StartQueue', () => {
     // when
     queue.start();
     // then
-    expect(startCard).toHaveBeenCalledTimes(4);
+    expect(startCard).toHaveBeenCalledTimes(1);
     expect(queue.state().waitingFor).toBe('pace');
     // when
     vi.advanceTimersByTime(14_999);
     // then
-    expect(startCard).toHaveBeenCalledTimes(4);
+    expect(startCard).toHaveBeenCalledTimes(1);
     // when
     vi.advanceTimersByTime(1);
     // then
-    expect(startCard).toHaveBeenCalledTimes(5);
+    expect(startCard).toHaveBeenCalledTimes(2);
     // when
     vi.advanceTimersByTime(15_000);
     // then
-    expect(startCard).toHaveBeenCalledTimes(6);
+    expect(startCard).toHaveBeenCalledTimes(3);
   });
 
   test('starts the next card one start gap after an extra start made partway through a recheck period', () => {
@@ -409,6 +452,7 @@ describe('StartQueue', () => {
     const { queue, startCard, save } = setup({ queued: queued('DIG-45', 'DIG-46') });
     // when
     queue.start();
+    vi.advanceTimersByTime(15_000);
     // then
     expect(startCard.mock.calls).toEqual([
       ['DIG', 'DIG-45'],
@@ -459,6 +503,7 @@ describe('StartQueue', () => {
     load.freeBytes = 8 * GIB;
     // when
     queue.add('DIG', 'DIG-46');
+    vi.advanceTimersByTime(15_000);
     // then
     expect(startCard.mock.calls).toEqual([
       ['DIG', 'DIG-45'],
@@ -484,14 +529,15 @@ describe('StartQueue', () => {
     });
     // when
     queue.start();
+    vi.advanceTimersByTime(15_000);
     // then
     expect(startCard.mock.calls).toEqual([
       ['DIG', 'DIG-45'],
       ['DIG', 'DIG-46'],
     ]);
     expect(queue.state().cards).toEqual(queued('DIG-47'));
-    expect(save).toHaveBeenCalledTimes(1);
-    expect(changed).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(changed).toHaveBeenCalledTimes(2);
   });
 
   test('a failed save is logged at error', async () => {
