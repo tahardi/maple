@@ -54,10 +54,6 @@ button.title:hover {
   text-decoration: underline;
 }
 
-.error {
-  color: var(--danger);
-}
-
 .branch {
   font-family: monospace;
   max-width: 30ch;

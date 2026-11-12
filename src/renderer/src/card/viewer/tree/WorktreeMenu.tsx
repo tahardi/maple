@@ -36,9 +36,7 @@ export function WorktreeMenu({
           setOpen(!open);
         }}
       >
-        <span className={styles.label}>
-          <span className={styles.plain}>{label}</span>
-        </span>
+        <span className={styles.label}>{label}</span>
         <span className={styles.arrow}>▾</span>
       </button>
       {open && (

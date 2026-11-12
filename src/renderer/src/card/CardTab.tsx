@@ -37,7 +37,8 @@ const MERGED = 'Merged, worktree removed';
 const CLOSED = 'Closed, worktree removed';
 
 export function CardTab({ tab }: { tab: TabState }) {
-  const { changes, files, repo, pr, review, reviewUpdated, reloadReview, card, cost, outsideSprint } = useCardData(tab);
+  const { changes, files, repo, pr, review, reviewUpdated, reloadingReview, reloadReview, card, cost, outsideSprint } =
+    useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
@@ -167,6 +168,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               updated={reviewUpdated}
               reviewError={review?.error ?? null}
               findings={pinned?.findings ?? []}
+              reloading={reloadingReview}
               onReloadReview={reloadPinnedReview}
             />
           )

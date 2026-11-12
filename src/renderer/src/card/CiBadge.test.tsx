@@ -30,6 +30,7 @@ function renderBadge(overrides: Partial<Props> = {}) {
     updated: false,
     reviewError: null,
     findings: [],
+    reloading: false,
     onReloadReview: vi.fn(),
     ...overrides,
   };
@@ -59,6 +60,12 @@ describe('CiBadge', () => {
       checks: { passed: 5, failed: 0, pending: 0, total: 5, runs: [] },
       text: '✓ 5/5',
       tone: 'success',
+    },
+    {
+      name: 'no checks',
+      checks: { passed: 0, failed: 0, pending: 0, total: 0, runs: [] },
+      text: 'No checks',
+      tone: 'neutral',
     },
   ])('shows $text for $name', ({ checks, text, tone }) => {
     // given
@@ -151,6 +158,46 @@ describe('CiBadge', () => {
     expect(onReloadReview).toHaveBeenCalledOnce();
   });
 
+  test('Reload review reads Reloading… and is disabled while reloading', async () => {
+    // given
+    renderBadge({ reloading: true });
+    // when
+    await openPopover();
+    // then
+    expect(screen.getByRole('button', { name: 'Reloading…' })).toBeDisabled();
+  });
+
+  test('says no checks ran when the PR has none', async () => {
+    // given
+    renderBadge({ pr: { ...pr, checks: { passed: 0, failed: 0, pending: 0, total: 0, runs: [] } } });
+    // when
+    await openPopover();
+    // then
+    expect(screen.getByRole('dialog')).toHaveTextContent('No checks ran on this commit.');
+    expect(screen.queryByRole('list')).toBeNull();
+  });
+
+  test('marks the badge expanded only while the popover is open', async () => {
+    // given
+    renderBadge();
+    const badge = screen.getByTitle('Show CI checks');
+    expect(badge).toHaveAttribute('aria-expanded', 'false');
+    // when
+    await userEvent.click(badge);
+    // then
+    expect(badge).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('a click inside the popover keeps it open', async () => {
+    // given
+    renderBadge();
+    await openPopover();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Reload review' }));
+    // then
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   test('shows no Reload review on a merged PR', async () => {
     // given
     renderBadge({ pr: { ...pr, state: 'MERGED' } });
@@ -204,6 +251,12 @@ describe('CiBadge', () => {
       how: 'Escape',
       dismiss: async () => {
         await userEvent.keyboard('{Escape}');
+      },
+    },
+    {
+      how: 'a second click on the badge',
+      dismiss: async () => {
+        await userEvent.click(screen.getByTitle('Show CI checks'));
       },
     },
     {

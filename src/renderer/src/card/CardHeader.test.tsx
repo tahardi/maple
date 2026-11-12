@@ -68,19 +68,7 @@ const base = {
 describe('CardHeader', () => {
   test('shows the card, status, PR link, branch, and change counts', () => {
     // given
-    const props = {
-      cardKey: 'MPL-20',
-      card,
-      pr: fetched(pr),
-      branch: 'mpl-20-file-tree',
-      changes,
-      cost: null,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, card, pr: fetched(pr), branch: 'mpl-20-file-tree', changes };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -98,19 +86,7 @@ describe('CardHeader', () => {
 
   test('shows the Jira status as a neutral badge', () => {
     // given
-    const props = {
-      cardKey: 'MPL-20',
-      card,
-      pr: null,
-      branch: null,
-      changes: null,
-      cost: null,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, card };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -122,19 +98,7 @@ describe('CardHeader', () => {
     { name: 'another repo', url: 'https://github.com/tahardi/dotclaude/pull/33', want: 'tahardi/dotclaude PR #33' },
   ])('names the PR button for a PR in $name', ({ url, want }) => {
     // given
-    const props = {
-      cardKey: 'MPL-20',
-      card: null,
-      pr: fetched({ ...pr, url }),
-      branch: null,
-      changes: null,
-      cost: null,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, pr: fetched({ ...pr, url }) };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -148,19 +112,7 @@ describe('CardHeader', () => {
   ])('counts $count changed files as "$want"', ({ count, want }) => {
     // given
     const files = Array.from({ length: count }, (_, i) => ({ ...changes.files[0], path: `${String(i)}.ts` }));
-    const props = {
-      cardKey: 'MPL-20',
-      card: null,
-      pr: null,
-      branch: null,
-      changes: { ...changes, files },
-      cost: null,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, changes: { ...changes, files } };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -170,19 +122,7 @@ describe('CardHeader', () => {
   test('a long branch truncates and shows in full on hover', () => {
     // given
     const branch = 'mpl-20-a-very-long-branch-name-that-would-push-the-other-facts-off-screen';
-    const props = {
-      cardKey: 'MPL-20',
-      card: null,
-      pr: null,
-      branch,
-      changes: null,
-      cost: null,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, branch };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -194,19 +134,7 @@ describe('CardHeader', () => {
 
   test('colors the added and removed line counts', () => {
     // given
-    const props = {
-      cardKey: 'MPL-20',
-      card: null,
-      pr: null,
-      branch: null,
-      changes,
-      cost: null,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, changes };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -217,19 +145,7 @@ describe('CardHeader', () => {
   test('shows zero added and removed line counts', () => {
     // given
     const empty = { ...changes, added: 0, removed: 0 };
-    const props = {
-      cardKey: 'MPL-20',
-      card: null,
-      pr: null,
-      branch: null,
-      changes: empty,
-      cost: null,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, changes: empty };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -250,19 +166,7 @@ describe('CardHeader', () => {
 
   test('shows only the card key before anything loads', () => {
     // given
-    const props = {
-      cardKey: 'MPL-20',
-      card: null,
-      pr: null,
-      branch: null,
-      changes: null,
-      cost: null,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base };
     // when
     const { container } = render(<CardHeader {...props} />);
     // then
@@ -273,19 +177,7 @@ describe('CardHeader', () => {
   test('the card title opens the card description', async () => {
     // given
     const onOpenCard = vi.fn();
-    const props = {
-      cardKey: 'MPL-20',
-      card,
-      pr: null,
-      branch: null,
-      changes: null,
-      cost: null,
-      projectRepo: 'tahardi/maple',
-      onOpenCard,
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, card, onOpenCard };
     render(<CardHeader {...props} />);
     const title = screen.getByRole('button', { name: 'MPL-20 File Tree and PR Summary' });
     // when
@@ -297,19 +189,7 @@ describe('CardHeader', () => {
 
   test('the card key is plain text before the card loads', () => {
     // given
-    const props = {
-      cardKey: 'MPL-20',
-      card: null,
-      pr: null,
-      branch: null,
-      changes: null,
-      cost: null,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -326,19 +206,7 @@ describe('CardHeader', () => {
 
   test('the cost tooltip breaks the tokens down', () => {
     // given
-    const props = {
-      cardKey: 'MPL-20',
-      card: null,
-      pr: null,
-      branch: null,
-      changes: null,
-      cost,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, cost };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -352,19 +220,7 @@ describe('CardHeader', () => {
   test('the cost tooltip stays when dollars are unknown', () => {
     // given
     const unpriced = { ...cost, dollars: null };
-    const props = {
-      cardKey: 'MPL-20',
-      card: null,
-      pr: null,
-      branch: null,
-      changes: null,
-      cost: unpriced,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, cost: unpriced };
     // when
     render(<CardHeader {...props} />);
     // then
@@ -380,19 +236,7 @@ describe('CardHeader', () => {
     { name: 'nothing without a cost', cost: null, want: '' },
   ])('shows $name', ({ cost, want }) => {
     // given
-    const props = {
-      cardKey: 'MPL-20',
-      card: null,
-      pr: null,
-      branch: null,
-      changes: null,
-      cost,
-      projectRepo: 'tahardi/maple',
-      onOpenCard: vi.fn(),
-      searchedRepos: [],
-      ci: null,
-      onOpenPr: vi.fn(),
-    };
+    const props = { ...base, cost };
     // when
     const { container } = render(<CardHeader {...props} />);
     // then
@@ -430,7 +274,8 @@ describe('CardHeader', () => {
     // when
     render(<CardHeader {...props} />);
     // then
-    expect(screen.getByText('GitHub unreachable')).toBeInTheDocument();
+    expect(screen.getByText('GitHub unreachable')).toHaveAttribute('data-tone', 'danger');
+    expect(screen.queryByRole('link', { name: '↗' })?.getAttribute('href') ?? null).toBe(button ? pr.url : null);
     expect(screen.queryByRole('button', { name: 'PR #33' }) !== null).toBe(button);
     expect(screen.queryByTestId('ci') !== null).toBe(button);
   });

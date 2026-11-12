@@ -765,4 +765,38 @@ describe('useCardData', () => {
       expect(result.current.review).toEqual(later);
     });
   });
+
+  test('reloadingReview stays true until the review settles', async () => {
+    // given
+    let settle: (review: Fetched<Review>) => void = () => undefined;
+    const review = vi
+      .fn<(tabId: string) => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(fetchedReview)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settle = resolve;
+          }),
+      );
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: openPr, error: null, fetchedAt: null }), review } });
+    const { result } = renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(result.current.reloadingReview).toBe(false);
+      expect(result.current.review).toEqual(fetchedReview);
+    });
+    // when
+    act(() => {
+      result.current.reloadReview();
+    });
+    // then
+    expect(result.current.reloadingReview).toBe(true);
+    // when
+    act(() => {
+      settle(fetchedReview);
+    });
+    // then
+    await waitFor(() => {
+      expect(result.current.reloadingReview).toBe(false);
+    });
+  });
 });

@@ -82,7 +82,7 @@ export function CardHeader({
           {ci}
         </>
       )}
-      {pr !== null && pr.error !== null && <span className={styles.error}>GitHub unreachable</span>}
+      {pr !== null && pr.error !== null && <Badge tone="danger">GitHub unreachable</Badge>}
       {noPr && <span title={NO_PR_HINT}>{`No PR in ${searchedRepos.join(', ')}`}</span>}
       {branch !== null && (
         <span className={styles.branch} title={branch}>
