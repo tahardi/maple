@@ -170,7 +170,10 @@ test.describe('smoke', () => {
       await expect(page.locator('.xterm-rows').first()).toBeVisible();
 
       // when
-      await page.getByRole('button', { name: 'Report', exact: true }).click();
+      await app.evaluate(({ Menu }) => {
+        const help = Menu.getApplicationMenu()?.items.find((item) => item.label === 'Help');
+        help?.submenu?.items.find((item) => item.label === 'Report a bug…')?.click();
+      });
       const dialog = page.getByRole('dialog', { name: 'Report a bug or feature' });
       await dialog.getByRole('textbox', { name: 'Title' }).fill('Crash');
 

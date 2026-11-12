@@ -22,6 +22,7 @@ const { handle, loadConfig, setAppMenu } = vi.hoisted(() => ({
         reload: () => Promise<unknown>,
         setNotifications: (on: boolean) => Promise<void>,
         setZoom: (change: ZoomChange) => Promise<void>,
+        reportBug: () => void,
       ) => void
     >(),
 }));
@@ -279,5 +280,18 @@ describe('registerConfig menu', () => {
     await setZoom('in');
     // then
     expect(d.setZoom).toHaveBeenCalledWith('in');
+  });
+
+  test('the menu report trigger tells the window', () => {
+    // given
+    vi.clearAllMocks();
+    loadConfig.mockResolvedValue(first);
+    const { win, sendToWindow } = fakeWindow(false);
+    registerConfig(deps(() => win));
+    const [[, , , reportBug]] = setAppMenu.mock.calls;
+    // when
+    reportBug();
+    // then
+    expect(sendToWindow).toHaveBeenCalledWith('app:reportRequested', null);
   });
 });

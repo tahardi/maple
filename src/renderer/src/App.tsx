@@ -5,6 +5,7 @@ import { HomeTab } from './home/HomeTab';
 import { VaultTab } from './vault/VaultTab';
 import { Banner } from './shell/Banner';
 import { QuitGuard } from './shell/QuitGuard';
+import { ReportLauncher } from './shell/ReportLauncher';
 import { TabBar } from '@renderer/shell/tabs/TabBar';
 import { useMaple } from './store';
 
@@ -58,6 +59,7 @@ export function App() {
         </div>
       ))}
       <QuitGuard />
+      <ReportLauncher />
     </div>
   );
 }
