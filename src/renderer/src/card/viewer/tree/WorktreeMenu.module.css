@@ -31,7 +31,7 @@
 
 .plain {
   display: block;
-  padding: 6px 8px;
+  padding: var(--space-2) var(--space-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -39,19 +39,19 @@
 
 .arrow {
   flex: none;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
 }
 
 .panel {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--space-1));
   left: 0;
-  z-index: 10;
+  z-index: var(--z-menu);
   min-width: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 8px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
 }
 
 .row {
@@ -59,8 +59,8 @@
   width: 100%;
   background: transparent;
   border: none;
-  border-radius: 4px;
-  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
   text-align: left;
   white-space: nowrap;
 }

@@ -1,24 +1,24 @@
 .summary {
-  border-top: 1px solid var(--border);
-  padding: 8px;
+  border-top: 1px solid var(--divider);
+  padding: var(--space-2);
   font-size: var(--font-md);
   max-height: 45%;
   overflow: auto;
 }
 
 .summary h4 {
-  margin: 8px 0 2px;
+  margin: var(--space-2) 0 2px;
 }
 
 .row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
-  margin-top: 4px;
+  margin-top: var(--space-1);
 }
 
 .title {
-  margin-top: 4px;
+  margin-top: var(--space-1);
   overflow-wrap: anywhere;
 }
 
@@ -36,8 +36,8 @@
 }
 
 .state {
-  border-radius: 10px;
-  padding: 0 8px;
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-2);
   font-size: var(--font-sm);
   border: 1px solid currentColor;
 }
@@ -55,9 +55,9 @@
 }
 
 .banner {
-  margin-top: 4px;
-  padding: 4px 8px;
-  border-radius: 4px;
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
   background: var(--warning-bg);
   color: var(--warning-text);
 }

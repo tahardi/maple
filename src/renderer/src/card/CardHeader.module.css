@@ -1,9 +1,9 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--divider);
   font-size: var(--font-md);
   color: var(--text-muted);
   min-width: 0;
@@ -43,8 +43,8 @@ button.title:hover {
 
 .pill {
   background: var(--surface);
-  border-radius: 10px;
-  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  padding: 1px var(--space-2);
 }
 
 .branch {
@@ -56,7 +56,7 @@ button.title:hover {
 
 .changes {
   display: flex;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .added {

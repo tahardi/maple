@@ -1,10 +1,10 @@
 .banner {
   background: var(--danger-bg);
   color: var(--text-strong);
-  padding: 6px 12px;
+  padding: var(--space-2) var(--space-3);
 }
 
 .banner ul {
   margin: 0;
-  padding-left: 18px;
+  padding-left: var(--space-4);
 }

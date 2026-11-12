@@ -1,8 +1,8 @@
 .queue {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 0 8px 6px;
+  gap: var(--space-1);
+  padding: 0 var(--space-2) var(--space-2);
 }
 
 .list {
@@ -17,7 +17,7 @@
 .row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .key {

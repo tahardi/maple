@@ -6,7 +6,7 @@
   align-items: flex-start;
   padding-top: 10vh;
   background: var(--overlay);
-  z-index: 10;
+  z-index: var(--z-dialog);
 }
 
 .box {
@@ -17,34 +17,34 @@
   background: var(--bg-raised);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
 .input {
-  margin: 8px;
-  padding: 6px 8px;
+  margin: var(--space-2);
+  padding: var(--space-2) var(--space-2);
   background: var(--bg-sunken);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font: inherit;
 }
 
 .message {
-  padding: 4px 12px 8px;
+  padding: var(--space-1) var(--space-3) var(--space-2);
   color: var(--text-muted);
 }
 
 .list {
   margin: 0;
-  padding: 0 0 8px;
+  padding: 0 0 var(--space-2);
   list-style: none;
   overflow-y: auto;
 }
 
 .row {
-  padding: 3px 12px;
+  padding: 3px var(--space-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

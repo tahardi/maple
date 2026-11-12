@@ -8,6 +8,15 @@ const hardCodedColor = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsl)\(|:[^;{}]*(?<![\w-])
 
 const hardCodedFontSize = /font-size:(?!\s*var\(--font-)[^;]+/g;
 
+const hardCodedSpacing =
+  /(?<![\w-])(?:padding|margin|gap|row-gap|column-gap|inset|top|right|bottom|left)(?:-[a-z]+)?\s*:[^;{}]*?(?<![\d.])(?:[4-9]|\d{2,})px/g;
+
+const hardCodedRadius = /border-radius\s*:(?!\s*var\(--radius-)[^;]+/g;
+
+const hardCodedZIndex = /z-index\s*:(?!\s*var\(--z-)[^;]+/g;
+
+const removedOutline = /outline\s*:\s*(?:none|0)\b/g;
+
 const palette = [
   ['--bg', '#1e1e1e'],
   ['--bg-raised', '#252526'],
@@ -15,13 +24,16 @@ const palette = [
   ['--surface', '#2d2d2d'],
   ['--surface-hover', '#37373d'],
   ['--bar', '#2b2b2b'],
-  ['--border', '#3c3c3c'],
+  ['--border', '#767676'],
+  ['--divider', '#3c3c3c'],
   ['--text', '#d4d4d4'],
   ['--text-muted', '#9d9d9d'],
   ['--text-strong', '#ffffff'],
   ['--link', '#4fa3e0'],
   ['--accent', '#0e639c'],
-  ['--danger', '#e5534b'],
+  ['--accent-strong', '#4fa3e0'],
+  ['--focus-ring', 'var(--accent-strong)'],
+  ['--danger', '#ff7b72'],
   ['--danger-bg', '#5a1d1d'],
   ['--warning', '#d4b106'],
   ['--warning-bg', '#4d3f00'],
@@ -49,9 +61,66 @@ const palette = [
   ['--font-md', '13px'],
   ['--font-lg', '14px'],
   ['--font-xl', '16px'],
+  ['--space-1', '4px'],
+  ['--space-2', '8px'],
+  ['--space-3', '12px'],
+  ['--space-4', '16px'],
+  ['--radius-sm', '4px'],
+  ['--radius-md', '6px'],
+  ['--radius-full', '999px'],
+  ['--z-menu', '100'],
+  ['--z-dialog', '200'],
+];
+
+const contrastRows = [
+  ...['--text', '--text-muted', '--danger'].flatMap((fg) =>
+    ['--bg', '--bg-raised', '--surface'].map((bg) => [fg, bg, 4.5] as const),
+  ),
+  ['--danger', '--surface-hover', 4.5] as const,
+  ...['--bg', '--bg-raised', '--surface'].map((bg) => ['--border', bg, 3] as const),
+  ...['--bg', '--bg-raised', '--surface', '--surface-hover'].map((bg) => ['--accent-strong', bg, 3] as const),
 ];
 
 describe('theme', () => {
+  const token = (name: string): string => new RegExp(`^\\s*${name}:\\s*([^;]+);`, 'm').exec(theme)?.[1] ?? '';
+
+  const luminance = (hex: string): number => {
+    const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const [r, g, b] = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+
+  const contrastRatio = (foreground: string, background: string): number => {
+    const [light, dark] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+    return (light + 0.05) / (dark + 0.05);
+  };
+
+  test.each([
+    ['#000000', '#ffffff', 21],
+    ['#3c3c3c', '#1e1e1e', 1.51],
+    ['#e5534b', '#252526', 4.14],
+  ])('the contrast check measures %s on %s as %s', (foreground, background, want) => {
+    // given
+    const pair = [foreground, background] as const;
+
+    // when
+    const ratio = contrastRatio(...pair);
+
+    // then
+    expect(ratio).toBeCloseTo(want, 2);
+  });
+
+  test.each(contrastRows)('%s on %s reaches %s:1', (foreground, background, minimum) => {
+    // given
+    const colors = [token(foreground), token(background)] as const;
+
+    // when
+    const ratio = contrastRatio(...colors);
+
+    // then
+    expect(ratio).toBeGreaterThanOrEqual(minimum);
+  });
+
   test.each([
     ['a short hex', 'color: #fff;', ['#fff']],
     ['a long hex with alpha', 'box-shadow: 0 0 0 2px #d4b10666;', ['#d4b10666']],
@@ -110,6 +179,109 @@ describe('theme', () => {
 
     // then
     expect(matches, `${path} contains ${matches.join(', ')}`).toEqual([]);
+  });
+
+  test.each([
+    ['padding: var(--space-2) var(--space-3);', []],
+    ['padding: 6px 8px;', ['padding: 6px']],
+    ['margin: 2px 0 0;', []],
+    ['top: calc(100% + 4px);', ['top: calc(100% + 4px']],
+    ['border-left: 4px solid var(--border);', []],
+    ['width: 140px;', []],
+    ['row-gap: 6px;', ['row-gap: 6px']],
+  ])('the spacing check on %s', (css, want) => {
+    // given
+    const source = css;
+
+    // when
+    const matches = source.match(hardCodedSpacing) ?? [];
+
+    // then
+    expect(matches).toEqual(want);
+  });
+
+  test.each([
+    ['border-radius: var(--radius-md);', []],
+    ['border-radius: 50%;', ['border-radius: 50%']],
+  ])('the radius check on %s', (css, want) => {
+    // given
+    const source = css;
+
+    // when
+    const matches = source.match(hardCodedRadius) ?? [];
+
+    // then
+    expect(matches).toEqual(want);
+  });
+
+  test.each([
+    ['z-index: var(--z-menu);', []],
+    ['z-index: 10;', ['z-index: 10']],
+  ])('the layer check on %s', (css, want) => {
+    // given
+    const source = css;
+
+    // when
+    const matches = source.match(hardCodedZIndex) ?? [];
+
+    // then
+    expect(matches).toEqual(want);
+  });
+
+  test.each(modules)('%s spaces with theme spacing', (path, css) => {
+    // given
+    const source = css;
+
+    // when
+    const matches = source.match(hardCodedSpacing) ?? [];
+
+    // then
+    expect(matches, `${path} contains ${matches.join(', ')}`).toEqual([]);
+  });
+
+  test.each(modules)('%s rounds corners with theme radii', (path, css) => {
+    // given
+    const source = css;
+
+    // when
+    const matches = source.match(hardCodedRadius) ?? [];
+
+    // then
+    expect(matches, `${path} contains ${matches.join(', ')}`).toEqual([]);
+  });
+
+  test.each(modules)('%s layers with theme z-indexes', (path, css) => {
+    // given
+    const source = css;
+
+    // when
+    const matches = source.match(hardCodedZIndex) ?? [];
+
+    // then
+    expect(matches, `${path} contains ${matches.join(', ')}`).toEqual([]);
+  });
+
+  test.each(modules)('%s keeps the focus ring', (path, css) => {
+    // given
+    const source = css;
+
+    // when
+    const matches = source.match(removedOutline) ?? [];
+
+    // then
+    expect(matches, `${path} contains ${matches.join(', ')}`).toEqual([]);
+  });
+
+  test('theme.css draws one focus ring', () => {
+    // given
+    const css = theme;
+
+    // when
+    const ring = /:where\(:focus-visible\)\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+
+    // then
+    expect(ring).toContain('outline: 2px solid var(--focus-ring)');
+    expect(ring).toContain('outline-offset: 2px');
   });
 
   test('every variable a module uses is defined', () => {
