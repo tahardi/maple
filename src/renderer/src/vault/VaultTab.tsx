@@ -4,15 +4,18 @@ import { ClaudePane } from '@renderer/claude/ClaudePane';
 import { buildTree } from '@renderer/card/viewer/tree/buildTree';
 import { closeFiles } from '@renderer/card/viewer/tabs/closeFiles';
 import { FileTree } from '@renderer/card/viewer/tree/FileTree';
+import { folderName } from '@renderer/card/viewer/tree/folderName';
 import { FileViewer } from '@renderer/card/viewer/FileViewer';
 import { useVault } from '@renderer/card/vault/useVault';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
+import { useMaple } from '@renderer/store';
 import styles from './VaultTab.module.css';
 
 export function VaultTab({ tab }: { tab: TabState }) {
   const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const vault = useVault(tab.id, true);
+  const vaultDir = useMaple((s) => s.config?.data?.vaultDir ?? null);
 
   const openNote = (path: string) => {
     const file = `${VAULT_PREFIX}${path}`;
@@ -29,6 +32,11 @@ export function VaultTab({ tab }: { tab: TabState }) {
   return (
     <div className={styles.tab} data-testid="vault-tab">
       <div className={styles.left}>
+        {vaultDir !== null && (
+          <h2 className={styles.vaultName} title={vaultDir}>
+            {folderName(vaultDir)}
+          </h2>
+        )}
         <FileTree
           nodes={buildTree(
             vault.notes.map((note) => note.path),

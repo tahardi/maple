@@ -8,6 +8,7 @@ import type { Filed } from '@shared/types/jira/filed';
 import type { Sprint } from '@shared/types/jira/sprint';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { adfToMarkdown } from './adf';
+import { errorText } from '@shared/errors/errorText';
 
 export type JiraCreds = { site: string; email: string; token: string };
 
@@ -63,7 +64,7 @@ export async function readCreds(path: string): Promise<JiraCreds> {
   try {
     text = await readFile(path, 'utf8');
   } catch (err) {
-    throw new Error(`reading jira creds: ${errorMessage(err)}`, { cause: err });
+    throw new Error(`reading jira creds: ${errorText(err)}`, { cause: err });
   }
   const env = new Map<string, string>();
   for (const line of text.split('\n')) {
@@ -110,7 +111,7 @@ export class JiraClient {
       const cards = issues.map((issue) => this.toCard(issue, colors));
       return { id: sprint.id, name: sprint.name, startDate: sprint.startDate, endDate: sprint.endDate, cards };
     } catch (err) {
-      throw new Error(`fetching sprint: ${errorMessage(err)}`, { cause: err });
+      throw new Error(`fetching sprint: ${errorText(err)}`, { cause: err });
     }
   }
 
@@ -136,7 +137,7 @@ export class JiraClient {
       }
       return [...epics.values(), ...(noEpic.cards.length > 0 ? [noEpic] : [])];
     } catch (err) {
-      throw new Error(`fetching backlog: ${errorMessage(err)}`, { cause: err });
+      throw new Error(`fetching backlog: ${errorText(err)}`, { cause: err });
     }
   }
 
@@ -144,7 +145,7 @@ export class JiraClient {
     try {
       return this.toCard(issueSchema.parse(await this.get(`/rest/api/3/issue/${key}?fields=${FIELDS}`)), new Map());
     } catch (err) {
-      throw new Error(`fetching card: ${errorMessage(err)}`, { cause: err });
+      throw new Error(`fetching card: ${errorText(err)}`, { cause: err });
     }
   }
 
@@ -152,7 +153,7 @@ export class JiraClient {
     try {
       await this.post(`/rest/agile/1.0/sprint/${String(sprintId)}/issue`, { issues: keys });
     } catch (err) {
-      throw new Error(`moving cards to sprint: ${errorMessage(err)}`, { cause: err });
+      throw new Error(`moving cards to sprint: ${errorText(err)}`, { cause: err });
     }
   }
 
@@ -169,7 +170,7 @@ export class JiraClient {
       const { key } = createdSchema.parse(await this.post('/rest/api/3/issue', { fields }));
       return { key, url: `${this.creds.site}/browse/${key}` };
     } catch (err) {
-      throw new Error(`creating issue: ${errorMessage(err)}`, { cause: err });
+      throw new Error(`creating issue: ${errorText(err)}`, { cause: err });
     }
   }
 
@@ -204,7 +205,7 @@ export class JiraClient {
         }
       } while (!page.isLast && page.values.length > 0);
     } catch (err) {
-      throw new Error(`fetching epics: ${errorMessage(err)}`, { cause: err });
+      throw new Error(`fetching epics: ${errorText(err)}`, { cause: err });
     }
     return colors;
   }
@@ -213,7 +214,7 @@ export class JiraClient {
     try {
       return await this.epicColors(boardId);
     } catch (err) {
-      this.logger.warn('jira', 'failed', { operation: 'epicColors', boardId, error: errorMessage(err) });
+      this.logger.warn('jira', 'failed', { operation: 'epicColors', boardId, error: errorText(err) });
       return new Map();
     }
   }
@@ -291,8 +292,4 @@ function jiraErrors(body: string): string {
   }
   const fields = Object.entries(parsed.data.errors).map(([field, message]) => `${field}: ${message}`);
   return [...parsed.data.errorMessages, ...fields].join('; ');
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

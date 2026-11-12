@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { KEEP_DAYS, MAX_MEGABYTES } from '@main/events/pruneEvents';
 import { STATE_BACKUPS } from '@main/app/state/backupState';
 import { appLogger, type Logger } from '@main/app/log/log';
+import { errorText } from '@shared/errors/errorText';
 
 const defaultActions = [
   { label: 'Address review', prompt: '/card {key}' },
@@ -97,14 +98,14 @@ async function readConfig(dir: string): Promise<Fetched<MapleConfig>> {
     if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
       return failed(`reading config: ${path} does not exist`);
     }
-    return failed(`reading config: ${err instanceof Error ? err.message : String(err)}`);
+    return failed(`reading config: ${errorText(err)}`);
   }
 
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch (err) {
-    return failed(`parsing config: ${err instanceof Error ? err.message : String(err)}`);
+    return failed(`parsing config: ${errorText(err)}`);
   }
 
   const parsed = configSchema.safeParse(raw);

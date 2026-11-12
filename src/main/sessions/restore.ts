@@ -2,6 +2,7 @@ import { appLogger, type Logger } from '@main/app/log/log';
 import type { TabState } from '@shared/types/tabs/tabState';
 import type { SessionManager } from './SessionManager';
 import type { SavedState } from '@main/app/state/state';
+import { errorText } from '@shared/errors/errorText';
 
 function reopen(tab: TabState, sessions: SessionManager): TabState {
   if (tab.kind === 'vault') {
@@ -34,7 +35,7 @@ export async function restoreTabs(
       try {
         opened = reopen(tab, sessions);
       } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorText(err);
         sessions.keep(tab);
         warnings.push(`kept ${name} for the next launch: ${reason}`);
         logger.warn('restore', 'kept', { tab: name, reason });
@@ -48,7 +49,7 @@ export async function restoreTabs(
       }
       logger.info('restore', 'restored', { projectKey: tab.projectKey, cardKey });
       const paths = await findWt(cardKey).catch((err: unknown): string[] => {
-        const error = err instanceof Error ? err.message : String(err);
+        const error = errorText(err);
         logger.warn('worktree', 'failed', { operation: 'findWorktrees', cardKey, error });
         return [];
       });

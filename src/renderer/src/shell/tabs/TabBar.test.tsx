@@ -111,10 +111,8 @@ describe('TabBar', () => {
     expect(openVault).not.toHaveBeenCalled();
   });
 
-  test('an open vault tab shows its dot and a close button', async () => {
+  test('an open vault tab shows no dot and no close button', () => {
     // given
-    const close = vi.fn(() => Promise.resolve({ closed: true, needsConfirm: false }));
-    fakeMaple({ tabs: { close } });
     useMaple.setState({
       config: VAULT_CONFIG,
       activeTabId: 'v1',
@@ -123,25 +121,31 @@ describe('TabBar', () => {
         v1: { tabId: 'v1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
       },
     });
-    render(<TabBar />);
-    const vault = screen.getByRole('tab', { name: 'Vault' });
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Close Vault' }));
+    render(<TabBar />);
     // then
-    expect(vault.querySelector('[data-dot]')).toHaveAttribute('data-dot', 'working');
+    const vault = screen.getByRole('tab', { name: 'Vault' });
+    expect(vault.querySelector('[data-dot]')).toBeNull();
     expect(vault).toHaveAttribute('aria-selected', 'true');
-    expect(close).toHaveBeenCalledWith('v1', false);
+    expect(screen.queryByRole('button', { name: 'Close Vault' })).not.toBeInTheDocument();
   });
 
-  test('confirming close of a working vault tab names it Vault', async () => {
+  test.each([
+    { vault: 'set', config: VAULT_CONFIG, pinned: ['Home', 'Vault'] },
+    { vault: 'unset', config: FAKE_CONFIG, pinned: ['Home'] },
+  ])('with the vault $vault, pinned tabs sit before the divider and card tabs after it', ({ config, pinned }) => {
     // given
-    fakeMaple({ tabs: { close: () => Promise.resolve({ closed: false, needsConfirm: true }) } });
-    useMaple.setState({ config: VAULT_CONFIG, tabs: [...useMaple.getState().tabs, tab('v1', 'BEAR', 'vault', null)] });
-    render(<TabBar />);
+    useMaple.setState({ config });
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Close Vault' }));
+    render(<TabBar />);
     // then
-    expect(await screen.findByRole('dialog')).toHaveTextContent('Vault is still working. Close anyway?');
+    const divider = screen.getByTestId('pinned-divider');
+    const tabs = screen.getAllByRole('tab');
+    const before = tabs.filter((t) => t.compareDocumentPosition(divider) === Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before.map((t) => t.textContent)).toEqual(pinned);
+    expect(divider.compareDocumentPosition(screen.getByRole('tab', { name: 'BEAR-1' }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   test('the Close tab confirm is danger', async () => {
@@ -150,7 +154,7 @@ describe('TabBar', () => {
     useMaple.setState({ config: VAULT_CONFIG, tabs: [...useMaple.getState().tabs, tab('v1', 'BEAR', 'vault', null)] });
     render(<TabBar />);
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Close Vault' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Close BEAR-2' }));
     // then
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveAttribute('data-variant', 'danger');
@@ -327,12 +331,12 @@ describe('TabBar', () => {
     expect(activate).not.toHaveBeenCalled();
   });
 
-  test('Report opens the report form', async () => {
+  test('has no Report button', () => {
     // given
     render(<TabBar />);
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Report' }));
+    const report = screen.queryByRole('button', { name: 'Report' });
     // then
-    expect(screen.getByRole('dialog', { name: 'Report a bug or feature' })).toBeInTheDocument();
+    expect(report).not.toBeInTheDocument();
   });
 });

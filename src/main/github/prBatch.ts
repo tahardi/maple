@@ -3,6 +3,7 @@ import { parsePrBody } from '@shared/github/prBody';
 import type { CheckRun, ChecksSummary } from '@shared/types/github/checksSummary';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Runner } from '@main/app/preflight';
+import { errorText } from '@shared/errors/errorText';
 
 export type RepoBranch = { repo: string; branch: string };
 export type BatchResult = Map<string, PrInfo[] | Error>;
@@ -169,7 +170,7 @@ async function fetchChunk(run: Runner, pairs: RepoBranch[], query: string): Prom
   try {
     return parsePrBatch(pairs, stdout);
   } catch (err) {
-    const reason = code !== 0 ? stderr.trim() : err instanceof Error ? err.message : String(err);
+    const reason = code !== 0 ? stderr.trim() : errorText(err);
     return new Map(pairs.map((pair) => [batchKey(pair), new Error(`listing PRs: ${reason}`)]));
   }
 }

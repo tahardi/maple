@@ -11,14 +11,19 @@
   height: 100%;
 }
 
+.divider {
+  width: 1px;
+  margin: 8px 4px;
+  background: var(--border);
+}
+
 .item {
   display: flex;
   color: var(--text-muted);
 }
 
 .tab,
-.close,
-.report {
+.close {
   background: transparent;
   color: inherit;
   border: none;
@@ -31,12 +36,6 @@
 
 .close {
   padding: 0 var(--space-2) 0 0;
-}
-
-.report {
-  margin-left: auto;
-  padding: 0 var(--space-4);
-  color: var(--text-muted);
 }
 
 .error {

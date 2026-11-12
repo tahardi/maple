@@ -3,6 +3,7 @@ import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { CommentEditor } from './CommentEditor';
 import styles from './CommentThread.module.css';
 import type { Thread } from './commentThreads';
+import { errorText } from '@shared/errors/errorText';
 
 type Props = {
   tabId: string;
@@ -33,8 +34,7 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
         onPosted();
       },
       (err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
+        setError(errorText(err));
         setBusy(false);
       },
     );

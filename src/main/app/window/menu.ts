@@ -8,6 +8,7 @@ export function setAppMenu(
   reloadConfig: () => Promise<unknown>,
   setNotifications: (on: boolean) => Promise<void>,
   setZoom: (change: ZoomChange) => Promise<void>,
+  reportBug: () => void,
 ): void {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
@@ -45,7 +46,13 @@ export function setAppMenu(
         ],
       },
       { role: 'windowMenu' },
-      { label: 'Help', submenu: [{ label: 'Open logs', click: () => void shell.openPath(logsDir()) }] },
+      {
+        label: 'Help',
+        submenu: [
+          { label: 'Report a bug…', click: reportBug },
+          { label: 'Open logs', click: () => void shell.openPath(logsDir()) },
+        ],
+      },
     ]),
   );
 }

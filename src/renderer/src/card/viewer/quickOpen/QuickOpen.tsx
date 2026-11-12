@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { matchFiles } from './matchFiles';
 import styles from './QuickOpen.module.css';
 import type { QuickOpenMode } from './useQuickOpenKeys';
+import { errorText } from '@shared/errors/errorText';
 
 type Props = {
   tabId: string;
@@ -41,7 +42,7 @@ export function QuickOpen({ tabId, files, mode, onOpen, onClose }: Props) {
         setResults({ query: asked, hits });
       },
       (err: unknown) => {
-        setResults({ query: asked, error: err instanceof Error ? err.message : String(err) });
+        setResults({ query: asked, error: errorText(err) });
       },
     );
   };

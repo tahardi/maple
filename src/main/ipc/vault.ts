@@ -7,6 +7,7 @@ import { vaultWrites } from '@main/vault/vaultWrites';
 import { vaultDir as configuredVaultDir } from './config';
 import { send, type IpcDeps } from './index';
 import { handle, tabIdArg } from './validated';
+import { errorText } from '@shared/errors/errorText';
 
 export function registerVault(
   { sessions, window }: IpcDeps,
@@ -34,7 +35,7 @@ export function registerVault(
       });
       watcher = { dir, stop };
     } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
+      const error = errorText(err);
       logger.warn('vault', 'failed', { operation: 'watchWorktree', args: [dir], error });
     }
   }

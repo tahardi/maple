@@ -3,9 +3,9 @@ import { useMaple } from '@renderer/store';
 import { ConfirmDialog } from '@renderer/shell/ConfirmDialog';
 import { Inbox } from '@renderer/shell/Inbox';
 import { ProjectMenu } from '@renderer/shell/ProjectMenu';
-import { ReportDialog } from '@renderer/shell/ReportDialog';
 import styles from './TabBar.module.css';
 import { tabLabel } from './tabLabel';
+import { errorText } from '@shared/errors/errorText';
 
 const SYNC_LABELS = { queued: 'Sync queued', syncing: 'Syncing with main' } as const;
 
@@ -19,7 +19,6 @@ export function TabBar() {
   const closeTab = useMaple((s) => s.closeTab);
   const cancelClose = useMaple((s) => s.cancelClose);
   const vaultDir = useMaple((s) => s.config?.data?.vaultDir ?? null);
-  const [reporting, setReporting] = useState(false);
   const [vaultError, setVaultError] = useState<string | null>(null);
   const cardTabs = tabs.filter((t) => t.projectKey === projectKey && t.kind === 'card');
   const vaultTab = tabs.find((t) => t.projectKey === projectKey && t.kind === 'vault');
@@ -39,12 +38,11 @@ export function TabBar() {
         activate(tab.id);
       },
       (err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        setVaultError(message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
+        setVaultError(errorText(err));
       },
     );
   };
-  const items = [
+  const pinned = [
     {
       key: 'home',
       id: null,
@@ -61,26 +59,49 @@ export function TabBar() {
       : [
           {
             key: 'vault',
-            id: vaultTab?.id ?? null,
+            id: null,
             label: 'Vault',
-            dot: vaultTab && dotOf(vaultTab.id),
+            dot: undefined,
             sync: null,
             selected: vaultTab !== undefined && vaultTab.id === activeTabId,
             onClick: openVault,
           },
         ]),
-    ...cardTabs.map((t) => ({
-      key: t.id,
-      id: t.id,
-      label: t.cardKey ?? t.id,
-      dot: dotOf(t.id),
-      sync: syncOf(t.id),
-      selected: t.id === activeTabId,
-      onClick: () => {
-        activate(t.id);
-      },
-    })),
   ];
+  const cardItems = cardTabs.map((t) => ({
+    key: t.id,
+    id: t.id,
+    label: t.cardKey ?? t.id,
+    dot: dotOf(t.id),
+    sync: syncOf(t.id),
+    selected: t.id === activeTabId,
+    onClick: () => {
+      activate(t.id);
+    },
+  }));
+  const renderItem = ({ id, ...item }: (typeof pinned)[number] | (typeof cardItems)[number]) => (
+    <div key={item.key} className={item.selected ? `${styles.item} ${styles.active}` : styles.item}>
+      <button role="tab" aria-selected={item.selected} className={styles.tab} onClick={item.onClick}>
+        {item.dot && <span className={styles.dot} data-dot={item.dot} />}
+        {item.label}
+        {item.sync !== null && (
+          <span
+            className={styles.sync}
+            data-sync={item.sync}
+            aria-label={SYNC_LABELS[item.sync]}
+            title={SYNC_LABELS[item.sync]}
+          >
+            ↻
+          </span>
+        )}
+      </button>
+      {id !== null && (
+        <button className={styles.close} aria-label={`Close ${item.label}`} onClick={() => void closeTab(id, false)}>
+          ×
+        </button>
+      )}
+    </div>
+  );
   const closing = tabs.find((t) => t.id === confirmClose);
 
   return (
@@ -88,53 +109,14 @@ export function TabBar() {
       <Inbox />
       <ProjectMenu />
       <div role="tablist" className={styles.tabs}>
-        {items.map(({ id, ...item }) => (
-          <div key={item.key} className={item.selected ? `${styles.item} ${styles.active}` : styles.item}>
-            <button role="tab" aria-selected={item.selected} className={styles.tab} onClick={item.onClick}>
-              {item.dot && <span className={styles.dot} data-dot={item.dot} />}
-              {item.label}
-              {item.sync !== null && (
-                <span
-                  className={styles.sync}
-                  data-sync={item.sync}
-                  aria-label={SYNC_LABELS[item.sync]}
-                  title={SYNC_LABELS[item.sync]}
-                >
-                  ↻
-                </span>
-              )}
-            </button>
-            {id !== null && (
-              <button
-                className={styles.close}
-                aria-label={`Close ${item.label}`}
-                onClick={() => void closeTab(id, false)}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
+        {pinned.map(renderItem)}
+        <div className={styles.divider} aria-hidden="true" data-testid="pinned-divider" />
+        {cardItems.map(renderItem)}
       </div>
       {vaultError !== null && (
         <div className={styles.error} role="alert">
           {vaultError}
         </div>
-      )}
-      <button
-        className={styles.report}
-        onClick={() => {
-          setReporting(true);
-        }}
-      >
-        Report
-      </button>
-      {reporting && (
-        <ReportDialog
-          onClose={() => {
-            setReporting(false);
-          }}
-        />
       )}
       {closing && (
         <ConfirmDialog

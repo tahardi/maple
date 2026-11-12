@@ -20,13 +20,10 @@ import { prEvents, type PrEvents } from '@main/events/PrEvents';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 import type { IpcDeps } from './index';
 import { handle, tabIdArg } from './validated';
+import { errorText } from '@shared/errors/errorText';
 
 const shaArg = z.string().regex(/^[0-9a-f]{40}$/);
 const pathArg = z.string().min(1).max(4096);
-
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: PrEvents = prEvents): void {
   let login: Promise<string> | null = null;
@@ -51,7 +48,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       }
       return open.length > 0;
     } catch (err) {
-      logger.warn('gh', 'failed', { operation: 'pr:approve', tabId, error: message(err) });
+      logger.warn('gh', 'failed', { operation: 'pr:approve', tabId, error: errorText(err) });
       return true;
     }
   }
@@ -98,7 +95,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       ]);
       return { data: { ...review, findings }, error: null, fetchedAt: new Date().toISOString() };
     } catch (err) {
-      const error = message(err);
+      const error = errorText(err);
       logger.warn('gh', 'failed', { operation: 'pr:review', tabId, error });
       return { data: null, error, fetchedAt: null };
     }
@@ -110,7 +107,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       try {
         return await reviewFilePair(await runnerFor(tabId), path, oldPath, baseSha, headSha);
       } catch (err) {
-        logger.warn('gh', 'failed', { operation: 'pr:readFile', tabId, path, error: message(err) });
+        logger.warn('gh', 'failed', { operation: 'pr:readFile', tabId, path, error: errorText(err) });
         throw err;
       }
     },
@@ -123,10 +120,10 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         throw new Error('approving PR: tab has no card worktree');
       }
       const run = await runnerFor(tabId).catch((err: unknown) => {
-        throw new Error(`approving PR: ${message(err)}`);
+        throw new Error(`approving PR: ${errorText(err)}`);
       });
       const pr = await lookup(run, worktree).catch((err: unknown) => {
-        throw new Error(`approving PR: ${message(err)}`);
+        throw new Error(`approving PR: ${errorText(err)}`);
       });
       if (pr?.state !== 'OPEN') {
         throw new Error('approving PR: branch has no open PR');
@@ -139,7 +136,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         deps.sessions.sendPrompt(tabId, cardPrompt(cardKey));
       }
     } catch (err) {
-      logger.warn('gh', 'failed', { operation: 'pr:approve', tabId, error: message(err) });
+      logger.warn('gh', 'failed', { operation: 'pr:approve', tabId, error: errorText(err) });
       throw err;
     }
   });
@@ -162,10 +159,10 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
           throw new Error('commenting on line: tab has no card worktree');
         }
         const run = await runnerFor(tabId).catch((err: unknown) => {
-          throw new Error(`commenting on line: ${message(err)}`);
+          throw new Error(`commenting on line: ${errorText(err)}`);
         });
         const pr = await lookup(run, worktree).catch((err: unknown) => {
-          throw new Error(`commenting on line: ${message(err)}`);
+          throw new Error(`commenting on line: ${errorText(err)}`);
         });
         if (pr?.state !== 'OPEN') {
           throw new Error('commenting on line: branch has no open PR');
@@ -179,7 +176,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
           path,
           startLine,
           line,
-          error: message(err),
+          error: errorText(err),
         });
         throw err;
       }
@@ -195,10 +192,10 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
           throw new Error('replying to comment: tab has no card worktree');
         }
         const run = await runnerFor(tabId).catch((err: unknown) => {
-          throw new Error(`replying to comment: ${message(err)}`);
+          throw new Error(`replying to comment: ${errorText(err)}`);
         });
         const pr = await lookup(run, worktree).catch((err: unknown) => {
-          throw new Error(`replying to comment: ${message(err)}`);
+          throw new Error(`replying to comment: ${errorText(err)}`);
         });
         if (pr?.state !== 'OPEN') {
           throw new Error('replying to comment: branch has no open PR');
@@ -210,7 +207,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
           operation: 'pr:reply',
           tabId,
           commentId,
-          error: message(err),
+          error: errorText(err),
         });
         throw err;
       }
@@ -227,7 +224,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
           throw new Error(`${verb} thread: tab has no card worktree`);
         }
         const run = await runnerFor(tabId).catch((err: unknown) => {
-          throw new Error(`${verb} thread: ${message(err)}`);
+          throw new Error(`${verb} thread: ${errorText(err)}`);
         });
         await resolveThread(run, worktree, threadId, resolved);
         record(tabId, (tab) => events.resolved(tab, threadId, resolved));
@@ -237,7 +234,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
           tabId,
           threadId,
           resolved,
-          error: message(err),
+          error: errorText(err),
         });
         throw err;
       }
@@ -255,7 +252,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       }
       return pr === null ? [] : await reviewComments(ghRunner(prRepo(pr.url)), worktree, pr.number);
     } catch (err) {
-      logger.warn('gh', 'failed', { operation: 'pr:comments', tabId, error: message(err) });
+      logger.warn('gh', 'failed', { operation: 'pr:comments', tabId, error: errorText(err) });
       throw err;
     }
   });
@@ -267,7 +264,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
     try {
       return { ranges: await diffLines(await runnerFor(tabId), worktree, baseSha, headSha) };
     } catch (err) {
-      logger.warn('gh', 'failed', { operation: 'pr:diffLines', tabId, error: message(err) });
+      logger.warn('gh', 'failed', { operation: 'pr:diffLines', tabId, error: errorText(err) });
       throw err;
     }
   });

@@ -11,6 +11,7 @@ import type { StatusEngine } from '@main/sessions/StatusEngine';
 import type { Terminals } from '@main/sessions/Terminals';
 import { registerJira } from './jira';
 import type { StartQueue } from '@main/sessions/StartQueue';
+import { errorText } from '@shared/errors/errorText';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
 
@@ -318,7 +319,7 @@ describe('registerJira', () => {
       (err: unknown) => err,
     );
     // then
-    const message = got instanceof Error ? got.message : String(got);
+    const message = errorText(got);
     expect(message).toContain('moving cards to sprint:');
     expect(message).not.toContain(TOKEN);
     expect(JSON.stringify(logger.warn.mock.calls)).not.toContain(TOKEN);

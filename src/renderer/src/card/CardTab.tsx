@@ -1,4 +1,3 @@
-import { closePrompt } from '@shared/prompts/closePrompt';
 import type { ReviewComment } from '@shared/types/github/reviewComment';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,13 +29,11 @@ import { useVault } from '@renderer/card/vault/useVault';
 import { writtenNotes } from '@renderer/card/vault/writtenNotes';
 import { useViewed } from '@renderer/card/viewer/tree/useViewed';
 import { VAULT_PREFIX, VaultSwitch, type TreeView } from '@renderer/card/vault/VaultSwitch';
+import { errorText } from '@shared/errors/errorText';
 
 const WAITING = 'Waiting for worktree…';
 const MERGED = 'Merged, worktree removed';
 const CLOSED = 'Closed, worktree removed';
-const CLOSE_WARNING =
-  'Claude closes the PR without merging, deletes the branch and worktree, and moves the card to Done with the ' +
-  'wont-do label. This cannot be undone.';
 
 export function CardTab({ tab }: { tab: TabState }) {
   const { changes, files, repo, pr, review, reviewUpdated, reloadReview, card, cost, outsideSprint } = useCardData(tab);
@@ -53,7 +50,6 @@ export function CardTab({ tab }: { tab: TabState }) {
   const [approveError, setApproveError] = useState<{ headSha: string; message: string } | null>(null);
   const [confirmApprove, setConfirmApprove] = useState<string | null>(null);
   const [confirmFindings, setConfirmFindings] = useState<string | null>(null);
-  const [confirmClose, setConfirmClose] = useState(false);
   const [descriptionOpened, setDescriptionOpened] = useState(false);
   const [cardOpened, setCardOpened] = useState(false);
   const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
@@ -100,8 +96,7 @@ export function CardTab({ tab }: { tab: TabState }) {
     setApproveError(null);
     const { headSha } = pinned;
     window.maple.pr.approve(tab.id, headSha).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      setApproveError({ headSha, message: message.replace(/^Error invoking remote method '[^']+': Error: /, '') });
+      setApproveError({ headSha, message: errorText(err) });
     });
   };
   const findingNoun = highFindings === 1 ? 'finding' : 'findings';
@@ -132,9 +127,6 @@ export function CardTab({ tab }: { tab: TabState }) {
             } else {
               confirmViewed();
             }
-          },
-          close: () => {
-            setConfirmClose(true);
           },
         });
 
@@ -398,21 +390,6 @@ export function CardTab({ tab }: { tab: TabState }) {
           }}
           onCancel={() => {
             setConfirmApprove(null);
-          }}
-        />
-      )}
-      {confirmClose && (
-        <ConfirmDialog
-          title={`Close ${cardKey}?`}
-          body={CLOSE_WARNING}
-          confirmLabel="Close card"
-          danger
-          onConfirm={() => {
-            setConfirmClose(false);
-            window.maple.session.sendPrompt(tab.id, closePrompt(cardKey));
-          }}
-          onCancel={() => {
-            setConfirmClose(false);
           }}
         />
       )}

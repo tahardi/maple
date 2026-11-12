@@ -15,6 +15,17 @@
   border-right: 4px solid var(--border);
 }
 
+.vaultName {
+  margin: 0;
+  padding: 2px 8px;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .middle {
   display: flex;
   flex-direction: column;

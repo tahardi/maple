@@ -8,6 +8,7 @@ import { withTimeout } from '@main/util/withTimeout';
 import type { MergeState } from '@main/github/mergeState';
 import type { SessionManager } from './SessionManager';
 import type { StatusEngine } from './StatusEngine';
+import { errorText } from '@shared/errors/errorText';
 
 export const POLL_MS = 120_000;
 export const LOOKUP_TIMEOUT_MS = 30_000;
@@ -145,7 +146,7 @@ export class AutoSync {
     try {
       return await withTimeout(step(), LOOKUP_TIMEOUT_MS);
     } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
+      const error = errorText(err);
       this.log.warn('session', 'auto-sync failed', { operation, ...where, error });
       return null;
     }

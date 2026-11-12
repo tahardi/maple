@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { backupState, STATE_BACKUPS } from './backupState';
 import { configDir } from '@main/app/config/config';
 import { dotSchema } from './dotSchema';
+import { errorText } from '@shared/errors/errorText';
 
 export type SavedState = {
   version: 1;
@@ -59,7 +60,7 @@ async function keepCorrupt(path: string): Promise<string> {
     await rename(path, kept);
     return `reading state: state.json is unreadable, kept it as ${kept}, starting with no tabs`;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = errorText(err);
     return `reading state: state.json is unreadable and could not be kept: ${message}, starting with no tabs`;
   }
 }
@@ -90,7 +91,7 @@ export async function loadState(
     await backupState(path, keep);
     return { state, warning: null };
   } catch (err) {
-    return { state, warning: `backing up state: ${err instanceof Error ? err.message : String(err)}` };
+    return { state, warning: `backing up state: ${errorText(err)}` };
   }
 }
 

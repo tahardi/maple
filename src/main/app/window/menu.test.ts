@@ -31,6 +31,7 @@ describe('setAppMenu', () => {
       reload,
       () => Promise.resolve(),
       () => Promise.resolve(),
+      vi.fn(),
     );
     const item = menuItems().find((entry) => entry.label === 'Reload config');
     // when
@@ -47,6 +48,7 @@ describe('setAppMenu', () => {
       () => Promise.resolve(),
       () => Promise.resolve(),
       () => Promise.resolve(),
+      vi.fn(),
     );
     // when
     const items = menuItems();
@@ -62,6 +64,7 @@ describe('setAppMenu', () => {
       () => Promise.resolve(),
       setNotifications,
       () => Promise.resolve(),
+      vi.fn(),
     );
     const item = menuItems().find((entry) => entry.label === 'Desktop notifications');
     // when
@@ -82,6 +85,7 @@ describe('setAppMenu', () => {
       () => Promise.resolve(),
       () => Promise.resolve(),
       setZoom,
+      vi.fn(),
     );
     const item = menuItems().find((entry) => entry.label === label);
     // when
@@ -98,6 +102,7 @@ describe('setAppMenu', () => {
       () => Promise.resolve(),
       () => Promise.resolve(),
       () => Promise.resolve(),
+      vi.fn(),
     );
     const help = buildFromTemplate.mock.calls[0]?.[0].find((top) => top.label === 'Help');
     const item = Array.isArray(help?.submenu) ? help.submenu.find((entry) => entry.label === 'Open logs') : undefined;
@@ -108,12 +113,33 @@ describe('setAppMenu', () => {
     vi.unstubAllEnvs();
   });
 
+  test('Help > Report a bug… asks for the report form', () => {
+    // given
+    const reportBug = vi.fn();
+    setAppMenu(
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+      reportBug,
+    );
+    const help = buildFromTemplate.mock.calls[0]?.[0].find((top) => top.label === 'Help');
+    const labels = Array.isArray(help?.submenu) ? help.submenu.map((entry) => entry.label) : [];
+    const item = menuItems().find((entry) => entry.label === 'Report a bug…');
+    // when
+    item?.click?.({} as never, undefined, {});
+    // then
+    expect(reportBug).toHaveBeenCalledOnce();
+    expect(labels.indexOf('Report a bug…')).toBeGreaterThanOrEqual(0);
+    expect(labels.indexOf('Report a bug…')).toBeLessThan(labels.indexOf('Open logs'));
+  });
+
   test('the Desktop notifications checkbox sits under Settings', () => {
     // given
     setAppMenu(
       () => Promise.resolve(),
       () => Promise.resolve(),
       () => Promise.resolve(),
+      vi.fn(),
     );
     // when
     const settings = buildFromTemplate.mock.calls[0]?.[0].find((top) => top.label === 'Settings');
