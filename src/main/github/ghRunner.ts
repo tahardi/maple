@@ -4,19 +4,24 @@ import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 import { PR_LIST_LIMIT } from '@main/github/pr';
 import { worktreeRepo } from '@shared/worktree/worktree';
+import { COMMAND_TIMEOUT_MS } from '@main/util/commandTimeout';
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
 export function ghRunner(repo: string, run: typeof execFile = execFile): CommandRunner {
-  return (cmd, args) =>
+  return (cmd, args, _cwd, timeoutMs = COMMAND_TIMEOUT_MS) =>
     new Promise((resolve) => {
       run(
         cmd,
         args,
-        { env: { ...process.env, GH_REPO: repo }, maxBuffer: MAX_OUTPUT_BYTES },
+        { env: { ...process.env, GH_REPO: repo }, maxBuffer: MAX_OUTPUT_BYTES, timeout: timeoutMs },
         (error, stdout, stderr) => {
           const code = !error ? 0 : error.code === 'ENOENT' ? 127 : typeof error.code === 'number' ? error.code : 1;
-          resolve({ code, stdout, stderr });
+          resolve({
+            code,
+            stdout,
+            stderr: error?.killed === true ? `timing out after ${String(timeoutMs)}ms` : stderr,
+          });
         },
       );
     });

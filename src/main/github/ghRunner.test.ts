@@ -3,12 +3,15 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import { ghRunner, projectRunner } from './ghRunner';
+import { COMMAND_TIMEOUT_MS } from '@main/util/commandTimeout';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');
 
-type Callback = (error: { code?: string | number } | null, stdout: string, stderr: string) => void;
+type ExecError = { code?: string | number | null; killed?: boolean };
 
-function fakeExecFile(error: { code?: string | number } | null, stdout = '', stderr = '') {
+type Callback = (error: ExecError | null, stdout: string, stderr: string) => void;
+
+function fakeExecFile(error: ExecError | null, stdout = '', stderr = '') {
   const fake = vi.fn((_cmd: string, _args: string[], _options: object, callback: Callback) => {
     callback(error, stdout, stderr);
   });
@@ -37,11 +40,33 @@ describe('ghRunner', () => {
     expect(fake).toHaveBeenCalledWith(
       'gh',
       ['pr', 'list'],
-      { env: expect.objectContaining({ GH_REPO: 'tahardi/maple' }) as unknown, maxBuffer: 64 * 1024 * 1024 },
+      {
+        env: expect.objectContaining({ GH_REPO: 'tahardi/maple' }) as unknown,
+        maxBuffer: 64 * 1024 * 1024,
+        timeout: COMMAND_TIMEOUT_MS,
+      },
       expect.any(Function),
     );
     expect(fake.mock.calls[0]?.[2]).not.toHaveProperty('cwd');
     expect(result).toEqual({ code: 0, stdout: 'ok', stderr: '' });
+  });
+
+  test('reports a killed command as timing out', async () => {
+    // given
+    const { run } = fakeExecFile({ killed: true, code: null }, '', 'partial');
+    // when
+    const result = await ghRunner('tahardi/maple', run)('gh', ['pr', 'list']);
+    // then
+    expect(result).toEqual({ code: 1, stdout: '', stderr: 'timing out after 30000ms' });
+  });
+
+  test('uses the timeout the caller passes', async () => {
+    // given
+    const { fake, run } = fakeExecFile(null);
+    // when
+    await ghRunner('tahardi/maple', run)('gh', ['pr', 'merge'], '', 120_000);
+    // then
+    expect(fake.mock.calls[0]?.[2]).toMatchObject({ timeout: 120_000 });
   });
 
   test('overrides a GH_REPO already in the environment', async () => {

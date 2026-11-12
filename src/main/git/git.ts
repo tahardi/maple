@@ -9,6 +9,7 @@ import type { SearchHit } from '@shared/types/files/searchHit';
 import { matchWorktrees } from '@shared/worktree/worktree';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/util/paths';
 import { errorText } from '@shared/errors/errorText';
+import { COMMAND_TIMEOUT_MS } from '@main/util/commandTimeout';
 
 const execFileAsync = promisify(execFile);
 export const NO_FSMONITOR = ['-c', 'core.fsmonitor=false'];
@@ -23,13 +24,19 @@ async function git(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): Pr
       cwd,
       env: { ...process.env, ...env },
       maxBuffer: 64 * 1024 * 1024,
+      timeout: COMMAND_TIMEOUT_MS,
     });
     return stdout;
   } catch (err) {
-    throw new Error(`running git ${args.join(' ')}: ${errorText(err)}`, {
+    const reason = isKilled(err) ? `timing out after ${String(COMMAND_TIMEOUT_MS)}ms` : errorText(err);
+    throw new Error(`running git ${args.join(' ')}: ${reason}`, {
       cause: err,
     });
   }
+}
+
+function isKilled(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'killed' in err && err.killed === true;
 }
 
 function splitZ(output: string): string[] {
@@ -109,6 +116,7 @@ async function showOrNull(worktree: string, base: string, path: string): Promise
       cwd: worktree,
       encoding: 'buffer',
       maxBuffer: 64 * 1024 * 1024,
+      timeout: COMMAND_TIMEOUT_MS,
     });
     return stdout;
   } catch {

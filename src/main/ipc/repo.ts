@@ -17,6 +17,15 @@ import { handle, tabIdArg } from './validated';
 
 export function registerRepo(deps: IpcDeps, logger: Logger = appLogger): void {
   const watchers = new Map<string, { path: string; stop: () => void }>();
+  deps.sessions.on('changed', (tabs) => {
+    const open = new Set(tabs.map((tab) => tab.id));
+    for (const [tabId, watcher] of watchers) {
+      if (!open.has(tabId)) {
+        watcher.stop();
+        watchers.delete(tabId);
+      }
+    }
+  });
 
   function worktreeFor(tabId: string): string | null {
     const path = deps.worktreeFor(tabId);
