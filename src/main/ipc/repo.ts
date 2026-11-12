@@ -9,7 +9,7 @@ import {
   searchFiles,
   writeWorktreeFile,
 } from '@main/git/git';
-import { appLogger, logFailure, type Logger } from '@main/app/log';
+import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { hasTryTarget } from '@main/git/makeTarget';
 import { watchWorktree } from '@main/git/worktreeWatcher';
 import { send, type IpcDeps } from './index';

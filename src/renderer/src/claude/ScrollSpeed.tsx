@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { useDismiss } from '../shell/useDismiss';
+import { useDismiss } from '@renderer/shell/menu/useDismiss';
 import styles from './ScrollSpeed.module.css';
 import { isWheelLines } from './useWheelLines';
 

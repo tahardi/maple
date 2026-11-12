@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ProjectConfig } from '@shared/types/config';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 import { PR_LIST_LIMIT } from '@main/github/pr';
-import { worktreeRepo } from '@shared/worktree';
+import { worktreeRepo } from '@shared/worktree/worktree';
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 

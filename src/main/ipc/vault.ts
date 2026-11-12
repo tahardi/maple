@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { appLogger, logFailure, type Logger } from '@main/app/log';
+import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { watchWorktree } from '@main/git/worktreeWatcher';
 import { readSnapshot } from '@main/vault/snapshots';
 import { listNotes, readNote, writeNote } from '@main/vault/vault';

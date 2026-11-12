@@ -1,9 +1,9 @@
-import { refinePrompt, suggestPrompt } from '@shared/prompts';
+import { refinePrompt, suggestPrompt } from '@shared/prompts/prompts';
 import type { QueueState } from '@shared/types/queue';
 import { useEffect, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import styles from './PlannerPane.module.css';
-import { StartQueue } from './StartQueue';
+import { StartQueue } from '@renderer/home/startQueue/StartQueue';
 
 type Props = {
   projectKey: string;

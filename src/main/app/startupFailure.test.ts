@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { createLogger } from './log';
+import { createLogger } from '@main/app/log/log';
 import { showStartupFailure } from './startupFailure';
 
 describe('showStartupFailure', () => {

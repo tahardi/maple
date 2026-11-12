@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import type { ActionConfig } from '@shared/types/config';
 import { eventSchemas, type EventRefs, type UiActionData } from '@shared/types/events';
 import type { TabState } from '@shared/types/tabs';
-import { redact } from '@main/app/log';
+import { redact } from '@main/app/log/log';
 import { uiActionRecorder } from './uiActions';
 
 const cardTab: TabState = {

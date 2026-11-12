@@ -1,4 +1,4 @@
-import { IPC_CHANNELS, type ChannelKind, type MapleApi } from '@shared/ipc';
+import { IPC_CHANNELS, type ChannelKind, type MapleApi } from '@shared/api/mapleApi';
 import type { Unsubscribe } from '@shared/types/app';
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 

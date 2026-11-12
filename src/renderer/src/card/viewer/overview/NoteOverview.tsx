@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { MarkdownText } from '@renderer/shell/MarkdownText';
+import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { overviewScale, scrollTopAt } from './overviewScroll';
 import styles from './NoteOverview.module.css';
 

@@ -13,7 +13,7 @@ import { card, SPRINT } from '../testing/sprintFixture';
 import { CardTab } from './CardTab';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 
-vi.mock('@renderer/card/viewer/monacoSetup', () => ({}));
+vi.mock('@renderer/card/viewer/editor/monacoSetup', () => ({}));
 
 vi.mock('../claude/ClaudePane', async () => {
   const { ActionBar } = await import('../claude/ActionBar');

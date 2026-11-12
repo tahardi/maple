@@ -1,5 +1,5 @@
-import { hunkLines } from '@shared/hunkLines';
-import { parsePrBody } from '@shared/prBody';
+import { hunkLines } from '@shared/diff/hunkLines';
+import { parsePrBody } from '@shared/github/prBody';
 import type { ChecksSummary, PrInfo } from '@shared/types/github';
 import { z } from 'zod';
 import type { Runner } from '@main/app/preflight';

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import type { Runner } from '@main/app/preflight';
-import { batchKey, batchQueries, checkRun, fetchPrs, parseBatch, type RepoBranch } from './prBatch';
+import { batchKey, batchQueries, checkRun, fetchPrs, parsePrBatch, type RepoBranch } from './prBatch';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');
 
@@ -74,12 +74,12 @@ describe('batchQueries', () => {
   });
 });
 
-describe('parseBatch', () => {
+describe('parsePrBatch', () => {
   test('maps a recorded response to PRs keyed by repo and branch', () => {
     // given
     const stdout = fixture('pr-batch.json');
     // when
-    const result = parseBatch(recorded, stdout);
+    const result = parsePrBatch(recorded, stdout);
     // then
     const prs = result.get(batchKey(recorded[0]));
     expect(prs).toEqual([
@@ -108,7 +108,7 @@ describe('parseBatch', () => {
     // given
     const stdout = fixture('pr-batch.json');
     // when
-    const result = parseBatch(recorded, stdout);
+    const result = parsePrBatch(recorded, stdout);
     // then
     expect(result.get(batchKey(recorded[2]))).toEqual([]);
   });
@@ -117,7 +117,7 @@ describe('parseBatch', () => {
     // given
     const stdout = fixture('pr-batch.json');
     // when
-    const result = parseBatch(recorded, stdout);
+    const result = parsePrBatch(recorded, stdout);
     // then
     const failed = result.get(batchKey(recorded[1]));
     expect(failed).toBeInstanceOf(Error);
@@ -132,7 +132,7 @@ describe('parseBatch', () => {
     // given
     const stdout = response({ p0: { pullRequests: { nodes: [node()] } } });
     // when
-    const result = parseBatch(one, stdout);
+    const result = parsePrBatch(one, stdout);
     // then
     expect(result.get(batchKey(one[0]))).toEqual([
       {
@@ -155,7 +155,7 @@ describe('parseBatch', () => {
     const fork = node({ number: 8, isCrossRepository: true });
     const stdout = response({ p0: { pullRequests: { nodes: [fork, node()] } } });
     // when
-    const result = parseBatch(one, stdout);
+    const result = parsePrBatch(one, stdout);
     // then
     expect(result.get(batchKey(one[0]))).toEqual([expect.objectContaining({ number: 7 })]);
   });
@@ -183,7 +183,7 @@ describe('parseBatch', () => {
     const rollup = { contexts: { nodes: contexts } };
     const stdout = response({ p0: { pullRequests: { nodes: [node({ statusCheckRollup: rollup })] } } });
     // when
-    const result = parseBatch(one, stdout);
+    const result = parsePrBatch(one, stdout);
     // then
     expect(result.get(batchKey(one[0]))).toEqual([
       expect.objectContaining({
@@ -208,7 +208,7 @@ describe('parseBatch', () => {
     const rollup = { contexts: { nodes: contexts } };
     const stdout = response({ p0: { pullRequests: { nodes: [node({ statusCheckRollup: rollup })] } } });
     // when
-    const result = parseBatch(one, stdout);
+    const result = parsePrBatch(one, stdout);
     // then
     expect(result.get(batchKey(one[0]))).toEqual([
       expect.objectContaining({ checks: expect.objectContaining({ passed: 1, failed: 1, total: 2 }) as unknown }),
@@ -255,7 +255,7 @@ describe('parseBatch', () => {
     const rollup = { contexts: { nodes: contexts } };
     const stdout = response({ p0: { pullRequests: { nodes: [node({ statusCheckRollup: rollup })] } } });
     // when
-    const result = parseBatch(one, stdout);
+    const result = parsePrBatch(one, stdout);
     // then
     expect(result.get(batchKey(one[0]))).toEqual([
       expect.objectContaining({
@@ -268,7 +268,7 @@ describe('parseBatch', () => {
     // given
     const stdout = JSON.stringify({ errors: [{ message: 'Something went wrong' }] });
     // when
-    const result = parseBatch(one, stdout);
+    const result = parsePrBatch(one, stdout);
     // then
     expect(result.get(batchKey(one[0]))).toHaveProperty('message', 'listing PRs: Something went wrong');
   });

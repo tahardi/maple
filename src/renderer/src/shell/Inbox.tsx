@@ -1,9 +1,9 @@
-import { inboxItems, type InboxItem } from '@shared/inbox';
+import { inboxItems, type InboxItem } from '@shared/status/inbox';
 import { useCallback, useRef, useState } from 'react';
 import { useMaple } from '../store';
 import styles from './Inbox.module.css';
-import { tabLabel } from './tabLabel';
-import { useDismiss } from './useDismiss';
+import { tabLabel } from '@renderer/shell/tabs/tabLabel';
+import { useDismiss } from '@renderer/shell/menu/useDismiss';
 
 function pointsLabel(points: number | null): string {
   return points === null ? '–' : `${String(points)} pts`;

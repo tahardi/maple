@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import type { CloseResult } from '@shared/types/tabs';
-import { appLogger, logFailure, type Logger } from '@main/app/log';
-import { sessionCost } from '@main/sessions/sessionCost';
+import { appLogger, logFailure, type Logger } from '@main/app/log/log';
+import { sessionCost } from '@main/sessions/transcripts/sessionCost';
 import { send, type IpcDeps } from './index';
 import { closeNeedsConfirm } from './closeNeedsConfirm';
 import { cardKeyArg, handle, on, projectKeyArg, tabIdArg } from './validated';

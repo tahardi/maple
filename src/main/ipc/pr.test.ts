@@ -4,12 +4,12 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ProjectConfig } from '@shared/types/config';
 import type { PrInfo } from '@shared/types/github';
 import type { Runner as CommandRunner } from '@main/app/preflight';
-import type { PrEvents } from '@main/events/prEvents';
-import type { SessionManager } from '@main/sessions/sessions';
-import type { StatusEngine } from '@main/sessions/status';
-import type { Terminals } from '@main/sessions/terminals';
+import type { PrEvents } from '@main/events/PrEvents';
+import type { SessionManager } from '@main/sessions/SessionManager';
+import type { StatusEngine } from '@main/sessions/StatusEngine';
+import type { Terminals } from '@main/sessions/Terminals';
 import { registerPr } from './pr';
-import type { StartQueue } from '@main/sessions/startQueue';
+import type { StartQueue } from '@main/sessions/StartQueue';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
 

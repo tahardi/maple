@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { FileChange, FilePair, FileStatus } from '@shared/types/files';
 import type { Review } from '@shared/types/github';
 import type { Runner as CommandRunner } from '@main/app/preflight';
-import { MAX_BYTES } from '@main/app/paths';
+import { MAX_BYTES } from '@main/util/paths';
 
 const headSchema = z.object({ headRefOid: z.string(), baseRefOid: z.string() });
 

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { usageDollars } from '../../src/main/sessions/usageDollars.ts';
+import { usageDollars } from '../../src/main/sessions/transcripts/usageDollars.ts';
 
 const HOURS = (v) => v.toFixed(1);
 const COUNT = (v) => String(Math.round(v * 10) / 10);

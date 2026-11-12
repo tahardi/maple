@@ -1,9 +1,9 @@
 import type { TabState } from '@shared/types/tabs';
 import { useState } from 'react';
 import { ClaudePane } from '@renderer/claude/ClaudePane';
-import { buildTree } from '@renderer/card/viewer/buildTree';
-import { closeFiles } from '@renderer/card/viewer/closeFiles';
-import { FileTree } from '@renderer/card/viewer/FileTree';
+import { buildTree } from '@renderer/card/viewer/tree/buildTree';
+import { closeFiles } from '@renderer/card/viewer/tabs/closeFiles';
+import { FileTree } from '@renderer/card/viewer/tree/FileTree';
 import { FileViewer } from '@renderer/card/viewer/FileViewer';
 import { useVault } from '@renderer/card/vault/useVault';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';

@@ -1,5 +1,5 @@
 import { app, ipcMain } from 'electron';
-import { dotSchema } from '@main/app/dotSchema';
+import { dotSchema } from '@main/app/state/dotSchema';
 import { z } from 'zod';
 import { send, type IpcDeps } from './index';
 import { handle, projectKeyArg, tabIdArg } from './validated';

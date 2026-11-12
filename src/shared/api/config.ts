@@ -1,4 +1,4 @@
-import type { ChannelKind } from '../ipc';
+import type { ChannelKind } from './mapleApi';
 import type { Fetched, Unsubscribe } from '../types/app';
 import type { MapleConfig } from '../types/config';
 

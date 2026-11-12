@@ -3,8 +3,8 @@ import { lstat, readdir, readFile, realpath, stat, writeFile } from 'node:fs/pro
 import { basename, dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { ChangeSet, FileChange, FilePair, SearchHit } from '@shared/types/files';
-import { matchWorktrees } from '@shared/worktree';
-import { isInside, MAX_BYTES, realOrSelf } from '@main/app/paths';
+import { matchWorktrees } from '@shared/worktree/worktree';
+import { isInside, MAX_BYTES, realOrSelf } from '@main/util/paths';
 
 const execFileAsync = promisify(execFile);
 export const NO_FSMONITOR = ['-c', 'core.fsmonitor=false'];

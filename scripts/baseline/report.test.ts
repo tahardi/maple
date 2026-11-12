@@ -2,7 +2,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
-import { sessionCost } from '../../src/main/sessions/sessionCost';
+import { sessionCost } from '../../src/main/sessions/transcripts/sessionCost';
 import { type Result, runScript, serveJira, writeEnv } from './scriptHarness';
 
 type Row = Record<string, string>;

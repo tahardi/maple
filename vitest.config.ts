@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { configDefaults, defineConfig } from 'vitest/config';
 
-const SOCKET_TESTS = ['src/main/sessions/hookServer.test.ts', 'resources/maple-hook.test.ts'];
+const SOCKET_TESTS = ['src/main/sessions/hooks/hookServer.test.ts', 'resources/maple-hook.test.ts'];
 
 export default defineConfig({
   resolve: {

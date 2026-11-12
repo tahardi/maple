@@ -1,11 +1,11 @@
 import { EventEmitter } from 'node:events';
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { IPC_CHANNELS, type ChannelKind } from '@shared/ipc';
-import { SessionManager } from '@main/sessions/sessions';
-import { StatusEngine } from '@main/sessions/status';
-import { Terminals } from '@main/sessions/terminals';
-import type { StartQueue } from '@main/sessions/startQueue';
+import { IPC_CHANNELS, type ChannelKind } from '@shared/api/mapleApi';
+import { SessionManager } from '@main/sessions/SessionManager';
+import { StatusEngine } from '@main/sessions/StatusEngine';
+import { Terminals } from '@main/sessions/Terminals';
+import type { StartQueue } from '@main/sessions/StartQueue';
 import { registerIpc } from './index';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
@@ -20,7 +20,7 @@ vi.mock('electron', () => ({
   app: { on: vi.fn(), quit: vi.fn() },
   Menu: { setApplicationMenu: vi.fn(), buildFromTemplate: vi.fn() },
 }));
-vi.mock('@main/app/config', () => ({
+vi.mock('@main/app/config/config', () => ({
   loadConfig: () => Promise.resolve({ data: null, error: null, fetchedAt: null }),
 }));
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { parsePrBody } from '@shared/prBody';
+import { parsePrBody } from '@shared/github/prBody';
 import type { CheckRun, ChecksSummary, PrInfo } from '@shared/types/github';
 import type { Runner } from '@main/app/preflight';
 
@@ -141,7 +141,7 @@ function prInfo(node: z.infer<typeof nodeSchema>): PrInfo {
   };
 }
 
-export function parseBatch(pairs: readonly RepoBranch[], stdout: string): BatchResult {
+export function parsePrBatch(pairs: readonly RepoBranch[], stdout: string): BatchResult {
   const parsed = responseSchema.parse(JSON.parse(stdout));
   const errors = parsed.errors ?? [];
   const result: BatchResult = new Map();
@@ -166,7 +166,7 @@ export function parseBatch(pairs: readonly RepoBranch[], stdout: string): BatchR
 async function fetchChunk(run: Runner, pairs: RepoBranch[], query: string): Promise<BatchResult> {
   const { code, stdout, stderr } = await run('gh', ['api', 'graphql', '-f', `query=${query}`]);
   try {
-    return parseBatch(pairs, stdout);
+    return parsePrBatch(pairs, stdout);
   } catch (err) {
     const reason = code !== 0 ? stderr.trim() : err instanceof Error ? err.message : String(err);
     return new Map(pairs.map((pair) => [batchKey(pair), new Error(`listing PRs: ${reason}`)]));

@@ -5,7 +5,7 @@ import { HomeTab } from './home/HomeTab';
 import { VaultTab } from './vault/VaultTab';
 import { Banner } from './shell/Banner';
 import { QuitGuard } from './shell/QuitGuard';
-import { TabBar } from './shell/TabBar';
+import { TabBar } from '@renderer/shell/tabs/TabBar';
 import { useMaple } from './store';
 
 const RELOAD_HINT = 'Fix ~/.config/maple/config.json, then Reload config (Ctrl+Shift+R)';

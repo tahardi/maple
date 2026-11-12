@@ -1,10 +1,10 @@
 import type { ProjectConfig } from '@shared/types/config';
-import { projectCounts } from '@shared/dots';
+import { projectCounts } from '@shared/status/dots';
 import { useCallback, useRef, useState } from 'react';
 import { useMaple } from '../store';
 import styles from './ProjectMenu.module.css';
-import { useDismiss } from './useDismiss';
-import { useMenuKeys } from './useMenuKeys';
+import { useDismiss } from '@renderer/shell/menu/useDismiss';
+import { useMenuKeys } from '@renderer/shell/menu/useMenuKeys';
 
 export function ProjectMenu() {
   const projects = useMaple((s) => s.config?.data?.projects);

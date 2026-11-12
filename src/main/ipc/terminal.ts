@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { appLogger, logFailure, type Logger } from '@main/app/log';
+import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { send, type IpcDeps } from './index';
 import { handle, on, sizeArg, tabIdArg } from './validated';
 

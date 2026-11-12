@@ -1,6 +1,6 @@
 import type { QueueState } from '@shared/types/queue';
 import type { TabState } from '@shared/types/tabs';
-import { refinePrompt, suggestPrompt } from '@shared/prompts';
+import { refinePrompt, suggestPrompt } from '@shared/prompts/prompts';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';

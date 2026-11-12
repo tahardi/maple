@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MarkdownText } from '@renderer/shell/MarkdownText';
+import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import styles from './CommentEditor.module.css';
 
 type Props = {

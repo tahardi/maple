@@ -1,4 +1,4 @@
-import type { ChannelKind } from '../ipc';
+import type { ChannelKind } from './mapleApi';
 import type { PreflightProblem } from '../types/app';
 
 export type PreflightApi = {
