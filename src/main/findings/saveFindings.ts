@@ -3,13 +3,10 @@ import { open, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FindingsFile } from '@shared/types/findings/findingsFile';
 import { errorText } from '@shared/errors/errorText';
+import { isRecord } from '@main/util/isRecord';
 
 const KEY = /^[A-Z][A-Z0-9]*-\d+$/;
 const FLAGS = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function withBase(file: FindingsFile, base: unknown): unknown {
   if (!isRecord(base)) {

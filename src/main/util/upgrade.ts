@@ -1,10 +1,8 @@
+import { isRecord } from './isRecord';
+
 export type UpgradeStep = (raw: Record<string, unknown>) => Record<string, unknown>;
 
 export type Upgraded = { newer: false; raw: Record<string, unknown> } | { newer: true; version: number };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 export function upgrade(raw: unknown, current: number, steps: Readonly<Record<number, UpgradeStep>>): Upgraded {
   if (!isRecord(raw)) {

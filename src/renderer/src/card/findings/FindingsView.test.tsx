@@ -6,6 +6,10 @@ import { FindingsView } from './FindingsView';
 const decided = { kind: 'fix-later' as const, reason: null, decidedAt: '2026-11-12T12:00:00.000Z' };
 
 describe('FindingsView', () => {
+  beforeEach(() => {
+    useMaple.setState(useMaple.getInitialState(), true);
+  });
+
   test('shows each finding with its severity badge, chips, and the four sections', () => {
     // given
     const file = findingsFile([
