@@ -124,7 +124,7 @@ async function start(): Promise<Zoom> {
   const creds = readCreds(jiraEnvPath());
   void creds.then(
     (c) => {
-      setLogSecrets([c.token]);
+      setLogSecrets([c.token, Buffer.from(`${c.email}:${c.token}`).toString('base64')]);
     },
     () => undefined,
   );
