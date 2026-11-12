@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { IPty, spawn } from 'node-pty';
-import { parentEnv } from './SessionManager';
+import { parentEnv } from '@main/util/parentEnv';
 
 const BACKLOG_CHARS = 200_000;
 
