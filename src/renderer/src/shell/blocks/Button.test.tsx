@@ -33,6 +33,16 @@ describe('Button', () => {
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
   });
 
+  test.each([
+    { busy: false, text: 'Start' },
+    { busy: true, text: 'Starting…' },
+  ])('an ariaLabel names the button and busy=$busy shows "$text"', ({ busy, text }) => {
+    // when
+    render(<Button label="Start" ariaLabel="Start DIG-41" onClick={vi.fn()} busy={busy} busyLabel="Starting…" />);
+    // then
+    expect(screen.getByRole('button', { name: 'Start DIG-41' })).toHaveTextContent(new RegExp(`^${text}$`));
+  });
+
   test('shows the reason beside the button as its description', () => {
     // when
     render(<Button label="Approve & merge" onClick={vi.fn()} disabled reason="Checks are failing" />);

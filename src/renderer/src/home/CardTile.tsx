@@ -1,6 +1,7 @@
 import type { Card } from '@shared/types/jira/card';
 import { EpicLozenge } from './EpicLozenge';
 import { Badge } from '@renderer/shell/blocks/Badge';
+import { Button } from '@renderer/shell/blocks/Button';
 import styles from './CardTile.module.css';
 
 type Props = {
@@ -8,9 +9,11 @@ type Props = {
   selected: boolean;
   onSelect: (key: string) => void;
   onToggle: ((key: string) => void) | null;
+  onStart: ((key: string) => void) | null;
+  starting: boolean;
 };
 
-export function CardTile({ card, selected, onSelect, onToggle }: Props) {
+export function CardTile({ card, selected, onSelect, onToggle, onStart, starting }: Props) {
   const blockers = card.blockedBy.filter((b) => b.status !== 'Done').map((b) => b.key);
 
   const tile = (
@@ -36,21 +39,37 @@ export function CardTile({ card, selected, onSelect, onToggle }: Props) {
     </button>
   );
 
-  if (onToggle === null) {
+  if (onToggle === null && onStart === null) {
     return tile;
   }
   return (
     <div className={styles.selectable}>
-      <input
-        type="checkbox"
-        className={styles.check}
-        aria-label={`Select ${card.key}`}
-        checked={selected}
-        onChange={() => {
-          onToggle(card.key);
-        }}
-      />
+      {onToggle && (
+        <input
+          type="checkbox"
+          className={styles.check}
+          aria-label={`Select ${card.key}`}
+          checked={selected}
+          onChange={() => {
+            onToggle(card.key);
+          }}
+        />
+      )}
       {tile}
+      {onStart && (
+        <span className={styles.start}>
+          <Button
+            label="Start"
+            ariaLabel={`Start ${card.key}`}
+            variant="primary"
+            onClick={() => {
+              onStart(card.key);
+            }}
+            busy={starting}
+            busyLabel="Starting…"
+          />
+        </span>
+      )}
     </div>
   );
 }

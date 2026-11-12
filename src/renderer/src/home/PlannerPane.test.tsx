@@ -193,12 +193,12 @@ describe('PlannerPane', () => {
     expect(screen.getByRole('button', { name: 'Select ready (0)' })).toBeDisabled();
   });
 
-  test('a selection shows Start (N) and Clear', async () => {
+  test('a selection shows Start N selected and Clear', async () => {
     // given
     const { onStart, onClear } = setup({ selected: ['DIG-41', 'DIG-42'] });
     await screen.findByTestId('claude-pane');
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Start (2)' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start 2 selected' }));
     await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
     // then
     expect(onStart).toHaveBeenCalledTimes(1);
@@ -225,7 +225,7 @@ describe('PlannerPane', () => {
       'Suggest next batch',
       'Refine (1)',
       'Select ready (1)',
-      'Start (1)',
+      'Start 1 selected',
       'Clear',
       'Accept 1',
       'Accept 1 and start all',
@@ -245,7 +245,7 @@ describe('PlannerPane', () => {
     expect(buttonsIn('Plan')).toEqual(['Suggest next batch', 'Refine (1)']);
     expect(buttonsIn('Batch')).toEqual([
       'Select ready (1)',
-      'Start (1)',
+      'Start 1 selected',
       'Clear',
       'Accept 1',
       'Accept 1 and start all',
@@ -259,7 +259,7 @@ describe('PlannerPane', () => {
     await screen.findByTestId('claude-pane');
     // then
     const primary = screen.getAllByRole('button').filter((b) => b.dataset.variant === 'primary');
-    expect(primary.map((b) => b.textContent)).toEqual(['Start (1)', 'Accept 1 and start all']);
+    expect(primary.map((b) => b.textContent)).toEqual(['Start 1 selected', 'Accept 1 and start all']);
     const others = screen.getAllByRole('button').filter((b) => !primary.includes(b));
     others.forEach((b) => {
       expect(b).not.toHaveAttribute('data-variant');
@@ -434,7 +434,7 @@ describe('PlannerPane', () => {
   });
 
   test.each([
-    { busy: 'start' as const, label: 'Start (2)', busyLabel: 'Starting…' },
+    { busy: 'start' as const, label: 'Start 2 selected', busyLabel: 'Starting…' },
     { busy: 'accept' as const, label: 'Accept 1', busyLabel: 'Moving…' },
     { busy: 'acceptAndStart' as const, label: 'Accept 1 and start all', busyLabel: 'Starting…' },
   ])('$label reads $busyLabel while $busy runs', async ({ busy, label, busyLabel }) => {
@@ -448,5 +448,17 @@ describe('PlannerPane', () => {
     expect(batch.queryByRole('button', { name: label })).not.toBeInTheDocument();
     expect(batch.getAllByRole('button').filter((b) => !(b as HTMLButtonElement).disabled)).toEqual([]);
     await screen.findByTestId('claude-pane');
+  });
+
+  test('while starting, Start N selected reads Starting… and is disabled', async () => {
+    // given
+    setup({ selected: ['DIG-41', 'DIG-42'], busy: 'start' });
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.queryByRole('button', { name: 'Start 2 selected' })).not.toBeInTheDocument();
+    const start = screen.getByRole('button', { name: 'Starting…' });
+    expect(start).toBeDisabled();
+    expect(start).toHaveAttribute('aria-busy', 'true');
   });
 });
