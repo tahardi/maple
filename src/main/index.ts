@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog } from 'electron';
 import { spawn } from 'node-pty';
-import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import {
   configDir,
   DEFAULT_MAX_LOAD_PER_CORE,
@@ -39,7 +38,8 @@ import { pruneLimits } from '@main/events/pruneEvents';
 import { EventRecorder } from '@main/events/EventRecorder';
 import { uiActionRecorder } from '@main/events/uiActions';
 import { checkNotifications } from '@main/app/window/menu';
-import { notifyTab, shouldNotify } from '@main/app/notify';
+import { notifyTab } from '@main/app/notify/notify';
+import { notifyIfNeeded, type NotifyDeps } from '@main/app/notify/notifyIfNeeded';
 import { restoreTabs } from '@main/sessions/restore';
 import { reloadOnCrash } from '@main/app/window/reloadOnCrash';
 import { lockDown, webPreferences } from '@main/app/window/security';
@@ -47,20 +47,20 @@ import { showStartupFailure } from '@main/app/startupFailure';
 import { SessionManager } from '@main/sessions/SessionManager';
 import { Terminals } from '@main/sessions/Terminals';
 import { STATE_BACKUPS } from '@main/app/state/backupState';
-import { saveState, loadState, type SavedState } from '@main/app/state/state';
+import { loadState } from '@main/app/state/state';
+import { createStateStore } from '@main/app/state/stateStore';
+import { createConfigGate } from '@main/app/config/configGate';
 import { StartQueue } from '@main/sessions/StartQueue';
 import { StatusEngine } from '@main/sessions/StatusEngine';
 import { AutoSync } from '@main/sessions/AutoSync';
 import { endTmux, writeTmuxConf } from '@main/sessions/tmux';
 import { hasTranscript, transcriptOffset } from '@main/sessions/transcripts/transcripts';
 import { windowTitle } from '@main/app/window/windowTitle';
-import { zoomLevel, type ZoomChange } from '@main/app/window/zoom';
+import { createZoom, type Zoom } from '@main/app/window/windowZoom';
 import { zoomKey } from '@main/app/window/zoomKey';
 
 let mainWindow: BrowserWindow | null = null;
 let quitting = false;
-
-type Zoom = { level: () => number; set: (change: ZoomChange) => Promise<void> };
 
 function createWindow(zoom: Zoom): Promise<void> {
   const window = new BrowserWindow({
@@ -110,10 +110,17 @@ async function start(): Promise<Zoom> {
     dialog.showErrorBox('A JavaScript error occurred in the main process', err.stack ?? err.message);
   });
   const loaded = await loadConfig();
-  let config = loaded.data;
-  const { state, warning } = await loadState(configDir(), config?.stateBackups ?? STATE_BACKUPS);
+  const { state, warning } = await loadState(configDir(), loaded.data?.stateBackups ?? STATE_BACKUPS);
+  const warnings: string[] = warning === null ? [] : [warning];
+  let stopQueue: () => void = () => undefined;
+  const gate = createConfigGate(loaded.data, async ({ worktreesDir }) => {
+    const restored = await restoreTabs(state, sessions, (key) => findWorktrees(worktreesDir, key));
+    warnings.push(...restored.warnings);
+    stopQueue = startQueue.start();
+  });
+  const config = gate.current;
   startEventLog({
-    limits: pruneLimits(config),
+    limits: pruneLimits(config()),
     askDeleteToday: (bytes) => askDeleteToday((options) => dialog.showMessageBox(options), bytes),
   });
   const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
@@ -130,26 +137,20 @@ async function start(): Promise<Zoom> {
     (c): Record<string, string> => ({ JIRA_SITE: c.site, JIRA_EMAIL: c.email, JIRA_TOKEN: c.token }),
     () => ({}),
   );
-  let saved = state;
-  let saving = Promise.resolve();
-  const persist = (patch: Partial<SavedState>) => {
-    saved = { ...saved, ...patch };
-    const snapshot = saved;
-    saving = saving.catch(() => undefined).then(() => saveState(snapshot));
-    return saving;
-  };
+  const store = createStateStore(state);
   const sessions = new SessionManager({
     spawn,
     config: () => {
-      if (!config) {
+      const current = config();
+      if (!current) {
         throw new Error('starting session: config is not loaded');
       }
-      return config;
+      return current;
     },
     hooksFile,
     socketPath,
     snapshotRoot: join(configDir(), 'snapshots'),
-    save: (tabs, closedSessions) => persist({ tabs, closedSessions }),
+    save: (tabs, closedSessions) => store.patch({ tabs, closedSessions }),
     closedSessions: state.closedSessions,
     uuid: randomUUID,
     hasTranscript,
@@ -177,23 +178,22 @@ async function start(): Promise<Zoom> {
       (tabId, worktree) => prPoller.fresh(tabId, worktree),
       () => sessions.list(),
     ),
-    waitLimitMs: () => (config?.backgroundWaitMinutes ?? DEFAULT_WAIT_MINUTES) * 60_000,
+    waitLimitMs: () => (config()?.backgroundWaitMinutes ?? DEFAULT_WAIT_MINUTES) * 60_000,
   });
   const startQueue = new StartQueue({
     sessions,
     status,
     limits: () => ({
-      startAtOnce: config?.startAtOnce ?? DEFAULT_START_AT_ONCE,
-      maxWorking: config?.maxWorking ?? DEFAULT_MAX_WORKING,
-      maxLoadPerCore: config?.maxLoadPerCore ?? DEFAULT_MAX_LOAD_PER_CORE,
-      minFreeMegabytes: config?.minFreeMegabytes ?? DEFAULT_MIN_FREE_MEGABYTES,
-      startGapSeconds: config?.startGapSeconds ?? DEFAULT_START_GAP_SECONDS,
+      startAtOnce: config()?.startAtOnce ?? DEFAULT_START_AT_ONCE,
+      maxWorking: config()?.maxWorking ?? DEFAULT_MAX_WORKING,
+      maxLoadPerCore: config()?.maxLoadPerCore ?? DEFAULT_MAX_LOAD_PER_CORE,
+      minFreeMegabytes: config()?.minFreeMegabytes ?? DEFAULT_MIN_FREE_MEGABYTES,
+      startGapSeconds: config()?.startGapSeconds ?? DEFAULT_START_GAP_SECONDS,
     }),
     load: () => ({ loadAverage: loadavg()[0], cores: cpus().length, freeBytes: freemem() }),
     queued: state.queue,
-    save: (queue) => persist({ queue }),
+    save: (queue) => store.patch({ queue }),
   });
-  let stopQueue: () => void = () => undefined;
   const recorder = new EventRecorder({ sessions, status, transcriptOffset: (id) => transcriptOffset(id), headSha });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
@@ -223,47 +223,38 @@ async function start(): Promise<Zoom> {
       app.exit(0);
     });
   });
-  const restore = ({ worktreesDir }: MapleConfig) =>
-    restoreTabs(state, sessions, (key) => findWorktrees(worktreesDir, key));
-  const restored = config ? await restore(config) : { restored: 0, warnings: [] };
-  if (config) {
-    stopQueue = startQueue.start();
-  }
+  await gate.start();
   if (warning !== null) {
     appLogger.warn('restore', 'loading state', { warning });
   }
-  const warnings = [...(warning === null ? [] : [warning]), ...restored.warnings];
 
   let activeTabId: string | null = null;
-  const enabled = async () => saved.notifications ?? (await notificationsDefault());
-  status.on('status', (s, prev) => {
-    void (async () => {
-      const tab = sessions.get(s.tabId);
-      const focused = mainWindow?.isFocused() ?? false;
-      if (tab && shouldNotify(s.dot, prev, focused, activeTabId, tab.id, await enabled())) {
-        const project = await projectByKey(tab.projectKey);
-        notifyTab(() => mainWindow, tab, project?.name ?? tab.projectKey);
-      }
-    })();
-  });
+  const enabled = async () => store.current().notifications ?? (await notificationsDefault());
+  const notifyDeps: NotifyDeps = {
+    tab: (tabId) => sessions.get(tabId),
+    focused: () => mainWindow?.isFocused() ?? false,
+    activeTabId: () => activeTabId,
+    enabled,
+    project: projectByKey,
+    notify: (tab, projectName) => {
+      notifyTab(() => mainWindow, tab, projectName);
+    },
+  };
+  status.on('status', (s, prev) => void notifyIfNeeded(notifyDeps, s, prev));
 
   recordActions(
     uiActionRecorder({
       tab: (id) => sessions.get(id),
-      actions: () => config?.actions ?? [],
+      actions: () => config()?.actions ?? [],
       closeNeedsConfirm: (tabId, force) => closeNeedsConfirm(status.statuses(), tabId, force),
       append: (refs, data) => eventLog().append('ui.action', refs, data),
     }),
   );
-  const setZoom = async (change: ZoomChange) => {
-    const contents = mainWindow?.webContents;
-    if (!contents) {
-      return;
-    }
-    const zoom = zoomLevel(contents.getZoomLevel(), change);
-    contents.setZoomLevel(zoom);
-    await persist({ zoom });
-  };
+  const zoom = createZoom(
+    () => mainWindow?.webContents ?? null,
+    () => store.current().zoom,
+    (level) => store.patch({ zoom: level }),
+  );
   registerIpc({
     window: () => mainWindow,
     worktreeFor: (tabId) => sessions.get(tabId)?.worktreePath ?? null,
@@ -281,31 +272,21 @@ async function start(): Promise<Zoom> {
     },
     setNotifications: async (on) => {
       checkNotifications(on);
-      await persist({ notifications: on });
+      await store.patch({ notifications: on });
     },
     warnings: () => warnings,
-    configLoaded: async (next) => {
-      if (next === null) {
-        return;
-      }
-      const firstLoad = config === null;
-      config = next;
-      if (firstLoad) {
-        warnings.push(...(await restore(next)).warnings);
-        stopQueue = startQueue.start();
-      }
-    },
-    setLastProject: (key) => persist({ lastProject: key }),
-    lastProject: () => Promise.resolve(saved.lastProject),
-    setSeen: (seen) => persist({ seen }),
-    seen: () => Promise.resolve(saved.seen),
-    setZoom,
+    configLoaded: gate.loaded,
+    setLastProject: (key) => store.patch({ lastProject: key }),
+    lastProject: () => Promise.resolve(store.current().lastProject),
+    setSeen: (seen) => store.patch({ seen }),
+    seen: () => Promise.resolve(store.current().seen),
+    setZoom: zoom.set,
   });
   app.on('before-quit', (event) => {
     quitting = !event.defaultPrevented;
   });
   checkNotifications(await enabled());
-  return { level: () => saved.zoom, set: setZoom };
+  return zoom;
 }
 
 if (claimInstance(app)) {
