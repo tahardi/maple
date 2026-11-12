@@ -5,10 +5,10 @@ import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { useTabKeys } from './useTabKeys';
 
-const tab = (id: string): TabState => ({
+const tab = (id: string, kind: TabState['kind'] = 'card'): TabState => ({
   id,
   projectKey: 'BEAR',
-  kind: 'card',
+  kind,
   cardKey: null,
   sessionId: `s-${id}`,
   worktreePath: null,
@@ -88,5 +88,57 @@ describe('useTabKeys', () => {
     // then
     expect(spy).not.toHaveBeenCalled();
     textarea.remove();
+  });
+
+  test('Ctrl+Shift+W does nothing on the vault tab', () => {
+    // given
+    useMaple.setState({ tabs: [tab('t1'), tab('v1', 'vault')], activeTabId: 'v1' });
+    renderHook(() => {
+      useTabKeys();
+    });
+    // when
+    fireEvent.keyDown(window, { key: 'W', ctrlKey: true, shiftKey: true });
+    // then
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  test.each([{ modifier: 'altKey' }, { modifier: 'metaKey' }])('Ctrl+Tab with $modifier is ignored', ({ modifier }) => {
+    // given
+    renderHook(() => {
+      useTabKeys();
+    });
+    // when
+    const notCanceled = fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true, [modifier]: true });
+    // then
+    expect(useMaple.getState().activeTabId).toBe('t1');
+    expect(notCanceled).toBe(true);
+  });
+
+  test('Ctrl+Shift+W never reaches a focused terminal or editor', () => {
+    // given
+    renderHook(() => {
+      useTabKeys();
+    });
+    const textarea = document.createElement('textarea');
+    const spy = vi.fn();
+    textarea.addEventListener('keydown', spy);
+    document.body.append(textarea);
+    // when
+    fireEvent.keyDown(textarea, { key: 'W', ctrlKey: true, shiftKey: true });
+    // then
+    expect(spy).not.toHaveBeenCalled();
+    textarea.remove();
+  });
+
+  test('unmounting stops listening for keys', () => {
+    // given
+    const { unmount } = renderHook(() => {
+      useTabKeys();
+    });
+    unmount();
+    // when
+    fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true });
+    // then
+    expect(useMaple.getState().activeTabId).toBe('t1');
   });
 });

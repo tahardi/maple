@@ -49,13 +49,32 @@ describe('ShortcutSheet', () => {
     input.remove();
   });
 
-  test('Ctrl+? does not open the sheet', async () => {
+  test.each([{ modifier: 'Control' }, { modifier: 'Alt' }, { modifier: 'Meta' }])(
+    '$modifier+? does not open the sheet',
+    async ({ modifier }) => {
+      // given
+      setup();
+      // when
+      await userEvent.keyboard(`{${modifier}>}?{/${modifier}}`);
+      // then
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    },
+  );
+
+  test('unmounting stops listening for ?', () => {
     // given
-    setup();
+    const add = vi.spyOn(window, 'addEventListener');
+    const remove = vi.spyOn(window, 'removeEventListener');
+    fakeMaple();
+    const { unmount } = render(<ShortcutSheet />);
+    const listener = add.mock.calls.find(([type]) => type === 'keydown')?.[1];
     // when
-    await userEvent.keyboard('{Control>}?{/Control}');
+    unmount();
     // then
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(listener).toBeDefined();
+    expect(remove).toHaveBeenCalledWith('keydown', listener);
+    add.mockRestore();
+    remove.mockRestore();
   });
 
   test('Help > Keyboard shortcuts opens the sheet', () => {

@@ -9,6 +9,7 @@ import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { monaco } from '@renderer/testing/fakeMonaco';
 import { FileViewer } from './FileViewer';
+import css from './FileViewer.module.css?raw';
 import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
 
@@ -518,5 +519,17 @@ describe('FileViewer', () => {
     await userEvent.keyboard('{Enter}');
     // then
     expect(props.onActivate).toHaveBeenCalledWith('README.md');
+  });
+
+  test.each([
+    { name: 'keeps the preview italic', property: /font(-style)?:/, present: false },
+    { name: 'covers the tab with its padding', property: /padding: var\(--space-2\)/, present: true },
+  ])('the file tab label $name', ({ property, present }) => {
+    // given
+    const label = /\.label \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    // when
+    const matched = property.test(label);
+    // then
+    expect(matched).toBe(present);
   });
 });
