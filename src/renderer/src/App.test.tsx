@@ -7,9 +7,25 @@ vi.mock('./claude/ClaudePane', () => ({
   ClaudePane: () => <div data-testid="claude-pane" />,
 }));
 
+vi.mock('./card/CardTab', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./card/CardTab')>();
+  return {
+    CardTab: (props: Parameters<typeof actual.CardTab>[0]) => {
+      if (props.tab.cardKey === 'BEAR-9') {
+        throw new Error('rendering card: boom');
+      }
+      return <actual.CardTab {...props} />;
+    },
+  };
+});
+
 describe('App', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   test('shows the Home tab of the first project', async () => {
@@ -221,6 +237,49 @@ describe('App', () => {
     expect(screen.getByTestId('card-tab')).toBeVisible();
     expect(screen.getByTestId('home')).toBeInTheDocument();
     expect(screen.getByTestId('home')).not.toBeVisible();
+  });
+
+  test('a card tab that throws shows Reload tab while Home keeps working', async () => {
+    // given
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fakeMaple({
+      tabs: {
+        list: () =>
+          Promise.resolve([
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
+            {
+              id: 't9',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-9',
+              sessionId: 's9',
+              worktreePath: null,
+              worktreePaths: [],
+            },
+          ]),
+      },
+    });
+    render(<App />);
+    await screen.findByTestId('home');
+    // when
+    act(() => {
+      useMaple.getState().activate('t9');
+    });
+    // then
+    expect(await screen.findByRole('button', { name: 'Reload tab' })).toBeVisible();
+    act(() => {
+      useMaple.getState().activate('t1');
+    });
+    expect(await screen.findByTestId('card-tab')).toHaveTextContent('BEAR-1');
+    expect(screen.getByTestId('home')).toBeInTheDocument();
   });
 
   test('shows the active vault tab', async () => {

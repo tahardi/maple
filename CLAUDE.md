@@ -32,6 +32,7 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
 ## React
 
 - Function components only - hooks need them and they are shorter than classes.
+- Error boundaries are the one class component - React only catches render errors in classes.
 - Props arrays are `readonly` - components never mutate what they are given.
 - Hooks start with `use` and live in their own file - the rules of hooks rely on the name.
 - No `useEffect` for derived state - compute it during render, which avoids an extra render and stale values.
