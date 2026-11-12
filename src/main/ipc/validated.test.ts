@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
 import { handle, on, recordActions, type ActionRecorder } from './validated';
+import { errorText } from '@shared/errors/errorText';
 
 type Listener = (event: unknown, ...args: unknown[]) => unknown;
 
@@ -29,7 +30,7 @@ function errorFrom(call: () => unknown): string | null {
     call();
     return null;
   } catch (err) {
-    return err instanceof Error ? err.message : String(err);
+    return errorText(err);
   }
 }
 

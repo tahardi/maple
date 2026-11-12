@@ -11,6 +11,7 @@ import { appLogger, type Logger } from '@main/app/log/log';
 import { withTimeout } from '@main/util/withTimeout';
 import { backgroundWait, unknownTasks, type BackgroundWait } from './backgroundWait';
 import type { SessionManager } from './SessionManager';
+import { errorText } from '@shared/errors/errorText';
 
 export type StatusDeps = {
   sessions: SessionManager;
@@ -225,7 +226,7 @@ export class StatusEngine extends EventEmitter<Events> {
   }
 
   private fail(scope: 'jira' | 'gh', operation: string, err: unknown): never {
-    this.log.warn(scope, 'failed', { operation, error: err instanceof Error ? err.message : String(err) });
+    this.log.warn(scope, 'failed', { operation, error: errorText(err) });
     throw err;
   }
 

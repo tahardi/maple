@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { appLogger, logsDir, type Logger } from '@main/app/log/log';
+import { errorText } from '@shared/errors/errorText';
 
 type Deps = {
   showErrorBox: (title: string, content: string) => void;
@@ -8,7 +9,7 @@ type Deps = {
 };
 
 export function showStartupFailure(err: unknown, deps: Deps): void {
-  const error = err instanceof Error ? err.message : String(err);
+  const error = errorText(err);
   const stack = err instanceof Error ? err.stack : undefined;
   (deps.logger ?? appLogger).error('app', 'startup failed', { error, stack });
   deps.showErrorBox('Maple could not start', `${error}\n\nLog: ${join(logsDir(), 'main.log')}`);

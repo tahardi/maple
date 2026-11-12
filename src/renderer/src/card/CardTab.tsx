@@ -30,6 +30,7 @@ import { useVault } from '@renderer/card/vault/useVault';
 import { writtenNotes } from '@renderer/card/vault/writtenNotes';
 import { useViewed } from '@renderer/card/viewer/tree/useViewed';
 import { VAULT_PREFIX, VaultSwitch, type TreeView } from '@renderer/card/vault/VaultSwitch';
+import { errorText } from '@shared/errors/errorText';
 
 const WAITING = 'Waiting for worktree…';
 const MERGED = 'Merged, worktree removed';
@@ -100,8 +101,7 @@ export function CardTab({ tab }: { tab: TabState }) {
     setApproveError(null);
     const { headSha } = pinned;
     window.maple.pr.approve(tab.id, headSha).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      setApproveError({ headSha, message: message.replace(/^Error invoking remote method '[^']+': Error: /, '') });
+      setApproveError({ headSha, message: errorText(err) });
     });
   };
   const findingNoun = highFindings === 1 ? 'finding' : 'findings';

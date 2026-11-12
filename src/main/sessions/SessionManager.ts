@@ -10,6 +10,7 @@ import { findWorktrees } from '@main/git/git';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { tmuxArgs } from './tmux';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
+import { errorText } from '@shared/errors/errorText';
 
 const BACKLOG_CHARS = 200_000;
 const LINE_CHARS = 10_000;
@@ -59,10 +60,6 @@ export function parentEnv(): NodeJS.ProcessEnv {
 
 function tmuxName(tabId: string): string {
   return `maple-${tabId}`;
-}
-
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 export class SessionManager extends EventEmitter<Events> {
@@ -372,7 +369,7 @@ export class SessionManager extends EventEmitter<Events> {
     let stop: () => void = () => undefined;
     const check = async () => {
       const paths = await findWorktrees(worktreesDir, cardKey).catch((err: unknown) => {
-        this.log.warn('worktree', 'failed', { operation: 'findWorktrees', cardKey, error: message(err) });
+        this.log.warn('worktree', 'failed', { operation: 'findWorktrees', cardKey, error: errorText(err) });
         return undefined;
       });
       const current = session.tab.worktreePaths;
@@ -390,7 +387,7 @@ export class SessionManager extends EventEmitter<Events> {
     try {
       stop = watchWorktrees(worktreesDir, () => void check());
     } catch (err) {
-      this.log.warn('worktree', 'failed', { operation: 'watchWorktrees', cardKey, error: message(err) });
+      this.log.warn('worktree', 'failed', { operation: 'watchWorktrees', cardKey, error: errorText(err) });
       stop = () => undefined;
     }
     session.stopWatch = () => {
@@ -411,7 +408,7 @@ export class SessionManager extends EventEmitter<Events> {
 
   private save(): void {
     this.deps.save([...this.list(), ...this.kept], { ...this.closed }).catch((err: unknown) => {
-      this.log.error('session', 'failed', { operation: 'saveState', error: message(err) });
+      this.log.error('session', 'failed', { operation: 'saveState', error: errorText(err) });
     });
   }
 }

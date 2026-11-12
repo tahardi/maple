@@ -23,6 +23,7 @@ import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
 import { NoteOverview } from './overview/NoteOverview';
 import { FileTabMenu } from '@renderer/card/viewer/tabs/FileTabMenu';
 import styles from './FileViewer.module.css';
+import { errorText } from '@shared/errors/errorText';
 
 type Props = {
   tabId: string;
@@ -106,11 +107,6 @@ function isChanged(pair: FilePair | null): boolean {
 
 function atFileStart(range: IRange): boolean {
   return range.startLineNumber === 1 && range.startColumn === 1 && range.endLineNumber === 1 && range.endColumn === 1;
-}
-
-function errorText(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  return message.replace(/^Error invoking remote method '[^']+': Error: /, '');
 }
 
 function baseName(path: string): string {
@@ -246,11 +242,7 @@ export function FileViewer({
         },
         (err: unknown) => {
           if (live) {
-            const message = err instanceof Error ? err.message : String(err);
-            setReadError({
-              path: activeFile,
-              message: message.replace(/^Error invoking remote method '[^']+': Error: /, ''),
-            });
+            setReadError({ path: activeFile, message: errorText(err) });
           }
         },
       );

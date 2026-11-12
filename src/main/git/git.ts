@@ -8,6 +8,7 @@ import type { FilePair } from '@shared/types/files/filePair';
 import type { SearchHit } from '@shared/types/files/searchHit';
 import { matchWorktrees } from '@shared/worktree/worktree';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/util/paths';
+import { errorText } from '@shared/errors/errorText';
 
 const execFileAsync = promisify(execFile);
 export const NO_FSMONITOR = ['-c', 'core.fsmonitor=false'];
@@ -25,7 +26,7 @@ async function git(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): Pr
     });
     return stdout;
   } catch (err) {
-    throw new Error(`running git ${args.join(' ')}: ${err instanceof Error ? err.message : String(err)}`, {
+    throw new Error(`running git ${args.join(' ')}: ${errorText(err)}`, {
       cause: err,
     });
   }

@@ -76,7 +76,9 @@ describe('ReportDialog', () => {
 
   test('shows the error and keeps what was typed when filing fails', async () => {
     // given
-    const report = vi.fn(() => Promise.reject(new Error('filing report: Jira returned 400')));
+    const report = vi.fn(() =>
+      Promise.reject(new Error("Error invoking remote method 'jira:report': Error: filing report: Jira returned 400")),
+    );
     fakeMaple({ jira: { report } });
     renderDialog();
     await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), 'Crash');
@@ -85,6 +87,7 @@ describe('ReportDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
     // then
     expect(await screen.findByRole('alert')).toHaveTextContent('filing report: Jira returned 400');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Error invoking remote method');
     expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Crash');
     expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('On start');
     expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
