@@ -43,16 +43,9 @@ const {
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
 vi.mock('@main/git/makeTarget', () => ({ hasTryTarget }));
-vi.mock('@main/git/git', () => ({
-  changes,
-  currentBranch,
-  listFiles,
-  mergeBase,
-  readFilePair,
-  repoName,
-  searchFiles,
-  writeWorktreeFile,
-}));
+vi.mock('@main/git/changes', () => ({ changes, mergeBase }));
+vi.mock('@main/git/repoIdentity', () => ({ currentBranch, repoName }));
+vi.mock('@main/git/worktreeFiles', () => ({ listFiles, readFilePair, searchFiles, writeWorktreeFile }));
 vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktree }));
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };

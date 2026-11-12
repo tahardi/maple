@@ -59,7 +59,7 @@ const {
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('@main/git/git', () => ({ currentBranch }));
+vi.mock('@main/git/repoIdentity', () => ({ currentBranch }));
 vi.mock('@main/github/pr', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@main/github/pr')>()),
   prForBranch,
@@ -68,7 +68,8 @@ vi.mock('@main/github/pr', async (importOriginal) => ({
 vi.mock('@main/github/comments', () => ({ commentOnLine, replyToComment, resolveThread, reviewComments }));
 vi.mock('@main/github/ghRunner', () => ({ projectRunner, ghRunner }));
 vi.mock('@main/github/reviewDiff', () => ({ reviewFiles, reviewFilePair }));
-vi.mock('@main/github/securityFindings', () => ({ openFindings, ghLogin }));
+vi.mock('@main/github/securityFindings', () => ({ openFindings }));
+vi.mock('@main/github/ghLogin', () => ({ ghLogin }));
 
 const event = {} as IpcMainInvokeEvent;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };

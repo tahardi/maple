@@ -1,14 +1,7 @@
 import { z } from 'zod';
-import {
-  changes,
-  currentBranch,
-  listFiles,
-  mergeBase,
-  readFilePair,
-  repoName,
-  searchFiles,
-  writeWorktreeFile,
-} from '@main/git/git';
+import { changes, mergeBase } from '@main/git/changes';
+import { currentBranch, repoName } from '@main/git/repoIdentity';
+import { listFiles, readFilePair, searchFiles, writeWorktreeFile } from '@main/git/worktreeFiles';
 import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { hasTryTarget } from '@main/git/makeTarget';
 import { watchWorktree } from '@main/git/worktreeWatcher';

@@ -68,11 +68,3 @@ export async function openFindings(run: CommandRunner, num: number, me: string):
   }
   return findings.sort((a, b) => order[a.severity] - order[b.severity]);
 }
-
-export async function ghLogin(run: CommandRunner): Promise<string> {
-  const { code, stdout, stderr } = await run('gh', ['api', 'user', '--jq', '.login'], '');
-  if (code !== 0) {
-    throw new Error(`reading gh login: ${stderr}`);
-  }
-  return stdout.trim();
-}

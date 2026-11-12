@@ -1,6 +1,5 @@
-import { EventEmitter } from 'node:events';
 import { describe, expect, test, vi } from 'vitest';
-import { createLogger, logFailure, logUncaught, redact } from './log';
+import { createLogger, logFailure } from './log';
 
 function setup() {
   const write = vi.fn<(level: 'info' | 'warn' | 'error', line: string) => void>();
@@ -76,48 +75,6 @@ describe('createLogger', () => {
   });
 });
 
-describe('redact', () => {
-  test.each([
-    { name: 'a token', fields: { token: 'x', tabId: 't' }, want: { tabId: 't' } },
-    { name: 'a nested authorization', fields: { headers: { Authorization: 'Basic x' } }, want: { headers: {} } },
-    { name: 'the environment', fields: { env: { A: '1' } }, want: {} },
-  ])('drops $name', ({ fields, want }) => {
-    // when
-    const got = redact(fields);
-    // then
-    expect(got).toEqual(want);
-  });
-
-  test.each([
-    { name: 'password and secret keys', fields: { password: 'p', clientSecret: 's', ok: 1 }, want: { ok: 1 } },
-    {
-      name: 'a key deep in nested objects',
-      fields: { a: { b: { JIRA_TOKEN: 'x', c: 1 } } },
-      want: { a: { b: { c: 1 } } },
-    },
-    {
-      name: 'a key inside an array of objects',
-      fields: { items: [{ token: 'x', id: 1 }, 'a'] },
-      want: { items: [{ id: 1 }, 'a'] },
-    },
-    {
-      name: 'a key inside nested arrays',
-      fields: { rows: [[{ password: 'p', id: 2 }]] },
-      want: { rows: [[{ id: 2 }]] },
-    },
-    {
-      name: 'nothing from safe fields',
-      fields: { tabId: 't', args: ['a'], pr: null },
-      want: { tabId: 't', args: ['a'], pr: null },
-    },
-  ])('handles $name', ({ fields, want }) => {
-    // when
-    const got = redact(fields);
-    // then
-    expect(got).toEqual(want);
-  });
-});
-
 describe('logFailure', () => {
   test.each([
     {
@@ -153,22 +110,5 @@ describe('logFailure', () => {
     // then
     expect(got).toBe(1);
     expect(logger.warn).not.toHaveBeenCalled();
-  });
-});
-
-describe('logUncaught', () => {
-  test.each([
-    { event: 'uncaughtException', reason: new Error('boom'), msg: 'uncaught exception', error: 'boom' },
-    { event: 'unhandledRejection', reason: new Error('boom'), msg: 'unhandled rejection', error: 'boom' },
-    { event: 'unhandledRejection', reason: 'nope', msg: 'unhandled rejection', error: 'nope' },
-  ])('logs $event of $error at error', ({ event, reason, msg, error }) => {
-    // given
-    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const proc = new EventEmitter();
-    logUncaught(logger, proc);
-    // when
-    proc.emit(event, reason);
-    // then
-    expect(logger.error).toHaveBeenCalledWith('app', msg, expect.objectContaining({ error }));
   });
 });

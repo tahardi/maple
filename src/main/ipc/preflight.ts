@@ -2,7 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { ipcMain } from 'electron';
 import { defaultRunner, runPreflight } from '@main/app/preflight';
-import { projects } from './config';
+import { projects } from '@main/app/config/configCache';
 
 export function registerPreflight(): void {
   ipcMain.handle('preflight:run', async () =>
