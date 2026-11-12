@@ -54,6 +54,7 @@ const base = {
   lastProject: () => Promise.resolve(null),
   setSeen: () => Promise.resolve(),
   seen: () => Promise.resolve({}),
+  watchVault: () => undefined,
   startQueue: new EventEmitter() as StartQueue,
   prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
 };

@@ -56,7 +56,7 @@ export class ClaudeProcesses extends EventEmitter<Events> {
     if (!project) {
       throw new Error(`starting session: unknown project ${tab.projectKey}`);
     }
-    const cwd = tab.kind === 'vault' ? config.vaultDir : project.plannerDir;
+    const cwd = tab.kind === 'vault' || tab.kind === 'learning' ? config.vaultDir : project.plannerDir;
     if (cwd === null) {
       throw new Error('starting session: no vaultDir in config');
     }

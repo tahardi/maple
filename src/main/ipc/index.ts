@@ -13,6 +13,7 @@ import type { ZoomChange } from '@main/app/window/zoom/zoom';
 import { registerApp } from './app';
 import { registerConfig } from './config';
 import { registerJira } from './jira';
+import { registerLearning } from './learning';
 import { registerPr } from './pr';
 import { registerPreflight } from './preflight';
 import { registerRepo } from './repo';
@@ -41,6 +42,7 @@ export type IpcDeps = {
   prs: Pick<PrPoller, 'latest' | 'refresh'>;
   jira: Promise<JiraClient>;
   jiraCreds: Promise<JiraCreds>;
+  watchVault: (dir: string) => void;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [
@@ -52,6 +54,7 @@ const registrars: readonly ((deps: IpcDeps) => void)[] = [
   registerTerminal,
   registerRepo,
   registerVault,
+  registerLearning,
   registerPr,
   registerApp,
 ];

@@ -38,14 +38,14 @@ function tab(kind: TabState['kind'], projectKey = 'DIG'): TabState {
   return { id: 't1', projectKey, kind, cardKey, sessionId: 's1', worktreePath: null, worktreePaths: [] };
 }
 
-function setup(hasTranscript = true) {
+function setup(hasTranscript = true, cfg: MapleConfig = config) {
   const ptys: FakePty[] = [];
   const spawnFn = fakeSpawn(ptys);
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const endTmux = vi.fn<(name: string | null) => void>();
   const processes = new ClaudeProcesses({
     spawn: spawnFn,
-    config: () => config,
+    config: () => cfg,
     hooksFile: '/tmp/maple/hooksFile.json',
     socketPath: '/tmp/maple.sock',
     snapshotRoot: '/tmp/maple/snapshots',
@@ -104,6 +104,18 @@ describe('ClaudeProcesses', () => {
     expect(launch).toThrow('starting session: unknown project NOPE');
     expect(spawnFn).not.toHaveBeenCalled();
   });
+
+  test.each([{ kind: 'vault' as const }, { kind: 'learning' as const }])(
+    'launch on a $kind tab starts in the vaultDir',
+    ({ kind }) => {
+      // given
+      const { processes, ptys } = setup(true, { ...config, vaultDir: '/tmp/vault' });
+      // when
+      processes.launch(tab(kind), { resume: false, prompt: null });
+      // then
+      expect(ptys[0].options.cwd).toBe('/tmp/vault');
+    },
+  );
 
   test('launch on a vault tab without a vaultDir throws', () => {
     // given

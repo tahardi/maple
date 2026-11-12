@@ -77,7 +77,7 @@ describe('TabBar', () => {
     // when
     const labels = screen.getAllByRole('tab').map((t) => t.textContent);
     // then
-    expect(labels).toEqual(['Home', 'Vault', 'BEAR-1', 'BEAR-2']);
+    expect(labels).toEqual(['Home', 'Vault', 'Learning', 'BEAR-1', 'BEAR-2']);
   });
 
   test('clicking Vault opens the project vault tab and activates it', async () => {
@@ -112,6 +112,58 @@ describe('TabBar', () => {
     expect(openVault).not.toHaveBeenCalled();
   });
 
+  test.each([
+    { vault: 'set', config: VAULT_CONFIG, want: ['Home', 'Vault', 'Learning'] },
+    { vault: 'unset', config: FAKE_CONFIG, want: ['Home'] },
+  ])('shows Learning after Vault only when vaultDir is set ($vault)', ({ config, want }) => {
+    // given
+    useMaple.setState({ config });
+    // when
+    render(<TabBar />);
+    // then
+    expect(
+      screen
+        .getAllByRole('tab')
+        .map((t) => t.textContent)
+        .filter((label) => !label.startsWith('BEAR')),
+    ).toEqual(want);
+  });
+
+  test('Learning shows its tab dot', () => {
+    // given
+    useMaple.setState({
+      config: VAULT_CONFIG,
+      tabs: [...useMaple.getState().tabs, tab('l1', 'BEAR', 'learning', null)],
+      statuses: {
+        l1: { tabId: 'l1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+      },
+    });
+    // when
+    render(<TabBar />);
+    // then
+    const learning = screen.getByRole('tab', { name: /Learning/ });
+    expect(learning.querySelector('[data-dot]')).toHaveAttribute('data-dot', 'working');
+    expect(screen.queryByRole('button', { name: 'Close Learning' })).not.toBeInTheDocument();
+  });
+
+  test('clicking Learning opens or activates the learning tab', async () => {
+    // given
+    const activate = vi.fn();
+    const openLearning = vi.fn(() => Promise.resolve(tab('learning-BEAR', 'BEAR', 'learning', null)));
+    fakeMaple({ tabs: { openLearning } });
+    useMaple.setState({ config: VAULT_CONFIG, activate });
+    const { rerender } = render(<TabBar />);
+    await userEvent.click(screen.getByRole('tab', { name: 'Learning' }));
+    useMaple.setState({ tabs: [...useMaple.getState().tabs, tab('learning-BEAR', 'BEAR', 'learning', null)] });
+    rerender(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('tab', { name: 'Learning' }));
+    // then
+    expect(openLearning).toHaveBeenCalledTimes(1);
+    expect(openLearning).toHaveBeenCalledWith('BEAR');
+    expect(activate.mock.calls).toEqual([['learning-BEAR'], ['learning-BEAR']]);
+  });
+
   test('an open vault tab shows no dot and no close button', () => {
     // given
     useMaple.setState({
@@ -132,7 +184,7 @@ describe('TabBar', () => {
   });
 
   test.each([
-    { vault: 'set', config: VAULT_CONFIG, pinned: ['Home', 'Vault'] },
+    { vault: 'set', config: VAULT_CONFIG, pinned: ['Home', 'Vault', 'Learning'] },
     { vault: 'unset', config: FAKE_CONFIG, pinned: ['Home'] },
   ])('with the vault $vault, pinned tabs sit before the divider and card tabs after it', ({ config, pinned }) => {
     // given

@@ -8,6 +8,9 @@ function reopen(tab: TabState, sessions: SessionManager): TabState {
   if (tab.kind === 'vault') {
     return sessions.openVault(tab.projectKey, tab.sessionId, tab.id);
   }
+  if (tab.kind === 'learning') {
+    return sessions.openLearning(tab.projectKey, tab.sessionId, tab.id);
+  }
   if (tab.cardKey === null) {
     return sessions.openPlanner(tab.projectKey, tab.sessionId, tab.id);
   }

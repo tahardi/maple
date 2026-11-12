@@ -1,3 +1,4 @@
+import type { TabState } from '@shared/types/tabs/tabState';
 import { useState } from 'react';
 import { useMaple } from '@renderer/store';
 import { ConfirmDialog } from '@renderer/shell/ConfirmDialog';
@@ -23,26 +24,27 @@ export function TabBar() {
   const closeTab = useMaple((s) => s.closeTab);
   const cancelClose = useMaple((s) => s.cancelClose);
   const vaultDir = useMaple((s) => s.config?.data?.vaultDir ?? null);
-  const [vaultError, setVaultError] = useState<string | null>(null);
+  const [pinnedError, setPinnedError] = useState<string | null>(null);
   const cardTabs = tabs.filter((t) => t.projectKey === projectKey && t.kind === 'card');
   const vaultTab = tabs.find((t) => t.projectKey === projectKey && t.kind === 'vault');
+  const learningTab = tabs.find((t) => t.projectKey === projectKey && t.kind === 'learning');
   const dotOf = (id: string) => (Object.hasOwn(statuses, id) ? statuses[id].dot : undefined);
   const syncOf = (id: string) => (Object.hasOwn(statuses, id) ? statuses[id].sync : null);
-  const openVault = () => {
-    setVaultError(null);
-    if (vaultTab) {
-      activate(vaultTab.id);
+  const openPinned = (existing: TabState | undefined, open: (projectKey: string) => Promise<TabState>) => {
+    setPinnedError(null);
+    if (existing) {
+      activate(existing.id);
       return;
     }
     if (projectKey === null) {
       return;
     }
-    window.maple.tabs.openVault(projectKey).then(
+    open(projectKey).then(
       (tab) => {
         activate(tab.id);
       },
       (err: unknown) => {
-        setVaultError(errorText(err));
+        setPinnedError(errorText(err));
       },
     );
   };
@@ -68,7 +70,20 @@ export function TabBar() {
             dot: undefined,
             sync: null,
             selected: vaultTab !== undefined && vaultTab.id === activeTabId,
-            onClick: openVault,
+            onClick: () => {
+              openPinned(vaultTab, (key) => window.maple.tabs.openVault(key));
+            },
+          },
+          {
+            key: 'learning',
+            id: null,
+            label: 'Learning',
+            dot: learningTab && dotOf(learningTab.id),
+            sync: null,
+            selected: learningTab !== undefined && learningTab.id === activeTabId,
+            onClick: () => {
+              openPinned(learningTab, (key) => window.maple.tabs.openLearning(key));
+            },
           },
         ]),
   ];
@@ -123,7 +138,7 @@ export function TabBar() {
         <div className={styles.divider} aria-hidden="true" data-testid="pinned-divider" />
         {cardItems.map(renderItem)}
       </div>
-      {vaultError !== null && <Notice tone="danger">{vaultError}</Notice>}
+      {pinnedError !== null && <Notice tone="danger">{pinnedError}</Notice>}
       {closing && (
         <ConfirmDialog
           title="Close tab"

@@ -36,7 +36,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 const emptyState: SavedState = {
-  version: 1,
+  version: 2,
   tabs: [],
   closedSessions: {},
   notifications: null,
@@ -47,7 +47,7 @@ const emptyState: SavedState = {
 };
 
 const savedState: SavedState = {
-  version: 1,
+  version: 2,
   tabs: [
     {
       id: 'tab-1',
@@ -104,6 +104,26 @@ describe('state', () => {
     const result = await loadState(dir);
     // then
     expect(result).toEqual({ state, warning: null, readOnly: false });
+  });
+
+  test('keeps a learning tab', async () => {
+    // given
+    const learningTab = { ...savedState.tabs[0], kind: 'learning' as const, cardKey: null, worktreePath: null };
+    const state = { ...savedState, tabs: [learningTab] };
+    await saveState(state, dir);
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state, warning: null, readOnly: false });
+  });
+
+  test('loads a version 1 file as version 2', async () => {
+    // given
+    await writeFile(join(dir, 'state.json'), JSON.stringify({ ...savedState, version: 1 }));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state: savedState, warning: null, readOnly: false });
   });
 
   test('defaults worktreePaths to an empty list when missing', async () => {
@@ -311,7 +331,7 @@ describe('state', () => {
 
   test('starts empty without touching a state.json from a newer Maple', async () => {
     // given
-    const content = JSON.stringify({ ...savedState, version: 2 });
+    const content = JSON.stringify({ ...savedState, version: 3 });
     await writeFile(join(dir, 'state.json'), content);
     // when
     const result = await loadState(dir);
@@ -319,7 +339,7 @@ describe('state', () => {
     expect(result).toEqual({
       state: emptyState,
       warning:
-        `reading state: ${join(dir, 'state.json')} is from a newer Maple (version 2, this build reads up to 1), ` +
+        `reading state: ${join(dir, 'state.json')} is from a newer Maple (version 3, this build reads up to 2), ` +
         'starting with no tabs and not saving until Maple is updated',
       readOnly: true,
     });

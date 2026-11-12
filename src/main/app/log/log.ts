@@ -19,6 +19,7 @@ export type LogScope =
   | 'repo'
   | 'terminal'
   | 'vault'
+  | 'learning'
   | 'events'
   | 'app';
 

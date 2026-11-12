@@ -40,6 +40,23 @@ function setup(fixture: TabState = cardTab) {
 }
 
 describe('uiActionRecorder', () => {
+  test('records tabs:openLearning with project refs', async () => {
+    // given
+    const { append, record } = setup();
+    // when
+    record('tabs:openLearning', ['MPL']);
+    await vi.waitFor(() => {
+      expect(append).toHaveBeenCalled();
+    });
+    // then
+    expect(append.mock.calls).toEqual([
+      [
+        { project: 'MPL', card: null, tab: null, session: null },
+        { channel: 'tabs:openLearning', action: null, length: null },
+      ],
+    ]);
+  });
+
   test.each<{ channel: string; args: readonly unknown[]; refs: EventRefs }>([
     { channel: 'tabs:startCard', args: ['MPL', 'MPL-7'], refs: cardRefs },
     { channel: 'tabs:openCard', args: ['MPL', 'MPL-7'], refs: cardRefs },

@@ -3,7 +3,7 @@ import type { SavedState } from './state';
 import { createStateStore } from './stateStore';
 
 const initial: SavedState = {
-  version: 1,
+  version: 2,
   tabs: [],
   closedSessions: {},
   notifications: null,

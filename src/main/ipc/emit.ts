@@ -22,6 +22,7 @@ const KEY_COUNTS: { [A in IpcArea]: { [M in MethodOf<A, 'event'>]: EmitKeys<A, M
   terminal: { onData: 1, onExit: 1 },
   repo: { onChanged: 1 },
   vault: { onChanged: 0 },
+  learning: {},
   pr: {},
   app: { onQuitRequested: 0, onReportRequested: 0, onShortcutsRequested: 0 },
 };
