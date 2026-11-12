@@ -1053,7 +1053,7 @@ describe('CardTab', () => {
     });
     const { rerender } = render(<CardTab tab={twoRepos} />);
     const slot = within(screen.getByTestId('claude-slot'));
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve & merge' }));
     expect(await slot.findByRole('alert')).toHaveTextContent('approving PR: offline');
     // when
     rerender(<CardTab tab={{ ...twoRepos, worktreePath: '/wts/halo-xena-62-config' }} />);
@@ -1174,7 +1174,7 @@ describe('CardTab', () => {
     const slot = within(screen.getByTestId('claude-slot'));
     // when
     await userEvent.click(slot.getByRole('button', { name: 'Sync' }));
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve & merge' }));
     // then
     expect(sendPrompt).toHaveBeenCalledWith('t1', 'Sync MPL-20');
     expect(approve).toHaveBeenCalledWith('t1', head);
@@ -1205,7 +1205,7 @@ describe('CardTab', () => {
     // then
     const slot = within(screen.getByTestId('claude-slot'));
     expect(slot.queryByText('Merged') !== null).toBe(shown);
-    expect(slot.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(slot.getByRole('button', { name: 'Approve & merge' })).toBeInTheDocument();
   });
 
   test('a Done card without a worktree shows a success notice with Close tab', async () => {
@@ -1270,11 +1270,11 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     const slot = within(screen.getByTestId('claude-slot'));
     // when
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve & merge' }));
     // then
     expect(await slot.findByRole('alert')).toHaveTextContent('approving PR: offline');
     // when
-    await userEvent.click(slot.getByRole('button', { name: 'Approve' }));
+    await userEvent.click(slot.getByRole('button', { name: 'Approve & merge' }));
     // then
     expect(slot.queryByRole('alert')).not.toBeInTheDocument();
   });
@@ -1305,7 +1305,7 @@ describe('CardTab', () => {
     });
     // then
     expect(await tree.findByRole('status')).toHaveTextContent('Updated to ddddddd');
-    expect(claude.getByRole('button', { name: 'Approve' })).toBeEnabled();
+    expect(claude.getByRole('button', { name: 'Approve & merge' })).toBeEnabled();
   });
 
   test('keeps the Viewed check only on files the new commits did not change', async () => {
@@ -1366,7 +1366,7 @@ describe('CardTab', () => {
     const changed = captureRepoChanged({ pr: { get, review, approve } });
     render(<CardTab tab={tab} />);
     const claude = within(screen.getByTestId('claude-slot'));
-    await userEvent.click(await claude.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await claude.findByRole('button', { name: 'Approve & merge' }));
     expect(await claude.findByRole('alert')).toHaveTextContent('approving PR: offline');
     // when
     act(() => {
@@ -1386,7 +1386,7 @@ describe('CardTab', () => {
     });
     render(<CardTab tab={tab} />);
     const claude = within(screen.getByTestId('claude-slot'));
-    await userEvent.click(await claude.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await claude.findByRole('button', { name: 'Approve & merge' }));
     expect(await claude.findByRole('alert')).toHaveTextContent('approving PR: offline');
     // when
     act(() => {
@@ -1425,7 +1425,9 @@ describe('CardTab', () => {
     const changed = captureRepoChanged({ pr: { get, review, approve } });
     render(<CardTab tab={tab} />);
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    await userEvent.click(
+      await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' }),
+    );
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     // when
     act(() => {
@@ -1454,7 +1456,7 @@ describe('CardTab', () => {
     });
     render(<CardTab tab={tab} />);
     const claude = within(screen.getByTestId('claude-slot'));
-    await userEvent.click(await claude.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await claude.findByRole('button', { name: 'Approve & merge' }));
     await claude.findByRole('alert');
     // when
     await userEvent.click(within(screen.getByTestId('tree-slot')).getByRole('button', { name: 'Reload review' }));
@@ -1481,9 +1483,75 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     const slot = within(screen.getByTestId('claude-slot'));
     // when
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve & merge' }));
     // then
     expect(await slot.findByRole('alert')).toHaveTextContent(/^approving PR: offline$/);
+  });
+
+  test('Approve & merge shows Merging… until the merge settles', async () => {
+    // given
+    let settle: () => void = () => undefined;
+    const approve = vi.fn<() => Promise<void>>(
+      () =>
+        new Promise<void>((resolve) => {
+          settle = resolve;
+        }),
+    );
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review: reviewOf([]), approve },
+    });
+    render(<CardTab tab={tab} />);
+    const slot = within(screen.getByTestId('claude-slot'));
+    // when
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve & merge' }));
+    // then
+    expect(slot.getByRole('button', { name: 'Merging…' })).toBeDisabled();
+    // when
+    await act(async () => {
+      settle();
+      await Promise.resolve();
+    });
+    // then
+    expect(slot.getByRole('button', { name: 'Approve & merge' })).toBeEnabled();
+  });
+
+  test('a failed merge restores Approve & merge and shows the error', async () => {
+    // given
+    fakeMaple({
+      pr: {
+        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
+        review: reviewOf([]),
+        approve: vi.fn<() => Promise<void>>().mockRejectedValue(new Error('approving PR: offline')),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    const slot = within(screen.getByTestId('claude-slot'));
+    // when
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve & merge' }));
+    // then
+    expect(await slot.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    expect(slot.getByRole('button', { name: 'Approve & merge' })).toBeEnabled();
+  });
+
+  test('Reload review beside a blocked Approve & merge reloads the review', async () => {
+    // given
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce({ data: null, error: 'fetching review: offline', fetchedAt: null })
+      .mockImplementation(reviewOf([]));
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review } });
+    render(<CardTab tab={tab} />);
+    const slot = within(screen.getByTestId('claude-slot'));
+    await vi.waitFor(() => {
+      expect(slot.getByRole('button', { name: 'Approve & merge' })).toHaveAccessibleDescription('Review not loaded');
+    });
+    // when
+    await userEvent.click(slot.getByRole('button', { name: 'Reload review' }));
+    // then
+    await vi.waitFor(() => {
+      expect(slot.getByRole('button', { name: 'Approve & merge' })).toBeEnabled();
+    });
+    expect(review).toHaveBeenCalledTimes(2);
   });
 
   function fakeApprove(
@@ -1521,7 +1589,7 @@ describe('CardTab', () => {
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
     const slot = within(screen.getByTestId('claude-slot'));
     // when
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve & merge' }));
     // then
     expect(screen.getByRole('dialog')).toHaveTextContent(text);
     expect(approve).not.toHaveBeenCalled();
@@ -1535,7 +1603,9 @@ describe('CardTab', () => {
     const approve = fakeApprove();
     render(<CardTab tab={tab} />);
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    await userEvent.click(
+      await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' }),
+    );
     // when
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: button }));
     // then
@@ -1549,7 +1619,9 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
     // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    await userEvent.click(
+      await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' }),
+    );
     // then
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' })).toHaveAttribute(
       'data-variant',
@@ -1564,7 +1636,9 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByText('Reviewing aaaaaaa');
     // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    await userEvent.click(
+      await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' }),
+    );
     // then
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' })).toHaveAttribute(
       'data-variant',
@@ -1579,7 +1653,7 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     // then
     const slot = within(screen.getByTestId('claude-slot'));
-    await slot.findByRole('button', { name: 'Approve' });
+    await slot.findByRole('button', { name: 'Approve & merge' });
     expect(slot.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
   });
 
@@ -1592,7 +1666,7 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
     const slot = within(screen.getByTestId('claude-slot'));
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve & merge' }));
     // when
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' }));
     // then
@@ -1606,7 +1680,7 @@ describe('CardTab', () => {
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' }));
     const slot = within(screen.getByTestId('claude-slot'));
     // when
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await userEvent.click(await slot.findByRole('button', { name: 'Approve & merge' }));
     // then
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(approve).toHaveBeenCalledWith('t1', head);
@@ -1647,7 +1721,9 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByText('Reviewing aaaaaaa');
     // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    await userEvent.click(
+      await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' }),
+    );
     // then
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Open security findings');
@@ -1665,7 +1741,9 @@ describe('CardTab', () => {
     const approve = fakeApprove(['src/a.ts'], undefined, [finding]);
     render(<CardTab tab={tab} />);
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    await userEvent.click(
+      await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' }),
+    );
     // when
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' }));
     // then
@@ -1680,7 +1758,9 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByText('Reviewing aaaaaaa');
     // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
+    await userEvent.click(
+      await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' }),
+    );
     // then
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(approve).toHaveBeenCalledWith('t1', head);
@@ -1692,9 +1772,9 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={tab} />);
     // then
-    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' });
+    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' });
     await vi.waitFor(() => {
-      expect(approve).toHaveAttribute('title', 'Review not loaded');
+      expect(approve).toHaveAccessibleDescription('Review not loaded');
     });
   });
 
@@ -1709,9 +1789,9 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={tab} />);
     // then
-    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' });
+    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' });
     await vi.waitFor(() => {
-      expect(approve).toHaveAttribute('title', 'Agent is working');
+      expect(approve).toHaveAccessibleDescription('Agent is working');
     });
     expect(approve).toBeDisabled();
   });

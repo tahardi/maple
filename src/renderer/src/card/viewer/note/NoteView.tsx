@@ -15,13 +15,12 @@ import { useDiffMode } from '@renderer/card/viewer/editor/useDiffMode';
 import { useLineMarks } from '@renderer/card/viewer/editor/useLineMarks';
 import { NoteOverview } from '@renderer/card/viewer/overview/NoteOverview';
 import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
+import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { useMaple } from '@renderer/store';
 import styles from '../FileViewer.module.css';
 
 const WRAP_KEY = 'maple.noteWrap';
-
-const NO_COPY = 'No saved copy of this note from this session';
 
 const LEAVE_EDIT = 'Turn off Edit to see changes';
 
@@ -76,7 +75,7 @@ export function NoteView({
   const noteBefore = before !== null && before.path === path ? before.text : null;
   const changesOn = shownNote !== null && noteBefore !== null && (changes[shownNote.path] ?? true);
   const showsChanges = shownNote !== null && noteBefore !== null && changesOn && !editsNote;
-  const noCopyReason = before !== null && before.path === path && before.error !== null ? before.error : NO_COPY;
+  const copyError = before !== null && before.path === path ? before.error : null;
 
   useEffect(() => {
     let live = true;
@@ -225,17 +224,16 @@ export function NoteView({
             >
               Edit
             </button>
-            {noteChanges && (
-              <button
-                aria-pressed={showsChanges}
+            {noteChanges && (noteBefore !== null || copyError !== null) && (
+              <Button
+                label="Changes"
+                pressed={showsChanges}
                 disabled={noteBefore === null || editsNote}
-                title={noteBefore === null ? noCopyReason : editsNote ? LEAVE_EDIT : undefined}
+                reason={copyError ?? (editsNote ? LEAVE_EDIT : null)}
                 onClick={() => {
                   setChanges({ ...changes, [shownNote.path]: !changesOn });
                 }}
-              >
-                Changes
-              </button>
+              />
             )}
             <button
               aria-pressed={wrap}

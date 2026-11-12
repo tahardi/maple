@@ -25,17 +25,25 @@ describe('ActionBar', () => {
     expect(onClick).toHaveBeenCalledOnce();
   });
 
-  test('a disabled action shows its title and does not call onClick', async () => {
+  test('a disabled action shows its reason beside it and does not call onClick', async () => {
     // given
     const onClick = vi.fn();
-    render(<ActionBar actions={[{ label: 'Approve', onClick, disabled: true, title: 'No PR yet' }]} />);
+    render(<ActionBar actions={[{ label: 'Approve', onClick, disabled: true, reason: 'No PR yet' }]} />);
     const button = screen.getByRole('button', { name: 'Approve' });
     // when
     await userEvent.click(button);
     // then
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', 'No PR yet');
+    expect(screen.getByText('No PR yet')).toBeVisible();
+    expect(button).toHaveAccessibleDescription('No PR yet');
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  test('a busy action shows its busy label', () => {
+    // when
+    render(<ActionBar actions={[{ label: 'Approve & merge', onClick: vi.fn(), busy: true, busyLabel: 'Merging…' }]} />);
+    // then
+    expect(screen.getByRole('button', { name: 'Merging…' })).toBeDisabled();
   });
 
   test('marks each action with its variant', () => {
@@ -60,13 +68,14 @@ describe('ActionBar', () => {
     expect(screen.queryAllByRole('button')).toEqual([]);
   });
 
-  test('an enabled action without a title has no tooltip', () => {
+  test('an enabled action shows no reason', () => {
     // when
     render(<ActionBar actions={[{ label: 'Approve', onClick: vi.fn() }]} />);
     // then
     const button = screen.getByRole('button', { name: 'Approve' });
     expect(button).toBeEnabled();
-    expect(button).not.toHaveAttribute('title');
+    expect(button).not.toHaveAccessibleDescription();
+    expect(button.nextSibling).toBeNull();
   });
 
   test('renders its children after the actions', () => {

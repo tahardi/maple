@@ -26,6 +26,7 @@ function Harness({
   prFetchedAt,
   review = null,
   onPin,
+  onReloadReview,
 }: {
   tabId: string;
   path: string;
@@ -34,6 +35,7 @@ function Harness({
   prFetchedAt: string | null;
   review?: Review | null;
   onPin?: (path: string) => void;
+  onReloadReview?: () => void;
 }) {
   const { comments, diff, refresh } = useFileComments({ tabId, canComment, review, activeFile: path, prFetchedAt });
   return (
@@ -47,6 +49,7 @@ function Harness({
       diff={diff}
       onCommentsChanged={refresh}
       onPin={onPin}
+      onReloadReview={onReloadReview}
       toolbar={slot}
     />
   );
@@ -997,7 +1000,7 @@ describe('CodeView', () => {
     renderViewer(changed, undefined, true);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     // when
     await userEvent.click(button);
@@ -1023,7 +1026,7 @@ describe('CodeView', () => {
     renderViewer(changed, undefined, true);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     await userEvent.click(button);
     const [zone] = monaco.zones.addZone.mock.calls[0];
@@ -1062,7 +1065,7 @@ describe('CodeView', () => {
     const { rerender } = render(<Harness {...props} />);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     await userEvent.click(button);
     const [zone] = monaco.zones.addZone.mock.calls[0];
@@ -1084,7 +1087,7 @@ describe('CodeView', () => {
     const comment = vi.spyOn(window.maple.pr, 'comment');
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     await userEvent.click(button);
     const [zone] = monaco.zones.addZone.mock.calls[0];
@@ -1102,7 +1105,7 @@ describe('CodeView', () => {
     renderViewer(changed, undefined, true);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     await userEvent.click(button);
     const [zone] = monaco.zones.addZone.mock.calls[0];
@@ -1131,7 +1134,7 @@ describe('CodeView', () => {
     });
     const button = screen.getByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     // when
     await userEvent.click(button);
@@ -1151,7 +1154,7 @@ describe('CodeView', () => {
     renderViewer(changed, undefined, true);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     await userEvent.click(button);
     await moveCursor(select(5, 6));
@@ -1171,7 +1174,7 @@ describe('CodeView', () => {
     vi.spyOn(window.maple.pr, 'comment').mockRejectedValue(new Error('posting review comment: offline'));
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     await userEvent.click(button);
     const [zone] = monaco.zones.addZone.mock.calls[0];
@@ -1189,7 +1192,7 @@ describe('CodeView', () => {
     const { props, rerender } = renderViewer(changed, undefined, true);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     await userEvent.click(button);
     expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
@@ -1206,7 +1209,7 @@ describe('CodeView', () => {
     renderViewer(changed, undefined, true);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     await userEvent.click(button);
     expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
@@ -1240,7 +1243,7 @@ describe('CodeView', () => {
     const button = await screen.findByRole('button', { name: 'Comment' });
     await moveCursor(select(2, end, endColumn));
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     // when
     await userEvent.click(button);
@@ -1267,7 +1270,8 @@ describe('CodeView', () => {
     await vi.waitFor(() => {
       expect(button).toBeDisabled();
     });
-    expect(button).toHaveAttribute('title', 'Select lines to comment on');
+    expect(button).toHaveAccessibleDescription('Select lines to comment on');
+    expect(screen.getByText('Select lines to comment on')).toHaveAttribute('data-kind', 'hint');
     // when
     await moveCursor(select(3, 3));
     // then
@@ -1283,7 +1287,8 @@ describe('CodeView', () => {
     await moveCursor(select(1, 1, 1));
     // then
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', 'Select lines to comment on');
+    expect(button).toHaveAccessibleDescription('Select lines to comment on');
+    expect(screen.getByText('Select lines to comment on')).toHaveAttribute('data-kind', 'hint');
   });
 
   test.each([
@@ -1303,13 +1308,19 @@ describe('CodeView', () => {
   });
 
   test.each([
-    { name: 'the no-review reason once lines are selected', cursor: select(3, 3), want: 'Review not loaded' },
+    {
+      name: 'the no-review reason once lines are selected',
+      cursor: select(3, 3),
+      want: 'Review not loaded',
+      kind: null,
+    },
     {
       name: 'the selection hint before lines are selected',
       cursor: select(1, 1, 1),
       want: 'Select lines to comment on',
+      kind: 'hint',
     },
-  ])('Comment without a loaded review shows $name', async ({ cursor, want }) => {
+  ])('Comment without a loaded review shows $name', async ({ cursor, want, kind }) => {
     // given
     const { props, rerender } = renderViewer(changed, undefined, true);
     await screen.findByRole('button', { name: 'Comment' });
@@ -1317,7 +1328,25 @@ describe('CodeView', () => {
     // when
     await moveCursor(cursor);
     // then
-    expect(screen.getByRole('button', { name: 'Comment' }).getAttribute('title')).toContain(want);
+    expect(screen.getByRole('button', { name: 'Comment' })).toHaveAccessibleDescription(want);
+    expect(screen.getByText(want).getAttribute('data-kind')).toBe(kind);
+  });
+
+  test('shows why Comment is blocked beside the button before it is clicked', async () => {
+    // given
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } }));
+    renderViewer(changed, undefined, true, undefined, diffLines);
+    const button = await screen.findByRole('button', { name: 'Comment' });
+    await vi.waitFor(() => {
+      expect(diffLines).toHaveBeenCalled();
+    });
+    // when
+    await moveCursor(select(8, 12));
+    // then
+    const reason = 'GitHub only accepts comments on lines in the PR diff';
+    expect(screen.getByText(reason)).toBeVisible();
+    expect(button).toHaveAccessibleDescription(reason);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   test('explains why Comment does nothing on lines that leave the PR diff', async () => {
@@ -1425,7 +1454,7 @@ describe('CodeView', () => {
     const { props, rerender } = renderViewer(changed, undefined, true, undefined, diffLines);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     // when
     rerender(<Harness {...props} review={next} />);
@@ -1433,8 +1462,7 @@ describe('CodeView', () => {
     await vi.waitFor(() => {
       expect(diffLines).toHaveBeenCalledWith('t1', reviewed.baseSha, next.headSha);
     });
-    expect(screen.getByRole('button', { name: 'Comment' })).toHaveAttribute(
-      'title',
+    expect(screen.getByRole('button', { name: 'Comment' })).toHaveAccessibleDescription(
       'GitHub only accepts comments on lines in the PR diff',
     );
   });
@@ -1444,7 +1472,7 @@ describe('CodeView', () => {
     const { props, rerender } = renderViewer(changed, undefined, true);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     await userEvent.click(button);
     expect(monaco.zones.addZone).toHaveBeenCalledTimes(1);
@@ -1454,6 +1482,55 @@ describe('CodeView', () => {
     await vi.waitFor(() => {
       expect(monaco.zones.removeZone).toHaveBeenCalledWith('z1');
     });
+  });
+
+  test('offers Reload review beside Comment without a loaded review', async () => {
+    // given
+    const onReloadReview = vi.fn();
+    fakeMaple({ repo: { readFile: () => Promise.resolve(changed) } });
+    render(
+      <Harness
+        tabId="t1"
+        path="src/a.ts"
+        line={null}
+        canComment
+        prFetchedAt={null}
+        review={null}
+        onReloadReview={onReloadReview}
+      />,
+    );
+    await screen.findByRole('button', { name: 'Comment' });
+    await moveCursor(select(3, 3));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Reload review' }));
+    // then
+    expect(onReloadReview).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    { name: 'no lines are selected', review: null, cursor: select(1, 1, 1) },
+    { name: 'the review is loaded and the lines leave the PR diff', review: reviewed, cursor: select(20, 20) },
+  ])('offers no Reload review beside Comment when $name', async ({ review, cursor }) => {
+    // given
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } }));
+    const readFile = () => Promise.resolve(changed);
+    fakeMaple({ repo: { readFile }, pr: { diffLines, readFile } });
+    render(
+      <Harness
+        tabId="t1"
+        path="src/a.ts"
+        line={null}
+        canComment
+        prFetchedAt={null}
+        review={review}
+        onReloadReview={vi.fn()}
+      />,
+    );
+    await screen.findByRole('button', { name: 'Comment' });
+    // when
+    await moveCursor(cursor);
+    // then
+    expect(screen.queryByRole('button', { name: 'Reload review' })).not.toBeInTheDocument();
   });
 
   test('explains why Comment does nothing without a loaded review', async () => {
@@ -1466,9 +1543,7 @@ describe('CodeView', () => {
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Comment' }));
     // then
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      "Can't comment on line 3. Review not loaded: click Reload review to pin comments to the reviewed commit",
-    );
+    expect(await screen.findByRole('alert')).toHaveTextContent("Can't comment on line 3. Review not loaded");
     expect(diffLines).not.toHaveBeenCalled();
   });
 
@@ -1815,7 +1890,7 @@ describe('CodeView', () => {
     renderViewer(changed, undefined, true, comments, diffLines);
     const button = await screen.findByRole('button', { name: 'Comment' });
     await vi.waitFor(() => {
-      expect(button).not.toHaveAttribute('title');
+      expect(button).not.toHaveAccessibleDescription();
     });
     await userEvent.click(button);
     const [zone] = monaco.zones.addZone.mock.calls[0];

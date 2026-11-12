@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { CommentEditor } from './CommentEditor';
 import styles from './LineComment.module.css';
@@ -35,9 +36,7 @@ export function LineComment({ tabId, path, startLine, line, headSha, onDone }: P
       <CommentEditor label="Comment" value={text} onChange={setText} />
       {error !== null && <Notice tone="danger">{error}</Notice>}
       <div className={styles.actions}>
-        <button disabled={posting || text.trim() === ''} onClick={post}>
-          Post
-        </button>
+        <Button label="Post" disabled={text.trim() === ''} busy={posting} busyLabel="Posting…" onClick={post} />
         <button onClick={onDone}>Cancel</button>
       </div>
     </div>

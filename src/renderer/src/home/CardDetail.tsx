@@ -3,6 +3,7 @@ import type { TabState } from '@shared/types/tabs/tabState';
 import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { EpicLozenge } from './EpicLozenge';
 import { Badge } from '@renderer/shell/blocks/Badge';
+import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './CardDetail.module.css';
 
@@ -10,6 +11,7 @@ type Props = {
   card: Card;
   tab: TabState | null;
   failure: string | null;
+  busy: boolean;
   onStart: () => void;
   onOpen: () => void;
   onGoTo: () => void;
@@ -17,21 +19,23 @@ type Props = {
   onAddToSprint?: (() => void) | null;
 };
 
-function action(card: Card, tab: TabState | null, props: Props): { label: string; run: () => void } | null {
+type Action = { label: string; busyLabel?: string; run: () => void };
+
+function action(card: Card, tab: TabState | null, props: Props): Action | null {
   if (tab) {
     return { label: 'Go to tab', run: props.onGoTo };
   }
   if (card.status === 'To Do') {
-    return { label: 'Start', run: props.onStart };
+    return { label: 'Start', busyLabel: 'Starting…', run: props.onStart };
   }
   if (card.status === 'In Progress' || card.status === 'In Review') {
-    return { label: 'Open', run: props.onOpen };
+    return { label: 'Open', busyLabel: 'Opening…', run: props.onOpen };
   }
   return null;
 }
 
 export function CardDetail(props: Props) {
-  const { card, tab, failure, onClose, onAddToSprint } = props;
+  const { card, tab, failure, busy, onClose, onAddToSprint } = props;
   const next = action(card, tab, props);
 
   return (
@@ -62,14 +66,18 @@ export function CardDetail(props: Props) {
       )}
       <div className={styles.actions}>
         {onAddToSprint !== undefined ? (
-          <button data-variant="primary" onClick={onAddToSprint ?? undefined} disabled={onAddToSprint === null}>
-            Add to sprint
-          </button>
+          <Button
+            label="Add to sprint"
+            variant="primary"
+            onClick={onAddToSprint ?? undefined}
+            disabled={onAddToSprint === null}
+            reason={onAddToSprint === null ? 'No active sprint' : null}
+            busy={busy}
+            busyLabel="Moving…"
+          />
         ) : (
           next && (
-            <button data-variant="primary" onClick={next.run}>
-              {next.label}
-            </button>
+            <Button label={next.label} variant="primary" onClick={next.run} busy={busy} busyLabel={next.busyLabel} />
           )
         )}
         <a href={card.url} target="_blank" rel="noreferrer">

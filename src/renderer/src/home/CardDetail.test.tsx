@@ -15,9 +15,9 @@ const tab: TabState = {
   worktreePaths: [],
 };
 
-function renderDetail(c: Card, t: TabState | null) {
+function renderDetail(c: Card, t: TabState | null, busy = false) {
   const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
-  render(<CardDetail card={c} tab={t} failure={null} {...handlers} />);
+  render(<CardDetail card={c} tab={t} failure={null} busy={busy} {...handlers} />);
   return handlers;
 }
 
@@ -120,6 +120,7 @@ describe('CardDetail', () => {
         card={card('DIG-41', status)}
         tab={hasTab ? tab : null}
         failure={null}
+        busy={false}
         onStart={vi.fn()}
         onOpen={vi.fn()}
         onGoTo={vi.fn()}
@@ -142,6 +143,7 @@ describe('CardDetail', () => {
         card={card('DIG-41', 'To Do')}
         tab={null}
         failure={null}
+        busy={false}
         onStart={vi.fn()}
         onOpen={vi.fn()}
         onGoTo={vi.fn()}
@@ -150,7 +152,37 @@ describe('CardDetail', () => {
       />,
     );
     // then
-    expect(screen.getByRole('button', { name: 'Add to sprint' })).toBeDisabled();
+    const button = screen.getByRole('button', { name: 'Add to sprint' });
+    expect(button).toBeDisabled();
+    expect(screen.getByText('No active sprint')).toBeVisible();
+    expect(button).toHaveAccessibleDescription('No active sprint');
+  });
+
+  test.each([
+    { label: 'Start', busyLabel: 'Starting…', status: 'To Do' as const, addToSprint: false },
+    { label: 'Open', busyLabel: 'Opening…', status: 'In Progress' as const, addToSprint: false },
+    { label: 'Add to sprint', busyLabel: 'Moving…', status: 'To Do' as const, addToSprint: true },
+  ])('$label reads $busyLabel while busy', ({ busyLabel, status, addToSprint }) => {
+    // given
+    const onAddToSprint = addToSprint ? vi.fn() : undefined;
+    // when
+    render(
+      <CardDetail
+        card={card('DIG-41', status)}
+        tab={null}
+        failure={null}
+        busy
+        onStart={vi.fn()}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+        onClose={vi.fn()}
+        onAddToSprint={onAddToSprint}
+      />,
+    );
+    // then
+    const button = screen.getByRole('button', { name: busyLabel });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
   });
 
   test('hides Blocked by when every blocker is Done', () => {
@@ -214,6 +246,7 @@ describe('CardDetail', () => {
         card={card('DIG-41', 'To Do')}
         tab={null}
         failure={null}
+        busy={false}
         {...handlers}
         onAddToSprint={onAddToSprint}
       />,

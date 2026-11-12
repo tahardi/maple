@@ -7,6 +7,7 @@ type Pending = { step: 'findings' | 'unviewed'; headSha: string };
 
 export type ApproveFlow = {
   error: string | null;
+  approving: boolean;
   dialog: { title: string; body: string } | null;
   approve: () => void;
   confirm: () => void;
@@ -22,6 +23,7 @@ export function useApproveFlow(
 ): ApproveFlow {
   const [error, setError] = useWorktreeState<{ headSha: string; message: string } | null>(worktreePath, null);
   const [pending, setPending] = useState<Pending | null>(null);
+  const [merging, setMerging] = useState<ReadonlySet<string | null>>(new Set());
   const headSha = review?.headSha ?? null;
   const highFindings = review?.findings.filter((f) => f.severity === 'high').length ?? 0;
   const step = pending !== null && pending.headSha === headSha ? pending.step : null;
@@ -31,9 +33,20 @@ export function useApproveFlow(
       return;
     }
     setError(() => null);
-    window.maple.pr.approve(tabId, headSha).catch((err: unknown) => {
-      setError(() => ({ headSha, message: errorText(err) }));
-    });
+    const path = worktreePath;
+    setMerging((now) => new Set(now).add(path));
+    window.maple.pr
+      .approve(tabId, headSha)
+      .catch((err: unknown) => {
+        setError(() => ({ headSha, message: errorText(err) }));
+      })
+      .finally(() => {
+        setMerging((now) => {
+          const next = new Set(now);
+          next.delete(path);
+          return next;
+        });
+      });
   };
 
   const askViewed = () => {
@@ -61,6 +74,7 @@ export function useApproveFlow(
 
   return {
     error: error !== null && error.headSha === headSha ? error.message : null,
+    approving: merging.has(worktreePath),
     dialog,
     approve: () => {
       if (headSha === null) {

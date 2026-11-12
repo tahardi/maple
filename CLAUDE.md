@@ -39,6 +39,9 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
 - Read the zustand store through selectors, like `useStore((s) => s.cards)` - re-render only on that slice.
 - Draw notices and errors with `Notice`, labels with `Badge`, and dialogs with `Dialog`
   from `src/renderer/src/shell/blocks/` - never hand-roll them, so the same kind of message looks the same everywhere.
+- Every button that waits on IPC uses `Button` with `busy` and a `busyLabel` - it shows the work and blocks double clicks.
+- A disabled button gives its `reason` as visible text, never `title` - hover is easy to miss. Name an irreversible action
+  for what it does and ask to confirm.
 
 ## Electron
 

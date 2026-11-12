@@ -111,6 +111,10 @@ export function CardTab({ tab }: { tab: TabState }) {
     ),
   ]);
   const approval = useApproveFlow(tab.id, tab.worktreePath, pinned, unviewed);
+  const reloadPinnedReview = () => {
+    approval.clearError();
+    reloadReview();
+  };
   const actions =
     config === null
       ? []
@@ -121,10 +125,12 @@ export function CardTab({ tab }: { tab: TabState }) {
           review: pinned,
           dot,
           worktreeExists,
+          approving: approval.approving,
           send: (text) => {
             window.maple.session.sendPrompt(tab.id, text);
           },
           approve: approval.approve,
+          reloadReview: reloadPinnedReview,
         });
 
   const toggleTerminal = () => {
@@ -217,10 +223,7 @@ export function CardTab({ tab }: { tab: TabState }) {
           {pr && (
             <PrSummary
               pr={pr}
-              onReloadReview={() => {
-                approval.clearError();
-                reloadReview();
-              }}
+              onReloadReview={reloadPinnedReview}
               reviewError={review?.error ?? null}
               findings={pinned?.findings ?? []}
               projectRepo={project?.repo ?? null}
@@ -254,6 +257,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 onComments={showComments}
                 line={openFiles.line}
                 review={pinned}
+                onReloadReview={reloadPinnedReview}
                 noteChanges
               />
             )}
