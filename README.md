@@ -99,7 +99,8 @@ Maple runs Claude sessions with permissions skipped and holds a Jira token, so i
 
 - The renderer is sandboxed and isolated, has a strict Content-Security-Policy, and may not navigate away from the app. Links open in the browser, and only `http` and `https` links.
 - The renderer gets clipboard access only. Every other permission, such as notifications, camera, or location, is denied.
-- Untrusted text renders as text. A lint rule rejects `innerHTML` and `dangerouslySetInnerHTML`.
+- Untrusted text renders as text. A lint rule rejects `innerHTML` and `dangerouslySetInnerHTML`. Security findings always show as plain text, never as Markdown.
+- Card sessions may write outside their worktree only to the findings folder in the config dir, which Maple adds to the Claude sandbox's write list.
 - The main process checks every IPC argument, reads files only inside a tab's worktree, and never returns the Jira token.
 - `git`, `gh`, and `claude` run with argument arrays, never through a shell.
 - The hook socket is private to the user and drops oversized lines.

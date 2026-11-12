@@ -23,6 +23,8 @@ type Props = {
   projectRepo: string | null;
   onOpenCard: () => void;
   onOpenPr: () => void;
+  findingsLabel: string | null;
+  onOpenFindings: () => void;
 };
 
 const NO_PR_HINT =
@@ -60,6 +62,8 @@ export function CardHeader({
   projectRepo,
   onOpenCard,
   onOpenPr,
+  findingsLabel,
+  onOpenFindings,
 }: Props) {
   const info = pr?.data ?? null;
   const noPr = pr !== null && info === null && pr.error === null && pr.fetchedAt !== null && searchedRepos.length > 0;
@@ -77,6 +81,11 @@ export function CardHeader({
         <span className={styles.title}>{cardKey}</span>
       )}
       {card && <Badge>{card.status}</Badge>}
+      {findingsLabel !== null && (
+        <button className={styles.findings} onClick={onOpenFindings}>
+          {findingsLabel}
+        </button>
+      )}
       {info && (
         <>
           <button className={styles.pr} title="Open PR description" onClick={onOpenPr}>

@@ -39,6 +39,7 @@ describe('registerIpc', () => {
     hooksFile: '',
     socketPath: '',
     snapshotRoot: '/tmp/maple/snapshots',
+    findingsDir: '/tmp/maple/findings',
     save: vi.fn(),
     closedSessions: {},
     uuid: vi.fn(),
@@ -73,6 +74,7 @@ describe('registerIpc', () => {
     prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
     jira: new Promise<never>(() => undefined),
     jiraCreds: new Promise<never>(() => undefined),
+    findingsDir: '/tmp/maple/findings',
   };
 
   sessions.setMaxListeners(0);

@@ -1,14 +1,18 @@
+import type { Fetched } from '@shared/types/app/fetched';
 import type { Draft } from '@shared/types/files/draft';
+import type { FindingsFile } from '@shared/types/findings/findingsFile';
 import type { Review } from '@shared/types/github/review';
 import type { ReviewComment } from '@shared/types/github/reviewComment';
 import { useState } from 'react';
 import { useFileComments } from '@renderer/card/comments/useFileComments';
+import { FindingsView } from '@renderer/card/findings/FindingsView';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
 import { CodeView } from '@renderer/card/viewer/code/CodeView';
 import { NoteView } from '@renderer/card/viewer/note/NoteView';
 import { baseName } from '@renderer/card/viewer/tabs/baseName';
 import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
 import { FileTabMenu } from '@renderer/card/viewer/tabs/FileTabMenu';
+import { FINDINGS } from '@renderer/card/viewer/tabs/findingsTab';
 import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
 import { useMaple } from '@renderer/store';
 import { DescriptionView } from './DescriptionView';
@@ -31,6 +35,7 @@ type Props = {
   preview?: string | null;
   onPin?: (path: string) => void;
   onReloadReview?: () => void;
+  findings?: Fetched<FindingsFile> | null;
 };
 
 const NO_DRAFTS: Record<string, Draft> = {};
@@ -52,6 +57,7 @@ export function FileViewer({
   preview = null,
   onPin,
   onReloadReview,
+  findings = null,
 }: Props) {
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
@@ -76,6 +82,9 @@ export function FileViewer({
     }
     if (activeFile === CARD_DESCRIPTION) {
       return <DescriptionView text={cardBody ?? ''} />;
+    }
+    if (activeFile === FINDINGS) {
+      return <FindingsView file={findings?.data ?? null} error={findings?.error ?? null} />;
     }
     if (activeFile.startsWith(VAULT_PREFIX)) {
       return <NoteView tabId={tabId} path={activeFile} noteChanges={noteChanges} onPin={onPin} toolbar={toolbar} />;
@@ -123,7 +132,7 @@ export function FileViewer({
                 {label(path)}
               </button>
               <button
-                aria-label={`Close ${path === PR_DESCRIPTION || path === CARD_DESCRIPTION ? baseName(path) : path}`}
+                aria-label={`Close ${[PR_DESCRIPTION, CARD_DESCRIPTION, FINDINGS].includes(path) ? baseName(path) : path}`}
                 className={styles.close}
                 onClick={() => {
                   onCloseFiles([path]);

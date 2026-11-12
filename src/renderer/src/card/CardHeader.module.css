@@ -54,6 +54,19 @@ button.title:hover {
   text-decoration: underline;
 }
 
+.findings {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.findings:hover {
+  text-decoration: underline;
+}
+
 .branch {
   font-family: monospace;
   max-width: 30ch;

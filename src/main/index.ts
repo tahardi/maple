@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { mkdir } from 'node:fs/promises';
 import { cpus, freemem, loadavg } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -123,7 +124,14 @@ async function start(): Promise<Zoom> {
     limits: pruneLimits(config()),
     askDeleteToday: (bytes) => askDeleteToday((options) => dialog.showMessageBox(options), bytes),
   });
-  const hooksFile = await writeHooksFile(configDir(), process.execPath, join(import.meta.dirname, 'maple-hook.mjs'));
+  const findingsDir = join(configDir(), 'findings');
+  await mkdir(findingsDir, { recursive: true });
+  const hooksFile = await writeHooksFile(
+    configDir(),
+    process.execPath,
+    join(import.meta.dirname, 'maple-hook.mjs'),
+    findingsDir,
+  );
   const tmuxConf = await writeTmuxConf(configDir());
   const socketPath = hookSocketPath();
   const creds = readCreds(jiraEnvPath());
@@ -150,6 +158,7 @@ async function start(): Promise<Zoom> {
     hooksFile,
     socketPath,
     snapshotRoot: join(configDir(), 'snapshots'),
+    findingsDir,
     save: (tabs, closedSessions) => store.patch({ tabs, closedSessions }),
     closedSessions: state.closedSessions,
     uuid: randomUUID,
@@ -266,6 +275,7 @@ async function start(): Promise<Zoom> {
     prs: prPoller,
     jira,
     jiraCreds: creds,
+    findingsDir,
     setActiveTab: (tabId) => {
       activeTabId = tabId;
       autoSync.activate(tabId);

@@ -66,6 +66,8 @@ const base = {
   reviewUpdated: false,
   approve: null,
   onOpenPr: vi.fn(),
+  findingsLabel: null,
+  onOpenFindings: vi.fn(),
 };
 
 describe('CardHeader', () => {

@@ -52,10 +52,10 @@ flowchart LR
 
 ## IPC Surface
 
-`window.maple` has ten areas: `config`, `preflight`, `jira`, `tabs`, `session`, `terminal`, `repo`, `vault`, `pr`,
-and `app`. `src/shared/api/mapleApi.ts` declares them as the `MapleApi` type and the `IPC_CHANNELS` table. Each area
-has one API file in `src/shared/api/` (for example `src/shared/api/session.ts`) and one handler file in `src/main/ipc/`
-(for example `src/main/ipc/session.ts`).
+`window.maple` has eleven areas: `config`, `preflight`, `jira`, `tabs`, `session`, `terminal`, `repo`, `vault`, `pr`,
+`findings`, and `app`. `src/shared/api/mapleApi.ts` declares them as the `MapleApi` type and the `IPC_CHANNELS`
+table. Each area has one API file in `src/shared/api/` (for example `src/shared/api/session.ts`) and one handler file
+in `src/main/ipc/` (for example `src/main/ipc/session.ts`).
 
 Every method is one of three channel kinds:
 
@@ -87,13 +87,14 @@ claude --dangerously-skip-permissions --settings <config dir>/hooksFile.json \
 A new card gets `--session-id` with a fresh uuid and the card prompt. Reopening a card whose session was closed passes
 `--resume <id>` with no prompt, but only when a transcript for that id exists under `~/.claude/projects`; otherwise
 Maple logs `no transcript, starting fresh` and starts a new session with the same id. The tmux session's environment
-carries `MAPLE_TAB_ID`, `MAPLE_SOCKET`, and, for card tabs, `MAPLE_SNAPSHOT_DIR` and `MAPLE_VAULT_DIR`. The process
-environment also carries the Jira credentials so Claude can call Jira.
+carries `MAPLE_TAB_ID`, `MAPLE_SOCKET`, and, for card tabs, `MAPLE_SNAPSHOT_DIR`, `MAPLE_VAULT_DIR`, and
+`MAPLE_FINDINGS_DIR`. The process environment also carries the Jira credentials so Claude can call Jira.
 
 **Hooks.** `hooksFile.json` registers `maple-hook.mjs` for `Stop`, `UserPromptSubmit`, `SessionStart`, `Notification`
-(permission prompts only), and `PreToolUse` (file writes and vault note writes only). `PreToolUse` sends nothing; it
-copies the vault note about to change into the snapshot dir. Every other hook sends one JSON line (tab id, event,
-notification type, background tasks, cron count, session id) to the hook socket. The hook server,
+(permission prompts only), and `PreToolUse` (file writes and vault note writes only). It also adds the findings dir
+to `sandbox.filesystem.allowWrite`, so the `/card` skill's script can write findings from Bash. `PreToolUse` sends
+nothing; it copies the vault note about to change into the snapshot dir. Every other hook sends one JSON line (tab
+id, event, notification type, background tasks, cron count, session id) to the hook socket. The hook server,
 `src/main/sessions/hooks/hookServer.ts`, validates each line and hands it to the status engine, the event recorder,
 and PR events.
 
@@ -182,7 +183,9 @@ user switches away while it is still `queued`.
   main, once per PR head.
 - **Start queue recheck**: every 15 s, plus on every dot change and tab change, the start queue retries queued cards.
 - **Worktree watcher** (`src/main/git/worktreeWatcher.ts`): file-system watches, debounced 300 ms, on `worktreesDir`
-  (to find a card's worktrees), on the shown worktree (to refresh its file changes), and on the vault.
+  (to find a card's worktrees), on the shown worktree (to refresh its file changes), on the vault, and on the
+  findings dir. A findings change sends `findings:changed`, and the card tab re-reads its file. It watches the folder,
+  not the file, because writers replace the file by renaming a temp file over it.
 - **Renderer refreshes**, each every 60 s: the sprint board (`src/renderer/src/home/useSprint.ts`), the backlog
   (`src/renderer/src/home/backlog/useBacklog.ts`), and the active card tab's card, PR, changes, and cost
   (`src/renderer/src/card/useCardData.ts`).
@@ -204,6 +207,10 @@ user switches away while it is still `queued`.
 - `events/<YYYY-MM-DD>.jsonl`: the event log, one file per local day (`src/main/events/eventLog.ts`).
 - `snapshots/<sessionId>/`: vault notes as they were before a card session first wrote them
   (`src/main/vault/snapshots.ts`).
+- `findings/<KEY>.json`: each card's security findings, in the shape the vault note
+  `Projects/Maple/Findings Contract.md` gives. Maple creates the folder at launch and reads each file with
+  `src/main/findings/readFindings.ts`; a missing file means no findings, and a newer or invalid file shows an error
+  in the card's Findings tab.
 - `electron/`: Electron's own data, only when `MAPLE_CONFIG_DIR` is set.
 
 `config.json` and `state.json` each carry a format `version`; a file without one counts as version 1. At load,
