@@ -1207,6 +1207,7 @@ describe('FileViewer', () => {
     expect(rule).toContain('padding: var(--space-3)');
     expect(rule).toContain('color: var(--text-muted)');
     expect(rule).not.toContain('background');
+    expect(source).not.toMatch(/\.message\s*,/);
   });
 
   test('shows the base text under a notice for a deleted file', async () => {
