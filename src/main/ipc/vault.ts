@@ -1,18 +1,15 @@
 import { z } from 'zod';
 import { appLogger, logFailure, type Logger } from '@main/app/log/log';
-import { watchWorktree } from '@main/git/worktreeWatcher';
 import { readSnapshot } from '@main/vault/snapshots';
 import { listNotes, readNote, writeNote } from '@main/vault/vault';
 import { vaultWrites } from '@main/vault/vaultWrites';
 import { vaultDir as configuredVaultDir } from '@main/app/config/configCache';
 import type { IpcDeps } from './index';
-import { emit } from './emit';
 import { tabIdArg } from './args';
 import { handle } from './handle';
-import { errorText } from '@shared/errors/errorText';
 
 export function registerVault(
-  { sessions, window }: IpcDeps,
+  { sessions, watchVault }: IpcDeps,
   logger: Logger = appLogger,
   vaultDir: () => Promise<string | null> = configuredVaultDir,
 ): void {
@@ -22,24 +19,6 @@ export function registerVault(
       throw new Error('reading vault: no vaultDir in config');
     }
     return dir;
-  }
-
-  let watcher: { dir: string; stop: () => void } | null = null;
-  function watchVault(dir: string): void {
-    if (watcher?.dir === dir) {
-      return;
-    }
-    watcher?.stop();
-    watcher = null;
-    try {
-      const stop = watchWorktree(dir, () => {
-        emit(window(), 'vault', 'onChanged');
-      });
-      watcher = { dir, stop };
-    } catch (err) {
-      const error = errorText(err);
-      logger.warn('vault', 'failed', { operation: 'watchWorktree', args: [dir], error });
-    }
   }
 
   handle('vault', 'list', z.tuple([]), () =>

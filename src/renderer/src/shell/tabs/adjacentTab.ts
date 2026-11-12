@@ -10,6 +10,7 @@ export function adjacentTab(
   const order = [
     null,
     ...ofProject.filter((t) => t.kind === 'vault').map((t) => t.id),
+    ...ofProject.filter((t) => t.kind === 'learning').map((t) => t.id),
     ...ofProject.filter((t) => t.kind === 'card').map((t) => t.id),
   ];
   const index = Math.max(order.indexOf(activeTabId), 0);

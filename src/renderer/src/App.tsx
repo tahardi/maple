@@ -3,6 +3,7 @@ import styles from './App.module.css';
 import { CardTab } from './card/CardTab';
 import { HomeTab } from './home/HomeTab';
 import { VaultTab } from './vault/VaultTab';
+import { LearningTab } from './learning/LearningTab';
 import { Notice } from './shell/blocks/Notice';
 import { QuitGuard } from './shell/QuitGuard';
 import { ReportLauncher } from './shell/ReportLauncher';
@@ -33,7 +34,8 @@ export function App() {
 
   const cardTabs = tabs.filter((t) => t.kind === 'card');
   const vaultTabs = tabs.filter((t) => t.kind === 'vault');
-  const tabActive = [...cardTabs, ...vaultTabs].some((t) => t.id === activeTabId);
+  const learningTabs = tabs.filter((t) => t.kind === 'learning');
+  const tabActive = [...cardTabs, ...vaultTabs, ...learningTabs].some((t) => t.id === activeTabId);
 
   const errors = [...problems.map((p) => p.message), ...(configError === null ? [] : [configError, RELOAD_HINT])];
 
@@ -69,6 +71,13 @@ export function App() {
         <div key={tab.id} className={styles.slot} hidden={tab.id !== activeTabId}>
           <TabErrorBoundary>
             <VaultTab tab={tab} />
+          </TabErrorBoundary>
+        </div>
+      ))}
+      {learningTabs.map((tab) => (
+        <div key={tab.id} className={styles.slot} hidden={tab.id !== activeTabId}>
+          <TabErrorBoundary>
+            <LearningTab tab={tab} />
           </TabErrorBoundary>
         </div>
       ))}

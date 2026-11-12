@@ -9,6 +9,7 @@ const RECORDED_CHANNELS: ReadonlySet<string> = new Set([
   'tabs:startCard',
   'tabs:openCard',
   'tabs:openVault',
+  'tabs:openLearning',
   'tabs:close',
   'tabs:resume',
   'tabs:startFresh',
@@ -80,7 +81,7 @@ export function uiActionRecorder(
     if (channel === 'tabs:close' && first !== null && deps.closeNeedsConfirm(first, args[1] === true)) {
       return [];
     }
-    if (channel === 'tabs:openVault') {
+    if (channel === 'tabs:openVault' || channel === 'tabs:openLearning') {
       return [[{ ...NO_REFS, project: first }, plain]];
     }
     return [[channel === 'jira:report' ? NO_REFS : tabRefs(first, lookup(first)), plain]];

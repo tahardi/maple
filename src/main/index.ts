@@ -28,6 +28,8 @@ import { closeNeedsConfirm } from '@main/sessions/closeNeedsConfirm';
 import { recordActions } from '@main/ipc/recordActions';
 import { JiraClient } from '@main/jira/JiraClient';
 import { tapDoneSnapshots } from '@main/vault/tapDoneSnapshots';
+import { vaultWatcher } from '@main/vault/vaultWatcher';
+import { emit } from '@main/ipc/emit';
 import { jiraEnvPath, readCreds } from '@main/jira/readCreds';
 import { appLogger, setLogSecrets, startLogging } from '@main/app/log/log';
 import { readBuildInfo } from '@main/app/buildInfo';
@@ -275,6 +277,9 @@ async function start(): Promise<Zoom> {
     prs: prPoller,
     jira,
     jiraCreds: creds,
+    watchVault: vaultWatcher(() => {
+      emit(mainWindow, 'vault', 'onChanged');
+    }, appLogger),
     findingsDir,
     setActiveTab: (tabId) => {
       activeTabId = tabId;

@@ -29,6 +29,9 @@ export function registerTabs(
   handle('tabs', 'openVault', z.tuple([projectKeyArg]), (projectKey) =>
     logged('tabs:openVault', [projectKey], () => sessions.openVault(projectKey, null)),
   );
+  handle('tabs', 'openLearning', z.tuple([projectKeyArg]), (projectKey) =>
+    logged('tabs:openLearning', [projectKey], () => sessions.openLearning(projectKey, null)),
+  );
   handle('tabs', 'close', z.tuple([tabIdArg, z.boolean()]), (tabId, force): CloseResult => {
     if (closeNeedsConfirm(status.statuses(), tabId, force)) {
       return { closed: false, needsConfirm: true };

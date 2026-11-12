@@ -77,7 +77,7 @@ describe('TabBar', () => {
     // when
     const labels = screen.getAllByRole('tab').map((t) => t.textContent);
     // then
-    expect(labels).toEqual(['Home', 'Vault', 'BEAR-1', 'BEAR-2']);
+    expect(labels).toEqual(['Home', 'Vault', 'Learning', 'BEAR-1', 'BEAR-2']);
   });
 
   test('clicking Vault opens the project vault tab and activates it', async () => {
@@ -112,6 +112,58 @@ describe('TabBar', () => {
     expect(openVault).not.toHaveBeenCalled();
   });
 
+  test.each([
+    { vault: 'set', config: VAULT_CONFIG, want: ['Home', 'Vault', 'Learning'] },
+    { vault: 'unset', config: FAKE_CONFIG, want: ['Home'] },
+  ])('shows Learning after Vault only when vaultDir is set ($vault)', ({ config, want }) => {
+    // given
+    useMaple.setState({ config });
+    // when
+    render(<TabBar />);
+    // then
+    expect(
+      screen
+        .getAllByRole('tab')
+        .map((t) => t.textContent)
+        .filter((label) => !label.startsWith('BEAR')),
+    ).toEqual(want);
+  });
+
+  test('Learning shows its tab dot', () => {
+    // given
+    useMaple.setState({
+      config: VAULT_CONFIG,
+      tabs: [...useMaple.getState().tabs, tab('l1', 'BEAR', 'learning', null)],
+      statuses: {
+        l1: { tabId: 'l1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+      },
+    });
+    // when
+    render(<TabBar />);
+    // then
+    const learning = screen.getByRole('tab', { name: /Learning/ });
+    expect(learning.querySelector('[data-dot]')).toHaveAttribute('data-dot', 'working');
+    expect(screen.queryByRole('button', { name: 'Close Learning' })).not.toBeInTheDocument();
+  });
+
+  test('clicking Learning opens or activates the learning tab', async () => {
+    // given
+    const activate = vi.fn();
+    const openLearning = vi.fn(() => Promise.resolve(tab('learning-BEAR', 'BEAR', 'learning', null)));
+    fakeMaple({ tabs: { openLearning } });
+    useMaple.setState({ config: VAULT_CONFIG, activate });
+    const { rerender } = render(<TabBar />);
+    await userEvent.click(screen.getByRole('tab', { name: 'Learning' }));
+    useMaple.setState({ tabs: [...useMaple.getState().tabs, tab('learning-BEAR', 'BEAR', 'learning', null)] });
+    rerender(<TabBar />);
+    // when
+    await userEvent.click(screen.getByRole('tab', { name: 'Learning' }));
+    // then
+    expect(openLearning).toHaveBeenCalledTimes(1);
+    expect(openLearning).toHaveBeenCalledWith('BEAR');
+    expect(activate.mock.calls).toEqual([['learning-BEAR'], ['learning-BEAR']]);
+  });
+
   test('an open vault tab shows no dot and no close button', () => {
     // given
     useMaple.setState({
@@ -132,7 +184,7 @@ describe('TabBar', () => {
   });
 
   test.each([
-    { vault: 'set', config: VAULT_CONFIG, pinned: ['Home', 'Vault'] },
+    { vault: 'set', config: VAULT_CONFIG, pinned: ['Home', 'Vault', 'Learning'] },
     { vault: 'unset', config: FAKE_CONFIG, pinned: ['Home'] },
   ])('with the vault $vault, pinned tabs sit before the divider and card tabs after it', ({ config, pinned }) => {
     // given
@@ -178,21 +230,25 @@ describe('TabBar', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  test('shows why the vault tab failed to open', async () => {
+  test.each([
+    { name: 'Vault', method: 'openVault', channel: 'tabs:openVault', reason: 'opening vault: no vaultDir in config' },
+    {
+      name: 'Learning',
+      method: 'openLearning',
+      channel: 'tabs:openLearning',
+      reason: 'opening learning: no vaultDir in config',
+    },
+  ] as const)('shows why the $name tab failed to open', async ({ name, method, channel, reason }) => {
     // given
     const activate = vi.fn();
-    const openVault = vi.fn(() =>
-      Promise.reject(
-        new Error("Error invoking remote method 'tabs:openVault': Error: opening vault: no vaultDir in config"),
-      ),
-    );
-    fakeMaple({ tabs: { openVault } });
+    const open = vi.fn(() => Promise.reject(new Error(`Error invoking remote method '${channel}': Error: ${reason}`)));
+    fakeMaple({ tabs: { [method]: open } });
     useMaple.setState({ config: VAULT_CONFIG, activate });
     render(<TabBar />);
     // when
-    await userEvent.click(screen.getByRole('tab', { name: 'Vault' }));
+    await userEvent.click(screen.getByRole('tab', { name }));
     // then
-    expect(await screen.findByRole('alert')).toHaveTextContent(/^opening vault: no vaultDir in config$/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(new RegExp(`^${reason}$`));
     expect(activate).not.toHaveBeenCalled();
   });
 

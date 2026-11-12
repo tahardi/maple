@@ -6,6 +6,7 @@ describe('tabLabel', () => {
     { kind: 'card', cardKey: 'BEAR-1', want: 'BEAR-1' },
     { kind: 'vault', cardKey: null, want: 'Vault' },
     { kind: 'planner', cardKey: null, want: 'Planner' },
+    { kind: 'learning', cardKey: null, want: 'Learning' },
   ])('labels a $kind tab $want', ({ kind, cardKey, want }) => {
     // given
     const tab = { kind, cardKey };

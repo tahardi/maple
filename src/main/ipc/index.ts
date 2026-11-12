@@ -14,6 +14,7 @@ import { registerApp } from './app';
 import { registerConfig } from './config';
 import { registerFindings } from './findings';
 import { registerJira } from './jira';
+import { registerLearning } from './learning';
 import { registerPr } from './pr';
 import { registerPreflight } from './preflight';
 import { registerRepo } from './repo';
@@ -42,6 +43,7 @@ export type IpcDeps = {
   prs: Pick<PrPoller, 'latest' | 'refresh'>;
   jira: Promise<JiraClient>;
   jiraCreds: Promise<JiraCreds>;
+  watchVault: (dir: string) => void;
   findingsDir: string;
 };
 
@@ -54,6 +56,7 @@ const registrars: readonly ((deps: IpcDeps) => void)[] = [
   registerTerminal,
   registerRepo,
   registerVault,
+  registerLearning,
   registerPr,
   registerFindings,
   registerApp,

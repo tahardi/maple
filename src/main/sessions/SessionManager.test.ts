@@ -758,6 +758,30 @@ describe('SessionManager', () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  test('openLearning returns the existing learning tab', () => {
+    // given
+    const { manager, spawnFn, ptys } = setup({}, () => true, vaultConfig);
+    const first = manager.openLearning('DIG', null);
+    // when
+    const again = manager.openLearning('DIG', null);
+    // then
+    expect(again.id).toBe(first.id);
+    expect(first).toMatchObject({ kind: 'learning', cardKey: null, projectKey: 'DIG' });
+    expect(ptys[0].options.cwd).toBe('/tmp/vault');
+    expect(spawnFn).toHaveBeenCalledTimes(1);
+  });
+
+  test('openLearning throws without a vaultDir', () => {
+    // given
+    const { manager, spawnFn, save } = setup();
+    // when
+    const open = () => manager.openLearning('DIG', null);
+    // then
+    expect(open).toThrow('opening learning: no vaultDir in config');
+    expect(spawnFn).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
   test('openCard that fails to launch leaves no tab behind', () => {
     // given
     const { manager } = setup();

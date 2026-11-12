@@ -10,12 +10,14 @@ import { dotSchema } from './dotSchema';
 import { errorText } from '@shared/errors/errorText';
 import { upgrade, type UpgradeStep } from '@main/util/upgrade';
 
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 
-export const stateUpgrades: Readonly<Record<number, UpgradeStep>> = {};
+export const stateUpgrades: Readonly<Record<number, UpgradeStep>> = {
+  1: (raw) => raw,
+};
 
 export type SavedState = {
-  version: 1;
+  version: 2;
   tabs: TabState[];
   closedSessions: Record<string, string>;
   notifications: boolean | null;
@@ -26,12 +28,12 @@ export type SavedState = {
 };
 
 const stateSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   tabs: z.array(
     z.object({
       id: z.string(),
       projectKey: z.string(),
-      kind: z.enum(['planner', 'card', 'vault']),
+      kind: z.enum(['planner', 'card', 'vault', 'learning']),
       cardKey: z.string().nullable(),
       sessionId: z.string(),
       worktreePath: z.string().nullable(),
@@ -48,7 +50,7 @@ const stateSchema = z.object({
 
 function emptyState(): SavedState {
   return {
-    version: 1,
+    version: 2,
     tabs: [],
     closedSessions: {},
     notifications: null,

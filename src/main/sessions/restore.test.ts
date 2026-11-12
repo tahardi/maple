@@ -9,7 +9,7 @@ function savedTab(kind: TabState['kind'], projectKey: string, cardKey: string | 
 }
 
 function saved(tabs: TabState[]): SavedState {
-  return { version: 1, tabs, closedSessions: {}, notifications: null, zoom: 0, lastProject: null, seen: {}, queue: [] };
+  return { version: 2, tabs, closedSessions: {}, notifications: null, zoom: 0, lastProject: null, seen: {}, queue: [] };
 }
 
 function fakeSessions(projects: string[]) {
@@ -46,6 +46,9 @@ function fakeSessions(projects: string[]) {
     ),
     openVault: vi.fn((projectKey: string, id: string | null, tabId: string | null = null) =>
       open(projectKey, 'vault', null, id, tabId),
+    ),
+    openLearning: vi.fn((projectKey: string, id: string | null, tabId: string | null = null) =>
+      open(projectKey, 'learning', null, id, tabId),
     ),
     get: vi.fn((tabId: string): TabState | null => opened.find((t) => t.id === tabId) ?? null),
     setWorktrees: vi.fn((tabId: string, paths: string[]) => {
@@ -118,16 +121,31 @@ describe('restoreTabs', () => {
     expect(sessions.openVault.mock.calls).toEqual([['DIG', 's4', 'old-s4']]);
   });
 
-  test('keeps a vault tab when the vault is not configured', async () => {
+  test('reopens a learning tab', async () => {
     // given
     const { sessions, manager } = fakeSessions(['DIG']);
-    sessions.openVault.mockImplementation(() => {
-      throw new Error('opening vault: no vaultDir in config');
+    const state = saved([savedTab('learning', 'DIG', null, 's6')]);
+    // when
+    const result = await restoreTabs(state, manager, () => Promise.resolve([]));
+    // then
+    expect(result).toEqual({ restored: 1, warnings: [] });
+    expect(sessions.openLearning.mock.calls).toEqual([['DIG', 's6', 'old-s6']]);
+    expect(sessions.openPlanner).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { kind: 'vault', method: 'openVault', reason: 'opening vault: no vaultDir in config' },
+    { kind: 'learning', method: 'openLearning', reason: 'opening learning: no vaultDir in config' },
+  ] as const)('keeps a $kind tab when the vault is not configured', async ({ kind, method, reason }) => {
+    // given
+    const { sessions, manager } = fakeSessions(['DIG']);
+    sessions[method].mockImplementation(() => {
+      throw new Error(reason);
     });
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     // when
     const result = await restoreTabs(
-      saved([savedTab('vault', 'DIG', null, 's4')]),
+      saved([savedTab(kind, 'DIG', null, 's4')]),
       manager,
       () => Promise.resolve([]),
       logger,
@@ -135,12 +153,9 @@ describe('restoreTabs', () => {
     // then
     expect(result).toEqual({
       restored: 0,
-      warnings: ['kept DIG vault for the next launch: opening vault: no vaultDir in config'],
+      warnings: [`kept DIG ${kind} for the next launch: ${reason}`],
     });
-    expect(logger.warn).toHaveBeenCalledWith('restore', 'kept', {
-      tab: 'DIG vault',
-      reason: 'opening vault: no vaultDir in config',
-    });
+    expect(logger.warn).toHaveBeenCalledWith('restore', 'kept', { tab: `DIG ${kind}`, reason });
   });
 
   test('holds saves until every tab is reopened', async () => {

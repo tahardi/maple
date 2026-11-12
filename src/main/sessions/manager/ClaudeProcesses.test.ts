@@ -124,6 +124,18 @@ describe('ClaudeProcesses', () => {
     expect(spawnFn).not.toHaveBeenCalled();
   });
 
+  test.each([{ kind: 'vault' as const }, { kind: 'learning' as const }])(
+    'launch on a $kind tab starts in the vaultDir',
+    ({ kind }) => {
+      // given
+      const { processes, ptys } = setup(true, { ...config, vaultDir: '/tmp/vault' });
+      // when
+      processes.launch(tab(kind), { resume: false, prompt: null });
+      // then
+      expect(ptys[0].options.cwd).toBe('/tmp/vault');
+    },
+  );
+
   test('launch on a vault tab without a vaultDir throws', () => {
     // given
     const { processes } = setup();

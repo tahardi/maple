@@ -1,4 +1,4 @@
-export type TabKind = 'planner' | 'card' | 'vault';
+export type TabKind = 'planner' | 'card' | 'vault' | 'learning';
 
 export type TabState = {
   id: string;

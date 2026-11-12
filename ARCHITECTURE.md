@@ -52,10 +52,10 @@ flowchart LR
 
 ## IPC Surface
 
-`window.maple` has eleven areas: `config`, `preflight`, `jira`, `tabs`, `session`, `terminal`, `repo`, `vault`, `pr`,
-`findings`, and `app`. `src/shared/api/mapleApi.ts` declares them as the `MapleApi` type and the `IPC_CHANNELS`
-table. Each area has one API file in `src/shared/api/` (for example `src/shared/api/session.ts`) and one handler file
-in `src/main/ipc/` (for example `src/main/ipc/session.ts`).
+`window.maple` has twelve areas: `config`, `preflight`, `jira`, `tabs`, `session`, `terminal`, `repo`, `vault`,
+`learning`, `pr`, `findings`, and `app`. `src/shared/api/mapleApi.ts` declares them as the `MapleApi` type and the
+`IPC_CHANNELS` table. Each area has one API file in `src/shared/api/` (for example `src/shared/api/session.ts`) and
+one handler file in `src/main/ipc/` (for example `src/main/ipc/session.ts`).
 
 Every method is one of three channel kinds:
 
@@ -76,8 +76,8 @@ A **tab** is a saved record (`TabState`); a **session** is the Claude conversati
 `src/main/sessions/SessionManager.ts`, owns both and splits the work across `src/main/sessions/manager/`: the tab
 registry, the Claude processes, the worktree tracker, and the tab saver.
 
-**Opening.** Starting a card runs, inside `tmux new-session -A` in the project's `plannerDir` (a vault tab uses
-`vaultDir`):
+**Opening.** Starting a card runs, inside `tmux new-session -A` in the project's `plannerDir` (vault and learning tabs
+use `vaultDir`):
 
 ```text
 claude --dangerously-skip-permissions --settings <config dir>/hooksFile.json \
@@ -159,10 +159,10 @@ The inputs:
 - **Stop with background tasks** stays `working`. `src/main/sessions/backgroundWait.ts` sorts the task kinds: a
   subagent or workflow waits until the next Stop; a shell task or a session cron waits at most
   `backgroundWaitMinutes`, then runs the Stop check.
-- **Stop check.** A Stop hook runs it from any dot, not only `working`. Planner and vault tabs go to `idle`. A card
-  tab looks up the card in Jira and its PRs from the PR poller, waiting for a fresh poll, with a 15 s timeout each.
-  Done is `merged`; In Review with at least one open PR and no failed checks on any open PR is `ready`; anything else,
-  or a failed lookup, is `waiting`.
+- **Stop check.** A Stop hook runs it from any dot, not only `working`. Planner, vault, and learning tabs go to
+  `idle`. A card tab looks up the card in Jira and its PRs from the PR poller, waiting for a fresh poll, with a 15 s
+  timeout each. Done is `merged`; In Review with at least one open PR and no failed checks on any open PR is `ready`;
+  anything else, or a failed lookup, is `waiting`.
 - **Esc or Ctrl+C** typed while `working` (and not waiting on background tasks) runs the Stop check.
 - **Claude exits:** `working` becomes `idle`; other dots stay. A non-zero exit within 5 s of a resume marks the
   resume failed.
@@ -184,8 +184,9 @@ user switches away while it is still `queued`.
 - **Start queue recheck**: every 15 s, plus on every dot change and tab change, the start queue retries queued cards.
 - **Worktree watcher** (`src/main/git/worktreeWatcher.ts`): file-system watches, debounced 300 ms, on `worktreesDir`
   (to find a card's worktrees), on the shown worktree (to refresh its file changes), on the vault, and on the
-  findings dir. A findings change sends `findings:changed`, and the card tab re-reads its file. It watches the folder,
-  not the file, because writers replace the file by renaming a temp file over it.
+  findings dir. The vault watch (`src/main/vault/vaultWatcher.ts`) is shared by the `vault` and `learning` IPC areas
+  and sends `vault.onChanged`. A findings change sends `findings:changed`, and the card tab re-reads its file. It
+  watches the folder, not the file, because writers replace the file by renaming a temp file over it.
 - **Renderer refreshes**, each every 60 s: the sprint board (`src/renderer/src/home/useSprint.ts`), the backlog
   (`src/renderer/src/home/backlog/useBacklog.ts`), and the active card tab's card, PR, changes, and cost
   (`src/renderer/src/card/useCardData.ts`).
@@ -213,7 +214,8 @@ user switches away while it is still `queued`.
   in the card's Findings tab.
 - `electron/`: Electron's own data, only when `MAPLE_CONFIG_DIR` is set.
 
-`config.json` and `state.json` each carry a format `version`; a file without one counts as version 1. At load,
+`config.json` and `state.json` each carry a format `version`; a file without one counts as version 1. `state.json` is
+at version 2, which added the `learning` tab kind; version 1 files load unchanged. At load,
 `src/main/util/upgrade.ts` upgrades an older file one version at a time. A `config.json` from a newer Maple is
 shown as a config error. A `state.json` from a newer Maple stays in place: Maple starts with no tabs, shows a notice
 naming the file, and does not save state that run.
@@ -234,7 +236,12 @@ Terms are sorted A to Z. Dot states use the code's names, with the on-screen lab
   its own.
 - **Hook**: a command Claude runs on an event such as Stop. Maple's hook script reports each one to the hook socket.
 - **Hook socket**: the Unix socket, `maple.sock`, the hook server listens on.
-- **`idle`** (Idle): no turn has run since spawn, Claude exited mid-turn, or a planner or vault turn ended.
+- **`idle`** (Idle): no turn has run since spawn, Claude exited mid-turn, or a planner, vault, or learning turn ended.
+- **Learning**: the pinned tab after Vault, shown when `vaultDir` is set. It lists the lesson notes in
+  `Learning/Security/`, one per kind of vulnerability, with their to-learn, learned, and comfortable states, and runs
+  its own Claude session in the vault. It is a tab of kind `learning`, one per project.
+- **Lesson note**: a vault note at `Learning/Security/<class>.md` whose frontmatter holds `status`, `comfortable`, and
+  quiz `grades`; Maple's `learning` IPC area lists them and sets `comfortable`.
 - **`merged`** (Merged): the card is Done.
 - **Planner**: a project's Claude session in its `plannerDir`, shown in the Home tab's planner pane, for planning and
   suggesting batches of cards to start. It is a tab of kind `planner`.
@@ -246,7 +253,7 @@ Terms are sorted A to Z. Dot states use the code's names, with the on-screen lab
 - **Start queue**: cards waiting to start until the working, load, memory, and pace limits allow.
 - **Status dot**: a tab's state, one of `working`, `waiting`, `ready`, `idle`, or `merged`.
 - **Sync state**: `queued` or `syncing` while auto-sync's merge-main prompt waits or runs; otherwise none.
-- **Tab**: an open session in the window: a card tab, a planner, or a vault tab. Saved in `state.json`.
+- **Tab**: an open session in the window: a card tab, a planner, a vault tab, or a learning tab. Saved in `state.json`.
 - **tmux session**: `maple-<tabId>` on the `maple` tmux server, the terminal that holds a tab's `claude` process.
 - **Vault**: the Obsidian vault at `vaultDir`. A vault tab runs Claude there; card tabs can browse it read-only.
 - **`waiting`** (Needs you): Claude stopped and needs the user, by a permission prompt or because the card is not

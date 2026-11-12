@@ -44,6 +44,7 @@ describe('uiActionRecorder', () => {
     { channel: 'tabs:startCard', args: ['MPL', 'MPL-7'], refs: cardRefs },
     { channel: 'tabs:openCard', args: ['MPL', 'MPL-7'], refs: cardRefs },
     { channel: 'tabs:openVault', args: ['MPL'], refs: projectRefs },
+    { channel: 'tabs:openLearning', args: ['MPL'], refs: projectRefs },
     { channel: 'tabs:close', args: ['t1', false], refs: tabRefs },
     { channel: 'tabs:resume', args: ['t1'], refs: tabRefs },
     { channel: 'tabs:startFresh', args: ['t1'], refs: tabRefs },
