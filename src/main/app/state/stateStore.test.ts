@@ -69,6 +69,17 @@ describe('createStateStore', () => {
     expect(calls.map((c) => c.state.zoom)).toEqual([1, 2]);
   });
 
+  test('a read-only store applies patches but never saves', async () => {
+    // given
+    const { calls, save } = fakeSave();
+    const store = createStateStore(initial, save, true);
+    // when
+    await store.patch({ zoom: 1 });
+    // then
+    expect(store.current().zoom).toBe(1);
+    expect(calls).toHaveLength(0);
+  });
+
   test('rejects the patch whose save failed', async () => {
     // given
     const { calls, save } = fakeSave();

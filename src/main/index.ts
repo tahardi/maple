@@ -47,7 +47,7 @@ import { showStartupFailure } from '@main/app/startupFailure';
 import { SessionManager } from '@main/sessions/SessionManager';
 import { Terminals } from '@main/sessions/Terminals';
 import { STATE_BACKUPS } from '@main/app/state/backupState';
-import { loadState } from '@main/app/state/state';
+import { loadState, saveState } from '@main/app/state/state';
 import { createStateStore } from '@main/app/state/stateStore';
 import { createConfigGate } from '@main/app/config/configGate';
 import { StartQueue } from '@main/sessions/StartQueue';
@@ -110,7 +110,7 @@ async function start(): Promise<Zoom> {
     dialog.showErrorBox('A JavaScript error occurred in the main process', err.stack ?? err.message);
   });
   const loaded = await loadConfig();
-  const { state, warning } = await loadState(configDir(), loaded.data?.stateBackups ?? STATE_BACKUPS);
+  const { state, warning, readOnly } = await loadState(configDir(), loaded.data?.stateBackups ?? STATE_BACKUPS);
   const warnings: string[] = warning === null ? [] : [warning];
   let stopQueue: () => void = () => undefined;
   const gate = createConfigGate(loaded.data, async ({ worktreesDir }) => {
@@ -137,7 +137,7 @@ async function start(): Promise<Zoom> {
     (c): Record<string, string> => ({ JIRA_SITE: c.site, JIRA_EMAIL: c.email, JIRA_TOKEN: c.token }),
     () => ({}),
   );
-  const store = createStateStore(state);
+  const store = createStateStore(state, saveState, readOnly);
   const sessions = new SessionManager({
     spawn,
     config: () => {

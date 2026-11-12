@@ -92,7 +92,7 @@ describe('state', () => {
     // when
     const result = await loadState(dir);
     // then
-    expect(result).toEqual({ state: savedState, warning: null });
+    expect(result).toEqual({ state: savedState, warning: null, readOnly: false });
   });
 
   test('round-trips a vault tab', async () => {
@@ -103,7 +103,7 @@ describe('state', () => {
     // when
     const result = await loadState(dir);
     // then
-    expect(result).toEqual({ state, warning: null });
+    expect(result).toEqual({ state, warning: null, readOnly: false });
   });
 
   test('defaults worktreePaths to an empty list when missing', async () => {
@@ -174,7 +174,7 @@ describe('state', () => {
     // when
     const result = await loadState(dir);
     // then
-    expect(result).toEqual({ state: { ...savedState, seen: {} }, warning: null });
+    expect(result).toEqual({ state: { ...savedState, seen: {} }, warning: null, readOnly: false });
   });
 
   test('drops seen entries for tabs that are not saved', async () => {
@@ -264,7 +264,7 @@ describe('state', () => {
     // when
     const result = await loadState(dir);
     // then
-    expect(result).toEqual({ state: emptyState, warning: null });
+    expect(result).toEqual({ state: emptyState, warning: null, readOnly: false });
     expect(await readdir(dir)).not.toContain('state.json.1');
   });
 
@@ -278,7 +278,7 @@ describe('state', () => {
     const result = await loadState(dir);
     await saveState(savedState, dir);
     // then
-    expect(result).toEqual({ state: emptyState, warning: keptWarning(dir) });
+    expect(result).toEqual({ state: emptyState, warning: keptWarning(dir), readOnly: false });
     expect(await readFile(join(dir, 'state.json.corrupt'), 'utf8')).toBe(content);
     expect(await readdir(dir)).not.toContain('state.json.1');
   });
@@ -301,7 +301,39 @@ describe('state', () => {
     // when
     const result = await loadState(dir);
     // then
-    expect(result).toEqual({ state: savedState, warning: expect.stringMatching(/^backing up state: /) as string });
+    expect(result).toEqual({
+      state: savedState,
+      warning: expect.stringMatching(/^backing up state: /) as string,
+      readOnly: false,
+    });
+  });
+
+  test('starts empty without touching a state.json from a newer Maple', async () => {
+    // given
+    const content = JSON.stringify({ ...savedState, version: 2 });
+    await writeFile(join(dir, 'state.json'), content);
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({
+      state: emptyState,
+      warning:
+        `reading state: ${join(dir, 'state.json')} is from a newer Maple (version 2, this build reads up to 1), ` +
+        'starting with no tabs and not saving until Maple is updated',
+      readOnly: true,
+    });
+    expect(await readFile(join(dir, 'state.json'), 'utf8')).toBe(content);
+    expect(await readdir(dir)).not.toContain('state.json.corrupt');
+    expect(await readdir(dir)).not.toContain('state.json.1');
+  });
+
+  test('loads a state.json with no version', async () => {
+    // given
+    await writeFile(join(dir, 'state.json'), JSON.stringify({ ...savedState, version: undefined }));
+    // when
+    const result = await loadState(dir);
+    // then
+    expect(result).toEqual({ state: savedState, warning: null, readOnly: false });
   });
 
   test('replaces an older corrupt copy', async () => {
@@ -324,6 +356,7 @@ describe('state', () => {
     expect(result).toEqual({
       state: emptyState,
       warning: expect.stringMatching(/^reading state: state\.json is unreadable and could not be kept: /) as string,
+      readOnly: false,
     });
   });
 
@@ -333,7 +366,7 @@ describe('state', () => {
     // when
     const result = await loadState(dir);
     // then
-    expect(result).toEqual({ state: emptyState, warning: keptWarning(dir) });
+    expect(result).toEqual({ state: emptyState, warning: keptWarning(dir), readOnly: false });
     expect((await stat(join(dir, 'state.json.corrupt'))).isDirectory()).toBe(true);
   });
 });

@@ -9,11 +9,16 @@ import { KEEP_DAYS, MAX_MEGABYTES } from '@main/events/pruneEvents';
 import { STATE_BACKUPS } from '@main/app/state/backupState';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { errorText } from '@shared/errors/errorText';
+import { upgrade, type Upgraded, type UpgradeStep } from '@main/util/upgrade';
 
 const defaultActions = [
   { label: 'Address review', prompt: '/card {key}' },
   { label: 'Merge main', prompt: syncPrompt('{key}') },
 ];
+
+export const CONFIG_VERSION = 1;
+
+export const configUpgrades: Readonly<Record<number, UpgradeStep>> = {};
 
 export const DEFAULT_WAIT_MINUTES = 10;
 export const DEFAULT_START_AT_ONCE = 4;
@@ -110,7 +115,19 @@ async function readConfig(dir: string): Promise<Fetched<MapleConfig>> {
     return failed(`parsing config: ${errorText(err)}`);
   }
 
-  const parsed = configSchema.safeParse(raw);
+  let upgraded: Upgraded;
+  try {
+    upgraded = upgrade(raw, CONFIG_VERSION, configUpgrades);
+  } catch (err) {
+    return failed(`reading config: ${errorText(err)}`);
+  }
+  if (upgraded.newer) {
+    return failed(
+      `reading config: ${path} is from a newer Maple (version ${String(upgraded.version)}, this build reads up to ${String(CONFIG_VERSION)})`,
+    );
+  }
+
+  const parsed = configSchema.safeParse(upgraded.raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const where = issue.path.length ? `${issue.path.join('.')}: ` : '';
