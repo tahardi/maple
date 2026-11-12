@@ -1,0 +1,12 @@
+.table {
+  border-collapse: collapse;
+  margin-bottom: var(--space-3);
+}
+
+.table td {
+  padding: var(--space-1) var(--space-3) var(--space-1) 0;
+}
+
+.buttons {
+  composes: buttons from '../ConfirmDialog.module.css';
+}

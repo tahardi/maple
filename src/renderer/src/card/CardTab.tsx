@@ -270,8 +270,13 @@ export function CardTab({ tab }: { tab: TabState }) {
                 make try
               </button>
             )}
-            <button aria-pressed={terminal === 'shown'} onClick={toggleTerminal}>
-              Terminal
+            <button
+              aria-pressed={terminal === 'shown'}
+              title="Show or hide the terminal (Ctrl+`)"
+              aria-keyshortcuts="Control+`"
+              onClick={toggleTerminal}
+            >
+              Terminal <kbd aria-hidden="true">Ctrl+`</kbd>
             </button>
           </div>
           {terminal === 'shown' && <SplitHandle drag={terminalDrag} axis="y" label="Resize terminal" />}

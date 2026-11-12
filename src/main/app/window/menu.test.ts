@@ -32,6 +32,7 @@ describe('setAppMenu', () => {
       () => Promise.resolve(),
       () => Promise.resolve(),
       vi.fn(),
+      vi.fn(),
     );
     const item = menuItems().find((entry) => entry.label === 'Reload config');
     // when
@@ -49,6 +50,7 @@ describe('setAppMenu', () => {
       () => Promise.resolve(),
       () => Promise.resolve(),
       vi.fn(),
+      vi.fn(),
     );
     // when
     const items = menuItems();
@@ -64,6 +66,7 @@ describe('setAppMenu', () => {
       () => Promise.resolve(),
       setNotifications,
       () => Promise.resolve(),
+      vi.fn(),
       vi.fn(),
     );
     const item = menuItems().find((entry) => entry.label === 'Desktop notifications');
@@ -86,6 +89,7 @@ describe('setAppMenu', () => {
       () => Promise.resolve(),
       setZoom,
       vi.fn(),
+      vi.fn(),
     );
     const item = menuItems().find((entry) => entry.label === label);
     // when
@@ -102,6 +106,7 @@ describe('setAppMenu', () => {
       () => Promise.resolve(),
       () => Promise.resolve(),
       () => Promise.resolve(),
+      vi.fn(),
       vi.fn(),
     );
     const help = buildFromTemplate.mock.calls[0]?.[0].find((top) => top.label === 'Help');
@@ -121,6 +126,7 @@ describe('setAppMenu', () => {
       () => Promise.resolve(),
       () => Promise.resolve(),
       reportBug,
+      vi.fn(),
     );
     const help = buildFromTemplate.mock.calls[0]?.[0].find((top) => top.label === 'Help');
     const labels = Array.isArray(help?.submenu) ? help.submenu.map((entry) => entry.label) : [];
@@ -133,12 +139,33 @@ describe('setAppMenu', () => {
     expect(labels.indexOf('Report a bug…')).toBeLessThan(labels.indexOf('Open logs'));
   });
 
+  test('Help > Keyboard shortcuts asks for the shortcut sheet', () => {
+    // given
+    const showShortcuts = vi.fn();
+    setAppMenu(
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+      vi.fn(),
+      showShortcuts,
+    );
+    const help = buildFromTemplate.mock.calls[0]?.[0].find((top) => top.label === 'Help');
+    const labels = Array.isArray(help?.submenu) ? help.submenu.map((entry) => entry.label) : [];
+    const item = menuItems().find((entry) => entry.label === 'Keyboard shortcuts');
+    // when
+    item?.click?.({} as never, undefined, {});
+    // then
+    expect(showShortcuts).toHaveBeenCalledOnce();
+    expect(labels).toContain('Keyboard shortcuts');
+  });
+
   test('the Desktop notifications checkbox sits under Settings', () => {
     // given
     setAppMenu(
       () => Promise.resolve(),
       () => Promise.resolve(),
       () => Promise.resolve(),
+      vi.fn(),
       vi.fn(),
     );
     // when

@@ -506,4 +506,17 @@ describe('FileViewer', () => {
     expect(screen.queryByRole('heading', { name: 'Findings' })).not.toBeInTheDocument();
     expect(screen.getByTestId('editor')).toHaveAttribute('data-value', 'new\n');
   });
+
+  test('file tabs are reachable with Tab and open on Enter', async () => {
+    // given
+    const { props } = renderViewer(same);
+    await userEvent.tab();
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(screen.getByRole('tab', { name: 'README.md' })).toHaveFocus();
+    // when
+    await userEvent.keyboard('{Enter}');
+    // then
+    expect(props.onActivate).toHaveBeenCalledWith('README.md');
+  });
 });

@@ -12,6 +12,7 @@ export type AppApi = {
   onQuitRequested(cb: (workingCardKeys: string[]) => void): Unsubscribe;
   confirmQuit(): void;
   onReportRequested(cb: () => void): Unsubscribe;
+  onShortcutsRequested(cb: () => void): Unsubscribe;
 };
 
 export const APP_CHANNELS = {
@@ -24,4 +25,5 @@ export const APP_CHANNELS = {
   onQuitRequested: 'event',
   confirmQuit: 'send',
   onReportRequested: 'event',
+  onShortcutsRequested: 'event',
 } as const satisfies { [M in keyof AppApi]: ChannelKind };

@@ -9,6 +9,7 @@ export function setAppMenu(
   setNotifications: (on: boolean) => Promise<void>,
   setZoom: (change: ZoomChange) => Promise<void>,
   reportBug: () => void,
+  showShortcuts: () => void,
 ): void {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
@@ -49,6 +50,7 @@ export function setAppMenu(
       {
         label: 'Help',
         submenu: [
+          { label: 'Keyboard shortcuts', click: showShortcuts },
           { label: 'Report a bug…', click: reportBug },
           { label: 'Open logs', click: () => void shell.openPath(logsDir()) },
         ],
