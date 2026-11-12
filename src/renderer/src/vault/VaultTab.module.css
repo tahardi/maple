@@ -17,7 +17,7 @@
 
 .vaultName {
   margin: 0;
-  padding: 2px 8px;
+  padding: 2px var(--space-2);
   font-size: var(--font-sm);
   font-weight: 600;
   color: var(--text-strong);

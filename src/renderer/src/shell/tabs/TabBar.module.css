@@ -13,8 +13,8 @@
 
 .divider {
   width: 1px;
-  margin: 8px 4px;
-  background: var(--border);
+  margin: var(--space-2) var(--space-1);
+  background: var(--divider);
 }
 
 .item {
