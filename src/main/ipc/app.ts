@@ -1,8 +1,11 @@
-import { app, ipcMain } from 'electron';
+import { app } from 'electron';
 import { dotSchema } from '@main/app/state/dotSchema';
 import { z } from 'zod';
-import { send, type IpcDeps } from './index';
-import { handle, projectKeyArg, tabIdArg } from './validated';
+import type { IpcDeps } from './index';
+import { emit } from './emit';
+import { projectKeyArg, tabIdArg } from './args';
+import { handle } from './handle';
+import { on } from './on';
 
 export function registerApp({
   setNotifications,
@@ -16,13 +19,13 @@ export function registerApp({
   window,
 }: IpcDeps): void {
   let confirmed = false;
-  handle('app:setNotifications', z.tuple([z.boolean()]), (on) => setNotifications(on));
-  ipcMain.handle('app:warnings', () => warnings());
-  handle('app:setLastProject', z.tuple([projectKeyArg]), (key) => setLastProject(key));
-  ipcMain.handle('app:lastProject', () => lastProject());
-  handle('app:setSeen', z.tuple([z.record(tabIdArg, dotSchema)]), (map) => setSeen(map));
-  ipcMain.handle('app:seen', () => seen());
-  ipcMain.on('app:confirmQuit', () => {
+  handle('app', 'setNotifications', z.tuple([z.boolean()]), (on) => setNotifications(on));
+  handle('app', 'warnings', z.tuple([]), () => warnings());
+  handle('app', 'setLastProject', z.tuple([projectKeyArg]), (key) => setLastProject(key));
+  handle('app', 'lastProject', z.tuple([]), () => lastProject());
+  handle('app', 'setSeen', z.tuple([z.record(tabIdArg, dotSchema)]), (map) => setSeen(map));
+  handle('app', 'seen', z.tuple([]), () => seen());
+  on('app', 'confirmQuit', z.tuple([]), () => {
     confirmed = true;
     app.quit();
   });
@@ -35,6 +38,6 @@ export function registerApp({
       return;
     }
     event.preventDefault();
-    send(window(), 'app:quitRequested', working);
+    emit(window(), 'app', 'onQuitRequested', working);
   });
 }

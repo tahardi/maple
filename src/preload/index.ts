@@ -1,11 +1,7 @@
+import { eventChannel } from '@shared/api/eventChannel';
 import { IPC_CHANNELS, type ChannelKind, type MapleApi } from '@shared/api/mapleApi';
 import type { Unsubscribe } from '@shared/types/app/unsubscribe';
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-
-function eventChannel(area: string, method: string, keys: unknown[]): string {
-  const event = method.charAt(2).toLowerCase() + method.slice(3);
-  return [area, event, ...keys.map(String)].join(':');
-}
 
 function subscribe(channel: string, cb: (payload: unknown) => void): Unsubscribe {
   const listener = (_event: IpcRendererEvent, payload: unknown) => {

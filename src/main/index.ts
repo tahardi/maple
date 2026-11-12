@@ -25,7 +25,7 @@ import { PrPoller } from '@main/github/PrPoller';
 import { registerIpc } from '@main/ipc';
 import { notificationsDefault, projectByKey } from '@main/app/config/configCache';
 import { closeNeedsConfirm } from '@main/sessions/closeNeedsConfirm';
-import { recordActions } from '@main/ipc/validated';
+import { recordActions } from '@main/ipc/recordActions';
 import { JiraClient } from '@main/jira/JiraClient';
 import { tapDoneSnapshots } from '@main/vault/tapDoneSnapshots';
 import { jiraEnvPath, readCreds } from '@main/jira/readCreds';

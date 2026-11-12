@@ -1,27 +1,29 @@
-import { ipcMain } from 'electron';
 import { currentConfig, reloadConfig } from '@main/app/config/configCache';
 import { setAppMenu } from '@main/app/window/menu';
-import { send, type IpcDeps } from './index';
+import { z } from 'zod';
+import type { IpcDeps } from './index';
+import { emit } from './emit';
+import { handle } from './handle';
 
 export function registerConfig(deps: IpcDeps): void {
   void reloadConfig();
   const reload = async () => {
     const result = await reloadConfig();
     await deps.configLoaded(result.data);
-    send(deps.window(), 'config:changed', result);
+    emit(deps.window(), 'config', 'onChanged', result);
     return result;
   };
-  ipcMain.handle('config:get', () => currentConfig());
-  ipcMain.handle('config:reload', reload);
+  handle('config', 'get', z.tuple([]), () => currentConfig() ?? reloadConfig());
+  handle('config', 'reload', z.tuple([]), reload);
   setAppMenu(
     reload,
     deps.setNotifications,
     deps.setZoom,
     () => {
-      send(deps.window(), 'app:reportRequested', null);
+      emit(deps.window(), 'app', 'onReportRequested');
     },
     () => {
-      send(deps.window(), 'app:shortcutsRequested', null);
+      emit(deps.window(), 'app', 'onShortcutsRequested');
     },
   );
 }
