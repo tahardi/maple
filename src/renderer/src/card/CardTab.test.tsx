@@ -153,6 +153,10 @@ function fakeVault(
   return vault;
 }
 
+async function openCi() {
+  await userEvent.click(await within(screen.getByRole('banner')).findByTitle('Show CI checks'));
+}
+
 describe('CardTab', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
@@ -384,7 +388,7 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={tab} />);
     // then
-    await screen.findByRole('link', { name: 'PR #13 ↗' });
+    await screen.findByRole('button', { name: 'PR #13' });
     expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
   });
 
@@ -707,7 +711,7 @@ describe('CardTab', () => {
     render(<CardTab tab={{ ...tab, projectKey: 'BEAR' }} />);
     await screen.findByRole('tab', { name: 'Card description', selected: true });
     // then
-    expect(screen.queryByText(/No PR found in tahardi\/bearclave\./) !== null).toBe(shown);
+    expect(screen.queryByText('No PR in tahardi/bearclave') !== null).toBe(shown);
   });
 
   test('lists the project repo first, then its other repos, when no PR is found', async () => {
@@ -728,7 +732,9 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByRole('tab', { name: 'Card description', selected: true });
     // then
-    expect(screen.getByText(/^No PR found in tahardi\/xena, tahardi\/dotclaude\./)).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('banner')).getByText('No PR in tahardi/xena, tahardi/dotclaude'),
+    ).toBeInTheDocument();
   });
 
   test('names the searched repos for a card outside the sprint with no PR', async () => {
@@ -740,7 +746,7 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={{ ...tab, projectKey: 'BEAR' }} />);
     // then
-    expect(await screen.findByText(/^No PR found in tahardi\/bearclave\./)).toBeInTheDocument();
+    expect(await screen.findByText('No PR in tahardi/bearclave')).toBeInTheDocument();
   });
 
   test('shows no searched repos for a project missing from config', async () => {
@@ -750,7 +756,7 @@ describe('CardTab', () => {
     render(<CardTab tab={{ ...tab, projectKey: 'NOPE' }} />);
     await screen.findByRole('tab', { name: 'Card description', selected: true });
     // then
-    expect(screen.queryByText(/No PR found/)).toBeNull();
+    expect(screen.queryByText(/No PR in/)).toBeNull();
   });
 
   test('keeps the PR description closed until the PR number opens it', async () => {
@@ -892,8 +898,11 @@ describe('CardTab', () => {
     expect(screen.getByRole('tab', { name: 'README.md', selected: true }).className).toMatch(/preview/);
   });
 
-  test('shows the repo name and branch above the worktree file tree', async () => {
+  test('shows nothing but the view switch above a single-repo tree', async () => {
     // given
+    useMaple.setState({
+      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
+    });
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
@@ -904,25 +913,27 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     // then
     const slot = within(screen.getByTestId('tree-slot'));
-    expect((await slot.findAllByRole('term')).map((t) => t.textContent)).toEqual(['Repo', 'Branch']);
-    expect(slot.getByText('maple')).toBeInTheDocument();
-    expect(slot.getByText('mpl-20-file-tree')).toBeInTheDocument();
+    expect(await slot.findByText('README.md')).toBeInTheDocument();
+    expect(await within(screen.getByRole('banner')).findByText('mpl-20-file-tree')).toBeInTheDocument();
+    expect(slot.queryByText('maple')).toBeNull();
+    expect(slot.queryByText('mpl-20-file-tree')).toBeNull();
     expect(slot.queryByRole('button', { name: /^Repo/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId('tree-slot').firstElementChild).toContainElement(
+      slot.getByRole('button', { name: 'Vault' }),
+    );
   });
 
-  test('hides the repo name and branch in the vault tree', async () => {
+  test('shows no PR panel under the tree', async () => {
     // given
-    useMaple.setState({
-      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
-    });
-    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree', hasTry: false }) } });
-    render(<CardTab tab={tab} />);
-    await screen.findByTestId('repo-branch');
+    fakeRepo(true);
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    render(<CardTab tab={tab} />);
     // then
-    expect(screen.getByRole('button', { name: 'Vault', pressed: true })).toBeInTheDocument();
-    expect(screen.queryByTestId('repo-branch')).not.toBeInTheDocument();
+    await within(screen.getByRole('banner')).findByRole('button', { name: 'PR #13' });
+    const slot = within(screen.getByTestId('tree-slot'));
+    expect(slot.queryByRole('button', { name: 'PR #13' })).toBeNull();
+    expect(slot.queryByText(pr.title)).toBeNull();
+    expect(slot.queryByRole('heading', { name: 'Checks' })).toBeNull();
   });
 
   const twoRepos: TabState = {
@@ -940,13 +951,9 @@ describe('CardTab', () => {
     render(<CardTab tab={twoRepos} />);
     // then
     const slot = within(screen.getByTestId('tree-slot'));
-    const button = await slot.findByRole('button', { name: 'Repo: xena · xena-62-vm-net' });
-    expect(within(button).getByTestId('repo-branch')).toBeInTheDocument();
-    expect(
-      within(button)
-        .getAllByRole('term')
-        .map((t) => t.textContent),
-    ).toEqual(['Repo', 'Branch']);
+    const button = await slot.findByRole('button', { name: 'Repo: xena' });
+    expect(within(button).queryByTestId('repo-branch')).toBeNull();
+    expect(button).not.toHaveTextContent('xena-62-vm-net');
   });
 
   test('names the selected folder on the repo dropdown before the repo info loads', () => {
@@ -963,7 +970,7 @@ describe('CardTab', () => {
     const selectWorktree = vi.fn(() => Promise.resolve());
     fakeMaple({ repo: { info: () => Promise.resolve(xena) }, tabs: { selectWorktree } });
     render(<CardTab tab={twoRepos} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Repo: xena · xena-62-vm-net' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Repo: xena' }));
     // when
     await userEvent.click(screen.getByRole('menuitemradio', { name: 'halo-xena-62-config' }));
     // then
@@ -1296,15 +1303,15 @@ describe('CardTab', () => {
       .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
     const changed = captureRepoChanged({ pr: { get, review } });
     render(<CardTab tab={tab} />);
-    const tree = within(screen.getByTestId('tree-slot'));
+    const banner = within(screen.getByRole('banner'));
     const claude = within(screen.getByTestId('claude-slot'));
-    expect(await tree.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
+    expect(await banner.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
     // when
     act(() => {
       changed.value();
     });
     // then
-    expect(await tree.findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(await banner.findByText('Updated to ddddddd')).toBeInTheDocument();
     expect(claude.getByRole('button', { name: 'Approve & merge' })).toBeEnabled();
   });
 
@@ -1342,7 +1349,7 @@ describe('CardTab', () => {
       changed.value();
     });
     // then
-    expect(await within(screen.getByTestId('tree-slot')).findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(await within(screen.getByRole('banner')).findByText('Updated to ddddddd')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Viewed a.ts' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Viewed b.ts' })).not.toBeChecked();
   });
@@ -1373,7 +1380,7 @@ describe('CardTab', () => {
       changed.value();
     });
     // then
-    expect(await within(screen.getByTestId('tree-slot')).findByRole('status')).toHaveTextContent('Updated to ddddddd');
+    expect(await within(screen.getByRole('banner')).findByText('Updated to ddddddd')).toBeInTheDocument();
     expect(claude.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -1434,34 +1441,11 @@ describe('CardTab', () => {
       changed.value();
     });
     // then
-    expect(await within(screen.getByTestId('tree-slot')).findByRole('status')).toHaveTextContent('Updated to ddddddd');
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(approve).not.toHaveBeenCalled();
-  });
-
-  test('Reload review clears the Approve error', async () => {
-    // given
-    fakeMaple({
-      pr: {
-        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
-        review: reviewOf([]),
-        approve: vi
-          .fn<() => Promise<void>>()
-          .mockRejectedValue(
-            new Error(
-              'approving PR: the PR has new commits since the review loaded; Approve again once the review updates',
-            ),
-          ),
-      },
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
-    render(<CardTab tab={tab} />);
-    const claude = within(screen.getByTestId('claude-slot'));
-    await userEvent.click(await claude.findByRole('button', { name: 'Approve & merge' }));
-    await claude.findByRole('alert');
-    // when
-    await userEvent.click(within(screen.getByTestId('tree-slot')).getByRole('button', { name: 'Reload review' }));
-    // then
-    expect(claude.queryByRole('alert')).not.toBeInTheDocument();
+    expect(await within(screen.getByRole('banner')).findByText('Updated to ddddddd')).toBeInTheDocument();
+    expect(approve).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -1700,15 +1684,17 @@ describe('CardTab', () => {
     expect(screen.getByText('−4')).toBeInTheDocument();
   });
 
-  test('shows the reviewed commit and findings in the PR summary', async () => {
+  test('shows the reviewed commit in the header and findings in the CI badge', async () => {
     // given
     const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
     fakeApprove([], undefined, [finding]);
-    // when
     render(<CardTab tab={tab} />);
+    // when
+    await openCi();
     // then
-    expect(await screen.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Token logged' })).toBeInTheDocument();
+    const banner = within(screen.getByRole('banner'));
+    expect(await banner.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
+    expect(banner.getByRole('link', { name: 'Token logged' })).toBeInTheDocument();
   });
 
   test.each([
