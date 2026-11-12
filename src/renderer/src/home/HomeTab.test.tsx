@@ -126,6 +126,18 @@ describe('HomeTab', () => {
     expect(await screen.findByTestId('planner')).toHaveStyle({ width: '55%' });
   });
 
+  test('uses the saved backlog height', async () => {
+    // given
+    fakeMaple({
+      jira: { backlog: () => Promise.resolve({ data: BACKLOG, error: null, fetchedAt: null }) },
+    });
+    localStorage.setItem('maple.split.homeBacklog', '25');
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    expect((await screen.findByText('Backlog (2)')).parentElement).toHaveStyle({ maxHeight: '25%' });
+  });
+
   test('shows a resize handle between the board and the planner', async () => {
     // given
     fakeMaple();

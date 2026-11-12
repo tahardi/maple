@@ -39,6 +39,8 @@ describe('useColumnDrag', () => {
     { name: 'a saved value that is not a number', saved: 'wide', expected: 240 },
     { name: 'a saved value below min', saved: '100', expected: 240 },
     { name: 'a saved value above max', saved: '500', expected: 240 },
+    { name: 'a saved value at min', saved: '120', expected: 120 },
+    { name: 'a saved value at max', saved: '480', expected: 480 },
   ])('starts at the initial or saved size with $name', ({ saved, expected }) => {
     // given
     if (saved !== null) {

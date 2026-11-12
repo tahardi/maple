@@ -93,12 +93,14 @@ describe('Backlog', () => {
     });
   });
 
-  test('caps the open backlog at the given height', () => {
+  test('caps the open backlog at the given height', async () => {
     // given
     render(<Backlog groups={GROUPS} onSelect={vi.fn()} drag={DRAG} />);
     // when
+    await userEvent.click(screen.getByText('Backlog (3)'));
     const backlog = screen.getByText('Backlog (3)').parentElement;
     // then
+    expect(backlog).toHaveAttribute('open');
     expect(backlog).toHaveStyle({ maxHeight: '25%' });
   });
 });
