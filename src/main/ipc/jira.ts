@@ -12,7 +12,8 @@ import { appLogger, logFailure, logsDir, type Logger } from '@main/app/log/log';
 import { logTail, reportDescription } from '@main/jira/report';
 import { SprintCache } from '@main/jira/SprintCache';
 import type { IpcDeps } from './index';
-import { cardKeyArg, handle, projectKeyArg } from './validated';
+import { cardKeyArg, projectKeyArg } from './args';
+import { handle } from './handle';
 import { errorText } from '@shared/errors/errorText';
 
 type Caches = { sprint: SprintCache<Sprint>; backlog: SprintCache<BacklogGroup[]> };
@@ -58,14 +59,15 @@ export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
     }
     return got;
   };
-  handle('jira:sprint', z.tuple([projectKeyArg]), (projectKey) =>
+  handle('jira', 'sprint', z.tuple([projectKeyArg]), (projectKey) =>
     serve(projectKey, 'sprint', 'activeSprint', (c) => c.sprint),
   );
-  handle('jira:backlog', z.tuple([projectKeyArg]), (projectKey) =>
+  handle('jira', 'backlog', z.tuple([projectKeyArg]), (projectKey) =>
     serve(projectKey, 'backlog', 'backlog', (c) => c.backlog),
   );
   handle(
-    'jira:moveToSprint',
+    'jira',
+    'moveToSprint',
     z.tuple([z.number().int().positive(), z.array(cardKeyArg).min(1).max(50)]),
     (sprintId, keys) =>
       logFailure(logger, 'jira', { operation: 'jira:moveToSprint' }, async () => {
@@ -78,7 +80,7 @@ export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
         caches.backlog.clear();
       }),
   );
-  handle('jira:report', z.tuple([reportArg]), (report) =>
+  handle('jira', 'report', z.tuple([reportArg]), (report) =>
     logFailure(logger, 'jira', { operation: 'jira:report', kind: report.kind }, async (): Promise<Filed> => {
       try {
         const client = await deps.jira;

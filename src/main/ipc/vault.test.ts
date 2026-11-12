@@ -156,7 +156,7 @@ describe('registerVault', () => {
     watch.state.changed();
     // then
     expect(watch.watchWorktree).toHaveBeenCalledWith('/vault', expect.any(Function));
-    expect(sendToWindow).toHaveBeenCalledWith('vault:changed', null);
+    expect(sendToWindow).toHaveBeenCalledWith('vault:changed');
   });
 
   test('listing the vault twice watches it once', async () => {

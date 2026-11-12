@@ -1,6 +1,7 @@
 import { Notification, type BrowserWindow } from 'electron';
 import type { Dot } from '@shared/types/tabs/dot';
 import type { TabState } from '@shared/types/tabs/tabState';
+import { emit } from '@main/ipc/emit';
 
 export function shouldNotify(
   dot: Dot,
@@ -21,7 +22,7 @@ export function notifyTab(window: () => BrowserWindow | null, tab: TabState, pro
     if (win && !win.isDestroyed()) {
       win.show();
       win.focus();
-      win.webContents.send('tabs:activate', tab.id);
+      emit(win, 'tabs', 'onActivate', tab.id);
     }
   });
   notification.show();
