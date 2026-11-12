@@ -3,6 +3,7 @@ import styles from './Button.module.css';
 
 type ButtonProps = {
   label: string;
+  ariaLabel?: string;
   onClick?: () => void;
   type?: 'button' | 'submit';
   variant?: 'primary' | 'danger';
@@ -16,7 +17,20 @@ type ButtonProps = {
 };
 
 export function Button(props: ButtonProps) {
-  const { label, onClick, type = 'button', variant, pressed, disabled, busy, busyLabel, reason, hint, fix } = props;
+  const {
+    label,
+    ariaLabel,
+    onClick,
+    type = 'button',
+    variant,
+    pressed,
+    disabled,
+    busy,
+    busyLabel,
+    reason,
+    hint,
+    fix,
+  } = props;
   const id = useId();
   const note = reason ?? hint ?? null;
   return (
@@ -25,6 +39,7 @@ export function Button(props: ButtonProps) {
         type={type}
         onClick={onClick}
         disabled={disabled === true || busy === true}
+        aria-label={ariaLabel}
         aria-busy={busy === true ? true : undefined}
         aria-pressed={pressed}
         aria-describedby={note === null ? undefined : id}

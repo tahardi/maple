@@ -5,13 +5,11 @@ import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { EpicLozenge } from './EpicLozenge';
 import { Badge } from '@renderer/shell/blocks/Badge';
 import { Button } from '@renderer/shell/blocks/Button';
-import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './CardDetail.module.css';
 
 type Props = {
   card: Card;
   tab: TabState | null;
-  failure: string | null;
   busy: boolean;
   onStart: () => void;
   onOpen: () => void;
@@ -36,7 +34,7 @@ function action(card: Card, tab: TabState | null, props: Props): Action | null {
 }
 
 export function CardDetail(props: Props) {
-  const { card, tab, failure, busy, onClose, onAddToSprint } = props;
+  const { card, tab, busy, onClose, onAddToSprint } = props;
   const next = action(card, tab, props);
   const ref = useRef<HTMLElement>(null);
 
@@ -106,7 +104,6 @@ export function CardDetail(props: Props) {
           Open in Jira
         </a>
       </div>
-      {failure !== null && <Notice tone="danger">{failure}</Notice>}
       <MarkdownText text={card.descriptionMd} />
     </aside>
   );
