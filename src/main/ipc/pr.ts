@@ -14,7 +14,8 @@ import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@m
 import { ghRunner, projectRunner } from '@main/github/ghRunner';
 import { approveAndMerge, diffLines, prForBranch } from '@main/github/pr';
 import { reviewFilePair, reviewFiles } from '@main/github/reviewDiff';
-import { ghLogin, openFindings } from '@main/github/securityFindings';
+import { ghLogin } from '@main/github/ghLogin';
+import { openFindings } from '@main/github/securityFindings';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { prEvents, type PrEvents } from '@main/events/PrEvents';
 import type { Runner as CommandRunner } from '@main/app/preflight';

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import type { Runner as CommandRunner } from '@main/app/preflight';
-import { ghLogin, openFindings } from './securityFindings';
+import { openFindings } from './securityFindings';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');
 
@@ -145,26 +145,5 @@ describe('openFindings', () => {
     const result = openFindings(run, 33, 'tahardi');
     // then
     await expect(result).rejects.toThrow('listing findings: HTTP 502');
-  });
-});
-
-describe('ghLogin', () => {
-  test('returns the desktop gh login', async () => {
-    // given
-    const run = vi.fn<CommandRunner>(() => Promise.resolve({ code: 0, stdout: 'tahardi\n', stderr: '' }));
-    // when
-    const login = await ghLogin(run);
-    // then
-    expect(login).toBe('tahardi');
-    expect(run).toHaveBeenCalledWith('gh', ['api', 'user', '--jq', '.login'], '');
-  });
-
-  test('reports a failed gh call', async () => {
-    // given
-    const run = vi.fn<CommandRunner>(() => Promise.resolve({ code: 4, stdout: '', stderr: 'not logged in' }));
-    // when
-    const result = ghLogin(run);
-    // then
-    await expect(result).rejects.toThrow('reading gh login: not logged in');
   });
 });
