@@ -114,8 +114,8 @@ user saves it.
 **Start queue.** Every Start goes through `src/main/sessions/StartQueue.ts`, shared by all projects. A card starts at
 once when nothing is queued and the limits allow; otherwise it waits in the queue, saved in `state.json`. A queued
 card waits for `room` (`maxWorking` tabs already working), `cpu` (load per core over `maxLoadPerCore`), `memory`
-(free memory under `minFreeMegabytes`), or `pace` (at or over `startAtOnce` working, and less than `startGapSeconds`
-since the last start).
+(free memory under `minFreeMegabytes`), or `pace` (less than `startGapSeconds` since the last start, once
+`startAtOnce` tabs are working or other cards are already queued).
 
 ## Status Dot
 
@@ -205,6 +205,11 @@ user switches away while it is still `queued`.
 - `snapshots/<sessionId>/`: vault notes as they were before a card session first wrote them
   (`src/main/vault/snapshots.ts`).
 - `electron/`: Electron's own data, only when `MAPLE_CONFIG_DIR` is set.
+
+`config.json` and `state.json` each carry a format `version`; a file without one counts as version 1. At load,
+`src/main/util/upgrade.ts` upgrades an older file one version at a time. A `config.json` from a newer Maple is
+shown as a config error. A `state.json` from a newer Maple stays in place: Maple starts with no tabs, shows a notice
+naming the file, and does not save state that run.
 
 Outside it: the Jira credentials file at `MAPLE_JIRA_ENV` (default `~/.config/jira/env`), shared with other tools, and
 `.maple-try/` in the repo, the throwaway config dir `make try` uses, which also gets its own tmux server.
