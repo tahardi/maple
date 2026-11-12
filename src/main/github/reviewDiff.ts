@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import type { FileChange, FilePair, FileStatus } from '@shared/types/files';
-import type { Review } from '@shared/types/github';
+import type { FileChange, FileStatus } from '@shared/types/files/fileChange';
+import type { FilePair } from '@shared/types/files/filePair';
+import type { Review } from '@shared/types/github/review';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 import { MAX_BYTES } from '@main/util/paths';
 

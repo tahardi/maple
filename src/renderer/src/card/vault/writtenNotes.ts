@@ -1,4 +1,5 @@
-import type { FileChange, VaultNote } from '@shared/types/files';
+import type { FileChange } from '@shared/types/files/fileChange';
+import type { VaultNote } from '@shared/types/files/vaultNote';
 
 export function writtenNotes(notes: readonly VaultNote[], written: readonly string[]): FileChange[] {
   const paths = new Set(written);

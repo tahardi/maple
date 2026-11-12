@@ -1,5 +1,5 @@
 import { appLogger, type Logger } from '@main/app/log/log';
-import type { TabState } from '@shared/types/tabs';
+import type { TabState } from '@shared/types/tabs/tabState';
 import type { SessionManager } from './SessionManager';
 import type { SavedState } from '@main/app/state/state';
 

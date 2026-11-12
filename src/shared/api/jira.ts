@@ -1,6 +1,9 @@
 import type { ChannelKind } from './mapleApi';
-import type { BacklogGroup, Filed, Report, Sprint } from '../types/jira';
-import type { Fetched } from '../types/app';
+import type { BacklogGroup } from '../types/jira/backlogGroup';
+import type { Filed } from '../types/jira/filed';
+import type { Report } from '../types/jira/report';
+import type { Sprint } from '../types/jira/sprint';
+import type { Fetched } from '../types/app/fetched';
 
 export type JiraApi = {
   sprint(projectKey: string): Promise<Fetched<Sprint>>;

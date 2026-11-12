@@ -1,5 +1,5 @@
 import type { ChannelKind } from './mapleApi';
-import type { Unsubscribe } from '../types/app';
+import type { Unsubscribe } from '../types/app/unsubscribe';
 
 export type SessionApi = {
   write(tabId: string, data: string): void;

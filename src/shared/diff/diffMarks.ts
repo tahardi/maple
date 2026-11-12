@@ -1,5 +1,5 @@
 import { diffLines } from 'diff';
-import type { LineMark } from '@shared/types/files';
+import type { LineMark } from '@shared/types/files/lineMark';
 
 function splitLines(value: string): string[] {
   return value.replace(/\n$/, '').split('\n');

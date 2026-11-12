@@ -1,6 +1,6 @@
 import type { ChannelKind } from './mapleApi';
-import type { Unsubscribe } from '../types/app';
-import type { Dot } from '../types/tabs';
+import type { Unsubscribe } from '../types/app/unsubscribe';
+import type { Dot } from '../types/tabs/dot';
 
 export type AppApi = {
   setNotifications(on: boolean): Promise<void>;

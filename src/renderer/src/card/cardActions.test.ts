@@ -1,6 +1,7 @@
-import type { Dot } from '@shared/types/tabs';
-import type { MapleConfig } from '@shared/types/config';
-import type { PrInfo, Review } from '@shared/types/github';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { Review } from '@shared/types/github/review';
 import { cardActions } from './cardActions';
 
 const config: MapleConfig = {

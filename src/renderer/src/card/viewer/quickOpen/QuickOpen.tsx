@@ -1,4 +1,4 @@
-import type { SearchHit } from '@shared/types/files';
+import type { SearchHit } from '@shared/types/files/searchHit';
 import { useState } from 'react';
 import { matchFiles } from './matchFiles';
 import styles from './QuickOpen.module.css';

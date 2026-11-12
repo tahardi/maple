@@ -1,4 +1,4 @@
-import type { FileChange } from '@shared/types/files';
+import type { FileChange } from '@shared/types/files/fileChange';
 import { act, renderHook } from '@testing-library/react';
 import { useViewed } from './useViewed';
 

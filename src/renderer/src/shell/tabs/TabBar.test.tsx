@@ -1,4 +1,4 @@
-import type { TabState } from '@shared/types/tabs';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';

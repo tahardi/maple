@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron';
-import type { MapleConfig, ProjectConfig } from '@shared/types/config';
-import type { Dot } from '@shared/types/tabs';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import type { Dot } from '@shared/types/tabs/dot';
 import type { PrPoller } from '@main/github/PrPoller';
 import type { SessionManager } from '@main/sessions/SessionManager';
 import type { StartQueue } from '@main/sessions/StartQueue';

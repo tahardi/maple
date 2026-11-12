@@ -1,6 +1,7 @@
 import type { ChannelKind } from './mapleApi';
-import type { Fetched, Unsubscribe } from '../types/app';
-import type { MapleConfig } from '../types/config';
+import type { Fetched } from '../types/app/fetched';
+import type { Unsubscribe } from '../types/app/unsubscribe';
+import type { MapleConfig } from '../types/config/mapleConfig';
 
 export type ConfigApi = {
   get(): Promise<Fetched<MapleConfig>>;

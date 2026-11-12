@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events';
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { ProjectConfig } from '@shared/types/config';
-import type { PrInfo } from '@shared/types/github';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 import type { PrEvents } from '@main/events/PrEvents';
 import type { SessionManager } from '@main/sessions/SessionManager';

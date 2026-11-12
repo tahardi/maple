@@ -1,6 +1,6 @@
 import type { ChannelKind } from './mapleApi';
-import type { Unsubscribe } from '../types/app';
-import type { VaultNote } from '../types/files';
+import type { Unsubscribe } from '../types/app/unsubscribe';
+import type { VaultNote } from '../types/files/vaultNote';
 
 export type VaultApi = {
   list(): Promise<VaultNote[]>;

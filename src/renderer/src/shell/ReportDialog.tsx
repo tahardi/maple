@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
-import type { Filed, Report } from '@shared/types/jira';
+import type { Filed } from '@shared/types/jira/filed';
+import type { Report } from '@shared/types/jira/report';
 import styles from './ReportDialog.module.css';
 
 type ReportDialogProps = { onClose: () => void };

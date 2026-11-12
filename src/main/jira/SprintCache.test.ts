@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { ProjectConfig } from '@shared/types/config';
-import type { Sprint } from '@shared/types/jira';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import type { Sprint } from '@shared/types/jira/sprint';
 import { SprintCache } from './SprintCache';
 
 const project: ProjectConfig = {

@@ -1,5 +1,5 @@
-import type { Fetched } from '@shared/types/app';
-import type { ProjectConfig } from '@shared/types/config';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
 
 export class SprintCache<T> {
   private readonly last = new Map<string, { data: T | null; fetchedAt: string }>();

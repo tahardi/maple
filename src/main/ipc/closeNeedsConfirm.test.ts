@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import type { Dot, TabStatus } from '@shared/types/tabs';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { closeNeedsConfirm } from './closeNeedsConfirm';
 
 function statusOf(tabId: string, dot: Dot): TabStatus {

@@ -1,7 +1,8 @@
-import { syncPrompt } from '@shared/prompts/prompts';
+import { syncPrompt } from '@shared/prompts/syncPrompt';
 import { tabWorktrees } from '@shared/worktree/tabWorktrees';
-import type { Card } from '@shared/types/jira';
-import type { Dot, TabState } from '@shared/types/tabs';
+import type { Card } from '@shared/types/jira/card';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { withTimeout } from '@main/util/withTimeout';
 import type { MergeState } from '@main/github/mergeState';

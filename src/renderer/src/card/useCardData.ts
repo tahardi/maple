@@ -1,8 +1,11 @@
-import type { Card } from '@shared/types/jira';
-import type { ChangeSet, RepoInfo } from '@shared/types/files';
-import type { Fetched } from '@shared/types/app';
-import type { PrInfo, Review } from '@shared/types/github';
-import type { SessionCost, TabState } from '@shared/types/tabs';
+import type { Card } from '@shared/types/jira/card';
+import type { ChangeSet } from '@shared/types/files/changeSet';
+import type { RepoInfo } from '@shared/types/files/repoInfo';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { Review } from '@shared/types/github/review';
+import type { SessionCost } from '@shared/types/tabs/sessionCost';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMaple } from '../store';
 

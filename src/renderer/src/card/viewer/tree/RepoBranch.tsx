@@ -1,4 +1,4 @@
-import type { RepoInfo } from '@shared/types/files';
+import type { RepoInfo } from '@shared/types/files/repoInfo';
 import styles from './RepoBranch.module.css';
 
 export function RepoBranch({ repo }: { repo: RepoInfo }) {

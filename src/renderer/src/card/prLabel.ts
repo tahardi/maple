@@ -1,4 +1,4 @@
-import type { PrInfo } from '@shared/types/github';
+import type { PrInfo } from '@shared/types/github/prInfo';
 import { prRepo } from '@shared/github/prRepo';
 
 export function prLabel(info: PrInfo, projectRepo: string | null): string {

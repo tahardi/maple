@@ -1,4 +1,4 @@
-import type { TabKind } from '@shared/types/tabs';
+import type { TabKind } from '@shared/types/tabs/tabState';
 import { tabLabel } from './tabLabel';
 
 describe('tabLabel', () => {

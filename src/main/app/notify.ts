@@ -1,5 +1,6 @@
 import { Notification, type BrowserWindow } from 'electron';
-import type { Dot, TabState } from '@shared/types/tabs';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabState } from '@shared/types/tabs/tabState';
 
 export function shouldNotify(
   dot: Dot,

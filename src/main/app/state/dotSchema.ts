@@ -1,4 +1,4 @@
-import type { Dot } from '@shared/types/tabs';
+import type { Dot } from '@shared/types/tabs/dot';
 import { z } from 'zod';
 
 export const dotSchema = z.enum({

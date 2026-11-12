@@ -1,6 +1,9 @@
 import type { ChannelKind } from './mapleApi';
-import type { ChangeSet, FilePair, RepoInfo, SearchHit } from '../types/files';
-import type { Unsubscribe } from '../types/app';
+import type { ChangeSet } from '../types/files/changeSet';
+import type { FilePair } from '../types/files/filePair';
+import type { RepoInfo } from '../types/files/repoInfo';
+import type { SearchHit } from '../types/files/searchHit';
+import type { Unsubscribe } from '../types/app/unsubscribe';
 
 export type RepoApi = {
   changes(tabId: string): Promise<ChangeSet | null>;

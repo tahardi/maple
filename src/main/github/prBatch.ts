@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { parsePrBody } from '@shared/github/prBody';
-import type { CheckRun, ChecksSummary, PrInfo } from '@shared/types/github';
+import type { CheckRun, ChecksSummary } from '@shared/types/github/checksSummary';
+import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Runner } from '@main/app/preflight';
 
 export type RepoBranch = { repo: string; branch: string };

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { IpcMainInvokeEvent } from 'electron';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { ProjectConfig } from '@shared/types/config';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import type { SessionManager } from '@main/sessions/SessionManager';
 import type { StatusEngine } from '@main/sessions/StatusEngine';
 import type { Terminals } from '@main/sessions/Terminals';

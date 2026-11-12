@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { TabState, TabStatus } from '@shared/types/tabs';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import type { SessionManager } from '@main/sessions/SessionManager';
 import type { StatusEngine } from '@main/sessions/StatusEngine';
 import { EventRecorder } from './EventRecorder';

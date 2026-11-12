@@ -1,5 +1,5 @@
-import type { Card } from '@shared/types/jira';
-import type { TabState } from '@shared/types/tabs';
+import type { Card } from '@shared/types/jira/card';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { EpicLozenge } from './EpicLozenge';
 import styles from './CardDetail.module.css';

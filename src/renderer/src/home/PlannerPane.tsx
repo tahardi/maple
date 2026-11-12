@@ -1,5 +1,6 @@
-import { refinePrompt, suggestPrompt } from '@shared/prompts/prompts';
-import type { QueueState } from '@shared/types/queue';
+import { refinePrompt } from '@shared/prompts/refinePrompt';
+import { suggestPrompt } from '@shared/prompts/suggestPrompt';
+import type { QueueState } from '@shared/types/queue/queueState';
 import { useEffect, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import styles from './PlannerPane.module.css';

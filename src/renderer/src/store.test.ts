@@ -1,7 +1,8 @@
 import type { MapleApi } from '@shared/api/mapleApi';
-import type { Fetched } from '@shared/types/app';
-import type { MapleConfig } from '@shared/types/config';
-import type { TabState, TabStatus } from '@shared/types/tabs';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { useMaple } from './store';
 import { FAKE_CONFIG, fakeMaple } from './testing/fakeMaple';
 

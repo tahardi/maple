@@ -1,7 +1,10 @@
 import { DiffEditor, Editor, useMonaco } from '@monaco-editor/react';
 import { lineMarks } from '@shared/diff/diffMarks';
-import type { DiffLines, Draft, FilePair } from '@shared/types/files';
-import type { Review, ReviewComment } from '@shared/types/github';
+import type { DiffLines } from '@shared/types/files/diffLines';
+import type { Draft } from '@shared/types/files/draft';
+import type { FilePair } from '@shared/types/files/filePair';
+import type { Review } from '@shared/types/github/review';
+import type { ReviewComment } from '@shared/types/github/reviewComment';
 import type { editor, IRange } from 'monaco-editor/editor/editor.api';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';

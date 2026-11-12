@@ -2,7 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { BacklogGroup, Blocker, Card, Filed, Sprint } from '@shared/types/jira';
+import type { BacklogGroup } from '@shared/types/jira/backlogGroup';
+import type { Blocker, Card } from '@shared/types/jira/card';
+import type { Filed } from '@shared/types/jira/filed';
+import type { Sprint } from '@shared/types/jira/sprint';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { adfToMarkdown } from './adf';
 

@@ -1,4 +1,4 @@
-import type { FileChange } from '@shared/types/files';
+import type { FileChange } from '@shared/types/files/fileChange';
 import { useState } from 'react';
 
 type Saved = Readonly<Record<string, string | null>>;

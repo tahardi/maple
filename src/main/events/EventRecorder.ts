@@ -1,6 +1,8 @@
 import type { z } from 'zod';
-import type { EventRefs, eventSchemas } from '@shared/types/events';
-import type { HookEvent, TabState } from '@shared/types/tabs';
+import type { EventRefs } from '@shared/types/events/eventRecord';
+import type { eventSchemas } from '@shared/types/events/eventSchemas';
+import type { HookEvent } from '@shared/types/tabs/hookEvent';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { withTimeout } from '@main/util/withTimeout';
 import type { SessionManager } from '@main/sessions/SessionManager';

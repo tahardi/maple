@@ -1,6 +1,8 @@
 import type { MapleApi } from '@shared/api/mapleApi';
-import type { DiffLines, FilePair } from '@shared/types/files';
-import type { Review, ReviewComment } from '@shared/types/github';
+import type { DiffLines } from '@shared/types/files/diffLines';
+import type { FilePair } from '@shared/types/files/filePair';
+import type { Review } from '@shared/types/github/review';
+import type { ReviewComment } from '@shared/types/github/reviewComment';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';

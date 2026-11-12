@@ -1,12 +1,6 @@
-export type ProjectConfig = {
-  name: string;
-  jiraKey: string;
-  jiraBoardId: number;
-  plannerDir: string;
-  repo: string;
-  otherRepos: string[];
-};
-export type ActionConfig = { label: string; prompt: string };
+import type { ProjectConfig } from './projectConfig';
+import type { ActionConfig } from './actionConfig';
+
 export type MapleConfig = {
   worktreesDir: string;
   vaultDir: string | null;

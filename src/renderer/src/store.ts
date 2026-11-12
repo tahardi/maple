@@ -1,7 +1,11 @@
-import type { Draft } from '@shared/types/files';
-import type { Fetched, PreflightProblem, Unsubscribe } from '@shared/types/app';
-import type { MapleConfig } from '@shared/types/config';
-import type { Dot, TabState, TabStatus } from '@shared/types/tabs';
+import type { Draft } from '@shared/types/files/draft';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { PreflightProblem } from '@shared/types/app/preflightProblem';
+import type { Unsubscribe } from '@shared/types/app/unsubscribe';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { create } from 'zustand';
 
 type MapleState = {

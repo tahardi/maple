@@ -1,6 +1,6 @@
 import { rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { MapleConfig } from '@shared/types/config';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import { dayFiles } from './dayFiles';
 import { dayName } from './dayName';
 

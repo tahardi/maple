@@ -1,4 +1,4 @@
-import type { BacklogGroup } from '@shared/types/jira';
+import type { BacklogGroup } from '@shared/types/jira/backlogGroup';
 import { EpicLozenge } from '@renderer/home/EpicLozenge';
 import styles from './Backlog.module.css';
 

@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import type { Dot, TabState, TabStatus } from '@shared/types/tabs';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { inboxItems, type InboxItem } from './inbox';
 
 const card = (id: string, projectKey: string, cardKey: string): TabState => ({

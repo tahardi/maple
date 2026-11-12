@@ -1,4 +1,4 @@
-import type { Unsubscribe } from '@shared/types/app';
+import type { Unsubscribe } from '@shared/types/app/unsubscribe';
 import { FitAddon } from '@xterm/addon-fit';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebglAddon } from '@xterm/addon-webgl';

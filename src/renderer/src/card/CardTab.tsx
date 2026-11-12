@@ -1,6 +1,6 @@
-import { closePrompt } from '@shared/prompts/prompts';
-import type { ReviewComment } from '@shared/types/github';
-import type { TabState } from '@shared/types/tabs';
+import { closePrompt } from '@shared/prompts/closePrompt';
+import type { ReviewComment } from '@shared/types/github/reviewComment';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { ConfirmDialog } from '../shell/ConfirmDialog';

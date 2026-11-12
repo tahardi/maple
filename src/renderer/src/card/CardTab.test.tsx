@@ -1,8 +1,10 @@
-import type { Card } from '@shared/types/jira';
-import type { Fetched } from '@shared/types/app';
-import type { PrInfo, Review, SecurityFinding } from '@shared/types/github';
-import type { TabState } from '@shared/types/tabs';
-import type { VaultNote } from '@shared/types/files';
+import type { Card } from '@shared/types/jira/card';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { Review } from '@shared/types/github/review';
+import type { SecurityFinding } from '@shared/types/github/securityFinding';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { VaultNote } from '@shared/types/files/vaultNote';
 import type { PaneAction } from '../claude/ClaudePane';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useEffect } from 'react';

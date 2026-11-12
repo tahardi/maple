@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Fetched } from '@shared/types/app';
-import { syncPrompt } from '@shared/prompts/prompts';
-import type { MapleConfig } from '@shared/types/config';
+import type { Fetched } from '@shared/types/app/fetched';
+import { syncPrompt } from '@shared/prompts/syncPrompt';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import { z } from 'zod';
 import { KEEP_DAYS, MAX_MEGABYTES } from '@main/events/pruneEvents';
 import { STATE_BACKUPS } from '@main/app/state/backupState';

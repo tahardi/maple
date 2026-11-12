@@ -1,7 +1,9 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { QueuedCard } from '@shared/types/queue';
-import type { Dot, TabState, TabStatus } from '@shared/types/tabs';
+import type { QueuedCard } from '@shared/types/queue/queueState';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import type { SessionManager } from './SessionManager';
 import type { StatusEngine } from './StatusEngine';
 import { RECHECK_MS, StartQueue, type HostLoad, type StartLimits } from './StartQueue';

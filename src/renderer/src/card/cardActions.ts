@@ -1,7 +1,8 @@
-import { fillAction } from '@shared/prompts/prompts';
-import type { Dot } from '@shared/types/tabs';
-import type { MapleConfig } from '@shared/types/config';
-import type { PrInfo, Review } from '@shared/types/github';
+import { fillAction } from '@shared/prompts/fillAction';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { Review } from '@shared/types/github/review';
 import type { PaneAction } from '@renderer/claude/ClaudePane';
 
 type CardActionsInput = {

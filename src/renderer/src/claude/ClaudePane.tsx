@@ -1,4 +1,4 @@
-import type { TabStatus } from '@shared/types/tabs';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { useEffect, useMemo, useRef } from 'react';
 import { useMaple } from '../store';
 import { ActionBar } from './ActionBar';

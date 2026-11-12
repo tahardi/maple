@@ -1,6 +1,8 @@
-import type { Dot, TabKind, TabState, TabStatus } from '@shared/types/tabs';
-import type { JiraStatus } from '@shared/types/jira';
-import type { PrInfo } from '@shared/types/github';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabKind, TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
+import type { JiraStatus } from '@shared/types/jira/jiraStatus';
+import type { PrInfo } from '@shared/types/github/prInfo';
 
 export type DotInput =
   | { type: 'prompt' }
