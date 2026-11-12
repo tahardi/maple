@@ -61,9 +61,3 @@ export function registerIpc(deps: IpcDeps): void {
     register(deps);
   }
 }
-
-export function send(win: BrowserWindow | null, channel: string, payload: unknown): void {
-  if (win && !win.isDestroyed()) {
-    win.webContents.send(channel, payload);
-  }
-}

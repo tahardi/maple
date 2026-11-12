@@ -3,7 +3,7 @@ import type { EventRefs } from '@shared/types/events/eventRecord';
 import type { UiActionData } from '@shared/types/events/eventSchemas';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { appLogger, logFailure, type Logger } from '@main/app/log/log';
-import type { ActionRecorder } from '@main/ipc/validated';
+import type { ActionRecorder } from '@main/ipc/recordActions';
 
 const RECORDED_CHANNELS: ReadonlySet<string> = new Set([
   'tabs:startCard',

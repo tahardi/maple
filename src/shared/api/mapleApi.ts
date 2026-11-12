@@ -51,3 +51,8 @@ export const IPC_CHANNELS = {
   pr: PR_CHANNELS,
   app: APP_CHANNELS,
 } as const satisfies { [A in IpcArea]: { [M in keyof MapleApi[A]]: ChannelKind } };
+
+export type MethodOf<A extends IpcArea, K extends ChannelKind> = {
+  [M in keyof MapleApi[A] & keyof (typeof IPC_CHANNELS)[A]]: (typeof IPC_CHANNELS)[A][M] extends K ? M : never;
+}[keyof MapleApi[A] & keyof (typeof IPC_CHANNELS)[A]] &
+  string;

@@ -212,7 +212,7 @@ describe('registerConfig menu', () => {
     // when
     reportBug();
     // then
-    expect(sendToWindow).toHaveBeenCalledWith('app:reportRequested', null);
+    expect(sendToWindow).toHaveBeenCalledWith('app:reportRequested');
   });
 
   test('the menu shortcuts trigger tells the window', () => {
@@ -225,6 +225,6 @@ describe('registerConfig menu', () => {
     // when
     showShortcuts();
     // then
-    expect(sendToWindow).toHaveBeenCalledWith('app:shortcutsRequested', null);
+    expect(sendToWindow).toHaveBeenCalledWith('app:shortcutsRequested');
   });
 });

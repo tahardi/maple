@@ -1,11 +1,12 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { ipcMain } from 'electron';
 import { defaultRunner, runPreflight } from '@main/app/preflight';
 import { projects } from '@main/app/config/configCache';
+import { z } from 'zod';
+import { handle } from './handle';
 
 export function registerPreflight(): void {
-  ipcMain.handle('preflight:run', async () =>
+  handle('preflight', 'run', z.tuple([]), async () =>
     runPreflight(
       defaultRunner,
       process.env.MAPLE_JIRA_ENV ?? join(homedir(), '.config', 'jira', 'env'),

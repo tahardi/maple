@@ -19,7 +19,8 @@ import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { prEvents, type PrEvents } from '@main/events/PrEvents';
 import type { Runner as CommandRunner } from '@main/app/preflight';
 import type { IpcDeps } from './index';
-import { handle, tabIdArg } from './validated';
+import { tabIdArg } from './args';
+import { handle } from './handle';
 import { errorText } from '@shared/errors/errorText';
 
 const shaArg = z.string().regex(/^[0-9a-f]{40}$/);
@@ -95,14 +96,14 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
     }
   }
 
-  handle('pr:get', z.tuple([tabIdArg]), async (tabId): Promise<Fetched<PrInfo>> => {
+  handle('pr', 'get', z.tuple([tabIdArg]), async (tabId): Promise<Fetched<PrInfo>> => {
     const worktree = deps.worktreeFor(tabId);
     if (!worktree) {
       return { data: null, error: null, fetchedAt: null };
     }
     return deps.prs.latest(tabId, worktree);
   });
-  handle('pr:review', z.tuple([tabIdArg]), async (tabId): Promise<Fetched<Review>> => {
+  handle('pr', 'review', z.tuple([tabIdArg]), async (tabId): Promise<Fetched<Review>> => {
     const worktree = deps.worktreeFor(tabId);
     if (!worktree) {
       return { data: null, error: null, fetchedAt: null };
@@ -128,14 +129,15 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
     }
   });
   handle(
-    'pr:readFile',
+    'pr',
+    'readFile',
     z.tuple([tabIdArg, pathArg, pathArg.nullable(), shaArg, shaArg]),
     (tabId, path, oldPath, baseSha, headSha): Promise<FilePair> =>
       logFailure(logger, 'gh', { operation: 'pr:readFile', tabId, path }, async () =>
         reviewFilePair(await prRunner(tabId, 'reading PR file'), path, oldPath, baseSha, headSha),
       ),
   );
-  handle('pr:approve', z.tuple([tabIdArg, shaArg]), (tabId, headSha): Promise<void> =>
+  handle('pr', 'approve', z.tuple([tabIdArg, shaArg]), (tabId, headSha): Promise<void> =>
     logFailure(logger, 'gh', { operation: 'pr:approve', tabId }, async () => {
       const cardKey = deps.sessions.get(tabId)?.cardKey ?? null;
       if (cardKey === null) {
@@ -152,7 +154,8 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
     }),
   );
   handle(
-    'pr:comment',
+    'pr',
+    'comment',
     z
       .tuple([
         tabIdArg,
@@ -171,7 +174,8 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       }),
   );
   handle(
-    'pr:reply',
+    'pr',
+    'reply',
     z.tuple([tabIdArg, z.number().int().min(1), z.string().min(1).max(65_536)]),
     (tabId, commentId, body): Promise<void> =>
       logFailure(logger, 'gh', { operation: 'pr:reply', tabId, commentId }, async () => {
@@ -181,7 +185,8 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       }),
   );
   handle(
-    'pr:resolve',
+    'pr',
+    'resolve',
     z.tuple([tabIdArg, z.string().min(1).max(200), z.boolean()]),
     (tabId, threadId, resolved): Promise<void> =>
       logFailure(logger, 'gh', { operation: 'pr:resolve', tabId, threadId, resolved }, async () => {
@@ -195,7 +200,7 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         record(tabId, (tab) => events.resolved(tab, threadId, resolved));
       }),
   );
-  handle('pr:comments', z.tuple([tabIdArg]), async (tabId): Promise<ReviewComment[]> => {
+  handle('pr', 'comments', z.tuple([tabIdArg]), async (tabId): Promise<ReviewComment[]> => {
     const worktree = deps.worktreeFor(tabId);
     if (worktree === null) {
       return [];
@@ -208,13 +213,18 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
       return pr === null ? [] : reviewComments(ghRunner(prRepo(pr.url)), worktree, pr.number);
     });
   });
-  handle('pr:diffLines', z.tuple([tabIdArg, shaArg, shaArg]), async (tabId, baseSha, headSha): Promise<DiffLines> => {
-    const worktree = deps.worktreeFor(tabId);
-    if (worktree === null) {
-      return { ranges: {} };
-    }
-    return logFailure(logger, 'gh', { operation: 'pr:diffLines', tabId }, async () => ({
-      ranges: await diffLines(await prRunner(tabId, 'listing PR files'), worktree, baseSha, headSha),
-    }));
-  });
+  handle(
+    'pr',
+    'diffLines',
+    z.tuple([tabIdArg, shaArg, shaArg]),
+    async (tabId, baseSha, headSha): Promise<DiffLines> => {
+      const worktree = deps.worktreeFor(tabId);
+      if (worktree === null) {
+        return { ranges: {} };
+      }
+      return logFailure(logger, 'gh', { operation: 'pr:diffLines', tabId }, async () => ({
+        ranges: await diffLines(await prRunner(tabId, 'listing PR files'), worktree, baseSha, headSha),
+      }));
+    },
+  );
 }
