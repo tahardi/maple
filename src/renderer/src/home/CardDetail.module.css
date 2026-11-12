@@ -1,11 +1,11 @@
 .detail {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   width: 380px;
   border-left: 1px solid var(--border);
   background: var(--bg-raised);
-  padding: 12px;
+  padding: var(--space-3);
   overflow: auto;
 }
 
@@ -13,7 +13,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .top h3 {
@@ -23,13 +23,13 @@
 
 .close {
   border: none;
-  padding: 0 4px;
+  padding: 0 var(--space-1);
 }
 
 .chip {
   background: var(--bg-sunken);
-  border-radius: 8px;
-  padding: 0 6px;
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-2);
 }
 
 .blockedBy {
@@ -43,13 +43,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-size: var(--font-sm);
 }
 
 .blockers {
   margin: 0;
-  padding-left: 18px;
+  padding-left: var(--space-4);
   font-size: var(--font-sm);
 }
 

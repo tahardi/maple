@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   background: var(--bar);
-  padding: 0 8px;
+  padding: 0 var(--space-2);
   height: 36px;
 }
 
@@ -13,8 +13,8 @@
 
 .divider {
   width: 1px;
-  margin: 8px 4px;
-  background: var(--border);
+  margin: var(--space-2) var(--space-1);
+  background: var(--divider);
 }
 
 .item {
@@ -31,15 +31,15 @@
 }
 
 .tab {
-  padding: 0 14px;
+  padding: 0 var(--space-4);
 }
 
 .close {
-  padding: 0 8px 0 0;
+  padding: 0 var(--space-2) 0 0;
 }
 
 .error {
-  padding: 0 14px;
+  padding: 0 var(--space-4);
   color: var(--danger);
 }
 
@@ -51,8 +51,8 @@
   display: inline-block;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  margin-right: 6px;
+  border-radius: var(--radius-full);
+  margin-right: var(--space-2);
 }
 
 .dot[data-dot='working'] {
@@ -76,7 +76,7 @@
 }
 
 .sync {
-  margin-left: 6px;
+  margin-left: var(--space-2);
   color: var(--idle);
 }
 

@@ -6,22 +6,22 @@
 
 .strip {
   display: flex;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
   background: var(--bg-raised);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 
 .strip button {
-  padding: 0 6px;
+  padding: 0 var(--space-2);
 }
 
 .strip input {
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text);
-  padding: 0 6px;
+  padding: 0 var(--space-2);
   width: 12ch;
 }
 

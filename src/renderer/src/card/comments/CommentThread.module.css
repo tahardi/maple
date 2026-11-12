@@ -1,7 +1,7 @@
 .thread {
-  margin: 4px 12px 8px;
+  margin: var(--space-1) var(--space-3) var(--space-2);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--bg-raised);
   color: var(--text);
   font-family: system-ui, sans-serif;
@@ -11,16 +11,16 @@
 .label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
   font-size: var(--font-sm);
   color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--divider);
 }
 
 .comment {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--divider);
 }
 
 .author {
@@ -32,8 +32,8 @@
 .reply {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px 10px 8px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
 }
 
 .error {
@@ -46,5 +46,5 @@
 
 .actions {
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
 }

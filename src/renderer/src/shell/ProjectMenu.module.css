@@ -1,7 +1,7 @@
 .project {
   position: relative;
   flex: none;
-  margin-right: 12px;
+  margin-right: var(--space-3);
 }
 
 .button,
@@ -13,11 +13,11 @@
 .button {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   width: 20em;
 }
 
@@ -29,14 +29,14 @@
 
 .panel {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--space-1));
   left: 0;
-  z-index: 10;
+  z-index: var(--z-menu);
   min-width: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 8px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
 }
 
 .empty {
@@ -49,8 +49,8 @@
   width: 100%;
   background: transparent;
   border: none;
-  border-radius: 4px;
-  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
   text-align: left;
   white-space: nowrap;
 }

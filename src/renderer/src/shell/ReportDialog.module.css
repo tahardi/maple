@@ -14,18 +14,18 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .form label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .kinds {
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .kinds label {

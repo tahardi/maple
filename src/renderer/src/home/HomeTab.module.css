@@ -14,10 +14,10 @@
 .stale {
   background: var(--warning-bg);
   color: var(--warning-text);
-  padding: 6px 12px;
+  padding: var(--space-2) var(--space-3);
 }
 
 .empty {
-  padding: 12px;
+  padding: var(--space-3);
   color: var(--text-muted);
 }
