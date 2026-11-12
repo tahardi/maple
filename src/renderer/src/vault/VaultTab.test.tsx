@@ -81,6 +81,15 @@ describe('VaultTab', () => {
     expect(screen.getByRole('heading', { name: 'notes' })).toHaveAttribute('title', '/home/bear/notes/');
   });
 
+  test('shows no vault name heading when no vault folder is set', () => {
+    // given
+    fakeVault();
+    // when
+    render(<VaultTab tab={vaultTab} />);
+    // then
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+  });
+
   test('shows the top level of the vault with folders closed', async () => {
     // given
     fakeVault();

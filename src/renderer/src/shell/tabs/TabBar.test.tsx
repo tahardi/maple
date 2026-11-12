@@ -130,16 +130,19 @@ describe('TabBar', () => {
     expect(screen.queryByRole('button', { name: 'Close Vault' })).not.toBeInTheDocument();
   });
 
-  test('Home and Vault sit before the divider and card tabs after it', () => {
+  test.each([
+    { vault: 'set', config: VAULT_CONFIG, pinned: ['Home', 'Vault'] },
+    { vault: 'unset', config: FAKE_CONFIG, pinned: ['Home'] },
+  ])('with the vault $vault, pinned tabs sit before the divider and card tabs after it', ({ config, pinned }) => {
     // given
-    useMaple.setState({ config: VAULT_CONFIG });
+    useMaple.setState({ config });
     // when
     render(<TabBar />);
     // then
     const divider = screen.getByTestId('pinned-divider');
-    expect(screen.getByRole('tab', { name: 'Vault' }).compareDocumentPosition(divider)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    const tabs = screen.getAllByRole('tab');
+    const before = tabs.filter((t) => t.compareDocumentPosition(divider) === Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before.map((t) => t.textContent)).toEqual(pinned);
     expect(divider.compareDocumentPosition(screen.getByRole('tab', { name: 'BEAR-1' }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
