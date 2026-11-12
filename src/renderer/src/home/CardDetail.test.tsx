@@ -351,13 +351,18 @@ describe('CardDetail', () => {
     expect(handlers.onClose).not.toHaveBeenCalled();
   });
 
-  test('a queued To Do card shows its place instead of Start', () => {
+  test.each([
+    { name: 'a queued card without a tab shows its place', hasTab: false, badge: true, button: 'Start' },
+    { name: 'a queued card with a tab keeps Go to tab', hasTab: true, badge: false, button: 'Go to tab' },
+  ])('$name', ({ hasTab, badge, button }) => {
     // given
     const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
     // when
-    render(<CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} queuePlace={2} {...handlers} />);
+    render(
+      <CardDetail card={card('DIG-41', 'To Do')} tab={hasTab ? tab : null} busy={false} queuePlace={2} {...handlers} />,
+    );
     // then
-    expect(screen.getByText('Queued #2')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Queued #2') !== null).toBe(badge);
+    expect(screen.queryByRole('button', { name: button }) !== null).toBe(hasTab);
   });
 });
