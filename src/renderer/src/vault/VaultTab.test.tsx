@@ -56,6 +56,7 @@ function fakeVault() {
 
 describe('VaultTab', () => {
   beforeEach(() => {
+    localStorage.clear();
     useMaple.setState(useMaple.getInitialState(), true);
     vi.stubGlobal(
       'ResizeObserver',
@@ -196,5 +197,29 @@ describe('VaultTab', () => {
     render(<VaultTab tab={vaultTab} />);
     // then
     expect(within(screen.getByTestId('claude-slot')).getByTestId('claude-pane')).toHaveTextContent('v1');
+  });
+
+  test('uses saved split sizes', () => {
+    // given
+    fakeVault();
+    localStorage.setItem('maple.split.vaultTree', '300');
+    localStorage.setItem('maple.split.vaultClaude', '40');
+    // when
+    render(<VaultTab tab={vaultTab} />);
+    // then
+    expect(screen.getByTestId('claude-slot')).toHaveStyle({ width: '40%' });
+    expect(screen.getByTestId('tree-slot')).toHaveStyle({ width: '300px' });
+  });
+
+  test('shows a resize handle on each side of the viewer', () => {
+    // given
+    fakeVault();
+    // when
+    render(<VaultTab tab={vaultTab} />);
+    // then
+    expect(screen.getAllByRole('separator').map((s) => s.getAttribute('aria-label'))).toEqual([
+      'Resize file tree',
+      'Resize Claude pane',
+    ]);
   });
 });
