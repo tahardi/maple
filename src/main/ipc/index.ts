@@ -7,6 +7,8 @@ import type { SessionManager } from '@main/sessions/SessionManager';
 import type { StartQueue } from '@main/sessions/StartQueue';
 import type { StatusEngine } from '@main/sessions/StatusEngine';
 import type { Terminals } from '@main/sessions/Terminals';
+import type { JiraClient } from '@main/jira/JiraClient';
+import type { JiraCreds } from '@main/jira/readCreds';
 import type { ZoomChange } from '@main/app/window/zoom';
 import { registerApp } from './app';
 import { registerConfig } from './config';
@@ -37,6 +39,8 @@ export type IpcDeps = {
   seen: () => Promise<Record<string, Dot>>;
   startQueue: StartQueue;
   prs: Pick<PrPoller, 'latest' | 'refresh'>;
+  jira: Promise<JiraClient>;
+  jiraCreds: Promise<JiraCreds>;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [

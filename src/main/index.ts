@@ -27,6 +27,7 @@ import { notificationsDefault, projectByKey } from '@main/app/config/configCache
 import { closeNeedsConfirm } from '@main/sessions/closeNeedsConfirm';
 import { recordActions } from '@main/ipc/validated';
 import { JiraClient } from '@main/jira/JiraClient';
+import { tapDoneSnapshots } from '@main/vault/tapDoneSnapshots';
 import { jiraEnvPath, readCreds } from '@main/jira/readCreds';
 import { appLogger, setLogSecrets, startLogging } from '@main/app/log/log';
 import { readBuildInfo } from '@main/app/buildInfo';
@@ -159,7 +160,10 @@ async function start(): Promise<Zoom> {
   const terminals = new Terminals({ spawn });
   const jira = creds.then((c) => new JiraClient(c));
   jira.catch(() => undefined);
-  const getCard = async (key: string) => (await jira).getCard(key);
+  const getCard = tapDoneSnapshots(
+    async (key) => (await jira).getCard(key),
+    (key) => sessions.sessionOf(key),
+  );
   const prPoller = new PrPoller({
     tabs: () => sessions.list(),
     project: projectByKey,
@@ -269,6 +273,8 @@ async function start(): Promise<Zoom> {
     status,
     startQueue,
     prs: prPoller,
+    jira,
+    jiraCreds: creds,
     setActiveTab: (tabId) => {
       activeTabId = tabId;
       autoSync.activate(tabId);
