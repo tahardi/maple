@@ -37,7 +37,9 @@ export async function commitExists(worktree: string, name: string): Promise<bool
 }
 
 export async function defaultBranch(worktree: string): Promise<string | null> {
-  const head = await runGit(worktree, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']).catch(() => '');
+  const head = await runGit(worktree, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']).catch(
+    () => '',
+  );
   const candidates = [head.trim(), 'origin/main', 'origin/master', 'main', 'master'].filter((name) => name !== '');
   for (const name of candidates) {
     if (await commitExists(worktree, name)) {

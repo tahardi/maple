@@ -4,7 +4,7 @@ import { watchWorktree } from '@main/git/worktreeWatcher';
 import { readSnapshot } from '@main/vault/snapshots';
 import { listNotes, readNote, writeNote } from '@main/vault/vault';
 import { vaultWrites } from '@main/vault/vaultWrites';
-import { vaultDir as configuredVaultDir } from './config';
+import { vaultDir as configuredVaultDir } from '@main/app/config/configCache';
 import { send, type IpcDeps } from './index';
 import { handle, tabIdArg } from './validated';
 import { errorText } from '@shared/errors/errorText';

@@ -25,7 +25,7 @@ import { prForBranch } from '@main/github/pr';
 import { openPrMergeState } from '@main/github/mergeState';
 import { PrPoller } from '@main/github/PrPoller';
 import { registerIpc } from '@main/ipc';
-import { notificationsDefault, projectByKey } from '@main/ipc/config';
+import { notificationsDefault, projectByKey } from '@main/app/config/configCache';
 import { closeNeedsConfirm } from '@main/sessions/closeNeedsConfirm';
 import { recordActions } from '@main/ipc/validated';
 import { JiraClient } from '@main/jira/JiraClient';
