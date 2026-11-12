@@ -1,5 +1,6 @@
 import type { Card } from '@shared/types/jira/card';
 import type { TabState } from '@shared/types/tabs/tabState';
+import { useEffect } from 'react';
 import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { EpicLozenge } from './EpicLozenge';
 import { Badge } from '@renderer/shell/blocks/Badge';
@@ -38,8 +39,25 @@ export function CardDetail(props: Props) {
   const { card, tab, failure, busy, onClose, onAddToSprint } = props;
   const next = action(card, tab, props);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
   return (
-    <aside className={styles.detail}>
+    <aside
+      className={styles.detail}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+      }}
+    >
       <div className={styles.top}>
         <h3>{`${card.key} ${card.summary}`}</h3>
         <button className={styles.close} aria-label="Close details" title="Close details" onClick={onClose}>

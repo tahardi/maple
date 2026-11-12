@@ -274,4 +274,13 @@ describe('CardDetail', () => {
     // then
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  test('Escape calls onClose', async () => {
+    // given
+    const { onClose } = renderDetail(card('DIG-41', 'To Do'), null);
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });
