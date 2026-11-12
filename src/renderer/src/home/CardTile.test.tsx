@@ -4,6 +4,14 @@ import { card } from '../testing/sprintFixture';
 import { CardTile } from './CardTile';
 
 describe('CardTile', () => {
+  test('shows labels as neutral badges', () => {
+    // given
+    // when
+    render(<CardTile card={card('DIG-44', 'To Do')} selected={false} onSelect={vi.fn()} onToggle={null} />);
+    // then
+    expect(screen.getByText('parallelizable')).toHaveAttribute('data-tone', 'neutral');
+  });
+
   test('shows no checkbox without onToggle', () => {
     // given
     render(<CardTile card={card('DIG-44', 'To Do')} selected={false} onSelect={vi.fn()} onToggle={null} />);

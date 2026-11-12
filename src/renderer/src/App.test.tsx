@@ -118,6 +118,7 @@ describe('App', () => {
     expect(warning).toHaveTextContent('reading state: state.json is unreadable');
     expect(danger).toHaveAttribute('data-tone', 'danger');
     expect(danger).toHaveTextContent('reading config: bad json');
+    expect(warning.compareDocumentPosition(danger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test('shows Home when warnings fail to load', async () => {

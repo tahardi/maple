@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { FileViewer } from './FileViewer';
+import css from './FileViewer.module.css?raw';
 import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
 
@@ -1195,6 +1196,17 @@ describe('FileViewer', () => {
     // then
     expect(await screen.findByText(text)).toBeInTheDocument();
     expect(screen.queryByTestId('editor')).not.toBeInTheDocument();
+  });
+
+  test('a file message is padded muted text with its own rule', () => {
+    // given
+    const source = css;
+    // when
+    const rule = /(^|\n)\.message \{([^}]*)\}/.exec(source)?.[2] ?? '';
+    // then
+    expect(rule).toContain('padding: var(--space-3)');
+    expect(rule).toContain('color: var(--text-muted)');
+    expect(rule).not.toContain('background');
   });
 
   test('shows the base text under a notice for a deleted file', async () => {
