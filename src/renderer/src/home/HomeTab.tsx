@@ -12,6 +12,7 @@ import { readyToStart } from '@renderer/home/startQueue/readyToStart';
 import { useBacklog } from '@renderer/home/backlog/useBacklog';
 import { useSprint } from './useSprint';
 import { useStartQueue } from '@renderer/home/startQueue/useStartQueue';
+import { errorText } from '@shared/errors/errorText';
 
 type Props = { projectKey: string };
 
@@ -22,11 +23,6 @@ function staleMessage(fetchedAt: string | null): string {
   const at = new Date(fetchedAt);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `Jira unreachable, last updated ${pad(at.getHours())}:${pad(at.getMinutes())}`;
-}
-
-function failureMessage(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  return message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 }
 
 function addBody(card: Card, sprintName: string): string {
@@ -86,7 +82,7 @@ export function HomeTab({ projectKey }: Props) {
         }
       })
       .catch((err: unknown) => {
-        setFailure(failureMessage(err));
+        setFailure(errorText(err));
       });
   };
   const toggle = (key: string) => {
@@ -102,7 +98,7 @@ export function HomeTab({ projectKey }: Props) {
           started.push(tab);
         }
       } catch (err: unknown) {
-        setStartFailure(`starting ${key}: ${failureMessage(err)}`);
+        setStartFailure(`starting ${key}: ${errorText(err)}`);
         setPicked(keys.slice(i));
         return;
       }
@@ -129,7 +125,7 @@ export function HomeTab({ projectKey }: Props) {
     try {
       await window.maple.jira.moveToSprint(sprintId, toAccept);
     } catch (err: unknown) {
-      setMoveFailure(failureMessage(err));
+      setMoveFailure(errorText(err));
       return;
     }
     refreshSprint();
@@ -144,7 +140,7 @@ export function HomeTab({ projectKey }: Props) {
     try {
       await window.maple.jira.moveToSprint(sprintId, [key]);
     } catch (err: unknown) {
-      setFailure(failureMessage(err));
+      setFailure(errorText(err));
       return;
     }
     refreshSprint();

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './TerminalPane.module.css';
 import { TerminalView } from './TerminalView';
+import { errorText } from '@shared/errors/errorText';
 
 const MAKE_TRY = 'make try';
 
@@ -55,11 +56,10 @@ export function TerminalPane({
     try {
       await window.maple.terminal.open(tabId, id);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
       setIds((now) => now.filter((other) => other !== id));
       setNames((now) => Object.fromEntries(Object.entries(now).filter(([other]) => other !== id)));
       setActive((now) => (now === id ? tabId : now));
-      setTryError(message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
+      setTryError(errorText(err));
       return;
     }
     window.maple.terminal.write(id, `${MAKE_TRY}\r`);

@@ -4,6 +4,7 @@ import type { TabState } from '@shared/types/tabs/tabState';
 import { appLogger, type Logger } from '@main/app/log/log';
 import type { SessionManager } from './SessionManager';
 import type { StatusEngine } from './StatusEngine';
+import { errorText } from '@shared/errors/errorText';
 
 export const RECHECK_MS = 15_000;
 
@@ -23,10 +24,6 @@ export type StartQueueDeps = {
   save: (cards: QueuedCard[]) => Promise<void>;
   logger?: Logger;
 };
-
-function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
   private cards: QueuedCard[];
@@ -134,8 +131,8 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
           this.log.info('session', 'queued start', { cardKey: next.cardKey });
           this.startNow(next);
         } catch (err) {
-          this.failure = `starting ${next.cardKey}: ${message(err)}`;
-          this.log.warn('session', 'queued start failed', { cardKey: next.cardKey, error: message(err) });
+          this.failure = `starting ${next.cardKey}: ${errorText(err)}`;
+          this.log.warn('session', 'queued start failed', { cardKey: next.cardKey, error: errorText(err) });
         }
       }
     } finally {
@@ -193,7 +190,7 @@ export class StartQueue extends EventEmitter<{ changed: [state: QueueState] }> {
   private changed(save: boolean): void {
     if (save) {
       this.deps.save([...this.cards]).catch((err: unknown) => {
-        this.log.error('session', 'failed', { operation: 'saveQueue', error: message(err) });
+        this.log.error('session', 'failed', { operation: 'saveQueue', error: errorText(err) });
       });
     }
     const state = this.state();

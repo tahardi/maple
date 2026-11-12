@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import type { Filed } from '@shared/types/jira/filed';
 import type { Report } from '@shared/types/jira/report';
 import styles from './ReportDialog.module.css';
+import { errorText } from '@shared/errors/errorText';
 
 type ReportDialogProps = { onClose: () => void };
 
@@ -32,7 +33,7 @@ export function ReportDialog({ onClose }: ReportDialogProps) {
     try {
       setFiled(await window.maple.jira.report({ kind, title, description }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorText(err));
     } finally {
       setSending(false);
     }

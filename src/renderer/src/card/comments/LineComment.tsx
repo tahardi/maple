@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CommentEditor } from './CommentEditor';
 import styles from './LineComment.module.css';
+import { errorText } from '@shared/errors/errorText';
 
 type Props = {
   tabId: string;
@@ -20,8 +21,7 @@ export function LineComment({ tabId, path, startLine, line, headSha, onDone }: P
     setPosting(true);
     setError(null);
     window.maple.pr.comment(tabId, path, startLine, line, text, headSha).then(onDone, (err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
+      setError(errorText(err));
       setPosting(false);
     });
   };

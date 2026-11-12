@@ -12,6 +12,7 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
 - One type per file; a small helper type used only by that type may stay with it - you find a type by its file name.
 - Name each file after its main export: `PascalCase.tsx` for components, `PascalCase.ts` for classes, `camelCase.ts` for everything else - the name tells you what the file holds.
 - Error messages are present tense and start with an "-ing" verb, like `reading config: x` - they read as a trail.
+- Turn a caught error into text with `errorText` from `src/shared/errors/` - one helper, so messages read the same everywhere.
 - Pin dependencies exactly with `npm install --save-exact` - builds stay reproducible.
 - Jira status names are exactly `To Do`, `In Progress`, `In Review`, `Done` - other spellings break transitions.
 

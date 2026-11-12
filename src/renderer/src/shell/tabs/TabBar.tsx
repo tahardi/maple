@@ -6,6 +6,7 @@ import { ProjectMenu } from '@renderer/shell/ProjectMenu';
 import { ReportDialog } from '@renderer/shell/ReportDialog';
 import styles from './TabBar.module.css';
 import { tabLabel } from './tabLabel';
+import { errorText } from '@shared/errors/errorText';
 
 const SYNC_LABELS = { queued: 'Sync queued', syncing: 'Syncing with main' } as const;
 
@@ -39,8 +40,7 @@ export function TabBar() {
         activate(tab.id);
       },
       (err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        setVaultError(message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
+        setVaultError(errorText(err));
       },
     );
   };
