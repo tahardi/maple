@@ -1507,6 +1507,32 @@ describe('CodeView', () => {
     expect(onReloadReview).toHaveBeenCalledOnce();
   });
 
+  test.each([
+    { name: 'no lines are selected', review: null, cursor: select(1, 1, 1) },
+    { name: 'the review is loaded and the lines leave the PR diff', review: reviewed, cursor: select(20, 20) },
+  ])('offers no Reload review beside Comment when $name', async ({ review, cursor }) => {
+    // given
+    const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } }));
+    const readFile = () => Promise.resolve(changed);
+    fakeMaple({ repo: { readFile }, pr: { diffLines, readFile } });
+    render(
+      <Harness
+        tabId="t1"
+        path="src/a.ts"
+        line={null}
+        canComment
+        prFetchedAt={null}
+        review={review}
+        onReloadReview={vi.fn()}
+      />,
+    );
+    await screen.findByRole('button', { name: 'Comment' });
+    // when
+    await moveCursor(cursor);
+    // then
+    expect(screen.queryByRole('button', { name: 'Reload review' })).not.toBeInTheDocument();
+  });
+
   test('explains why Comment does nothing without a loaded review', async () => {
     // given
     const diffLines = vi.fn(() => Promise.resolve<DiffLines>({ ranges: { 'src/a.ts': [[1, 10]] } }));

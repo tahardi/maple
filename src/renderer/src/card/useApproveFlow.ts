@@ -23,7 +23,7 @@ export function useApproveFlow(
 ): ApproveFlow {
   const [error, setError] = useWorktreeState<{ headSha: string; message: string } | null>(worktreePath, null);
   const [pending, setPending] = useState<Pending | null>(null);
-  const [approving, setApproving] = useWorktreeState(worktreePath, false);
+  const [merging, setMerging] = useState<ReadonlySet<string | null>>(new Set());
   const headSha = review?.headSha ?? null;
   const highFindings = review?.findings.filter((f) => f.severity === 'high').length ?? 0;
   const step = pending !== null && pending.headSha === headSha ? pending.step : null;
@@ -33,14 +33,19 @@ export function useApproveFlow(
       return;
     }
     setError(() => null);
-    setApproving(() => true);
+    const path = worktreePath;
+    setMerging((now) => new Set(now).add(path));
     window.maple.pr
       .approve(tabId, headSha)
       .catch((err: unknown) => {
         setError(() => ({ headSha, message: errorText(err) }));
       })
       .finally(() => {
-        setApproving(() => false);
+        setMerging((now) => {
+          const next = new Set(now);
+          next.delete(path);
+          return next;
+        });
       });
   };
 
@@ -69,7 +74,7 @@ export function useApproveFlow(
 
   return {
     error: error !== null && error.headSha === headSha ? error.message : null,
-    approving,
+    approving: merging.has(worktreePath),
     dialog,
     approve: () => {
       if (headSha === null) {
