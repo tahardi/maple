@@ -7,5 +7,6 @@ export type QueueState = {
   working: number;
   limit: number;
   waitingFor: WaitReason | null;
+  gapSeconds: number;
   failure: string | null;
 };

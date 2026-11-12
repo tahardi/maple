@@ -114,6 +114,7 @@ describe('loadConfig', () => {
     { name: 'maxLoadPerCore missing', config: validConfig, check: { maxLoadPerCore: 0.8 } },
     { name: 'minFreeMegabytes missing', config: validConfig, check: { minFreeMegabytes: 2048 } },
     { name: 'startAtOnce missing', config: validConfig, check: { startAtOnce: 4 } },
+    { name: 'startGapSeconds missing', config: validConfig, check: { startGapSeconds: 90 } },
   ])('defaults when $name', async ({ config, check }) => {
     // given
     await writeFile(join(dir, 'config.json'), JSON.stringify(config));
@@ -200,6 +201,16 @@ describe('loadConfig', () => {
       name: 'a fractional startAtOnce',
       content: JSON.stringify({ ...validConfig, startAtOnce: 1.5 }),
       error: /^reading config: startAtOnce: /,
+    },
+    {
+      name: 'a startGapSeconds of zero',
+      content: JSON.stringify({ ...validConfig, startGapSeconds: 0 }),
+      error: /^reading config: startGapSeconds: /,
+    },
+    {
+      name: 'a negative startGapSeconds',
+      content: JSON.stringify({ ...validConfig, startGapSeconds: -5 }),
+      error: /^reading config: startGapSeconds: /,
     },
     {
       name: 'string jiraBoardId',

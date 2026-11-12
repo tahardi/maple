@@ -10,6 +10,7 @@ function queueOf(...keys: string[]): QueueState {
     working: 2,
     limit: 4,
     waitingFor: 'room',
+    gapSeconds: 90,
     failure: null,
   };
 }
@@ -49,7 +50,7 @@ describe('StartQueue', () => {
     { waitingFor: 'room' as const, limit: 6, text: 'Waiting for room: 6 of 6 working' },
     { waitingFor: 'cpu' as const, limit: 8, text: 'Waiting for CPU: 6 working' },
     { waitingFor: 'memory' as const, limit: 8, text: 'Waiting for memory: 6 working' },
-    { waitingFor: 'pace' as const, limit: 8, text: 'Starting one more every 15 seconds: 6 working' },
+    { waitingFor: 'pace' as const, limit: 8, text: 'Starting one more every 90 seconds: 6 working' },
   ])('waiting for $waitingFor shows $text', ({ waitingFor, limit, text }) => {
     // given
     const queue = { ...queueOf('DIG-45'), working: 6, limit, waitingFor };

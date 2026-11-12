@@ -70,6 +70,7 @@ const queueState: QueueState = {
   working: 4,
   limit: 4,
   waitingFor: 'room',
+  gapSeconds: 90,
   failure: null,
 };
 
