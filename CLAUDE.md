@@ -1,5 +1,7 @@
 # Maple
 
+Read `ARCHITECTURE.md` for how the parts fit together and the words we use for them.
+
 Personal agentic IDE for running Jira cards with Claude. Electron main process, React renderer, TypeScript throughout.
 
 ## General
