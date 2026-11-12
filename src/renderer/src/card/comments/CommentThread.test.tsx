@@ -202,6 +202,15 @@ describe('CommentThread', () => {
     expect(screen.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument();
   });
 
+  test('a resolved thread shows a success Resolved badge', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<CommentThread tabId="t1" thread={{ ...thread, resolved: true }} onPosted={vi.fn()} />);
+    // then
+    expect(screen.getByText('Resolved')).toHaveAttribute('data-tone', 'success');
+  });
+
   test('collapses a resolved thread until shown', async () => {
     // given
     fakeMaple();

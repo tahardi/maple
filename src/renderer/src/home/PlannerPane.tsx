@@ -3,6 +3,7 @@ import { suggestPrompt } from '@shared/prompts/suggestPrompt';
 import type { QueueState } from '@shared/types/queue/queueState';
 import { useEffect, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './PlannerPane.module.css';
 import { StartQueue } from '@renderer/home/startQueue/StartQueue';
 
@@ -112,11 +113,7 @@ export function PlannerPane({
       {(nothingToStart || failure !== null) && (
         <div className={styles.status}>
           {nothingToStart && <span className={styles.nothing}>Nothing to start right now</span>}
-          {failure !== null && (
-            <span role="alert" className={styles.failure}>
-              {failure}
-            </span>
-          )}
+          {failure !== null && <Notice tone="danger">{failure}</Notice>}
         </div>
       )}
       {tabId !== null && <ClaudePane tabId={tabId} actions={[]} />}

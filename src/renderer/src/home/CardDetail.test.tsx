@@ -46,6 +46,15 @@ describe('CardDetail', () => {
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['×']);
   });
 
+  test('shows the status and labels as neutral badges', () => {
+    // given
+    // when
+    renderDetail(card('DIG-41', 'To Do'), null);
+    // then
+    expect(screen.getByText('To Do')).toHaveAttribute('data-tone', 'neutral');
+    expect(screen.getByText('parallelizable')).toHaveAttribute('data-tone', 'neutral');
+  });
+
   test('shows the description, points, labels, blockers, and Jira link', () => {
     // given
     renderDetail(card('DIG-41', 'To Do', { blockedBy: [{ key: 'DIG-44', status: 'In Progress' }] }), null);

@@ -37,6 +37,8 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
 - Hooks start with `use` and live in their own file - the rules of hooks rely on the name.
 - No `useEffect` for derived state - compute it during render, which avoids an extra render and stale values.
 - Read the zustand store through selectors, like `useStore((s) => s.cards)` - re-render only on that slice.
+- Draw notices and errors with `Notice`, labels with `Badge`, and dialogs with `Dialog`
+  from `src/renderer/src/shell/blocks/` - never hand-roll them, so the same kind of message looks the same everywhere.
 
 ## Electron
 

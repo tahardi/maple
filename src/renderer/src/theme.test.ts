@@ -319,7 +319,11 @@ describe('theme', () => {
     const paths = modules.filter(([, css]) => warning.test(css)).map(([path]) => path);
 
     // then
-    expect(paths).toEqual(['./card/PrSummary.module.css', './home/HomeTab.module.css']);
+    expect(paths).toEqual([
+      './card/PrSummary.module.css',
+      './shell/blocks/Badge.module.css',
+      './shell/blocks/Notice.module.css',
+    ]);
   });
 
   test('every variable a module uses is defined', () => {

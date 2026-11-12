@@ -1168,6 +1168,30 @@ describe('CardTab', () => {
     expect(slot.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
 
+  test('a Done card without a worktree shows a success notice with Close tab', async () => {
+    // given
+    const card: Card = {
+      key: 'MPL-20',
+      summary: 'File Tree',
+      status: 'Done',
+      points: 3,
+      labels: [],
+      blockedBy: [],
+      epic: null,
+      descriptionMd: '',
+      url: 'https://example.atlassian.net/browse/MPL-20',
+    };
+    const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card] };
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    const notice = await within(screen.getByTestId('claude-slot')).findByRole('status');
+    expect(notice).toHaveTextContent('Merged');
+    expect(notice).toHaveAttribute('data-tone', 'success');
+    expect(within(notice).getByRole('button', { name: 'Close tab' })).toBeInTheDocument();
+  });
+
   test('Close tab on the merged notice closes the tab', async () => {
     // given
     const card: Card = {

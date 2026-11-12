@@ -1,4 +1,5 @@
 import type { QueueState, WaitReason } from '@shared/types/queue/queueState';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './StartQueue.module.css';
 
 const WAITING_FOR: Record<'cpu' | 'memory', string> = { cpu: 'CPU', memory: 'memory' };
@@ -52,11 +53,7 @@ export function StartQueue({ queue }: { queue: QueueState }) {
       {cards.length > 0 && waitingFor !== null && (
         <span className={styles.waiting}>{waitText(waitingFor, working, limit)}</span>
       )}
-      {failure !== null && (
-        <span role="alert" className={styles.failure}>
-          {failure}
-        </span>
-      )}
+      {failure !== null && <Notice tone="danger">{failure}</Notice>}
     </div>
   );
 }

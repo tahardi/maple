@@ -2,6 +2,7 @@ import type { Card } from '@shared/types/jira/card';
 import type { ChangeSet } from '@shared/types/files/changeSet';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { SessionCost } from '@shared/types/tabs/sessionCost';
+import { Badge } from '../shell/blocks/Badge';
 import { prLabel } from './prLabel';
 import styles from './CardHeader.module.css';
 
@@ -47,7 +48,7 @@ export function CardHeader({ cardKey, card, pr, branch, changes, cost, projectRe
       ) : (
         <span className={styles.title}>{cardKey}</span>
       )}
-      {card && <span className={styles.pill}>{card.status}</span>}
+      {card && <Badge>{card.status}</Badge>}
       {pr && (
         <a href={pr.url} target="_blank" rel="noreferrer" title="Open on GitHub">
           {`${prLabel(pr, projectRepo)} ↗`}

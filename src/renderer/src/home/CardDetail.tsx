@@ -2,6 +2,8 @@ import type { Card } from '@shared/types/jira/card';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { EpicLozenge } from './EpicLozenge';
+import { Badge } from '@renderer/shell/blocks/Badge';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './CardDetail.module.css';
 
 type Props = {
@@ -42,12 +44,10 @@ export function CardDetail(props: Props) {
       </div>
       <div className={styles.meta}>
         {card.epic && <EpicLozenge epic={card.epic} />}
-        <span className={styles.chip}>{card.status}</span>
+        <Badge>{card.status}</Badge>
         {card.points !== null && <span>{`${String(card.points)} pts`}</span>}
         {card.labels.map((label) => (
-          <span key={label} className={styles.chip}>
-            {label}
-          </span>
+          <Badge key={label}>{label}</Badge>
         ))}
       </div>
       {card.blockedBy.some((b) => b.status !== 'Done') && (
@@ -76,11 +76,7 @@ export function CardDetail(props: Props) {
           Open in Jira
         </a>
       </div>
-      {failure !== null && (
-        <p role="alert" className={styles.failure}>
-          {failure}
-        </p>
-      )}
+      {failure !== null && <Notice tone="danger">{failure}</Notice>}
       <MarkdownText text={card.descriptionMd} />
     </aside>
   );

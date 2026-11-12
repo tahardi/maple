@@ -17,10 +17,6 @@
   color: var(--text-strong);
 }
 
-.error {
-  color: var(--danger);
-}
-
 .actions {
   display: flex;
   gap: var(--space-2);

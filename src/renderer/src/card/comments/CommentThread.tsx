@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
+import { Badge } from '@renderer/shell/blocks/Badge';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import { CommentEditor } from './CommentEditor';
 import styles from './CommentThread.module.css';
 import type { Thread } from './commentThreads';
@@ -56,7 +58,7 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
         <span>{label(thread)}</span>
         {!open && (
           <>
-            <span className={styles.resolved}>Resolved</span>
+            <Badge tone="success">Resolved</Badge>
             <button
               onClick={() => {
                 setShown(!shown);
@@ -77,11 +79,7 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
       {open && (
         <div className={styles.reply}>
           <CommentEditor key={posts} label="Reply" value={text} onChange={setText} />
-          {error !== null && (
-            <div className={styles.error} role="alert">
-              {error}
-            </div>
-          )}
+          {error !== null && <Notice tone="danger">{error}</Notice>}
           <div className={styles.actions}>
             <button disabled={busy || text.trim() === ''} onClick={post}>
               Post
@@ -101,11 +99,7 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
       )}
       {!open && shown && threadId !== null && (
         <div className={styles.reply}>
-          {error !== null && (
-            <div className={styles.error} role="alert">
-              {error}
-            </div>
-          )}
+          {error !== null && <Notice tone="danger">{error}</Notice>}
           <div className={styles.actions}>
             <button
               disabled={busy}

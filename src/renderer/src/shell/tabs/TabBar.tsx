@@ -3,6 +3,7 @@ import { useMaple } from '@renderer/store';
 import { ConfirmDialog } from '@renderer/shell/ConfirmDialog';
 import { Inbox } from '@renderer/shell/Inbox';
 import { ProjectMenu } from '@renderer/shell/ProjectMenu';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './TabBar.module.css';
 import { tabLabel } from './tabLabel';
 import { errorText } from '@shared/errors/errorText';
@@ -114,11 +115,7 @@ export function TabBar() {
         <div className={styles.divider} aria-hidden="true" data-testid="pinned-divider" />
         {cardItems.map(renderItem)}
       </div>
-      {vaultError !== null && (
-        <div className={styles.error} role="alert">
-          {vaultError}
-        </div>
-      )}
+      {vaultError !== null && <Notice tone="danger">{vaultError}</Notice>}
       {closing && (
         <ConfirmDialog
           title="Close tab"

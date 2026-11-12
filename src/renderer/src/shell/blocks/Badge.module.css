@@ -1,0 +1,29 @@
+.badge {
+  display: inline-block;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-sm);
+  white-space: nowrap;
+  background: var(--bg-sunken);
+  color: var(--text);
+}
+
+.badge[data-tone='danger'] {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
+
+.badge[data-tone='warning'] {
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+}
+
+.badge[data-tone='success'] {
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+}
+
+.badge[data-tone='info'] {
+  background: color-mix(in srgb, var(--link) 15%, transparent);
+  color: var(--link);
+}

@@ -41,12 +41,6 @@ button.title:hover {
   text-decoration: underline;
 }
 
-.pill {
-  background: var(--surface);
-  border-radius: var(--radius-full);
-  padding: 1px var(--space-2);
-}
-
 .branch {
   font-family: monospace;
   max-width: 30ch;

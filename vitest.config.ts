@@ -50,7 +50,7 @@ export default defineConfig({
           environment: 'jsdom',
           css: { include: [/\?raw$/] },
           include: ['src/renderer/**/*.test.{ts,tsx}'],
-          setupFiles: ['@testing-library/jest-dom/vitest'],
+          setupFiles: ['@testing-library/jest-dom/vitest', './src/renderer/src/testSetup.ts'],
         },
       },
     ],

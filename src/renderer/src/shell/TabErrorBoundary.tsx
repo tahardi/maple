@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { errorText } from '@shared/errors/errorText';
-import { Banner } from './Banner';
+import { Notice } from './blocks/Notice';
 
 type TabErrorBoundaryProps = { children: ReactNode };
 
@@ -18,8 +18,8 @@ export class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorB
       return this.props.children;
     }
     return (
-      <>
-        <Banner messages={[`This tab crashed: ${errorText(this.state.error)}`]} />
+      <Notice tone="danger">
+        <span>{`This tab crashed: ${errorText(this.state.error)}`}</span>
         <button
           type="button"
           onClick={() => {
@@ -28,7 +28,7 @@ export class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorB
         >
           Reload tab
         </button>
-      </>
+      </Notice>
     );
   }
 }

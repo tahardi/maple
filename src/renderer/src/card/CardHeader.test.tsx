@@ -70,6 +70,24 @@ describe('CardHeader', () => {
     expect(screen.getByText('−29')).toBeInTheDocument();
   });
 
+  test('shows the Jira status as a neutral badge', () => {
+    // given
+    const props = {
+      cardKey: 'MPL-20',
+      card,
+      pr: null,
+      branch: null,
+      changes: null,
+      cost: null,
+      projectRepo: 'tahardi/maple',
+      onOpenCard: vi.fn(),
+    };
+    // when
+    render(<CardHeader {...props} />);
+    // then
+    expect(screen.getByText('In Progress')).toHaveAttribute('data-tone', 'neutral');
+  });
+
   test.each([
     { name: 'the project repo', url: pr.url, want: 'PR #33 ↗' },
     { name: 'another repo', url: 'https://github.com/tahardi/dotclaude/pull/33', want: 'tahardi/dotclaude PR #33 ↗' },

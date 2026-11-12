@@ -94,7 +94,9 @@ describe('HomeTab', () => {
     // when
     render(<HomeTab projectKey="DIG" />);
     // then
-    expect(await screen.findByRole('status')).toHaveTextContent(new RegExp(`^${want}$`));
+    const notice = await screen.findByRole('status');
+    expect(notice).toHaveTextContent(new RegExp(`^${want}$`));
+    expect(notice).toHaveAttribute('data-tone', 'warning');
     expect(screen.getByRole('button', { name: /^DIG-44/ })).toBeInTheDocument();
   });
 

@@ -1,5 +1,6 @@
 import type { Card } from '@shared/types/jira/card';
 import { EpicLozenge } from './EpicLozenge';
+import { Badge } from '@renderer/shell/blocks/Badge';
 import styles from './CardTile.module.css';
 
 type Props = {
@@ -28,9 +29,7 @@ export function CardTile({ card, selected, onSelect, onToggle }: Props) {
         {card.epic && <EpicLozenge epic={card.epic} />}
         {card.points !== null && <span>{`${String(card.points)} pts`}</span>}
         {card.labels.map((label) => (
-          <span key={label} className={styles.label}>
-            {label}
-          </span>
+          <Badge key={label}>{label}</Badge>
         ))}
       </span>
       {blockers.length > 0 && <span className={styles.blocked}>{`blocked by ${blockers.join(', ')}`}</span>}

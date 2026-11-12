@@ -32,12 +32,6 @@
   color: var(--text-muted);
 }
 
-.label {
-  background: var(--bg-sunken);
-  border-radius: var(--radius-full);
-  padding: 0 var(--space-2);
-}
-
 .blocked {
   font-size: var(--font-sm);
   color: var(--danger);

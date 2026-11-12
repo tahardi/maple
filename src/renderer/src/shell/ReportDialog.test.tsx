@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
 import { ReportDialog } from './ReportDialog';
@@ -94,7 +94,10 @@ describe('ReportDialog', () => {
   });
 
   test.each([
-    { name: 'Escape', close: () => userEvent.keyboard('{Escape}') },
+    {
+      name: 'the cancel event (Escape)',
+      close: () => fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true })),
+    },
     { name: 'Cancel', close: () => userEvent.click(screen.getByRole('button', { name: 'Cancel' })) },
   ])('$name closes it', async ({ close }) => {
     // given
@@ -104,5 +107,14 @@ describe('ReportDialog', () => {
     await close();
     // then
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  test('focuses Title when it opens', () => {
+    // given
+    fakeMaple();
+    // when
+    renderDialog();
+    // then
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveFocus();
   });
 });
