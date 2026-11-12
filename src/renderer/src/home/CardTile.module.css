@@ -16,8 +16,8 @@
 }
 
 .tile[data-highlighted='true'] {
-  border-color: var(--warning);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 40%, transparent);
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-strong) 40%, transparent);
 }
 
 .key {

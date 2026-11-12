@@ -56,11 +56,11 @@
 }
 
 .dot[data-dot='working'] {
-  background: var(--warning);
+  background: var(--idle);
 }
 
 .dot[data-dot='waiting'] {
-  background: var(--danger);
+  background: var(--accent-strong);
 }
 
 .dot[data-dot='ready'] {
@@ -75,11 +75,28 @@
   background: var(--merged);
 }
 
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dot[data-dot='working'] {
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+}
+
 .sync {
   margin-left: var(--space-2);
   color: var(--idle);
 }
 
 .sync[data-sync='syncing'] {
-  color: var(--warning);
+  color: var(--text);
 }

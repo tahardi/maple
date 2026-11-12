@@ -94,7 +94,11 @@ describe('Inbox', () => {
     // then
     expect(await screen.findByText('Ready: 3 pts')).toBeInTheDocument();
     const rows = screen.getAllByRole('listitem').map((r) => r.textContent);
-    expect(rows).toEqual(['DIG-1 · Dig Days · ready', 'BEAR-2 · Bearclave · waiting', 'DIG-9 · Dig Days · waiting']);
+    expect(rows).toEqual([
+      'DIG-1 · Dig Days · Ready for review',
+      'BEAR-2 · Bearclave · Needs you',
+      'DIG-9 · Dig Days · Needs you',
+    ]);
   });
 
   test('clicking a card row selects its project and activates the tab', async () => {
