@@ -1,59 +1,10 @@
-import type { IPty, spawn } from 'node-pty';
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { fakeSpawn, type FakePty } from '@main/testing/fakeSpawn';
 import { Terminals } from './Terminals';
-
-type FakePty = {
-  file: string;
-  args: string[];
-  options: { cwd?: string; env?: Record<string, string | undefined> };
-  written: string[];
-  resized: [number, number][];
-  killed: boolean;
-  emitData: (data: string) => void;
-  emitExit: (exitCode: number) => void;
-};
 
 function setup() {
   const ptys: FakePty[] = [];
-  const spawnFn = vi.fn<typeof spawn>((file, args, options) => {
-    let onData: (data: string) => void = () => undefined;
-    let onExit: (e: { exitCode: number }) => void = () => undefined;
-    const fake: FakePty = {
-      file,
-      args: typeof args === 'string' ? [args] : args,
-      options,
-      written: [],
-      resized: [],
-      killed: false,
-      emitData: (data) => {
-        onData(data);
-      },
-      emitExit: (exitCode) => {
-        onExit({ exitCode });
-      },
-    };
-    ptys.push(fake);
-    const pty = {
-      onData: (cb: (data: string) => void) => {
-        onData = cb;
-        return { dispose: () => undefined };
-      },
-      onExit: (cb: (e: { exitCode: number }) => void) => {
-        onExit = cb;
-        return { dispose: () => undefined };
-      },
-      write: (data: string) => {
-        fake.written.push(data);
-      },
-      resize: (cols: number, rows: number) => {
-        fake.resized.push([cols, rows]);
-      },
-      kill: () => {
-        fake.killed = true;
-      },
-    };
-    return pty as unknown as IPty;
-  });
+  const spawnFn = fakeSpawn(ptys);
   return { terminals: new Terminals({ spawn: spawnFn }), ptys, spawnFn };
 }
 
