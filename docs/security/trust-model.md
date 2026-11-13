@@ -30,8 +30,9 @@ The main threat is a well-meaning Claude session that does harm it does not reco
 - `misled-session`: a Claude session steered by text it reads, a malicious skill or plugin, or code it runs. It reaches
   the sessions, hook server, config dir, vault, Claude config, main process, shell terminals, Jira and GitHub, the
   app window (through text Maple shows), and CI (through workflow changes).
-- `public-reader`: anyone who reads the public code and findings to plan an attack, or opens fork PRs. It reaches CI
-  only; Maple ignores fork PRs and other people's comments.
+- `public-reader`: anyone who reads the public code and findings to plan an attack, opens fork PRs, or comments on
+  Taylor's PRs. It reaches CI, the app window, and sessions; Maple ignores fork PRs but shows every author's review
+  comments, and sessions read them.
 - `malicious-dependency`: a bad npm package or GitHub Action. It reaches CI, sessions, and the shipped app.
 
 ## Trust Boundaries
@@ -80,7 +81,8 @@ The boundaries between them:
 Sessions run `make pre-pr` in the sandbox, and GitHub Actions runs format, lint, typecheck, tests, audit, package, and
 e2e on every PR. Taylor runs `make install` from the main checkout after a pull; the build is unsigned and nothing
 checks its commit. `make try` runs unreviewed branch code on the desktop. Monitoring is the scrubbed main log, the
-event log, state backups, the Findings tab, and bug reports, with no alerts.
+event log, state backups, the Findings tab, and bug reports, with no alerts. The Security Pass reads this model from
+the PR's base commit, so a PR cannot loosen its own review, and raises every edit to it as a finding for Taylor.
 
 ## Accepted Risks
 

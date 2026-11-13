@@ -71,8 +71,8 @@ attackers:
   - id: public-reader
     who: >-
       Anyone on the internet, who can read all of Maple's and Xena's code, this model, and past findings, and can open
-      fork PRs and comments that Maple ignores
-    reaches: [ci]
+      fork PRs, which Maple ignores, and post review comments on Taylor's PRs, which Maple shows and sessions read
+    reaches: [ci, renderer, sessions]
   - id: malicious-dependency
     who: A bad npm package or GitHub Action
     reaches: [ci, sessions, main-process, renderer]
@@ -161,6 +161,7 @@ build:
     app came from
   monitored: >-
     Scrubbed main log, the per-day event log, state backups, each card's Findings tab, and bug reports with a scrubbed
-    log tail; no alerts
+    log tail; no alerts. The Security Pass reads this model and security.yaml from the PR's base commit, never the
+    PR branch, and raises every edit to them as a finding Taylor must decide
 accepted:
 overrides:
