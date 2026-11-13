@@ -87,6 +87,11 @@ describe('summarizeLesson', () => {
       text: `---\ncomfortable: true\n---\n# T\n\n## Findings\n${TIED}\n${ENTRY}`,
       want: 1,
     },
+    {
+      name: 'text under a later non-entry heading is not a tie-in',
+      text: `# T\n\n## Lesson\nX\n\n## Findings\n${ENTRY}### Notes\nSome notes.\n`,
+      want: 1,
+    },
   ])('pending counts the work left: $name', ({ text, want }) => {
     // given
     const note = text;

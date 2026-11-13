@@ -56,6 +56,24 @@ describe('addFindingEntry', () => {
       want: NEW.replace('`src/a.ts:12`', '`src/a.ts`'),
     },
     {
+      name: 'a backtick or newline in the file is dropped from the Code bullet',
+      text: null,
+      entry: entry({ identity: { ...CODE, file: 'src/`a\n.ts' } }),
+      want: NEW,
+    },
+    {
+      name: 'a note with no trailing newline gets one before the entry',
+      text: NEW.trimEnd(),
+      entry: entry({ id: 'F4' }),
+      want: `${NEW}\n### 2026-11-13 MPL-1 F4: Shell gets the branch name\n- PR: ${PR}\n- Code: \`src/a.ts:12\`\n`,
+    },
+    {
+      name: 'a note with CRLF line endings still finds its entry',
+      text: NEW.replaceAll('\n', '\r\n'),
+      entry: entry(),
+      want: NEW.replaceAll('\n', '\r\n'),
+    },
+    {
       name: 'a note with no Findings heading gets one',
       text: '# Command injection\n',
       entry: entry(),

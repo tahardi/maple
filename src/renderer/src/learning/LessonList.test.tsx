@@ -303,4 +303,26 @@ describe('LessonList', () => {
     expect(within(rowOf('XSS')).getByRole('button', { name: 'Write lesson' })).toBeDisabled();
     expect(within(rowOf('XSS')).getByText('The Learning session is busy')).toBeInTheDocument();
   });
+  test('Write lesson shows the error under the row when teach fails', async () => {
+    // given
+    const teach = vi.fn(() => Promise.reject(new Error('starting lesson: the Learning session is not running')));
+    fakeMaple({ learning: { teach } });
+    const lessons = [lesson('xss', { title: 'XSS', pending: 1 })];
+    render(
+      <LessonList
+        projectKey="MPL"
+        learningBusy={false}
+        lessons={lessons}
+        selected={null}
+        onSelect={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    // when
+    await userEvent.click(within(rowOf('XSS')).getByRole('button', { name: 'Write lesson' }));
+    // then
+    expect(
+      await within(rowOf('XSS')).findByText('starting lesson: the Learning session is not running'),
+    ).toBeInTheDocument();
+  });
 });

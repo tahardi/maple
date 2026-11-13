@@ -1,10 +1,7 @@
 import { readFile, rename, writeFile } from 'node:fs/promises';
+import { isMissing } from '@main/util/isMissing';
 
 export const STATE_BACKUPS = 3;
-
-function isMissing(err: unknown): boolean {
-  return err instanceof Error && 'code' in err && err.code === 'ENOENT';
-}
 
 export async function backupState(path: string, keep: number = STATE_BACKUPS): Promise<void> {
   const current = await readFile(path);

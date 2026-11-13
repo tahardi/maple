@@ -51,6 +51,7 @@ type World = {
   tabs?: TabState[];
   dots?: Record<string, TabStatus['dot']>;
   alive?: string[];
+  noWorktree?: boolean;
 };
 
 function register(vaultDir: string | null, world: World = {}) {
@@ -64,14 +65,15 @@ function register(vaultDir: string | null, world: World = {}) {
     openLearning: vi.fn(() => learning),
     sendPrompt: vi.fn(),
   };
-  const statuses = Object.entries(world.dots ?? {}).map(([tabId, dot]) => ({ tabId, dot }));
+  const dots = world.dots ?? {};
+  const statuses = () => Object.entries(dots).map(([tabId, dot]) => ({ tabId, dot }));
   const latest = vi.fn(() => Promise.resolve({ data: { url: PR }, error: null, fetchedAt: 'now' }));
   const deps = {
     watchVault,
     sessions,
-    status: { statuses: () => statuses },
+    status: { statuses },
     prs: { latest, refresh: vi.fn() },
-    worktreeFor: () => '/wts/mpl-1',
+    worktreeFor: () => (world.noWorktree === true ? null : '/wts/mpl-1'),
     findingsDir: world.findingsDir ?? '/nowhere',
   };
   registerLearning(deps as unknown as IpcDeps, logger, () => Promise.resolve(vaultDir));
@@ -82,7 +84,7 @@ function register(vaultDir: string | null, world: World = {}) {
     }
     return call[1]({} as IpcMainInvokeEvent, ...args);
   };
-  return { invoke, watchVault, sessions, latest };
+  return { invoke, watchVault, sessions, latest, dots };
 }
 
 describe('registerLearning', () => {
@@ -339,6 +341,74 @@ describe('registerLearning', () => {
       expect(sessions.sendPrompt).not.toHaveBeenCalled();
     });
 
+    test('fromFinding now refuses when the Learning session gets busy during the PR lookup', async () => {
+      // given
+      const { invoke, sessions, latest, dots } = register(vault, {
+        findingsDir,
+        tabs: [CARD, LEARNING],
+        alive: ['learn-1'],
+        dots: { 'learn-1': 'idle' },
+      });
+      latest.mockImplementationOnce(() => {
+        dots['learn-1'] = 'working';
+        return Promise.resolve({ data: { url: PR }, error: null, fetchedAt: 'now' });
+      });
+      // when
+      const got = invoke('learning:fromFinding', 'card-1', 'F1', 'now');
+      // then
+      await expect(got).rejects.toThrow('starting lesson: the Learning session is busy');
+      expect(sessions.sendPrompt).not.toHaveBeenCalled();
+      expect(existsSync(notePath())).toBe(false);
+    });
+
+    test.each<{ name: string; world: World }>([
+      { name: 'busy', world: { tabs: [CARD, LEARNING], alive: ['learn-1'], dots: { 'learn-1': 'working' } } },
+      { name: 'not running', world: { tabs: [CARD, LEARNING] } },
+    ])('fromFinding later works while the Learning session is $name', async ({ world }) => {
+      // given
+      const { invoke, sessions } = register(vault, { ...world, findingsDir });
+      // when
+      const got = await invoke('learning:fromFinding', 'card-1', 'F1', 'later');
+      // then
+      expect(got).toEqual({ note: LESSON, learningTabId: null });
+      expect(existsSync(notePath())).toBe(true);
+      expect(sessions.sendPrompt).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      { name: 'an unknown tab', tabId: 'gone' },
+      { name: 'a learning tab', tabId: 'learn-1' },
+    ])('fromFinding refuses $name', async ({ tabId }) => {
+      // given
+      const { invoke } = register(vault, { findingsDir, tabs: [CARD, LEARNING], alive: ['learn-1'] });
+      // when
+      const got = invoke('learning:fromFinding', tabId, 'F1', 'later');
+      // then
+      await expect(got).rejects.toThrow('starting lesson: tab has no card');
+      expect(existsSync(notePath())).toBe(false);
+    });
+
+    test('fromFinding later then now keeps one entry and saves the mode as now', async () => {
+      // given
+      const { invoke } = register(vault, { findingsDir, tabs: [CARD] });
+      await invoke('learning:fromFinding', 'card-1', 'F1', 'later');
+      // when
+      await invoke('learning:fromFinding', 'card-1', 'F1', 'now');
+      // then
+      expect(readFileSync(notePath(), 'utf8').match(/MPL-1 F1: /g)).toHaveLength(1);
+      expect(savedFindings().findings[0]).toMatchObject({ lesson: { mode: 'now' } });
+    });
+
+    test('fromFinding writes none yet without asking for a PR when the tab has no worktree', async () => {
+      // given
+      const { invoke, latest } = register(vault, { findingsDir, tabs: [CARD], noWorktree: true });
+      // when
+      await invoke('learning:fromFinding', 'card-1', 'F1', 'later');
+      // then
+      expect(readFileSync(notePath(), 'utf8')).toContain('- PR: none yet\n');
+      expect(latest).not.toHaveBeenCalled();
+    });
+
     test('teach sends the prompt for a note', async () => {
       // given
       const { invoke, sessions } = register(vault, {
@@ -361,6 +431,30 @@ describe('registerLearning', () => {
       // then
       expect(got).toBe('learn-new');
       expect(sessions.openLearning).toHaveBeenCalledWith('MPL', null, null, '/learn Learning/Security/xss.md');
+    });
+
+    test.each(['Learning/Security/../../x.md', 'Notes/x.md', 'Learning/Security/Bad Name.md'])(
+      'teach refuses a path that is not a lesson note: %s',
+      (path) => {
+        // given
+        const { invoke, sessions } = register(vault, { tabs: [LEARNING], alive: ['learn-1'] });
+        // when
+        const got = () => invoke('learning:teach', 'MPL', path);
+        // then
+        expect(got).toThrow('handling learning:teach: arguments are invalid');
+        expect(sessions.sendPrompt).not.toHaveBeenCalled();
+        expect(sessions.openLearning).not.toHaveBeenCalled();
+      },
+    );
+
+    test('teach refuses when the Learning session has exited', async () => {
+      // given
+      const { invoke, sessions } = register(vault, { tabs: [LEARNING] });
+      // when
+      const got = invoke('learning:teach', 'MPL', 'Learning/Security/xss.md');
+      // then
+      await expect(got).rejects.toThrow('starting lesson: the Learning session is not running');
+      expect(sessions.sendPrompt).not.toHaveBeenCalled();
     });
 
     test('teach refuses while the learning tab is busy', async () => {

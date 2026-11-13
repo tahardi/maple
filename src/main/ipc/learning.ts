@@ -9,7 +9,9 @@ import { queueFindings } from '@main/findings/queueFindings';
 import { saveFindings } from '@main/findings/saveFindings';
 import { addFindingEntry } from '@main/learning/notes/addFindingEntry';
 import { listLessons } from '@main/learning/notes/listLessons';
+import { today } from '@main/learning/notes/today';
 import { writeFrontmatter } from '@main/learning/notes/frontmatter';
+import { isMissing } from '@main/util/isMissing';
 import { readNote, writeNote } from '@main/vault/vault';
 import { errorText } from '@shared/errors/errorText';
 import { lessonClass } from '@shared/learning/lessonClass';
@@ -22,16 +24,6 @@ import { handle } from './handle';
 const findingIdArg = z.string().min(1).max(20);
 const modeArg = z.enum(['now', 'later']);
 const lessonPathArg = z.string().max(4096).refine(isLessonPath, 'not a lesson note');
-
-function today(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${String(now.getFullYear())}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
-function isMissing(err: unknown): boolean {
-  return err instanceof Error && 'code' in err && err.code === 'ENOENT';
-}
 
 export function registerLearning(
   { watchVault, sessions, status, prs, worktreeFor, findingsDir }: IpcDeps,
@@ -128,7 +120,9 @@ export function registerLearning(
           throw new Error('starting lesson: Claude is working');
         }
         const dir = await requireVaultDir('starting lesson');
-        const learning = mode === 'now' ? readyLearningTab(card.projectKey) : null;
+        if (mode === 'now') {
+          readyLearningTab(card.projectKey);
+        }
         const read = await readFindingsWithJson(findingsDir, key);
         const finding = read?.file.findings.find((f) => f.id === findingId);
         if (read === null || finding === undefined) {
@@ -140,7 +134,9 @@ export function registerLearning(
           throw new Error(`starting lesson: ${slug} is not a lesson class`);
         }
         const entry = { key, id: finding.id, identity: finding.identity, line: finding.line, title: finding.title };
-        const text = addFindingEntry(await readOrNull(dir, note), { ...entry, pr: await prUrl(tabId) }, today());
+        const pr = await prUrl(tabId);
+        const learning = mode === 'now' ? readyLearningTab(card.projectKey) : null;
+        const text = addFindingEntry(await readOrNull(dir, note), { ...entry, pr }, today());
         await mkdir(join(dir, LESSON_DIR), { recursive: true });
         await writeNote(dir, note, text);
         const lesson = { note, mode, at: new Date().toISOString() };

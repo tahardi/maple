@@ -152,4 +152,33 @@ describe('LearnButtons', () => {
     // then
     expect(await screen.findByText(/the Learning session is not running/)).toBeInTheDocument();
   });
+
+  test('Open lesson shows the note in the open Learning tab', async () => {
+    // given
+    const openLearning = vi.fn();
+    fakeMaple({ tabs: { openLearning, setActive: vi.fn() } });
+    useMaple.setState({
+      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
+      tabs: [tabOf('t1', 'card', 'MPL-20'), tabOf('learn-1', 'learning', null)],
+    });
+    render(<LearnButtons tabId="t1" finding={finding({ lesson: lessonOf('later') })} working={false} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Open lesson' }));
+    // then
+    expect(useMaple.getState().activeTabId).toBe('learn-1');
+    expect(useMaple.getState().lessonNote).toBe(NOTE);
+    expect(openLearning).not.toHaveBeenCalled();
+  });
+
+  test('a clicked Learn button shows Saving… while it waits', async () => {
+    // given
+    const { fromFinding } = setup();
+    fromFinding.mockReturnValueOnce(new Promise(() => undefined));
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Learn later' }));
+    // then
+    expect(screen.getByText('Saving…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Learn now' })).toBeDisabled();
+  });
 });
