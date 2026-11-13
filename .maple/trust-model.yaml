@@ -39,7 +39,7 @@ components:
   - id: hook-server
     what: The hook script Claude runs and the Unix socket that takes its events
   - id: sessions
-    what: Claude sessions in tmux, run with permissions skipped and the Bash sandbox on
+    what: Claude sessions in tmux, run with permissions skipped and Claude's Bash sandbox from user settings
   - id: shell-terminals
     what: Plain shells in a card tab that Taylor drives, with no sandbox
   - id: config-dir
@@ -79,16 +79,17 @@ boundaries:
     between: [main-process, renderer]
     crosses: Jira cards, PR bodies and comments, repo files, notes, and terminal output
     checks: >-
-      Rendered as text, never raw HTML, with a lint rule against innerHTML; links open in the system browser, http and
-      https only
+      Rendered as text, with a lint rule against innerHTML; the one exception is code blocks, drawn as HTML from
+      Monaco's colorizer, which escapes source text; links open in the system browser, http and https only
   - id: main-to-sessions
     between: [main-process, sessions]
     crosses: >-
       Session start with permissions skipped, the hooks settings file, and an environment holding Jira and GitHub
       credentials
     checks: >-
-      Claude's Bash sandbox, which preflight checks is on; Maple adds only the findings dir to its write list. Gap,
-      accepted until Xena: sessions hold the Jira token and a long-lived GitHub token for all repos
+      Claude's Bash sandbox from user settings; Maple adds only the findings dir to its write list. Gap: Maple neither
+      turns the sandbox on nor warns when it is off, as preflight checks its settings only when it is on. Gap, accepted
+      until Xena: sessions hold the Jira token and a long-lived GitHub token for all repos
   - id: sessions-to-hook-server
     between: [sessions, hook-server]
     crosses: One JSON line per hook event
@@ -145,8 +146,9 @@ build:
   deployed: >-
     Taylor runs make install from the main checkout after a pull, which copies an unsigned build to
     ~/.local/share/maple/app and adds a launcher that starts it through the login shell; make install-apparmor grants
-    user namespaces to that app and to any Electron under ~/Documents/code/**/node_modules; make try runs unreviewed
-    branch code on the desktop with no sandbox; nothing checks which commit the installed app came from
+    user namespaces to that app and to any Electron under ~/Documents/code/**/node_modules. Gap, accepted until Xena:
+    make try runs unreviewed branch code on the desktop with no sandbox, and nothing checks which commit the installed
+    app came from
   monitored: >-
     Scrubbed main log, the per-day event log, state backups, each card's Findings tab, and bug reports with a scrubbed
     log tail; no alerts

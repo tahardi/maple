@@ -1,9 +1,11 @@
 # Trust Model
 
-Maple is a desktop app that runs Jira cards with Claude sessions. Taylor is its only user, on their own machine. Its
-code, this model, and past security findings are public, so every control must hold even when an attacker knows it.
-The main threat is a well-meaning Claude session that does harm it does not recognize. Many of the gaps below close
-when Xena moves sessions into a VM.
+Maple is a desktop app that runs Jira cards with Claude sessions. Taylor is its only user, on their own machine.
+
+## Principles
+
+- `public-design`: the code, this model, and past findings are public, so every control must hold even when an
+  attacker knows it.
 
 ## Assets
 
@@ -23,6 +25,8 @@ when Xena moves sessions into a VM.
 
 ## Who Might Attack
 
+The main threat is a well-meaning Claude session that does harm it does not recognize.
+
 - `misled-session`: a Claude session steered by text it reads, a malicious skill or plugin, or code it runs. It reaches
   the sessions, hook server, config dir, vault, Claude config, main process, shell terminals, and Jira and GitHub.
 - `public-reader`: anyone who reads the public code and findings to plan an attack, or opens fork PRs. It reaches CI
@@ -31,15 +35,27 @@ when Xena moves sessions into a VM.
 
 ## Trust Boundaries
 
-The parts are the `renderer`, `main-process`, `hook-server`, `sessions`, `shell-terminals`, `config-dir`, `vault`,
-`claude-config`, `outside-services` (Jira and GitHub), and `ci`.
+Maple has ten parts:
+
+- `renderer`: the sandboxed app window.
+- `main-process`: the Node process that runs git, gh, the Jira client, the pollers, and IPC handlers.
+- `hook-server`: the hook script Claude runs and the socket that takes its events.
+- `sessions`: Claude sessions in tmux, with permissions skipped and Claude's Bash sandbox from user settings.
+- `shell-terminals`: plain shells in a card tab that Taylor drives, with no sandbox.
+- `config-dir`: Maple's config, state, logs, events, findings, and snapshots.
+- `vault`: the Obsidian vault folder.
+- `claude-config`: the global `~/.claude`, symlinked to the dotclaude repo.
+- `outside-services`: Jira and GitHub, reached as Taylor.
+- `ci`: GitHub Actions on every PR and push to `main`.
+
+The boundaries between them:
 
 - `renderer-to-main`: IPC calls from the window. Every argument gets a schema check, and the window is sandboxed with a
   strict CSP. The sender frame is not checked.
-- `main-to-renderer`: outside text such as cards, PR comments, files, and terminal output. It renders as text, never
-  HTML, and links open in the browser.
-- `main-to-sessions`: Maple starts Claude with permissions skipped and the Bash sandbox on. Sessions hold the Jira
-  token and a broad GitHub token.
+- `main-to-renderer`: outside text such as cards, PR comments, files, and terminal output. It renders as text, except
+  code blocks, which Monaco's colorizer draws as escaped HTML. Links open in the browser.
+- `main-to-sessions`: Maple starts Claude with permissions skipped, relying on the Bash sandbox in user settings. Maple
+  neither turns the sandbox on nor warns when it is off. Sessions hold the Jira token and a broad GitHub token.
 - `sessions-to-hook-server`: one JSON line per hook event, on a private socket, size-limited and validated. Events
   carry no commands.
 - `sessions-to-main-files`: worktrees, git config, findings, and notes Maple reads. git runs with fsmonitor off, and
@@ -67,12 +83,16 @@ event log, state backups, the Findings tab, and bug reports, with no alerts.
 
 ## Accepted Risks
 
-None recorded from findings yet. These design risks are accepted until Xena lands:
+Design risks accepted until Xena moves sessions into a VM:
 
-- Sessions can write anywhere Taylor can through the Write and Edit tools.
-- Sessions hold the Jira token and a long-lived GitHub token for all repos.
-- `main` needs no approval, so only the `/card` skill and Maple's Approve button stop a session merging its own PR.
-- `make try` runs unreviewed code on the desktop, and nothing checks which commit the installed app came from.
+- `sessions-to-host-files`: sessions can write anywhere Taylor can through the Write and Edit tools.
+- `main-to-sessions`: sessions hold the Jira token and a long-lived GitHub token for all repos.
+- `github-to-ci`: `main` needs no approval, so only the `/card` skill and Maple's Approve button stop a session merging
+  its own PR.
+- `deployed`: `make try` runs unreviewed code on the desktop, and nothing checks which commit the installed app came
+  from.
+
+Risks accepted from findings:
 
 ## Severity Overrides
 
