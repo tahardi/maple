@@ -295,7 +295,7 @@ export function CardTab({ tab }: { tab: TabState }) {
               aria-keyshortcuts="Control+`"
               onClick={toggleTerminal}
             >
-              Terminal <kbd aria-hidden="true">Ctrl+`</kbd>
+              Terminal
             </button>
           </div>
           {terminal === 'shown' && <SplitHandle drag={terminalDrag} axis="y" label="Resize terminal" />}
