@@ -43,7 +43,7 @@ describe('Board', () => {
     const headings = ['To Do', 'In Progress', 'In Review', 'Done'].map(
       (column) => within(screen.getByRole('region', { name: column })).getByRole('heading').textContent,
     );
-    expect(headings).toEqual(['To Do1', 'In Progress1', 'In Review1', 'Done2']);
+    expect(headings).toEqual(['To Do 1', 'In Progress 1', 'In Review 1', 'Done 2']);
   });
 
   test('Done starts collapsed with its count and expands on click', async () => {
@@ -55,7 +55,7 @@ describe('Board', () => {
     const expand = within(done).getByRole('button');
     expect(expand).toHaveAccessibleName('Expand Done column');
     expect(expand).toHaveAttribute('aria-expanded', 'false');
-    expect(expand).toHaveTextContent(/^Done2$/);
+    expect(expand).toHaveTextContent(/^Done 2$/);
     // when
     await userEvent.click(expand);
     // then
