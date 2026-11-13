@@ -207,9 +207,11 @@ async function start(): Promise<Zoom> {
     save: (queue) => store.patch({ queue }),
   });
   const recorder = new EventRecorder({ sessions, status, transcriptOffset: (id) => transcriptOffset(id), headSha });
+  const findingsResume = new FindingsResume({ sessions, status, findingsDir });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
     recorder.hook(e);
+    findingsResume.hook(e);
     prEvents.hook(e);
   });
   const autoSync = new AutoSync({
@@ -219,7 +221,7 @@ async function start(): Promise<Zoom> {
     pr: (tabId, worktree) => prPoller.latest(tabId, worktree),
   });
   const stopAutoSync = autoSync.start();
-  const stopFindingsResume = new FindingsResume({ sessions, status, findingsDir }).start();
+  const stopFindingsResume = findingsResume.start();
   const stopPrPoller = prPoller.start();
   status.on('status', (s, prev) => {
     prPoller.dotChanged(s.dot, prev);

@@ -1,6 +1,7 @@
 import { resumeDue } from '@shared/findings/resumeDue';
 import { resumePrompt } from '@shared/prompts/resumePrompt';
 import { errorText } from '@shared/errors/errorText';
+import type { HookEvent } from '@shared/types/tabs/hookEvent';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { readFindingsWithJson } from '@main/findings/readFindings';
 import { queueFindings } from '@main/findings/queueFindings';
@@ -18,9 +19,13 @@ export type FindingsResumeDeps = {
 
 export class FindingsResume {
   private readonly log: Logger;
+  private readonly started = new Set<string>();
 
   constructor(private readonly deps: FindingsResumeDeps) {
     this.log = deps.logger ?? appLogger;
+    deps.sessions.on('spawn', (tabId) => {
+      this.started.delete(tabId);
+    });
     deps.status.on('status', (s) => {
       queueMicrotask(() => {
         void this.check(s.tabId);
@@ -41,10 +46,22 @@ export class FindingsResume {
     }
   }
 
+  hook(e: HookEvent): void {
+    if (e.event === 'SessionStart') {
+      this.started.add(e.tabId);
+      void this.check(e.tabId);
+    }
+  }
+
   private ready(tabId: string): boolean {
     const s = this.deps.status.statuses().find((t) => t.tabId === tabId);
     return (
-      s !== undefined && s.sessionAlive && s.dot !== 'working' && s.sync === null && !this.deps.status.asking(tabId)
+      s !== undefined &&
+      this.started.has(tabId) &&
+      s.sessionAlive &&
+      s.dot !== 'working' &&
+      s.sync === null &&
+      !this.deps.status.asking(tabId)
     );
   }
 
@@ -64,6 +81,7 @@ export class FindingsResume {
         const resume = { round: read.file.round, sentAt: new Date().toISOString() };
         await saveFindings(findingsDir, { ...read.file, resume }, read.json);
         this.deps.sessions.sendPrompt(tabId, resumePrompt(cardKey));
+        this.log.info('session', 'findings resume sent', { tabId, cardKey, round: resume.round });
       });
     } catch (err) {
       this.log.warn('session', 'findings resume failed', { cardKey, error: errorText(err) });

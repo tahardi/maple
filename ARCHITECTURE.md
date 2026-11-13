@@ -98,7 +98,7 @@ to `sandbox.filesystem.allowWrite`, so the `/card` skill's script can write find
 nothing; it copies the vault note about to change into the snapshot dir. Every other hook sends one JSON line (tab
 id, event, notification type, background tasks, cron count, session id) to the hook socket. The hook server,
 `src/main/sessions/hooks/hookServer.ts`, validates each line and hands it to the status engine, the event recorder,
-and PR events.
+findings resume, and PR events.
 
 **Worktrees.** For each card tab the worktree tracker watches `worktreesDir` for folders named after the card key. A
 card may have several worktrees; the tab keeps one selected.
@@ -183,9 +183,10 @@ user switches away while it is still `queued`.
 - **Auto-sync** (`src/main/sessions/AutoSync.ts`): every 120 s, and when the active tab changes, it checks the active
   tab only. If the card is In Review and an open PR conflicts with main, it queues a prompt asking Claude to merge
   main, once per PR head.
-- **Findings resume** (`src/main/sessions/FindingsResume.ts`): on every dot or sync change of any tab, and on every
-  change in the findings dir, it checks each card tab. Once every finding is decided and at least one is not yet
-  applied, it waits until the session is alive, not working, not asking for permission, and has no auto-sync queued.
+- **Findings resume** (`src/main/sessions/FindingsResume.ts`): on every dot or sync change of any tab, on every
+  `SessionStart` hook, and on every change in the findings dir, it checks each card tab. Once every finding is decided
+  and at least one is not yet applied, it waits until the session is alive, Claude has sent `SessionStart` since the
+  last spawn, and the tab is not working, not asking for permission, and has no auto-sync queued.
   Then it stamps `resume` with the round in the findings file and asks Claude to apply the decisions. The stamp makes
   it send once per round, even across restarts.
 - **Start queue recheck**: every 15 s, plus on every dot change and tab change, the start queue retries queued cards.
@@ -218,8 +219,10 @@ user switches away while it is still `queued`.
 - `findings/<KEY>.json`: each card's security findings, in the shape the vault note
   `Projects/Maple/Findings Contract.md` gives. Maple creates the folder at launch and reads each file with
   `src/main/findings/readFindings.ts`; a missing file means no findings, and a newer or invalid file shows an error
-  in the card's Findings tab. Taylor's decisions and severity overrides are written back to the same file by
-  `src/main/findings/saveFindings.ts`, which writes a temp file and renames it over the old one.
+  in the card's Findings tab. Taylor's decisions and severity overrides, and findings resume's `resume` stamp, are written
+  back to the same file by `src/main/findings/saveFindings.ts`, which writes a temp file and renames it over the old
+  one. Once `resume.round` equals `round`, the main process refuses new decisions and overrides until the session
+  writes a new round.
 - `electron/`: Electron's own data, only when `MAPLE_CONFIG_DIR` is set.
 
 `config.json` and `state.json` each carry a format `version`; a file without one counts as version 1. `state.json` is
