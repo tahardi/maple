@@ -240,20 +240,63 @@ describe('parseLesson', () => {
   });
 
   test.each([
-    { name: 'a missing quiz block', text: note().replace('```maple-quiz', '```json'), error: 'found 0' },
-    {
-      name: 'two quiz blocks',
-      text: note({ extra: `\n\`\`\`maple-quiz\n${JSON.stringify(QUIZ)}\n\`\`\`\n` }),
-      error: 'found 2',
-    },
-  ])('$name gives a quizError', ({ text, error }) => {
+    { name: 'a missing quiz block', tag: 'json', extra: '', error: 'found 0' },
+    { name: 'two quiz blocks', tag: 'maple-quiz', extra: 'maple-quiz', error: 'found 2' },
+  ])('$name gives a quizError', ({ tag, extra, error }) => {
     // given
-    const source = text;
+    const copy = extra === '' ? '' : `\n\`\`\`${extra}\n${JSON.stringify(QUIZ)}\n\`\`\`\n`;
+    const text = note({ extra: copy }).replace('```maple-quiz\n{"questions"', `\`\`\`${tag}\n{"questions"`);
     // when
-    const { lesson, key } = parseLesson(PATH, source);
+    const { lesson, key } = parseLesson(PATH, text);
     // then
     expect(lesson.quizError).toBe(`reading lesson: quiz: ${error} maple-quiz blocks, want 1`);
     expect(key).toBeNull();
+  });
+
+  test.each([
+    { name: '12 steps', trace: withSteps(12), quiz: undefined },
+    { name: 'a 40-character lang', trace: withTrace({ lang: 'x'.repeat(40) }), quiz: undefined },
+    {
+      name: 'code of 60 lines',
+      trace: withTrace({ code: Array.from({ length: 60 }, () => 'x').join('\n') }),
+      quiz: undefined,
+    },
+    { name: 'code of 4000 characters', trace: withTrace({ code: `${'x'.repeat(3992)}\nb\nc\nd\ne` }), quiz: undefined },
+    {
+      name: 'a 600-character step text',
+      trace: withTrace({ steps: [{ lines: [1, 1], text: 'x'.repeat(600) }, TRACE.steps[1]] }),
+      quiz: undefined,
+    },
+    {
+      name: 'a step ending on the last line',
+      trace: withTrace({ steps: [{ lines: [1, 5], text: 'x' }, TRACE.steps[1]] }),
+      quiz: undefined,
+    },
+    {
+      name: '5 questions',
+      trace: undefined,
+      quiz: JSON.stringify({ questions: [...QUIZ.questions, ...QUIZ.questions.slice(0, 2)] }),
+    },
+    { name: '5 choices', trace: undefined, quiz: withQuestion({ choices: ['a', 'b', 'c', 'd', 'e'], answer: 4 }) },
+    { name: 'a 300-character question', trace: undefined, quiz: withQuestion({ question: 'x'.repeat(300) }) },
+  ])('accepts $name', ({ trace, quiz }) => {
+    // given
+    const text = note({ trace, quiz });
+    // when
+    const { lesson, key } = parseLesson(PATH, text);
+    // then
+    expect(lesson).toMatchObject({ traceError: null, quizError: null });
+    expect(key).not.toBeNull();
+  });
+
+  test.each([{ lines: [1] }, { lines: [1, 2, 3] }])('rejects step lines $lines', ({ lines }) => {
+    // given
+    const text = note({ trace: withTrace({ steps: [{ lines, text: 'x' }, TRACE.steps[1]] }) });
+    // when
+    const { lesson } = parseLesson(PATH, text);
+    // then
+    expect(lesson.trace).toBeNull();
+    expect(lesson.traceError).toMatch(/^reading lesson: trace: steps\.0\.lines/);
   });
 
   test('two trace blocks give a traceError', () => {

@@ -45,16 +45,22 @@ describe('LessonPage', () => {
   });
 
   test.each([
-    { name: 'no explanation', fields: { explanation: null }, message: 'Not written yet.' },
-    { name: 'no attack', fields: { attack: null }, message: 'Not written yet.' },
-    { name: 'no findings', fields: { findings: [] }, message: 'No findings yet.' },
-  ])('shows an empty state for $name and the rest of the page', async ({ fields, message }) => {
+    {
+      name: 'no explanation',
+      fields: { explanation: null },
+      message: 'Not written yet.',
+      kept: 'An attacker names a branch.',
+    },
+    { name: 'no attack', fields: { attack: null }, message: 'Not written yet.', kept: 'Builds a' },
+    { name: 'no findings', fields: { findings: [] }, message: 'No findings yet.', kept: 'An attacker names a branch.' },
+  ])('shows an empty state for $name and the rest of the page', async ({ fields, message, kept }) => {
     // given
     fakeMaple({ learning: { read: () => Promise.resolve(fullLesson('xss', fields)) } });
     // when
     render(<LessonPage path={PATH} />);
     // then
     expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByText(kept, { exact: false })).toBeInTheDocument();
     expect(screen.getByTestId('editor')).toBeInTheDocument();
     expect(screen.getByText('Q1?')).toBeInTheDocument();
   });
