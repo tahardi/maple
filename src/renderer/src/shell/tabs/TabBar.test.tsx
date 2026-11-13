@@ -129,23 +129,6 @@ describe('TabBar', () => {
     ).toEqual(want);
   });
 
-  test('Learning shows its tab dot', () => {
-    // given
-    useMaple.setState({
-      config: VAULT_CONFIG,
-      tabs: [...useMaple.getState().tabs, tab('l1', 'BEAR', 'learning', null)],
-      statuses: {
-        l1: { tabId: 'l1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
-      },
-    });
-    // when
-    render(<TabBar />);
-    // then
-    const learning = screen.getByRole('tab', { name: /Learning/ });
-    expect(learning.querySelector('[data-dot]')).toHaveAttribute('data-dot', 'working');
-    expect(screen.queryByRole('button', { name: 'Close Learning' })).not.toBeInTheDocument();
-  });
-
   test('clicking Learning opens or activates the learning tab', async () => {
     // given
     const activate = vi.fn();
@@ -164,23 +147,26 @@ describe('TabBar', () => {
     expect(activate.mock.calls).toEqual([['learning-BEAR'], ['learning-BEAR']]);
   });
 
-  test('an open vault tab shows no dot and no close button', () => {
+  test.each([
+    { kind: 'vault' as const, label: 'Vault' },
+    { kind: 'learning' as const, label: 'Learning' },
+  ])('an open $kind tab shows no dot and no close button while its session works', ({ kind, label }) => {
     // given
     useMaple.setState({
       config: VAULT_CONFIG,
-      activeTabId: 'v1',
-      tabs: [...useMaple.getState().tabs, tab('v1', 'BEAR', 'vault', null)],
+      activeTabId: 'p1',
+      tabs: [...useMaple.getState().tabs, tab('p1', 'BEAR', kind, null)],
       statuses: {
-        v1: { tabId: 'v1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+        p1: { tabId: 'p1', dot: 'working', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
       },
     });
     // when
     render(<TabBar />);
     // then
-    const vault = screen.getByRole('tab', { name: 'Vault' });
-    expect(vault.querySelector('[data-dot]')).toBeNull();
-    expect(vault).toHaveAttribute('aria-selected', 'true');
-    expect(screen.queryByRole('button', { name: 'Close Vault' })).not.toBeInTheDocument();
+    const pinned = screen.getByRole('tab', { name: label });
+    expect(pinned.querySelector('[data-dot]')).toBeNull();
+    expect(pinned).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('button', { name: `Close ${label}` })).not.toBeInTheDocument();
   });
 
   test.each([
