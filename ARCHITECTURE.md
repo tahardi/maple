@@ -40,6 +40,7 @@ flowchart LR
     AS -->|"sync prompt"| SM
     FR["Findings resume"] -->|"resume prompt"| SM
     FR -->|"stamp resume"| CFG
+    HS -->|"SessionStart"| FR
     SE --> JC["Jira client"]
   end
   SM -->|"node-pty"| TMUX["tmux -L maple"]
@@ -219,10 +220,10 @@ user switches away while it is still `queued`.
 - `findings/<KEY>.json`: each card's security findings, in the shape the vault note
   `Projects/Maple/Findings Contract.md` gives. Maple creates the folder at launch and reads each file with
   `src/main/findings/readFindings.ts`; a missing file means no findings, and a newer or invalid file shows an error
-  in the card's Findings tab. Taylor's decisions and severity overrides, and findings resume's `resume` stamp, are written
-  back to the same file by `src/main/findings/saveFindings.ts`, which writes a temp file and renames it over the old
-  one. Once `resume.round` equals `round`, the main process refuses new decisions and overrides until the session
-  writes a new round.
+  in the card's Findings tab. Taylor's decisions and severity overrides, and findings resume's `resume` stamp, are
+  written back to the same file by `src/main/findings/saveFindings.ts`, which writes a temp file and renames it over
+  the old one. Once `resume.round` equals `round`, the main process refuses new decisions and overrides until the
+  session writes a new round.
 - `electron/`: Electron's own data, only when `MAPLE_CONFIG_DIR` is set.
 
 `config.json` and `state.json` each carry a format `version`; a file without one counts as version 1. `state.json` is
