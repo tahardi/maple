@@ -58,7 +58,6 @@ const base = {
   branch: null,
   changes: null,
   cost: null,
-  projectRepo: 'tahardi/maple',
   onOpenCard: vi.fn(),
   searchedRepos: [],
   ci: null,
@@ -79,7 +78,7 @@ describe('CardHeader', () => {
     // then
     expect(screen.getByText('MPL-20 File Tree and PR Summary')).toBeInTheDocument();
     expect(screen.getByText('In Progress')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'PR #33' })).toHaveAttribute('title', 'Open PR description');
+    expect(screen.getByRole('button', { name: 'maple PR #33' })).toHaveAttribute('title', 'Open PR description');
     const link = screen.getByRole('link', { name: '↗' });
     expect(link).toHaveAttribute('href', pr.url);
     expect(link).toHaveAttribute('title', 'Open on GitHub');
@@ -99,8 +98,8 @@ describe('CardHeader', () => {
   });
 
   test.each([
-    { name: 'the project repo', url: pr.url, want: 'PR #33' },
-    { name: 'another repo', url: 'https://github.com/tahardi/dotclaude/pull/33', want: 'tahardi/dotclaude PR #33' },
+    { name: 'the project repo', url: pr.url, want: 'maple PR #33' },
+    { name: 'another repo', url: 'https://github.com/tahardi/dotclaude/pull/33', want: 'dotclaude PR #33' },
   ])('names the PR button for a PR in $name', ({ url, want }) => {
     // given
     const props = { ...base, pr: fetched({ ...pr, url }) };
@@ -253,7 +252,7 @@ describe('CardHeader', () => {
     const onOpenPr = vi.fn();
     render(<CardHeader {...base} pr={fetched(pr)} onOpenPr={onOpenPr} />);
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'PR #33' }));
+    await userEvent.click(screen.getByRole('button', { name: 'maple PR #33' }));
     // then
     expect(onOpenPr).toHaveBeenCalledOnce();
   });
@@ -265,7 +264,7 @@ describe('CardHeader', () => {
     render(<CardHeader {...base} pr={fetched(pr)} ci={ci} />);
     // then
     expect(screen.getByRole('link', { name: '↗' }).nextElementSibling).toBe(screen.getByTestId('ci'));
-    expect(screen.getByRole('button', { name: 'PR #33' }).nextElementSibling).toBe(
+    expect(screen.getByRole('button', { name: 'maple PR #33' }).nextElementSibling).toBe(
       screen.getByRole('link', { name: '↗' }),
     );
   });
@@ -281,7 +280,7 @@ describe('CardHeader', () => {
     // then
     expect(screen.getByText('GitHub unreachable')).toHaveAttribute('data-tone', 'danger');
     expect(screen.queryByRole('link', { name: '↗' })?.getAttribute('href') ?? null).toBe(button ? pr.url : null);
-    expect(screen.queryByRole('button', { name: 'PR #33' }) !== null).toBe(button);
+    expect(screen.queryByRole('button', { name: 'maple PR #33' }) !== null).toBe(button);
     expect(screen.queryByTestId('ci') !== null).toBe(button);
   });
 

@@ -397,7 +397,7 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={tab} />);
     // then
-    await screen.findByRole('button', { name: 'PR #13' });
+    await screen.findByRole('button', { name: 'maple PR #13' });
     expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
   });
 
@@ -688,26 +688,6 @@ describe('CardTab', () => {
     expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
   });
 
-  test('names the repo of a PR outside the project repo', async () => {
-    // given
-    fakeRepo(true);
-    const project = {
-      name: 'Xena',
-      jiraKey: 'MPL',
-      jiraBoardId: 1,
-      plannerDir: '/tmp/planner/xena',
-      repo: 'tahardi/xena',
-      otherRepos: ['tahardi/maple'],
-    };
-    useMaple.setState({
-      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, projects: [project] } },
-    });
-    // when
-    render(<CardTab tab={tab} />);
-    // then
-    expect(await screen.findByRole('button', { name: 'tahardi/maple PR #13' })).toBeInTheDocument();
-  });
-
   test.each([
     { status: 'In Review' as const, name: 'shows', shown: true },
     { status: 'In Progress' as const, name: 'hides', shown: false },
@@ -779,7 +759,7 @@ describe('CardTab', () => {
     // then
     expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['a.ts']);
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'PR #13' }));
+    await userEvent.click(screen.getByRole('button', { name: 'maple PR #13' }));
     // then
     expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
   });
@@ -938,9 +918,9 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={tab} />);
     // then
-    await within(screen.getByRole('banner')).findByRole('button', { name: 'PR #13' });
+    await within(screen.getByRole('banner')).findByRole('button', { name: 'maple PR #13' });
     const slot = within(screen.getByTestId('tree-slot'));
-    expect(slot.queryByRole('button', { name: 'PR #13' })).toBeNull();
+    expect(slot.queryByRole('button', { name: 'maple PR #13' })).toBeNull();
     expect(slot.queryByText(pr.title)).toBeNull();
     expect(slot.queryByRole('heading', { name: 'Checks' })).toBeNull();
   });
