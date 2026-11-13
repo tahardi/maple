@@ -2,6 +2,7 @@ import { readFile, rm, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { configDir } from '@main/app/config/config';
 import { isInside, MAX_BYTES } from '@main/util/paths';
+import { isMissing } from '@main/util/isMissing';
 
 export function snapshotDir(sessionId: string): string {
   return join(configDir(), 'snapshots', sessionId);
@@ -19,7 +20,7 @@ export async function readSnapshot(sessionId: string, path: string): Promise<str
     }
     return await readFile(full, 'utf8');
   } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+    if (isMissing(err)) {
       return null;
     }
     throw err;

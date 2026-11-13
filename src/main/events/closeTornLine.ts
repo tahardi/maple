@@ -1,11 +1,12 @@
 import { open, type FileHandle } from 'node:fs/promises';
+import { isMissing } from '@main/util/isMissing';
 
 export async function closeTornLine(path: string): Promise<void> {
   let file: FileHandle;
   try {
     file = await open(path, 'r+');
   } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+    if (isMissing(err)) {
       return;
     }
     throw err;

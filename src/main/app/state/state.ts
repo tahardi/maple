@@ -9,6 +9,7 @@ import { configDir } from '@main/app/config/config';
 import { dotSchema } from './dotSchema';
 import { errorText } from '@shared/errors/errorText';
 import { upgrade, type UpgradeStep } from '@main/util/upgrade';
+import { isMissing } from '@main/util/isMissing';
 
 export const STATE_VERSION = 2;
 
@@ -90,7 +91,7 @@ export async function loadState(
     const tabIds = new Set(parsed.tabs.map((t) => t.id));
     state = { ...parsed, seen: Object.fromEntries(Object.entries(parsed.seen).filter(([id]) => tabIds.has(id))) };
   } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+    if (isMissing(err)) {
       return { state: emptyState(), warning: null, readOnly: false };
     }
     const warning = await keepCorrupt(path);

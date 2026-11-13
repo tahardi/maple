@@ -303,6 +303,7 @@ describe('LessonList', () => {
     expect(within(rowOf('XSS')).getByRole('button', { name: 'Write lesson' })).toBeDisabled();
     expect(within(rowOf('XSS')).getByText('The Learning session is busy')).toBeInTheDocument();
   });
+
   test('Write lesson shows the error under the row when teach fails', async () => {
     // given
     const teach = vi.fn(() => Promise.reject(new Error('starting lesson: the Learning session is not running')));
