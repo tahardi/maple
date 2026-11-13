@@ -216,6 +216,29 @@ describe('useMaple', () => {
     expect(setActive.mock.calls).toEqual(calls);
   });
 
+  test('showLesson activates the tab with the note selected', async () => {
+    // given
+    const { setActive } = setup();
+    await useMaple.getState().init();
+    // when
+    useMaple.getState().showLesson('bear-1', 'Learning/Security/xss.md');
+    // then
+    expect(useMaple.getState().activeTabId).toBe('bear-1');
+    expect(useMaple.getState().lessonNote).toBe('Learning/Security/xss.md');
+    expect(setActive).toHaveBeenCalledWith('bear-1');
+  });
+
+  test('selectLesson changes the note without activating a tab', async () => {
+    // given
+    const { setActive } = setup();
+    await useMaple.getState().init();
+    // when
+    useMaple.getState().selectLesson('Learning/Security/xss.md');
+    // then
+    expect(useMaple.getState().lessonNote).toBe('Learning/Security/xss.md');
+    expect(setActive).not.toHaveBeenCalled();
+  });
+
   test('tabs:changed replaces the tabs and returns to Home when the active tab closes', async () => {
     // given
     const { events } = setup();

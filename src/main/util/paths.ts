@@ -1,5 +1,6 @@
 import { realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { isMissing } from './isMissing';
 
 export const MAX_BYTES = 2_097_152;
 
@@ -12,7 +13,7 @@ export async function realOrSelf(path: string): Promise<string> {
   try {
     return await realpath(path);
   } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+    if (isMissing(err)) {
       const parent = dirname(path);
       return parent === path ? path : join(await realOrSelf(parent), basename(path));
     }

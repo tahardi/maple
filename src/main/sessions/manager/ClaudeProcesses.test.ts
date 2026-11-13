@@ -101,6 +101,7 @@ describe('ClaudeProcesses', () => {
 
   test.each([
     { kind: 'card' as const, want: '/tmp/maple/findings' },
+    { kind: 'learning' as const, want: '/tmp/maple/findings' },
     { kind: 'vault' as const, want: undefined },
   ])('launch gives MAPLE_FINDINGS_DIR to a $kind tab: $want', ({ kind, want }) => {
     // given

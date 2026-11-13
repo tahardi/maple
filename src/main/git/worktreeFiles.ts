@@ -4,6 +4,7 @@ import type { FilePair } from '@shared/types/files/filePair';
 import type { SearchHit } from '@shared/types/files/searchHit';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/util/paths';
 import { runGit, showOrNull, splitZ } from './gitRunner';
+import { isMissing } from '@main/util/isMissing';
 
 const SNIFF_BYTES = 8000;
 const MAX_HITS = 500;
@@ -17,7 +18,7 @@ async function readOrNull(path: string): Promise<Buffer | null> {
   try {
     return await readFile(path);
   } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+    if (isMissing(err)) {
       return null;
     }
     throw err;

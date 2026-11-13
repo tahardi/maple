@@ -12,6 +12,7 @@ const DEFAULTS = {
   lastGrade: null,
   findings: 0,
   hasLesson: false,
+  pending: 0,
   error: null,
 };
 
@@ -36,6 +37,7 @@ describe('summarizeLesson', () => {
         lastGrade: { date: '2026-11-12', score: 4, total: 5 },
         findings: 2,
         hasLesson: true,
+        pending: 2,
       },
     },
     {
@@ -46,7 +48,7 @@ describe('summarizeLesson', () => {
     {
       name: 'ignores entry headings outside the Findings section',
       text: '# T\n\n### 2026-11-12 MPL-340 F3: Not here\n\n## Findings\n### 2026-11-12 MPL-340 F4: Here\n',
-      want: { ...DEFAULTS, title: 'T', findings: 1 },
+      want: { ...DEFAULTS, title: 'T', findings: 1, pending: 2 },
     },
     {
       name: 'ignores unknown status and malformed grades',
@@ -65,5 +67,37 @@ describe('summarizeLesson', () => {
     const got = summarizeLesson(PATH, note);
     // then
     expect(got).toEqual(want);
+  });
+
+  const ENTRY = '### 2026-11-12 MPL-340 F3: Shell gets the branch name\n- PR: none yet\n- Code: `a.ts:3`\n';
+  const TIED = `${ENTRY}\nThis finding is an instance of the class.\n`;
+
+  test.each([
+    { name: 'no findings', text: '# T\n\n## Findings\n', want: 0 },
+    { name: 'one entry with no lesson and no tie-in', text: `# T\n\n## Findings\n${ENTRY}`, want: 2 },
+    { name: 'a lesson and one entry with no tie-in', text: `# T\n\n## Lesson\nX\n\n## Findings\n${ENTRY}`, want: 1 },
+    { name: 'a lesson and a tied entry', text: `# T\n\n## Lesson\nX\n\n## Findings\n${TIED}`, want: 0 },
+    {
+      name: 'a comfortable note with a tied entry and no lesson',
+      text: `---\ncomfortable: true\n---\n# T\n\n## Findings\n${TIED}`,
+      want: 0,
+    },
+    {
+      name: 'a comfortable note with one tied and one untied entry',
+      text: `---\ncomfortable: true\n---\n# T\n\n## Findings\n${TIED}\n${ENTRY}`,
+      want: 1,
+    },
+    {
+      name: 'text under a later non-entry heading is not a tie-in',
+      text: `# T\n\n## Lesson\nX\n\n## Findings\n${ENTRY}### Notes\nSome notes.\n`,
+      want: 1,
+    },
+  ])('pending counts the work left: $name', ({ text, want }) => {
+    // given
+    const note = text;
+    // when
+    const got = summarizeLesson(PATH, note);
+    // then
+    expect(got.pending).toBe(want);
   });
 });

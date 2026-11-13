@@ -10,6 +10,7 @@ import { STATE_BACKUPS } from '@main/app/state/backupState';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { errorText } from '@shared/errors/errorText';
 import { upgrade, type Upgraded, type UpgradeStep } from '@main/util/upgrade';
+import { isMissing } from '@main/util/isMissing';
 
 const defaultActions = [
   { label: 'Address review', prompt: '/card {key}' },
@@ -102,7 +103,7 @@ async function readConfig(dir: string): Promise<Fetched<MapleConfig>> {
   try {
     text = await readFile(path, 'utf8');
   } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+    if (isMissing(err)) {
       return failed(`reading config: ${path} does not exist`);
     }
     return failed(`reading config: ${errorText(err)}`);

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { FindingsFile } from '@shared/types/findings/findingsFile';
 import { errorText } from '@shared/errors/errorText';
 import { findingsSchema } from './findingsSchema';
+import { isMissing } from '@main/util/isMissing';
 
 const KEY = /^[A-Z][A-Z0-9]*-\d+$/;
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -55,7 +56,7 @@ export async function readFindingsWithJson(
   try {
     read = await readRegular(path);
   } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+    if (isMissing(err)) {
       return null;
     }
     throw new Error(`reading findings: ${name}: ${errorText(err)}`);

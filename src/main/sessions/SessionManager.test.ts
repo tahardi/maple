@@ -771,6 +771,15 @@ describe('SessionManager', () => {
     expect(spawnFn).toHaveBeenCalledTimes(1);
   });
 
+  test('openLearning starts a new learning tab with the prompt', () => {
+    // given
+    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    // when
+    const tab = manager.openLearning('DIG', null, null, '/learn Learning/Security/xss.md');
+    // then
+    expect(ptys[0].args.slice(-3)).toEqual(['--session-id', tab.sessionId, '/learn Learning/Security/xss.md']);
+  });
+
   test('openLearning throws without a vaultDir', () => {
     // given
     const { manager, spawnFn, save } = setup();
