@@ -78,7 +78,7 @@ export function TabBar() {
             key: 'learning',
             id: null,
             label: 'Learning',
-            dot: learningTab && dotOf(learningTab.id),
+            dot: undefined,
             sync: null,
             selected: learningTab !== undefined && learningTab.id === activeTabId,
             onClick: () => {

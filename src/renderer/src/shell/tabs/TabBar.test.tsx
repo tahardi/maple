@@ -129,7 +129,7 @@ describe('TabBar', () => {
     ).toEqual(want);
   });
 
-  test('Learning shows its tab dot', () => {
+  test('Learning shows no dot even while its session works', () => {
     // given
     useMaple.setState({
       config: VAULT_CONFIG,
@@ -142,7 +142,7 @@ describe('TabBar', () => {
     render(<TabBar />);
     // then
     const learning = screen.getByRole('tab', { name: /Learning/ });
-    expect(learning.querySelector('[data-dot]')).toHaveAttribute('data-dot', 'working');
+    expect(learning.querySelector('[data-dot]')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Close Learning' })).not.toBeInTheDocument();
   });
 
