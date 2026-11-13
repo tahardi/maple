@@ -45,6 +45,7 @@ export type IpcDeps = {
   jiraCreds: Promise<JiraCreds>;
   watchVault: (dir: string) => void;
   findingsDir: string;
+  decisionsDir: string;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [

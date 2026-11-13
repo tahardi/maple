@@ -76,6 +76,7 @@ describe('registerIpc', () => {
     jiraCreds: new Promise<never>(() => undefined),
     watchVault: () => undefined,
     findingsDir: '/tmp/maple/findings',
+    decisionsDir: '/tmp/maple/decisions',
   };
 
   sessions.setMaxListeners(0);

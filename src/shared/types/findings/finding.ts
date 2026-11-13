@@ -1,6 +1,7 @@
 import type { FindingDecision } from './findingDecision';
 import type { FindingIdentity } from './findingIdentity';
 import type { FindingLesson } from './findingLesson';
+import type { FindingVisual } from './findingVisual';
 import type { ImpactChip } from './impactChip';
 import type { Severity } from './severity';
 
@@ -18,7 +19,7 @@ export type Finding = {
   impact: string;
   defense: string;
   chips: ImpactChip[];
-  visual?: unknown;
+  visual?: FindingVisual;
   applied: FindingApplied | null;
   decision: FindingDecision | null;
   severityOverride: Severity | null;

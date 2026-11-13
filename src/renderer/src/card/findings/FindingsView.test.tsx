@@ -3,6 +3,19 @@ import { finding, findingsFile } from '@renderer/testing/findingsFixture';
 import { useMaple } from '@renderer/store';
 import { FindingsView } from './FindingsView';
 
+const visual = {
+  path: [
+    { actor: 'a stranger', step: 'Opens a pull request.' },
+    { actor: 'the app', step: 'Runs a shell command.' },
+  ],
+  map: { zones: ['the internet', 'GitHub', 'the app'], from: 'GitHub', to: 'the app' },
+  reach: { now: ['Run commands.'], afterFix: [] },
+};
+
+function follows(later: Element, earlier: Element): boolean {
+  return Boolean(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING);
+}
+
 const decided = { kind: 'fix-later' as const, reason: null, decidedAt: '2026-11-12T12:00:00.000Z' };
 
 describe('FindingsView', () => {
@@ -127,5 +140,71 @@ describe('FindingsView', () => {
       expect(fixNow).toBeDisabled();
       expect(screen.getByText(reason)).toBeInTheDocument();
     }
+  });
+
+  test('draws the visual parts a finding has between its chips and sections', () => {
+    // given
+    const file = findingsFile([
+      finding({ id: 'F1', visual }),
+      finding({ id: 'F2', title: 'Partial', visual: { path: visual.path } }),
+    ]);
+    // when
+    render(<FindingsView tabId="t1" file={file} error={null} />);
+    // then
+    const [full, partial] = screen.getAllByRole('article');
+    const chip = within(full).getByText('could leak credentials');
+    const headings = ['How the attack goes', 'Where it crosses', 'What an attacker can do'].map((name) =>
+      within(full).getByRole('heading', { name }),
+    );
+    const sections = within(full).getByRole('heading', { name: 'What it is' });
+    for (const heading of headings) {
+      expect(follows(heading, chip)).toBe(true);
+      expect(follows(sections, heading)).toBe(true);
+    }
+    expect(within(full).getByText('Opens a pull request.')).toBeInTheDocument();
+    expect(within(full).getByText('crossed here')).toBeInTheDocument();
+    expect(within(full).getByText('Run commands.')).toBeInTheDocument();
+    expect(within(partial).getByRole('heading', { name: 'How the attack goes' })).toBeInTheDocument();
+    expect(within(partial).queryByRole('heading', { name: 'Where it crosses' })).not.toBeInTheDocument();
+    expect(within(partial).queryByRole('heading', { name: 'What an attacker can do' })).not.toBeInTheDocument();
+  });
+
+  test('shows plain text only for a finding without a visual', () => {
+    // given
+    const file = findingsFile([finding()]);
+    // when
+    render(<FindingsView tabId="t1" file={file} error={null} />);
+    // then
+    for (const name of ['How the attack goes', 'Where it crosses', 'What an attacker can do']) {
+      expect(screen.queryByRole('heading', { name })).not.toBeInTheDocument();
+    }
+    expect(screen.getByRole('heading', { name: 'What it is' })).toBeInTheDocument();
+  });
+
+  test('renders Markdown and HTML in visual text as plain text', () => {
+    // given
+    const step = '<img src=x onerror=alert(1)>';
+    const file = findingsFile([
+      finding({
+        visual: {
+          path: [
+            { actor: '**bold**', step },
+            { actor: 'the app', step: '[link](https://x.test)' },
+          ],
+          map: { zones: ['<b>out</b>', 'in'], from: '<b>out</b>', to: 'in' },
+          reach: { now: ['<script>x</script>'], afterFix: [] },
+        },
+      }),
+    ]);
+    // when
+    const { container } = render(<FindingsView tabId="t1" file={file} error={null} />);
+    // then
+    for (const text of [step, '**bold**', '[link](https://x.test)', '<b>out</b>', '<script>x</script>']) {
+      expect(screen.getByText(text)).toBeInTheDocument();
+    }
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('b')).toBeNull();
+    expect(container.querySelector('a')).toBeNull();
+    expect(container.querySelector('script')).toBeNull();
   });
 });

@@ -16,7 +16,7 @@ function withBase(file: FindingsFile, base: unknown): unknown {
   const baseFindings = Array.isArray(base.findings) ? base.findings.filter(isRecord) : [];
   const findings = file.findings.map((finding) => {
     const old = baseFindings.find((f) => f.id === finding.id);
-    return old === undefined ? finding : { ...old, ...finding, chips: old.chips ?? finding.chips };
+    return old === undefined ? finding : { ...old, ...finding, chips: old.chips ?? finding.chips, visual: old.visual };
   });
   return { ...base, ...file, findings };
 }
