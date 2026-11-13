@@ -57,7 +57,17 @@ attackers:
     who: >-
       A well-meaning Claude session that does harm it does not recognize, steered by text it reads, a malicious skill
       or plugin, or code it downloads or runs while working a card
-    reaches: [sessions, hook-server, config-dir, vault, claude-config, main-process, shell-terminals, outside-services]
+    reaches:
+      - sessions
+      - hook-server
+      - config-dir
+      - vault
+      - claude-config
+      - main-process
+      - shell-terminals
+      - outside-services
+      - renderer
+      - ci
   - id: public-reader
     who: >-
       Anyone on the internet, who can read all of Maple's and Xena's code, this model, and past findings, and can open

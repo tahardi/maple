@@ -28,7 +28,8 @@ Maple is a desktop app that runs Jira cards with Claude sessions. Taylor is its 
 The main threat is a well-meaning Claude session that does harm it does not recognize.
 
 - `misled-session`: a Claude session steered by text it reads, a malicious skill or plugin, or code it runs. It reaches
-  the sessions, hook server, config dir, vault, Claude config, main process, shell terminals, and Jira and GitHub.
+  the sessions, hook server, config dir, vault, Claude config, main process, shell terminals, Jira and GitHub, the
+  app window (through text Maple shows), and CI (through workflow changes).
 - `public-reader`: anyone who reads the public code and findings to plan an attack, or opens fork PRs. It reaches CI
   only; Maple ignores fork PRs and other people's comments.
 - `malicious-dependency`: a bad npm package or GitHub Action. It reaches CI, sessions, and the shipped app.
