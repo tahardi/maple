@@ -286,6 +286,7 @@ async function start(): Promise<Zoom> {
       emit(mainWindow, 'vault', 'onChanged');
     }, appLogger),
     findingsDir,
+    decisionsDir: join(configDir(), 'decisions'),
     setActiveTab: (tabId) => {
       activeTabId = tabId;
       autoSync.activate(tabId);

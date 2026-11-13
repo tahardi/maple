@@ -224,6 +224,9 @@ user switches away while it is still `queued`.
   written back to the same file by `src/main/findings/saveFindings.ts`, which writes a temp file and renames it over
   the old one. Once `resume.round` equals `round`, the main process refuses new decisions and overrides until the
   session writes a new round.
+- `decisions/<KEY>.json`: Maple's own record of Taylor's decisions and severity overrides, kept outside the findings
+  folder that sessions can write (`src/main/findings/decisions/`). Maple shows a decision or override only when this
+  record holds it for the same finding id and identity, so one a session writes into a findings file is ignored.
 - `electron/`: Electron's own data, only when `MAPLE_CONFIG_DIR` is set.
 
 `config.json` and `state.json` each carry a format `version`; a file without one counts as version 1. `state.json` is
