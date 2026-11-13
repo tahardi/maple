@@ -6,6 +6,7 @@ import { MAX_BYTES } from '@main/util/paths';
 import { runGit, splitZ } from './gitRunner';
 import { commitExists, defaultBranch } from './repoIdentity';
 import { isBinary } from './worktreeFiles';
+import { isMissing } from '@main/util/isMissing';
 
 const defaultBranches = new Map<string, string>();
 
@@ -54,7 +55,7 @@ async function stampOrNull(path: string): Promise<string | null> {
     const info = await lstat(path);
     return `${String(info.size)}:${String(info.mtimeMs)}`;
   } catch (err) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+    if (isMissing(err)) {
       return null;
     }
     throw err;
