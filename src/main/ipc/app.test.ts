@@ -101,6 +101,7 @@ function setup(
     jiraCreds: new Promise<never>(() => undefined),
     watchVault: () => undefined,
     findingsDir: '/tmp/maple/findings',
+    decisionsDir: '/tmp/maple/decisions',
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];
   const confirmQuit = on.mock.calls.find(([name]) => name === 'app:confirmQuit')?.[1];

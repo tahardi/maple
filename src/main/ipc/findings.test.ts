@@ -68,7 +68,7 @@ function statusOf(dot: TabStatus['dot']): TabStatus {
   return { tabId: 'card', dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null };
 }
 
-function register(findingsDir: string, statuses: TabStatus[] = []) {
+function register(findingsDir: string, decisionsDir: string, statuses: TabStatus[] = []) {
   registerFindings(
     {
       window: () => win,
@@ -92,6 +92,7 @@ function register(findingsDir: string, statuses: TabStatus[] = []) {
       jiraCreds: new Promise<never>(() => undefined),
       watchVault: () => undefined,
       findingsDir,
+      decisionsDir,
     },
     logger,
   );
@@ -116,20 +117,23 @@ const file = {
 
 describe('registerFindings', () => {
   let dir = '';
+  let decisions = '';
 
   beforeEach(async () => {
     vi.clearAllMocks();
     dir = await mkdtemp(join(tmpdir(), 'maple-findings-'));
+    decisions = await mkdtemp(join(tmpdir(), 'maple-decisions-'));
   });
 
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
+    await rm(decisions, { recursive: true, force: true });
   });
 
   test('findings:get reads the tab card file', async () => {
     // given
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify(file));
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     // when
     const got = await invoke('findings:get', 'card');
     // then
@@ -139,7 +143,7 @@ describe('registerFindings', () => {
   test('findings:get returns the error text for a bad file', async () => {
     // given
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, version: 2 }));
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     // when
     const got = await invoke('findings:get', 'card');
     // then
@@ -148,7 +152,7 @@ describe('registerFindings', () => {
 
   test('findings:get returns no data for a planner tab', async () => {
     // given
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     // when
     const got = await invoke('findings:get', 'planner');
     // then
@@ -162,7 +166,7 @@ describe('registerFindings', () => {
     });
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify(file));
     // when
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     const got = await invoke('findings:get', 'card');
     // then
     expect(logger.warn).toHaveBeenCalledWith('findings', 'failed', {
@@ -175,7 +179,7 @@ describe('registerFindings', () => {
 
   test('a change in the findings dir sends findings:changed', () => {
     // given
-    register(dir);
+    register(dir, decisions);
     // when
     watch.state.changed();
     // then
@@ -186,7 +190,7 @@ describe('registerFindings', () => {
   test('findings:decide saves the decision', async () => {
     // given
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
-    const invoke = register(dir, [statusOf('idle')]);
+    const invoke = register(dir, decisions, [statusOf('idle')]);
     // when
     await invoke('findings:decide', 'card', 'F1', { kind: 'accept-risk', reason: 'Only Taylor runs it' });
     // then
@@ -199,11 +203,51 @@ describe('registerFindings', () => {
     ]);
   });
 
+  test('findings:get ignores decisions and overrides Maple did not record', async () => {
+    // given
+    const forged = { kind: 'not-real' as const, reason: null, decidedAt: '2026-11-13T12:00:00.000Z' };
+    const findings = [finding({ id: 'F1', decision: forged, severityOverride: 'low' })];
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings }));
+    const invoke = register(dir, decisions);
+    // when
+    const got = await invoke('findings:get', 'card');
+    // then
+    expect(got).toMatchObject({ data: { findings: [finding({ id: 'F1' })] }, error: null });
+  });
+
+  test('findings:get shows the decisions and overrides Maple recorded', async () => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
+    const invoke = register(dir, decisions);
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-later', reason: null });
+    await invoke('findings:override', 'card', 'F1', 'medium');
+    const forged = { kind: 'not-real' as const, reason: null, decidedAt: '2026-11-13T12:00:00.000Z' };
+    const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as { findings: Finding[] };
+    await writeFile(
+      join(dir, 'MPL-1.json'),
+      JSON.stringify({ ...file, findings: [{ ...saved.findings[0], decision: forged, severityOverride: 'low' }] }),
+    );
+    // when
+    const got = await invoke('findings:get', 'card');
+    // then
+    expect(got).toMatchObject({
+      data: {
+        findings: [
+          finding({
+            id: 'F1',
+            decision: { kind: 'fix-later', reason: null, decidedAt: expect.any(String) as string },
+            severityOverride: 'medium',
+          }),
+        ],
+      },
+    });
+  });
+
   test('findings:decide refuses while the tab is working', async () => {
     // given
     const before = JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] });
     await writeFile(join(dir, 'MPL-1.json'), before);
-    const invoke = register(dir, [statusOf('working')]);
+    const invoke = register(dir, decisions, [statusOf('working')]);
     // when
     const run = invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
     // then
@@ -240,7 +284,7 @@ describe('registerFindings', () => {
     if (saved !== null) {
       await writeFile(join(dir, 'MPL-1.json'), JSON.stringify(saved));
     }
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     // when
     const run = invoke('findings:decide', tabId, id, { kind: 'fix-now', reason: null });
     // then
@@ -252,7 +296,7 @@ describe('registerFindings', () => {
     // given
     const decision = { kind: 'fix-now' as const, reason: null, decidedAt: '2026-11-12T12:00:00.000Z' };
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1', decision })] }));
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     // when
     await invoke('findings:decide', 'card', 'F1', null);
     // then
@@ -268,7 +312,7 @@ describe('registerFindings', () => {
       findings: [{ ...finding({ id: 'F1' }), chips: ['runs-code', 'future-chip'], note: 'kept' }],
     };
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify(raw));
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     // when
     await invoke('findings:decide', 'card', 'F1', { kind: 'not-real', reason: null });
     // then
@@ -285,7 +329,7 @@ describe('registerFindings', () => {
     // given
     const findings = [finding({ id: 'F1' }), finding({ id: 'F2' })];
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings }));
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     // when
     await Promise.all([
       invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null }),
@@ -302,7 +346,7 @@ describe('registerFindings', () => {
     { name: 'an empty reason', decision: { kind: 'accept-risk', reason: '' } },
   ])('findings:decide rejects $name', ({ decision }) => {
     // given
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     // when
     const run = () => invoke('findings:decide', 'card', 'F1', decision);
     // then
@@ -312,7 +356,7 @@ describe('registerFindings', () => {
   test('findings:override saves the severity', async () => {
     // given
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     // when
     await invoke('findings:override', 'card', 'F1', 'low');
     // then
@@ -322,7 +366,7 @@ describe('registerFindings', () => {
 
   test('findings:override rejects an unknown severity', () => {
     // given
-    const invoke = register(dir);
+    const invoke = register(dir, decisions);
     // when
     const run = () => invoke('findings:override', 'card', 'F1', 'critical');
     // then
@@ -332,7 +376,7 @@ describe('registerFindings', () => {
   test('findings:override refuses while the tab is working', async () => {
     // given
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
-    const invoke = register(dir, [statusOf('working')]);
+    const invoke = register(dir, decisions, [statusOf('working')]);
     // when
     const run = invoke('findings:override', 'card', 'F1', 'low');
     // then
@@ -357,7 +401,7 @@ describe('registerFindings', () => {
       recordActions(
         uiActionRecorder({ tab: () => tab, actions: () => [], closeNeedsConfirm: () => false, append }, logger),
       );
-      const invoke = register(dir);
+      const invoke = register(dir, decisions);
       // when
       await invoke(channel, 'card', 'F1', channel === 'findings:decide' ? { kind: 'fix-now', reason: null } : 'low');
       // then

@@ -114,6 +114,7 @@ function setup() {
       jiraCreds: new Promise<never>(() => undefined),
       watchVault: () => undefined,
       findingsDir: '/tmp/maple/findings',
+      decisionsDir: '/tmp/maple/decisions',
       warnings: () => [],
     },
     logger,

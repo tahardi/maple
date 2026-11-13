@@ -7,6 +7,9 @@ import { appLogger, type Logger } from '@main/app/log/log';
 import { readFindings, readFindingsWithJson } from '@main/findings/readFindings';
 import { queueFindings } from '@main/findings/queueFindings';
 import { saveFindings } from '@main/findings/saveFindings';
+import { readDecisions } from '@main/findings/decisions/readDecisions';
+import { saveDecisions } from '@main/findings/decisions/saveDecisions';
+import { trustDecisions } from '@main/findings/decisions/trustDecisions';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
 import type { IpcDeps } from './index';
 import { tabIdArg } from './args';
@@ -22,7 +25,13 @@ const decisionArg = z
   })
   .nullable();
 
-export function registerFindings({ sessions, status, window, findingsDir }: IpcDeps, logger: Logger = appLogger): void {
+export function registerFindings(
+  { sessions, status, window, findingsDir, decisionsDir }: IpcDeps,
+  logger: Logger = appLogger,
+): void {
+  const trusted = async (file: FindingsFile, key: string): Promise<FindingsFile> =>
+    trustDecisions(file, await readDecisions(decisionsDir, key));
+
   const change = async (
     tabId: string,
     operation: string,
@@ -49,7 +58,15 @@ export function registerFindings({ sessions, status, window, findingsDir }: IpcD
         if (file.resume?.round === file.round) {
           throw new Error(`${doing}: Claude is applying your decisions`);
         }
-        await saveFindings(findingsDir, edit(file), json);
+        const edited = edit(await trusted(file, key));
+        await saveFindings(findingsDir, edited, json);
+        await saveDecisions(
+          decisionsDir,
+          key,
+          edited.findings
+            .filter((f) => f.decision !== null || f.severityOverride !== null)
+            .map(({ id, identity, decision, severityOverride }) => ({ id, identity, decision, severityOverride })),
+        );
       });
     } catch (err) {
       logger.warn('findings', 'failed', { operation, tabId, error: errorText(err) });
@@ -71,7 +88,8 @@ export function registerFindings({ sessions, status, window, findingsDir }: IpcD
       return { data: null, error: null, fetchedAt: null };
     }
     try {
-      const data = await readFindings(findingsDir, key);
+      const read = await readFindings(findingsDir, key);
+      const data = read === null ? null : await trusted(read, key);
       return { data, error: null, fetchedAt: new Date().toISOString() };
     } catch (err) {
       const error = errorText(err);

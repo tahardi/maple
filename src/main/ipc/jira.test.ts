@@ -58,6 +58,7 @@ const base = {
   startQueue: new EventEmitter() as StartQueue,
   prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
   findingsDir: '/tmp/maple/findings',
+  decisionsDir: '/tmp/maple/decisions',
 };
 
 function fixture(name: string): string {
