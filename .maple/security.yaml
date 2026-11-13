@@ -1,0 +1,5 @@
+version: 1
+enabled: true
+tracked:
+  - {"identity": {"kind": "code", "class": "missing-sandbox-enforcement", "file": "src/main/app/preflight.ts", "hash": "68d6fe5471eba3d3"}, "title": "Startup check says nothing when Claude's Bash sandbox is off, and Maple never turns the sandbox on itself", "card": "MPL-392"}
+  - {"identity": {"kind": "code", "class": "ci-action-not-pinned", "file": ".github/workflows/ci.yml", "hash": "1dbab079e1b44008"}, "title": "Five CI jobs use GitHub Actions by movable version tags, not fixed commit IDs", "card": "MPL-393"}
