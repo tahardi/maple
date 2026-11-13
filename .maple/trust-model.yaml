@@ -1,0 +1,154 @@
+version: 1
+principles:
+  - id: public-design
+    what: >-
+      The code, this trust model, and past findings are public, so every control must hold even when an attacker
+      knows it
+assets:
+  - id: desktop
+    what: Taylor's machine and home folder, where Maple's main process, git, gh, and shell terminals run unsandboxed
+    loss: Full control of Taylor's account, keys, browser sessions, and every repo
+  - id: jira-token
+    what: Jira site, email, and user-rights token in the shared env file, passed into every session's environment
+    loss: Someone could read and change every card Taylor can reach in every Jira project
+  - id: github-access
+    what: >-
+      The gh login Maple uses to approve and merge PRs, and the long-lived GitHub token sessions hold, which covers
+      all of Taylor's repos
+    loss: A session or attacker could push to, merge into, or change workflows, webhooks, and secrets on any repo
+  - id: main-code
+    what: What lands on main in Taylor's repos, which Taylor later builds and runs on the desktop
+    loss: A backdoor runs on the desktop through make install or make try
+  - id: claude-account
+    what: Taylor's Claude login, settings, memory, skills, and spending, used by every session
+    loss: A runaway bill, poisoned settings or memory that later sessions follow, or someone else using the account
+  - id: vault
+    what: The Obsidian vault, which card sessions can write and Maple shows
+    loss: Personal notes leak or change, and the changes carry into later sessions
+  - id: findings
+    what: Each card's security findings and Taylor's decisions on them, in the config dir
+    loss: Real risks get hidden or marked as decided when Taylor never decided them
+  - id: logs
+    what: The main log, the event log, and the log tail attached to bug reports
+    loss: A secret or private text that slipped past scrubbing leaks, including into Jira through bug reports
+components:
+  - id: renderer
+    what: The sandboxed app window that draws the board, tabs, terminals, and outside text
+  - id: main-process
+    what: The Node process that runs git, gh, the Jira client, the pollers, and IPC handlers
+  - id: hook-server
+    what: The hook script Claude runs and the Unix socket that takes its events
+  - id: sessions
+    what: Claude sessions in tmux, run with permissions skipped and the Bash sandbox on
+  - id: shell-terminals
+    what: Plain shells in a card tab that Taylor drives, with no sandbox
+  - id: config-dir
+    what: Maple's config, state, logs, events, findings, and snapshots
+  - id: vault
+    what: The Obsidian vault folder
+  - id: claude-config
+    what: The global ~/.claude skills, hooks, settings, memory, and plugins, symlinked to the dotclaude repo
+  - id: outside-services
+    what: Jira and GitHub, reached as Taylor
+  - id: ci
+    what: GitHub Actions jobs that run on every PR, fork PRs included, and on pushes to main
+attackers:
+  - id: misled-session
+    who: >-
+      A well-meaning Claude session that does harm it does not recognize, steered by text it reads, a malicious skill
+      or plugin, or code it downloads or runs while working a card
+    reaches: [sessions, hook-server, config-dir, vault, claude-config, main-process, shell-terminals, outside-services]
+  - id: public-reader
+    who: >-
+      Anyone on the internet, who can read all of Maple's and Xena's code, this model, and past findings, and can open
+      fork PRs and comments that Maple ignores
+    reaches: [ci]
+  - id: malicious-dependency
+    who: A bad npm package or GitHub Action
+    reaches: [ci, sessions, main-process, renderer]
+boundaries:
+  - id: renderer-to-main
+    between: [renderer, main-process]
+    crosses: >-
+      IPC calls from the window, including keystrokes into sessions and shells, file reads and writes, and
+      approve-and-merge
+    checks: >-
+      Zod schema check on every argument; renderer sandboxed, context-isolated, strict CSP, no navigation; file access
+      only inside the tab's worktree or the vault with symlinks resolved. Gap: the sender frame is not checked
+  - id: main-to-renderer
+    between: [main-process, renderer]
+    crosses: Jira cards, PR bodies and comments, repo files, notes, and terminal output
+    checks: >-
+      Rendered as text, never raw HTML, with a lint rule against innerHTML; links open in the system browser, http and
+      https only
+  - id: main-to-sessions
+    between: [main-process, sessions]
+    crosses: >-
+      Session start with permissions skipped, the hooks settings file, and an environment holding Jira and GitHub
+      credentials
+    checks: >-
+      Claude's Bash sandbox, which preflight checks is on; Maple adds only the findings dir to its write list. Gap,
+      accepted until Xena: sessions hold the Jira token and a long-lived GitHub token for all repos
+  - id: sessions-to-hook-server
+    between: [sessions, hook-server]
+    crosses: One JSON line per hook event
+    checks: >-
+      Socket private to the user, oversized lines dropped, every line validated; events carry no commands, so the worst
+      case is a wrong status dot or a queued sync prompt
+  - id: sessions-to-main-files
+    between: [sessions, main-process]
+    crosses: >-
+      Worktrees and their git config, findings files, and vault notes that Maple's main process reads or runs git on
+    checks: >-
+      git runs with argument arrays and core.fsmonitor=false; findings files capped at 2 MB, schema-checked, and shown
+      as plain text. Gap: any session can write any card's findings file, including forged decisions
+  - id: sessions-to-host-files
+    between: [sessions, main-process, shell-terminals, claude-config, config-dir, vault]
+    crosses: File writes and edits through Claude's Write and Edit tools, which the Bash sandbox does not cover
+    checks: >-
+      Only the sandbox's read-deny list (~/.ssh, ~/.gnupg, ~/.aws, ~/.config/gh, and similar) and file permissions.
+      Gap, accepted until Xena: sessions can rewrite the installed Maple app, shell startup files, claude-config,
+      Maple's config, the Jira env file, and every repo
+  - id: main-to-outside
+    between: [main-process, outside-services]
+    crosses: Jira REST calls and gh calls acting as Taylor
+    checks: >-
+      Timeouts on every call, argument arrays, card keys checked by pattern, fork PRs ignored, merges pinned to the
+      head commit and base branch, token never logged, logs scrubbed
+  - id: github-to-ci
+    between: [outside-services, ci]
+    crosses: PRs and fork PRs that trigger CI
+    checks: >-
+      contents read token, no pull_request_target; main needs a PR, squash merges, and the format, lint, typecheck,
+      unit-test, and e2e checks, with no bypass. Gaps: five jobs pin actions to tags, not SHAs; audit and package are
+      not required checks; 0 approvals are required, so only the /card skill and Maple's Approve button stop a session
+      merging its own PR, accepted until Xena
+users:
+  - id: taylor
+    who: Owner and only person who uses Maple
+    can: >-
+      Everything, including starting cards, typing into sessions and shells, approving and merging PRs, deciding
+      findings, and editing config
+    access: Desktop login, gh login as repo owner, Jira user token in the shared env file, Claude login
+  - id: claude-session
+    who: Every Claude session Maple starts, acting for Taylor
+    can: >-
+      Read and change cards the Jira token allows; write code, PRs, workflows, webhooks, secrets, and pages, merge its
+      own PRs, and create repos on every one of Taylor's repos; write files anywhere Taylor can through the Write and
+      Edit tools. Cannot change repo administration settings or rulesets
+    access: Jira credentials and a long-lived fine-grained GitHub token in its environment, and Taylor's Claude login
+build:
+  built: >-
+    make pre-pr in sandboxed sessions with npm install scripts on; GitHub Actions on every PR and push to main runs
+    format, lint, typecheck, unit and socket tests, npm audit, package, and e2e; exact dependency pins, a committed
+    lockfile, and weekly Dependabot updates
+  deployed: >-
+    Taylor runs make install from the main checkout after a pull, which copies an unsigned build to
+    ~/.local/share/maple/app and adds a launcher that starts it through the login shell; make install-apparmor grants
+    user namespaces to that app and to any Electron under ~/Documents/code/**/node_modules; make try runs unreviewed
+    branch code on the desktop with no sandbox; nothing checks which commit the installed app came from
+  monitored: >-
+    Scrubbed main log, the per-day event log, state backups, each card's Findings tab, and bug reports with a scrubbed
+    log tail; no alerts
+accepted:
+overrides:
