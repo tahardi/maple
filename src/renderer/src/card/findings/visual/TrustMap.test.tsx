@@ -25,16 +25,18 @@ describe('TrustMap', () => {
   });
 
   test.each([
-    { name: 'a crossing toward less trust', from: 'the app', to: 'GitHub', lines: 1 },
-    { name: 'a crossing over a zone between', from: 'the internet', to: 'the app', lines: 2 },
-  ])('marks every line of $name', ({ from, to, lines }) => {
+    { name: 'a crossing toward less trust', from: 'the app', to: 'GitHub', lines: 1, unmarked: ['the internet'] },
+    { name: 'a crossing over a zone between', from: 'the internet', to: 'the app', lines: 2, unmarked: ['GitHub'] },
+  ])('marks every line of $name', ({ from, to, lines, unmarked }) => {
     // given
     // when
     render(<TrustMap zones={zones} from={from} to={to} />);
     // then
     expect(screen.getByText(from).closest('li')).toHaveAttribute('data-crossed', 'true');
     expect(screen.getByText(to).closest('li')).toHaveAttribute('data-crossed', 'true');
-    expect(screen.getByText('the laptop').closest('li')).toHaveAttribute('data-crossed', 'false');
+    for (const zone of [...unmarked, 'the laptop']) {
+      expect(screen.getByText(zone).closest('li')).toHaveAttribute('data-crossed', 'false');
+    }
     expect(screen.getAllByText('crossed here')).toHaveLength(lines);
   });
 });

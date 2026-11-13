@@ -34,6 +34,17 @@ const VISUAL = {
   reach: { now: ['Run commands on your laptop.'], afterFix: [] },
 };
 
+const ZONES = ['a', 'b', 'c', 'd', 'e', 'z'.repeat(40)];
+
+const AT_LIMIT = {
+  path: Array.from({ length: 6 }, () => ({ actor: 'a'.repeat(40), step: 's'.repeat(120) })),
+  map: { zones: ZONES, from: 'a', to: 'z'.repeat(40) },
+  reach: {
+    now: Array.from({ length: 4 }, () => 'n'.repeat(120)),
+    afterFix: Array.from({ length: 4 }, () => 'f'.repeat(120)),
+  },
+};
+
 function file(findings: Record<string, unknown>[], overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     version: 1,
@@ -101,6 +112,11 @@ describe('readFindings', () => {
       name: 'a full visual, which is kept',
       content: file([finding({ visual: VISUAL })]),
       want: file([finding({ visual: VISUAL })]),
+    },
+    {
+      name: 'a visual with every value at its limit, which is kept',
+      content: file([finding({ visual: AT_LIMIT })]),
+      want: file([finding({ visual: AT_LIMIT })]),
     },
     {
       name: 'a visual with a bad path, which keeps its map and reach',
