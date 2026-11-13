@@ -1,12 +1,10 @@
-type ApproveConfirmInput = { number: number; highFindings: number; unviewed: number };
+type ApproveConfirmInput = { number: number; undecided: number; unviewed: number };
 
 type ApproveConfirm = { title: string; body: string; danger: boolean };
 
-export function approveConfirm({ number, highFindings, unviewed }: ApproveConfirmInput): ApproveConfirm {
+export function approveConfirm({ number, undecided, unviewed }: ApproveConfirmInput): ApproveConfirm {
   const warnings = [
-    ...(highFindings > 0
-      ? [`${String(highFindings)} open high-severity ${highFindings === 1 ? 'finding' : 'findings'}.`]
-      : []),
+    ...(undecided > 0 ? [`${String(undecided)} ${undecided === 1 ? 'finding' : 'findings'} not decided.`] : []),
     ...(unviewed > 0 ? [`${String(unviewed)} changed ${unviewed === 1 ? 'file' : 'files'} not viewed.`] : []),
   ];
   return {

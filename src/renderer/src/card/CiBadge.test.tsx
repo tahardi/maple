@@ -1,6 +1,5 @@
 import type { CheckRun, ChecksSummary } from '@shared/types/github/checksSummary';
 import type { PrInfo } from '@shared/types/github/prInfo';
-import type { SecurityFinding } from '@shared/types/github/securityFinding';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CiBadge } from './CiBadge';
@@ -27,7 +26,6 @@ function renderBadge(overrides: Partial<Props> = {}) {
   const props: Props = {
     pr,
     reviewError: null,
-    findings: [],
     ...overrides,
   };
   return render(<CiBadge {...props} />);
@@ -166,35 +164,6 @@ describe('CiBadge', () => {
     await openPopover();
     // then
     expect(screen.getByRole('alert')).toHaveTextContent(reviewError);
-  });
-
-  test('lists open security findings', async () => {
-    // given
-    const findings: SecurityFinding[] = [
-      { id: 'F1', severity: 'high', summary: '<img src=x onerror=alert(1)>', url: 'https://github.com/x/1' },
-      { id: 'F2', severity: 'low', summary: 'Wide permissions', url: 'https://github.com/x/2' },
-    ];
-    const { container } = renderBadge({ findings });
-    // when
-    await openPopover();
-    // then
-    expect(screen.getByRole('heading', { name: 'Security findings' })).toBeInTheDocument();
-    expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
-    expect(container.querySelector('img')).toBeNull();
-    expect(screen.getByText('high')).toBeInTheDocument();
-    expect(screen.getByText('F1')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Wide permissions' })).toHaveAttribute('href', 'https://github.com/x/2');
-  });
-
-  test('links a finding with no summary by its comment', async () => {
-    // given
-    const findings: SecurityFinding[] = [{ id: 'F3', severity: 'medium', summary: '', url: 'https://github.com/x/3' }];
-    renderBadge({ findings });
-    // when
-    await openPopover();
-    // then
-    expect(screen.getByText('F3')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open comment' })).toHaveAttribute('href', 'https://github.com/x/3');
   });
 
   const dismissals: { how: string; dismiss: () => Promise<void> }[] = [

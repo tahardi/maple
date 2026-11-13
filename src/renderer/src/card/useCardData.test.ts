@@ -51,7 +51,6 @@ const reviewData: Review = {
   added: 0,
   removed: 0,
   files: [],
-  findings: [],
 };
 
 const fetchedReview: Fetched<Review> = { data: reviewData, error: null, fetchedAt: '2026-10-28T12:00:00.000Z' };

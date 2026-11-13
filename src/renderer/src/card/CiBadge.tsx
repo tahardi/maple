@@ -1,6 +1,5 @@
 import type { CheckRun, ChecksSummary } from '@shared/types/github/checksSummary';
 import type { PrInfo } from '@shared/types/github/prInfo';
-import type { SecurityFinding } from '@shared/types/github/securityFinding';
 import { useCallback, useRef, useState } from 'react';
 import { useDismiss } from '@renderer/shell/menu/useDismiss';
 import { Badge } from '../shell/blocks/Badge';
@@ -48,10 +47,9 @@ function sortedRuns(runs: readonly CheckRun[]): CheckRun[] {
 type Props = {
   pr: PrInfo;
   reviewError: string | null;
-  findings: readonly SecurityFinding[];
 };
 
-export function CiBadge({ pr, reviewError, findings }: Props) {
+export function CiBadge({ pr, reviewError }: Props) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
   const close = useCallback(() => {
@@ -89,22 +87,6 @@ export function CiBadge({ pr, reviewError, findings }: Props) {
             </ul>
           )}
           {reviewError !== null && <Notice tone="danger">{reviewError}</Notice>}
-          {findings.length > 0 && (
-            <>
-              <h4>Security findings</h4>
-              <ul className={styles.list}>
-                {findings.map((f) => (
-                  <li key={f.id}>
-                    <span className={f.severity === 'high' ? styles.high : undefined}>{f.severity}</span>{' '}
-                    <code>{f.id}</code>{' '}
-                    <a href={f.url} target="_blank" rel="noreferrer">
-                      {f.summary === '' ? 'Open comment' : f.summary}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
         </div>
       )}
     </span>

@@ -1,27 +1,24 @@
-import type { FindingSeverity } from '@shared/types/github/securityFinding';
 import type { Review } from '@shared/types/github/review';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { fakeMaple } from '../../testing/fakeMaple';
 import { useApproveFlow } from './useApproveFlow';
 
-type Props = { worktree: string | null; review: Review | null; unviewed: number; blocked?: boolean };
+type Props = {
+  worktree: string | null;
+  review: Review | null;
+  unviewed: number;
+  undecided?: number;
+  blocked?: boolean;
+};
 
-function reviewAt(headSha: string, severities: readonly FindingSeverity[] = []): Review {
-  return {
-    number: 13,
-    headSha,
-    baseSha: 'base',
-    added: 1,
-    removed: 0,
-    files: [],
-    findings: severities.map((severity, i) => ({ id: `F${String(i)}`, severity, summary: 'risk', url: '' })),
-  };
+function reviewAt(headSha: string): Review {
+  return { number: 13, headSha, baseSha: 'base', added: 1, removed: 0, files: [] };
 }
 
 function renderFlow(initialProps: Props) {
   return renderHook(
-    ({ worktree, review, unviewed, blocked }: Props) =>
-      useApproveFlow('t1', worktree, review, unviewed, blocked ?? false),
+    ({ worktree, review, unviewed, undecided, blocked }: Props) =>
+      useApproveFlow('t1', worktree, review, unviewed, undecided ?? 0, blocked ?? false),
     { initialProps },
   );
 }
@@ -55,26 +52,13 @@ function approveAndConfirm(result: Flow) {
 
 describe('useApproveFlow', () => {
   test.each([
-    { name: 'nothing open', severities: [], unviewed: 0, body: 'Approves PR #13 and merges it.', danger: false },
-    {
-      name: 'one high finding',
-      severities: ['high' as const],
-      unviewed: 0,
-      body: '1 open high-severity finding.',
-      danger: true,
-    },
-    { name: 'two unviewed files', severities: [], unviewed: 2, body: '2 changed files not viewed.', danger: true },
-    {
-      name: 'medium and low findings',
-      severities: ['medium' as const, 'low' as const],
-      unviewed: 0,
-      body: 'Approves PR #13 and merges it.',
-      danger: false,
-    },
-  ])('approve with $name always asks first', ({ severities, unviewed, body, danger }) => {
+    { name: 'nothing open', undecided: 0, unviewed: 0, body: 'Approves PR #13 and merges it.', danger: false },
+    { name: 'two undecided findings', undecided: 2, unviewed: 0, body: '2 findings not decided.', danger: true },
+    { name: 'two unviewed files', undecided: 0, unviewed: 2, body: '2 changed files not viewed.', danger: true },
+  ])('approve with $name always asks first', ({ undecided, unviewed, body, danger }) => {
     // given
     const approve = fakeApprove();
-    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1', severities), unviewed });
+    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed, undecided });
     // when
     act(() => {
       result.current.approve();
@@ -84,10 +68,27 @@ describe('useApproveFlow', () => {
     expect(approve).not.toHaveBeenCalled();
   });
 
+  test('confirm merges with undecided findings', () => {
+    // given
+    const approve = fakeApprove();
+    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 0, undecided: 1 });
+    act(() => {
+      result.current.approve();
+    });
+    expect(result.current.dialog?.body).toBe('1 finding not decided.');
+    // when
+    act(() => {
+      result.current.confirm();
+    });
+    // then
+    expect(result.current.dialog).toBeNull();
+    expect(approve).toHaveBeenCalledWith('t1', 'h1');
+  });
+
   test('confirm approves the reviewed head and closes the dialog', () => {
     // given
     const approve = fakeApprove();
-    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1', ['high']), unviewed: 1 });
+    const { result } = renderFlow({ worktree: '/a', review: reviewAt('h1'), unviewed: 1 });
     // when
     approveAndConfirm(result);
     // then

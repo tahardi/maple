@@ -13,8 +13,6 @@ import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@m
 import { ghRunner } from '@main/github/ghRunner';
 import { approveAndMerge, diffLines } from '@main/github/pr';
 import { reviewFilePair, reviewFiles } from '@main/github/reviewDiff';
-import { ghLogin } from '@main/github/ghLogin';
-import { openFindings } from '@main/github/securityFindings';
 import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { prEvents, type PrEvents } from '@main/events/PrEvents';
 import type { Runner as CommandRunner } from '@main/app/preflight';
@@ -27,8 +25,6 @@ const shaArg = z.string().regex(/^[0-9a-f]{40}$/);
 const pathArg = z.string().min(1).max(4096);
 
 export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: PrEvents = prEvents): void {
-  let login: Promise<string> | null = null;
-
   async function lookup(tabId: string, worktree: string): Promise<PrInfo | null> {
     const { data, error } = await deps.prs.latest(tabId, worktree);
     if (data === null && error !== null) {
@@ -81,14 +77,6 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
     }
   }
 
-  function myLogin(run: CommandRunner): Promise<string> {
-    login ??= ghLogin(run).catch((err: unknown) => {
-      login = null;
-      throw err;
-    });
-    return login;
-  }
-
   function record(tabId: string, write: (tab: TabState) => Promise<void>): void {
     const tab = deps.sessions.get(tabId);
     if (tab !== null) {
@@ -118,11 +106,8 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
           return { data: null, error: null, fetchedAt: null };
         }
         const run = ghRunner(prRepo(pr.url));
-        const [review, findings] = await Promise.all([
-          reviewFiles(run, pr.number),
-          myLogin(run).then((me) => openFindings(run, pr.number, me)),
-        ]);
-        return { data: { ...review, findings }, error: null, fetchedAt: new Date().toISOString() };
+        const review = await reviewFiles(run, pr.number);
+        return { data: review, error: null, fetchedAt: new Date().toISOString() };
       });
     } catch (err) {
       return { data: null, error: errorText(err), fetchedAt: null };

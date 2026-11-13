@@ -24,7 +24,6 @@ const review: Review = {
   added: 0,
   removed: 0,
   files: [],
-  findings: [],
 };
 
 type Overrides = { pr?: PrInfo | null; review?: Review | null; dot?: Dot; worktreeExists?: boolean };

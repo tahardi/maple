@@ -36,7 +36,7 @@ async function readHead(run: CommandRunner, num: number): Promise<z.infer<typeof
   return headSchema.parse(JSON.parse(await gh(run, ['pr', 'view', String(num), '--json', 'headRefOid,baseRefOid'])));
 }
 
-export async function reviewFiles(run: CommandRunner, num: number): Promise<Omit<Review, 'findings'>> {
+export async function reviewFiles(run: CommandRunner, num: number): Promise<Review> {
   const { headRefOid, baseRefOid } = await readHead(run, num);
   const mergeBase = await gh(run, [
     'api',

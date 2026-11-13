@@ -18,6 +18,8 @@ const RECORDED_CHANNELS: ReadonlySet<string> = new Set([
   'session:sendPrompt',
   'jira:moveToSprint',
   'jira:report',
+  'findings:decide',
+  'findings:override',
 ]);
 
 type Entry = [EventRefs, UiActionData];

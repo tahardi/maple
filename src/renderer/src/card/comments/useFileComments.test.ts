@@ -25,7 +25,6 @@ const review: Review = {
   added: 0,
   removed: 0,
   files: [],
-  findings: [],
 };
 
 const props = {
