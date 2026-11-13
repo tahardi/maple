@@ -104,7 +104,7 @@ describe('readFindings', () => {
     },
     {
       name: 'a visual with a bad path, which keeps its map and reach',
-      content: file([finding({ visual: { ...VISUAL, path: [{ actor: 'only one' }] } })]),
+      content: file([finding({ visual: { ...VISUAL, path: [VISUAL.path[0]] } })]),
       want: file([finding({ visual: { map: VISUAL.map, reach: VISUAL.reach } })]),
     },
     {
@@ -116,6 +116,84 @@ describe('readFindings', () => {
       name: 'a map whose from equals its to, which is dropped',
       content: file([finding({ visual: { ...VISUAL, map: { ...VISUAL.map, from: 'the app' } } })]),
       want: file([finding({ visual: { path: VISUAL.path, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'a path of seven steps, which drops that part',
+      content: file([finding({ visual: { ...VISUAL, path: Array.from({ length: 7 }, () => VISUAL.path[0]) } })]),
+      want: file([finding({ visual: { map: VISUAL.map, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'a 41-character actor, which drops that part',
+      content: file([
+        finding({ visual: { ...VISUAL, path: [VISUAL.path[0], { actor: 'x'.repeat(41), step: 'Runs.' }] } }),
+      ]),
+      want: file([finding({ visual: { map: VISUAL.map, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'a map whose to is not in its zones, which drops that part',
+      content: file([finding({ visual: { ...VISUAL, map: { ...VISUAL.map, to: 'the moon' } } })]),
+      want: file([finding({ visual: { path: VISUAL.path, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'a map with a repeated zone, which drops that part',
+      content: file([
+        finding({
+          visual: { ...VISUAL, map: { ...VISUAL.map, zones: ['the internet', 'GitHub', 'GitHub', 'the app'] } },
+        }),
+      ]),
+      want: file([finding({ visual: { path: VISUAL.path, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'a map with one zone, which drops that part',
+      content: file([finding({ visual: { ...VISUAL, map: { zones: ['GitHub'], from: 'GitHub', to: 'GitHub' } } })]),
+      want: file([finding({ visual: { path: VISUAL.path, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'a map with seven zones, which drops that part',
+      content: file([
+        finding({ visual: { ...VISUAL, map: { zones: ['a', 'b', 'c', 'd', 'e', 'f', 'g'], from: 'a', to: 'b' } } }),
+      ]),
+      want: file([finding({ visual: { path: VISUAL.path, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'a 41-character zone, which drops that part',
+      content: file([
+        finding({
+          visual: { ...VISUAL, map: { zones: ['x'.repeat(41), 'the app'], from: 'x'.repeat(41), to: 'the app' } },
+        }),
+      ]),
+      want: file([finding({ visual: { path: VISUAL.path, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'an empty now list, which drops that part',
+      content: file([finding({ visual: { ...VISUAL, reach: { now: [], afterFix: [] } } })]),
+      want: file([finding({ visual: { path: VISUAL.path, map: VISUAL.map } })]),
+    },
+    {
+      name: 'five afterFix items, which drops that part',
+      content: file([
+        finding({ visual: { ...VISUAL, reach: { now: ['Run.'], afterFix: ['a', 'b', 'c', 'd', 'e'] } } }),
+      ]),
+      want: file([finding({ visual: { path: VISUAL.path, map: VISUAL.map } })]),
+    },
+    {
+      name: 'a 121-character now item, which drops that part',
+      content: file([finding({ visual: { ...VISUAL, reach: { now: ['x'.repeat(121)], afterFix: [] } } })]),
+      want: file([finding({ visual: { path: VISUAL.path, map: VISUAL.map } })]),
+    },
+    {
+      name: 'a 121-character afterFix item, which drops that part',
+      content: file([finding({ visual: { ...VISUAL, reach: { now: ['Run.'], afterFix: ['x'.repeat(121)] } } })]),
+      want: file([finding({ visual: { path: VISUAL.path, map: VISUAL.map } })]),
+    },
+    {
+      name: 'unknown keys in a visual, which are dropped',
+      content: file([
+        finding({
+          visual: { ...VISUAL, svg: '<svg/>', path: [{ ...VISUAL.path[0], color: 'red' }, VISUAL.path[1]] },
+        }),
+      ]),
+      want: file([finding({ visual: VISUAL })]),
     },
     {
       name: 'a visual whose parts all fail, which is dropped',
