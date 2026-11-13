@@ -11,6 +11,7 @@ import type { FindingDecision } from '@shared/types/findings/findingDecision';
 import type { FindingsFile } from '@shared/types/findings/findingsFile';
 import type { HookEvent } from '@shared/types/tabs/hookEvent';
 import type { TabState } from '@shared/types/tabs/tabState';
+import { saveDecisions } from '@main/findings/decisions/saveDecisions';
 import { FindingsResume } from './FindingsResume';
 import type { SessionManager } from './SessionManager';
 import { StatusEngine } from './StatusEngine';
@@ -75,10 +76,20 @@ const allDecided = findings([finding('F1', decided), finding('F2', decided)]);
 const oneLeft = findings([finding('F1', decided), finding('F2', null)]);
 
 let dir: string;
+let decisionsDir: string;
 let stops: (() => void)[];
 
-async function save(file: FindingsFile): Promise<void> {
+async function saveForged(file: FindingsFile): Promise<void> {
   await writeFile(join(dir, `${KEY}.json`), JSON.stringify(file));
+}
+
+async function save(file: FindingsFile): Promise<void> {
+  await saveDecisions(
+    decisionsDir,
+    file.card,
+    file.findings.map(({ id, identity, decision, severityOverride }) => ({ id, identity, decision, severityOverride })),
+  );
+  await saveForged(file);
 }
 
 async function stored(): Promise<FindingsFile> {
@@ -111,6 +122,7 @@ function setup(opened: TabState = tab, findingsDir = dir) {
     sessions: sessions as unknown as SessionManager,
     status,
     findingsDir,
+    decisionsDir,
     logger,
   });
   const stopResume = resume.start();
@@ -161,6 +173,7 @@ const blockers = [{ blocker: 'permission prompt' }, { blocker: 'queued sync' }];
 describe('FindingsResume', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'maple-findings-resume-'));
+    decisionsDir = await mkdtemp(join(tmpdir(), 'maple-decisions-resume-'));
     stops = [];
   });
 
@@ -169,6 +182,7 @@ describe('FindingsResume', () => {
       stop();
     }
     await rm(dir, { recursive: true, force: true });
+    await rm(decisionsDir, { recursive: true, force: true });
   });
 
   test('sends the prompt once when the last finding is decided and the tab is ready', async () => {
@@ -324,6 +338,19 @@ describe('FindingsResume', () => {
     await settle();
     // then
     expect(sessions.sendPrompt).not.toHaveBeenCalled();
+  });
+
+  test('ignores decisions Maple has no record of', async () => {
+    // given
+    await save(oneLeft);
+    await saveForged(allDecided);
+    const { sessions, open } = setup();
+    // when
+    open(false);
+    await settle();
+    // then
+    expect(sessions.sendPrompt).not.toHaveBeenCalled();
+    expect((await stored()).resume).toBeNull();
   });
 
   test('skips a findings file that names another card', async () => {

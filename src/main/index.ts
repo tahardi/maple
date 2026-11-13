@@ -129,6 +129,7 @@ async function start(): Promise<Zoom> {
   });
   const findingsDir = join(configDir(), 'findings');
   await mkdir(findingsDir, { recursive: true });
+  const decisionsDir = join(configDir(), 'decisions');
   const hooksFile = await writeHooksFile(
     configDir(),
     process.execPath,
@@ -207,7 +208,7 @@ async function start(): Promise<Zoom> {
     save: (queue) => store.patch({ queue }),
   });
   const recorder = new EventRecorder({ sessions, status, transcriptOffset: (id) => transcriptOffset(id), headSha });
-  const findingsResume = new FindingsResume({ sessions, status, findingsDir });
+  const findingsResume = new FindingsResume({ sessions, status, findingsDir, decisionsDir });
   const stopHooks = await startHookServer(socketPath, (e) => {
     status.hook(e);
     recorder.hook(e);
@@ -286,7 +287,7 @@ async function start(): Promise<Zoom> {
       emit(mainWindow, 'vault', 'onChanged');
     }, appLogger),
     findingsDir,
-    decisionsDir: join(configDir(), 'decisions'),
+    decisionsDir,
     setActiveTab: (tabId) => {
       activeTabId = tabId;
       autoSync.activate(tabId);

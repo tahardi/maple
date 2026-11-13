@@ -185,8 +185,9 @@ user switches away while it is still `queued`.
   tab only. If the card is In Review and an open PR conflicts with main, it queues a prompt asking Claude to merge
   main, once per PR head.
 - **Findings resume** (`src/main/sessions/FindingsResume.ts`): on every dot or sync change of any tab, on every
-  `SessionStart` hook, and on every change in the findings dir, it checks each card tab. Once every finding is decided
-  and at least one is not yet applied, it waits until the session is alive, Claude has sent `SessionStart` since the
+  `SessionStart` hook, and on every change in the findings dir, it checks each card tab. It counts only decisions that
+  Maple's own record holds (see `decisions/<KEY>.json` under Config Dir). Once every finding is decided and at least
+  one is not yet applied, it waits until the session is alive, Claude has sent `SessionStart` since the
   last spawn, and the tab is not working, not asking for permission, and has no auto-sync queued.
   Then it stamps `resume` with the round in the findings file and asks Claude to apply the decisions. The stamp makes
   it send once per round, even across restarts.

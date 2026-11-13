@@ -3,6 +3,8 @@ import { resumePrompt } from '@shared/prompts/resumePrompt';
 import { errorText } from '@shared/errors/errorText';
 import type { HookEvent } from '@shared/types/tabs/hookEvent';
 import { appLogger, type Logger } from '@main/app/log/log';
+import { readDecisions } from '@main/findings/decisions/readDecisions';
+import { trustDecisions } from '@main/findings/decisions/trustDecisions';
 import { readFindingsWithJson } from '@main/findings/readFindings';
 import { queueFindings } from '@main/findings/queueFindings';
 import { saveFindings } from '@main/findings/saveFindings';
@@ -14,6 +16,7 @@ export type FindingsResumeDeps = {
   sessions: SessionManager;
   status: StatusEngine;
   findingsDir: string;
+  decisionsDir: string;
   logger?: Logger;
 };
 
@@ -71,11 +74,15 @@ export class FindingsResume {
     if (tab?.kind !== 'card' || cardKey === null || !this.ready(tabId)) {
       return;
     }
-    const { findingsDir } = this.deps;
+    const { findingsDir, decisionsDir } = this.deps;
     try {
       await queueFindings(cardKey, async () => {
         const read = await readFindingsWithJson(findingsDir, cardKey);
-        if (read === null || read.file.card !== cardKey || !resumeDue(read.file) || !this.ready(tabId)) {
+        if (read === null || read.file.card !== cardKey) {
+          return;
+        }
+        const trusted = trustDecisions(read.file, await readDecisions(decisionsDir, cardKey));
+        if (!resumeDue(trusted) || !this.ready(tabId)) {
           return;
         }
         const resume = { round: read.file.round, sentAt: new Date().toISOString() };
