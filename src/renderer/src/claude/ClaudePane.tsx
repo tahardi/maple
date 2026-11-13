@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { useEffect, useMemo, useRef } from 'react';
 import { useMaple } from '../store';
@@ -15,9 +16,9 @@ export type PaneAction = {
   reason?: string;
 };
 
-type ClaudePaneProps = { tabId: string; actions: readonly PaneAction[] };
+type ClaudePaneProps = { tabId: string; actions: readonly PaneAction[]; approve?: ReactNode };
 
-export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
+export function ClaudePane({ tabId, actions, approve }: ClaudePaneProps) {
   const host = useRef<HTMLDivElement>(null);
   const status = useMaple((s): TabStatus | undefined => s.statuses[tabId]);
   const [wheelLines, setWheelLines] = useWheelLines();
@@ -46,6 +47,7 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
   return (
     <div className={styles.pane}>
       <ActionBar actions={actions}>
+        {approve}
         <ScrollSpeed value={wheelLines} onChange={setWheelLines} onClose={focusTerminal} />
       </ActionBar>
       <div className={styles.body}>

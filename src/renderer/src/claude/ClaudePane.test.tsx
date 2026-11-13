@@ -472,6 +472,21 @@ describe('ClaudePane', () => {
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
 
+  test('shows the approve slot after the action buttons', () => {
+    // given
+    fakeMaple();
+    // when
+    render(
+      <ClaudePane
+        tabId="t1"
+        actions={[{ label: 'Sync', onClick: vi.fn() }]}
+        approve={<button>Approve & merge</button>}
+      />,
+    );
+    // then
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Sync', 'Approve & merge', '⚙']);
+  });
+
   test.each([
     { sessionAlive: true, shown: false },
     { sessionAlive: false, shown: true },
