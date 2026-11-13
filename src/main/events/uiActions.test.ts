@@ -65,6 +65,15 @@ describe('uiActionRecorder', () => {
     expect(append.mock.calls).toEqual([[refs, { channel, action: null, length: null }]]);
   });
 
+  test('records learning:grade', () => {
+    // given
+    const { append, record } = setup();
+    // when
+    record('learning:grade', ['Learning/Security/xss.md', [0, 1, 2]]);
+    // then
+    expect(append.mock.calls).toEqual([[noRefs, { channel: 'learning:grade', action: null, length: null }]]);
+  });
+
   test.each([
     { channel: 'session:write' },
     { channel: 'session:resize' },

@@ -4,6 +4,7 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
+import { fullLesson } from '@renderer/testing/fullLessonFixture';
 import { lesson } from '@renderer/testing/lessonFixture';
 import { LearningTab } from './LearningTab';
 
@@ -58,6 +59,35 @@ describe('LearningTab', () => {
     // then
     expect(await screen.findByRole('heading', { name: 'Cross-site scripting' })).toBeInTheDocument();
     expect(read).toHaveBeenCalledWith('Learning/Security/xss.md');
+  });
+
+  test('shows the lesson page for a note with a lesson and the viewer otherwise', async () => {
+    // given
+    const read = vi.fn(() => Promise.resolve('# Cross-site scripting\n'));
+    const readLesson = vi.fn(() => Promise.resolve(fullLesson('cmd', { quiz: null, quizError: 'x' })));
+    fakeMaple({
+      learning: {
+        list: () =>
+          Promise.resolve([
+            lesson('xss', { title: 'XSS' }),
+            lesson('cmd', { title: 'Command injection', hasLesson: true }),
+          ]),
+        read: readLesson,
+      },
+      vault: { read },
+    });
+    render(<LearningTab tab={learningTab} />);
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: 'Command injection' }));
+    // then
+    expect(await screen.findByRole('heading', { name: 'What it is' })).toBeInTheDocument();
+    expect(readLesson).toHaveBeenCalledWith('Learning/Security/cmd.md');
+    expect(read).not.toHaveBeenCalled();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'XSS' }));
+    // then
+    expect(await screen.findByRole('heading', { name: 'Cross-site scripting' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'What it is' })).not.toBeInTheDocument();
   });
 
   test('shows the Claude pane for the tab', () => {

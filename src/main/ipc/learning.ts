@@ -9,8 +9,10 @@ import { queueFindings } from '@main/findings/queueFindings';
 import { saveFindings } from '@main/findings/saveFindings';
 import { addFindingEntry } from '@main/learning/notes/addFindingEntry';
 import { listLessons } from '@main/learning/notes/listLessons';
+import { gradeQuiz } from '@main/learning/lesson/gradeQuiz';
+import { parseLesson } from '@main/learning/lesson/parseLesson';
 import { today } from '@main/learning/notes/today';
-import { writeFrontmatter } from '@main/learning/notes/frontmatter';
+import { readFrontmatter, writeFrontmatter } from '@main/learning/notes/frontmatter';
 import { isMissing } from '@main/util/isMissing';
 import { readNote, writeNote } from '@main/vault/vault';
 import { errorText } from '@shared/errors/errorText';
@@ -107,6 +109,28 @@ export function registerLearning(
         await writeNote(dir, path, writeFrontmatter(await readNote(dir, path), { comfortable }));
       },
     ),
+  );
+  handle('learning', 'read', z.tuple([lessonPathArg]), (path) =>
+    logFailure(logger, 'learning', { operation: 'learning:read', args: [path] }, async () => {
+      const dir = await requireVaultDir('reading lessons');
+      return parseLesson(path, await readNote(dir, path)).lesson;
+    }),
+  );
+  handle('learning', 'grade', z.tuple([lessonPathArg, z.array(z.int().min(0)).min(1).max(5)]), (path, answers) =>
+    logFailure(logger, 'learning', { operation: 'learning:grade', args: [path] }, async () => {
+      const dir = await requireVaultDir('reading lessons');
+      const text = await readNote(dir, path);
+      const { key } = parseLesson(path, text);
+      if (key === null) {
+        throw new Error(`grading quiz: ${path} has no quiz`);
+      }
+      const result = gradeQuiz(key, answers);
+      const { grades } = readFrontmatter(text).data;
+      const grade = { date: today(), score: result.score, total: result.total };
+      const fields = { grades: [...(Array.isArray(grades) ? (grades as unknown[]) : []), grade], status: 'learned' };
+      await writeNote(dir, path, writeFrontmatter(text, fields));
+      return result;
+    }),
   );
   handle('learning', 'fromFinding', z.tuple([tabIdArg, findingIdArg, modeArg]), (tabId, findingId, mode) =>
     logFailure(logger, 'learning', { operation: 'learning:fromFinding', args: [tabId, findingId, mode] }, async () => {

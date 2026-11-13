@@ -20,6 +20,7 @@ const RECORDED_CHANNELS: ReadonlySet<string> = new Set([
   'jira:report',
   'findings:decide',
   'findings:override',
+  'learning:grade',
   'learning:fromFinding',
   'learning:teach',
 ]);
@@ -88,7 +89,9 @@ export function uiActionRecorder(
     if (channel === 'tabs:openVault' || channel === 'tabs:openLearning' || channel === 'learning:teach') {
       return [[{ ...NO_REFS, project: first }, plain]];
     }
-    return [[channel === 'jira:report' ? NO_REFS : tabRefs(first, lookup(first)), plain]];
+    return [
+      [channel === 'jira:report' || channel === 'learning:grade' ? NO_REFS : tabRefs(first, lookup(first)), plain],
+    ];
   };
 
   return (channel, args) => {
