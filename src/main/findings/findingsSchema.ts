@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { FindingsFile } from '@shared/types/findings/findingsFile';
 import { IMPACT_CHIPS, type ImpactChip } from '@shared/types/findings/impactChip';
+import { visualSchema } from './visualSchema';
 
 const prose = z.string().max(2000);
 const time = z.string().max(100);
@@ -34,7 +35,7 @@ const finding = z.object({
     .array(z.string())
     .max(20)
     .transform((chips) => chips.filter(isChip)),
-  visual: z.unknown().optional(),
+  visual: visualSchema.optional().catch(undefined),
   applied: z
     .object({ at: time, commit: z.string().max(64).nullable(), cardKey: z.string().max(40).nullable() })
     .nullable(),

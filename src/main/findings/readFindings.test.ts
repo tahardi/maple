@@ -25,6 +25,15 @@ function finding(overrides: Record<string, unknown> = {}): Record<string, unknow
   };
 }
 
+const VISUAL = {
+  path: [
+    { actor: 'a stranger', step: 'Opens a pull request with a crafted branch name.' },
+    { actor: 'the app', step: 'Runs a shell command with that name.' },
+  ],
+  map: { zones: ['the internet', 'GitHub', 'the app'], from: 'GitHub', to: 'the app' },
+  reach: { now: ['Run commands on your laptop.'], afterFix: [] },
+};
+
 function file(findings: Record<string, unknown>[], overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     version: 1,
@@ -89,9 +98,41 @@ describe('readFindings', () => {
       want: file([finding({ chips: ['costs-money'] })]),
     },
     {
-      name: 'an unknown visual object, which passes through',
-      content: file([finding({ visual: { someday: [1, 2] } })]),
-      want: file([finding({ visual: { someday: [1, 2] } })]),
+      name: 'a full visual, which is kept',
+      content: file([finding({ visual: VISUAL })]),
+      want: file([finding({ visual: VISUAL })]),
+    },
+    {
+      name: 'a visual with a bad path, which keeps its map and reach',
+      content: file([finding({ visual: { ...VISUAL, path: [{ actor: 'only one' }] } })]),
+      want: file([finding({ visual: { map: VISUAL.map, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'a map whose from is not in its zones, which is dropped',
+      content: file([finding({ visual: { ...VISUAL, map: { ...VISUAL.map, from: 'the moon' } } })]),
+      want: file([finding({ visual: { path: VISUAL.path, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'a map whose from equals its to, which is dropped',
+      content: file([finding({ visual: { ...VISUAL, map: { ...VISUAL.map, from: 'the app' } } })]),
+      want: file([finding({ visual: { path: VISUAL.path, reach: VISUAL.reach } })]),
+    },
+    {
+      name: 'a visual whose parts all fail, which is dropped',
+      content: file([finding({ visual: { path: [], map: { zones: [] }, reach: { now: [] } } })]),
+      want: file([finding()]),
+    },
+    {
+      name: 'a visual that is not an object, which is dropped',
+      content: file([finding({ visual: 'draw me' })]),
+      want: file([finding()]),
+    },
+    {
+      name: 'a 121-character step, which drops the path',
+      content: file([
+        finding({ visual: { ...VISUAL, path: [VISUAL.path[0], { actor: 'a', step: 'x'.repeat(121) }] } }),
+      ]),
+      want: file([finding({ visual: { map: VISUAL.map, reach: VISUAL.reach } })]),
     },
   ])('reads $name', async ({ content, want }) => {
     // given
