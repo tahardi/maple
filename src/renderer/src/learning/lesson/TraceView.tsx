@@ -7,8 +7,13 @@ import '@renderer/card/viewer/editor/monacoSetup';
 import { Button } from '@renderer/shell/blocks/Button';
 import styles from './LessonPage.module.css';
 
-const OPTIONS = { ...EDITOR_OPTIONS, minimap: { enabled: false }, scrollBeyondLastLine: false } as const;
 const LINE_HEIGHT = 19;
+const OPTIONS = {
+  ...EDITOR_OPTIONS,
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  lineHeight: LINE_HEIGHT,
+} as const;
 
 export function TraceView({ trace }: { trace: Trace }) {
   const [step, setStep] = useState(0);

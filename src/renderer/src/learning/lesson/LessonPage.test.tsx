@@ -44,6 +44,21 @@ describe('LessonPage', () => {
     expect(within(second).getByText('Tie-in pending')).toBeInTheDocument();
   });
 
+  test.each([
+    { name: 'no explanation', fields: { explanation: null }, message: 'Not written yet.' },
+    { name: 'no attack', fields: { attack: null }, message: 'Not written yet.' },
+    { name: 'no findings', fields: { findings: [] }, message: 'No findings yet.' },
+  ])('shows an empty state for $name and the rest of the page', async ({ fields, message }) => {
+    // given
+    fakeMaple({ learning: { read: () => Promise.resolve(fullLesson('xss', fields)) } });
+    // when
+    render(<LessonPage path={PATH} />);
+    // then
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByTestId('editor')).toBeInTheDocument();
+    expect(screen.getByText('Q1?')).toBeInTheDocument();
+  });
+
   test('shows a Notice for a bad trace and still shows the quiz', async () => {
     // given
     const bad = fullLesson('xss', { trace: null, traceError: 'reading lesson: trace: the block is not valid JSON' });

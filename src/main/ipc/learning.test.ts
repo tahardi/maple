@@ -253,6 +253,39 @@ describe('registerLearning', () => {
     expect(readFileSync(join(vault, LESSON_PATH), 'utf8')).toBe(noQuiz);
   });
 
+  test('learning:grade refuses the wrong number of answers and leaves the note unchanged', async () => {
+    // given
+    writeFileSync(join(vault, LESSON_PATH), LESSON);
+    const { invoke } = register(vault);
+    // when
+    const got = invoke('learning:grade', LESSON_PATH, [0, 0]);
+    // then
+    await expect(got).rejects.toThrow('grading quiz: expected 3 answers, got 2');
+    expect(readFileSync(join(vault, LESSON_PATH), 'utf8')).toBe(LESSON);
+  });
+
+  test.each([
+    { name: 'no grades key', frontmatter: 'class: command-injection\nstatus: to-learn\n' },
+    { name: 'grades that are not a list', frontmatter: 'class: command-injection\nstatus: to-learn\ngrades: oops\n' },
+  ])('learning:grade starts a grades list for a note with $name', async ({ frontmatter }) => {
+    // given
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 13, 9));
+    writeFileSync(join(vault, LESSON_PATH), `---\n${frontmatter}---\n${LESSON_BODY}`);
+    const { invoke } = register(vault);
+    // when
+    await invoke('learning:grade', LESSON_PATH, [0, 1, 0]);
+    // then
+    const list = (await invoke('learning:list')) as { path: string; lastGrade: unknown; status: string }[];
+    expect(list.find((l) => l.path === LESSON_PATH)).toMatchObject({
+      status: 'learned',
+      lastGrade: { date: '2026-11-13', score: 3, total: 3 },
+    });
+    expect(readFileSync(join(vault, LESSON_PATH), 'utf8')).toContain(
+      'grades:\n  - date: 2026-11-13\n    score: 3\n    total: 3\n---\n',
+    );
+  });
+
   test.each([
     { channel: 'learning:read', args: ['Inbox.md'] },
     { channel: 'learning:grade', args: ['../x.md', [0]] },
