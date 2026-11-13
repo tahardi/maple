@@ -242,7 +242,10 @@ Terms are sorted A to Z. Dot states use the code's names, with the on-screen lab
   `Learning/Security/`, one per kind of vulnerability, with their to-learn, learned, and comfortable states, and runs
   its own Claude session in the vault. It is a tab of kind `learning`, one per project.
 - **Lesson note**: a vault note at `Learning/Security/<class>.md` whose frontmatter holds `status`, `comfortable`, and
-  quiz `grades`; Maple's `learning` IPC area lists them and sets `comfortable`.
+  quiz `grades`; Maple's `learning` IPC area lists them and sets `comfortable`. A note with a `## Lesson` section opens
+  as the lesson page: the explanation, how an attack works, a step-by-step code walk in a read-only editor, a
+  multiple-choice quiz, and the findings. The main process parses the note's `maple-trace` and `maple-quiz` blocks and
+  keeps the quiz answers until grading; each graded attempt appends a dated grade and sets `status: learned`.
 - **`merged`** (Merged): the card is Done.
 - **Planner**: a project's Claude session in its `plannerDir`, shown in the Home tab's planner pane, for planning and
   suggesting batches of cards to start. It is a tab of kind `planner`.

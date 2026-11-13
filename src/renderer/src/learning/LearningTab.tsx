@@ -7,6 +7,7 @@ import { Notice } from '@renderer/shell/blocks/Notice';
 import { SplitHandle } from '@renderer/shell/split/SplitHandle';
 import { splitSize } from '@renderer/shell/split/splitSize';
 import { useColumnDrag } from '@renderer/shell/split/useColumnDrag';
+import { LessonPage } from './lesson/LessonPage';
 import { LessonList } from './LessonList';
 import { useLessons } from './useLessons';
 import styles from './LearningTab.module.css';
@@ -32,6 +33,7 @@ export function LearningTab({ tab }: { tab: TabState }) {
       splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'x', edge: 'end', unit: '%', min: 10, max: 80 }),
   });
   const file = selected === null ? null : `${VAULT_PREFIX}${selected}`;
+  const hasLesson = lessons.some((l) => l.path === selected && l.hasLesson);
 
   return (
     <div ref={body} className={styles.tab} data-testid="learning-tab">
@@ -43,19 +45,23 @@ export function LearningTab({ tab }: { tab: TabState }) {
       </div>
       <SplitHandle drag={left} axis="x" label="Resize lesson list" />
       <div className={styles.middle}>
-        <FileViewer
-          tabId={tab.id}
-          openFiles={file === null ? [] : [file]}
-          activeFile={file}
-          onActivate={() => undefined}
-          onCloseFiles={() => {
-            setSelected(null);
-          }}
-          prBody={null}
-          canComment={false}
-          prFetchedAt={null}
-          line={null}
-        />
+        {hasLesson && selected !== null ? (
+          <LessonPage key={selected} path={selected} />
+        ) : (
+          <FileViewer
+            tabId={tab.id}
+            openFiles={file === null ? [] : [file]}
+            activeFile={file}
+            onActivate={() => undefined}
+            onCloseFiles={() => {
+              setSelected(null);
+            }}
+            prBody={null}
+            canComment={false}
+            prFetchedAt={null}
+            line={null}
+          />
+        )}
       </div>
       <SplitHandle drag={right} axis="x" label="Resize Claude pane" />
       <div className={styles.right} style={{ width: `${String(right.size)}%` }} data-testid="claude-slot">
