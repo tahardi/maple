@@ -96,6 +96,7 @@ function deps(window: () => BrowserWindow | null = () => null) {
     jiraCreds: new Promise<never>(() => undefined),
     watchVault: () => undefined,
     findingsDir: '/tmp/maple/findings',
+    decisionsDir: '/tmp/maple/decisions',
   };
 }
 

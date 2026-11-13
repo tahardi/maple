@@ -89,6 +89,41 @@ describe('saveFindings', () => {
     });
   });
 
+  test.each([
+    {
+      name: 'a visual with a part Maple dropped',
+      stored: { path: [{ actor: 'only one' }], map: { zones: ['a', 'b'], from: 'a', to: 'b' } },
+      read: { map: { zones: ['a', 'b'], from: 'a', to: 'b' } },
+    },
+    { name: 'a visual Maple dropped whole', stored: { path: 'draw me' }, read: undefined },
+  ])('keeps $name as the session wrote it', async ({ stored, read }) => {
+    // given
+    const finding = {
+      id: 'F1',
+      identity: { kind: 'code' as const, class: 'xss', file: 'a.ts', hash: '0' },
+      line: null,
+      severity: 'high' as const,
+      sources: [],
+      title: 't',
+      what: '',
+      how: '',
+      impact: '',
+      defense: '',
+      chips: [],
+      applied: null,
+      decision: null,
+      severityOverride: null,
+    };
+    const base = { ...file, findings: [{ ...finding, visual: stored }] };
+    // when
+    await saveFindings(dir, { ...file, findings: [{ ...finding, visual: read, severityOverride: 'low' }] }, base);
+    // then
+    expect(JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8'))).toEqual({
+      ...file,
+      findings: [{ ...finding, visual: stored, severityOverride: 'low' }],
+    });
+  });
+
   test('refuses a bad card key', async () => {
     // given
     const bad = { ...file, card: '../MPL-1' };

@@ -5,6 +5,9 @@ import { effectiveSeverity } from '@shared/findings/effectiveSeverity';
 import { Badge } from '@renderer/shell/blocks/Badge';
 import { chipLabel } from './chipLabel';
 import { DecisionButtons } from './DecisionButtons';
+import { AttackPath } from './visual/AttackPath';
+import { AttackerReach } from './visual/AttackerReach';
+import { TrustMap } from './visual/TrustMap';
 import styles from './FindingCard.module.css';
 
 const SECTIONS = [
@@ -41,6 +44,24 @@ export function FindingCard({ tabId, finding, working, applying }: FindingCardPr
         </div>
       )}
       <code className={styles.place}>{place(finding)}</code>
+      {finding.visual?.path && (
+        <section className={styles.section}>
+          <h4 className={styles.label}>How the attack goes</h4>
+          <AttackPath steps={finding.visual.path} />
+        </section>
+      )}
+      {finding.visual?.map && (
+        <section className={styles.section}>
+          <h4 className={styles.label}>Where it crosses</h4>
+          <TrustMap zones={finding.visual.map.zones} from={finding.visual.map.from} to={finding.visual.map.to} />
+        </section>
+      )}
+      {finding.visual?.reach && (
+        <section className={styles.section}>
+          <h4 className={styles.label}>What an attacker can do</h4>
+          <AttackerReach now={finding.visual.reach.now} afterFix={finding.visual.reach.afterFix} />
+        </section>
+      )}
       {SECTIONS.map(([label, field]) => (
         <section key={field} className={styles.section}>
           <h4 className={styles.label}>{label}</h4>

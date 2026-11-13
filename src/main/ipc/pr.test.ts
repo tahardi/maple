@@ -121,6 +121,7 @@ function register(
       jiraCreds: new Promise<never>(() => undefined),
       watchVault: () => undefined,
       findingsDir: '/tmp/maple/findings',
+      decisionsDir: '/tmp/maple/decisions',
     },
     logger,
     events as unknown as PrEvents,
