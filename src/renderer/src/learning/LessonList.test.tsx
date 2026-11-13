@@ -30,7 +30,16 @@ describe('LessonList', () => {
       }),
     ];
     // when
-    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} onSaved={vi.fn()} />);
+    render(
+      <LessonList
+        projectKey="MPL"
+        learningBusy={false}
+        lessons={lessons}
+        selected={null}
+        onSelect={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
     // then
     expect(within(rowOf('XSS')).getByText('To learn')).toHaveAttribute('data-tone', 'warning');
     expect(within(rowOf('XSS')).getByText('2 findings')).toBeInTheDocument();
@@ -50,7 +59,16 @@ describe('LessonList', () => {
       lesson('d', { title: 'D' }),
     ];
     // when
-    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} onSaved={vi.fn()} />);
+    render(
+      <LessonList
+        projectKey="MPL"
+        learningBusy={false}
+        lessons={lessons}
+        selected={null}
+        onSelect={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
     // then
     const titles = screen.getAllByRole('listitem').map((li) => within(li).getAllByRole('button')[0].textContent);
     expect(titles).toEqual(['C', 'D', 'A', 'B']);
@@ -60,7 +78,14 @@ describe('LessonList', () => {
     // given
     const onSelect = vi.fn();
     render(
-      <LessonList lessons={[lesson('xss', { title: 'XSS' })]} selected={null} onSelect={onSelect} onSaved={vi.fn()} />,
+      <LessonList
+        projectKey="MPL"
+        learningBusy={false}
+        lessons={[lesson('xss', { title: 'XSS' })]}
+        selected={null}
+        onSelect={onSelect}
+        onSaved={vi.fn()}
+      />,
     );
     // when
     await userEvent.click(screen.getByRole('button', { name: 'XSS' }));
@@ -73,6 +98,8 @@ describe('LessonList', () => {
     const onSelect = vi.fn();
     render(
       <LessonList
+        projectKey="MPL"
+        learningBusy={false}
         lessons={[lesson('xss', { title: 'XSS', findings: 2 })]}
         selected={null}
         onSelect={onSelect}
@@ -89,7 +116,14 @@ describe('LessonList', () => {
     // given
     const onSelect = vi.fn();
     render(
-      <LessonList lessons={[lesson('xss', { title: 'XSS' })]} selected={null} onSelect={onSelect} onSaved={vi.fn()} />,
+      <LessonList
+        projectKey="MPL"
+        learningBusy={false}
+        lessons={[lesson('xss', { title: 'XSS' })]}
+        selected={null}
+        onSelect={onSelect}
+        onSaved={vi.fn()}
+      />,
     );
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Mark comfortable' }));
@@ -110,6 +144,8 @@ describe('LessonList', () => {
     const onSaved = vi.fn();
     render(
       <LessonList
+        projectKey="MPL"
+        learningBusy={false}
         lessons={[lesson('xss', { title: 'XSS' }), lesson('csrf', { title: 'CSRF', comfortable: true })]}
         selected={null}
         onSelect={vi.fn()}
@@ -133,6 +169,8 @@ describe('LessonList', () => {
     fakeMaple({ learning: { setComfortable } });
     render(
       <LessonList
+        projectKey="MPL"
+        learningBusy={false}
         lessons={[lesson('csrf', { title: 'CSRF', comfortable: true })]}
         selected={null}
         onSelect={vi.fn()}
@@ -151,7 +189,14 @@ describe('LessonList', () => {
     fakeMaple({ learning: { setComfortable } });
     const onSaved = vi.fn();
     render(
-      <LessonList lessons={[lesson('xss', { title: 'XSS' })]} selected={null} onSelect={vi.fn()} onSaved={onSaved} />,
+      <LessonList
+        projectKey="MPL"
+        learningBusy={false}
+        lessons={[lesson('xss', { title: 'XSS' })]}
+        selected={null}
+        onSelect={vi.fn()}
+        onSaved={onSaved}
+      />,
     );
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Mark comfortable' }));
@@ -164,7 +209,16 @@ describe('LessonList', () => {
     // given
     const lessons: [] = [];
     // when
-    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} onSaved={vi.fn()} />);
+    render(
+      <LessonList
+        projectKey="MPL"
+        learningBusy={false}
+        lessons={lessons}
+        selected={null}
+        onSelect={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
     // then
     expect(
       screen.getByText('No lessons yet. They come from findings: choose Learn now or Learn later on a finding.'),
@@ -175,7 +229,16 @@ describe('LessonList', () => {
     // given
     const lessons = [lesson('csrf', { title: 'CSRF', error: 'reading frontmatter: bad indentation' })];
     // when
-    render(<LessonList lessons={lessons} selected={null} onSelect={vi.fn()} onSaved={vi.fn()} />);
+    render(
+      <LessonList
+        projectKey="MPL"
+        learningBusy={false}
+        lessons={lessons}
+        selected={null}
+        onSelect={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
     // then
     expect(within(rowOf('CSRF')).getByText('reading frontmatter: bad indentation')).toBeInTheDocument();
     expect(within(rowOf('CSRF')).getByRole('button', { name: 'Mark comfortable' })).toBeDisabled();
@@ -186,9 +249,58 @@ describe('LessonList', () => {
     // given
     const lessons = [lesson('xss', { title: 'XSS' }), lesson('csrf', { title: 'CSRF' })];
     // when
-    render(<LessonList lessons={lessons} selected="Learning/Security/xss.md" onSelect={vi.fn()} onSaved={vi.fn()} />);
+    render(
+      <LessonList
+        projectKey="MPL"
+        learningBusy={false}
+        lessons={lessons}
+        selected="Learning/Security/xss.md"
+        onSelect={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
     // then
     expect(rowOf('XSS')).toHaveAttribute('aria-current', 'true');
     expect(rowOf('CSRF')).not.toHaveAttribute('aria-current');
+  });
+  test('Write lesson shows on notes with pending work and calls teach', async () => {
+    // given
+    const teach = vi.fn(() => Promise.resolve('learn-1'));
+    fakeMaple({ learning: { teach } });
+    const lessons = [lesson('xss', { title: 'XSS', pending: 2 }), lesson('csrf', { title: 'CSRF' })];
+    render(
+      <LessonList
+        projectKey="MPL"
+        learningBusy={false}
+        lessons={lessons}
+        selected={null}
+        onSelect={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    // when
+    await userEvent.click(within(rowOf('XSS')).getByRole('button', { name: 'Write lesson' }));
+    // then
+    expect(teach).toHaveBeenCalledWith('MPL', 'Learning/Security/xss.md');
+    expect(within(rowOf('CSRF')).queryByRole('button', { name: 'Write lesson' })).not.toBeInTheDocument();
+  });
+
+  test('Write lesson is disabled with a reason while the Learning session is busy', () => {
+    // given
+    const lessons = [lesson('xss', { title: 'XSS', pending: 1 })];
+    // when
+    render(
+      <LessonList
+        projectKey="MPL"
+        learningBusy
+        lessons={lessons}
+        selected={null}
+        onSelect={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    // then
+    expect(within(rowOf('XSS')).getByRole('button', { name: 'Write lesson' })).toBeDisabled();
+    expect(within(rowOf('XSS')).getByText('The Learning session is busy')).toBeInTheDocument();
   });
 });

@@ -161,6 +161,8 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
     learning: {
       list: vi.fn(() => Promise.resolve([])),
       setComfortable: vi.fn(() => Promise.resolve()),
+      fromFinding: vi.fn(() => Promise.reject(new Error('starting lesson: not faked'))),
+      teach: vi.fn(() => Promise.reject(new Error('starting lesson: not faked'))),
       ...overrides.learning,
     },
     pr: {

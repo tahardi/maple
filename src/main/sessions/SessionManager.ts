@@ -94,7 +94,12 @@ export class SessionManager extends EventEmitter<Events> {
     return this.open(projectKey, 'vault', null, resumeId, null, tabId);
   }
 
-  openLearning(projectKey: string, resumeId: string | null, tabId: string | null = null): TabState {
+  openLearning(
+    projectKey: string,
+    resumeId: string | null,
+    tabId: string | null = null,
+    prompt: string | null = null,
+  ): TabState {
     const existing = this.tabs.findKind(projectKey, 'learning');
     if (existing) {
       return existing;
@@ -102,7 +107,7 @@ export class SessionManager extends EventEmitter<Events> {
     if (this.deps.config().vaultDir === null) {
       throw new Error('opening learning: no vaultDir in config');
     }
-    return this.open(projectKey, 'learning', null, resumeId, null, tabId);
+    return this.open(projectKey, 'learning', null, resumeId, prompt, tabId);
   }
 
   resume(tabId: string): void {

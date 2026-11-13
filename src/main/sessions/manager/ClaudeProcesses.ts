@@ -69,7 +69,7 @@ export class ClaudeProcesses extends EventEmitter<Events> {
       MAPLE_TAB_ID: tab.id,
       MAPLE_SOCKET: this.deps.socketPath,
       ...(tab.kind === 'card' && { MAPLE_SNAPSHOT_DIR: join(this.deps.snapshotRoot, tab.sessionId) }),
-      ...(tab.kind === 'card' && { MAPLE_FINDINGS_DIR: this.deps.findingsDir }),
+      ...((tab.kind === 'card' || tab.kind === 'learning') && { MAPLE_FINDINGS_DIR: this.deps.findingsDir }),
       ...(tab.kind === 'card' && config.vaultDir !== null && { MAPLE_VAULT_DIR: config.vaultDir }),
     };
     const command = tmuxArgs(tmuxName(tab.id), this.deps.tmuxConf, cwd, env, ['claude', ...args]);

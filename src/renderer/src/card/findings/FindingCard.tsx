@@ -5,6 +5,7 @@ import { effectiveSeverity } from '@shared/findings/effectiveSeverity';
 import { Badge } from '@renderer/shell/blocks/Badge';
 import { chipLabel } from './chipLabel';
 import { DecisionButtons } from './DecisionButtons';
+import { LearnButtons } from './LearnButtons';
 import styles from './FindingCard.module.css';
 
 const SECTIONS = [
@@ -48,6 +49,7 @@ export function FindingCard({ tabId, finding, working, applying }: FindingCardPr
         </section>
       ))}
       <DecisionButtons tabId={tabId} finding={finding} working={working} applying={applying} />
+      <LearnButtons tabId={tabId} finding={finding} working={working} />
     </article>
   );
 }

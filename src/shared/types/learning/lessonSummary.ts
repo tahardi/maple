@@ -9,5 +9,6 @@ export type LessonSummary = {
   lastGrade: QuizGrade | null;
   findings: number;
   hasLesson: boolean;
+  pending: number;
   error: string | null;
 };

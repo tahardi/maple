@@ -16,17 +16,22 @@ function byStatusThenTitle(a: LessonSummary, b: LessonSummary): number {
 }
 
 export function LessonList({
+  projectKey,
+  learningBusy,
   lessons,
   selected,
   onSelect,
   onSaved,
 }: {
+  projectKey: string;
+  learningBusy: boolean;
   lessons: readonly LessonSummary[];
   selected: string | null;
   onSelect: (path: string) => void;
   onSaved: () => void;
 }) {
   const [saving, setSaving] = useState<string | null>(null);
+  const [teaching, setTeaching] = useState<string | null>(null);
   const [failed, setFailed] = useState<{ path: string; error: string } | null>(null);
 
   if (lessons.length === 0) {
@@ -44,6 +49,19 @@ export function LessonList({
       })
       .finally(() => {
         setSaving(null);
+      });
+  };
+
+  const teach = (path: string) => {
+    setTeaching(path);
+    setFailed(null);
+    window.maple.learning
+      .teach(projectKey, path)
+      .catch((err: unknown) => {
+        setFailed({ path, error: errorText(err) });
+      })
+      .finally(() => {
+        setTeaching(null);
       });
   };
 
@@ -86,6 +104,18 @@ export function LessonList({
                 setComfortable(l.path, !l.comfortable);
               }}
             />
+            {l.pending > 0 && (
+              <Button
+                label="Write lesson"
+                busy={teaching === l.path}
+                busyLabel="Sending…"
+                disabled={learningBusy || teaching !== null}
+                reason={learningBusy ? 'The Learning session is busy' : null}
+                onClick={() => {
+                  teach(l.path);
+                }}
+              />
+            )}
           </div>
           {l.error !== null && <Notice tone="danger">{l.error}</Notice>}
           {failed?.path === l.path && <Notice tone="danger">{failed.error}</Notice>}

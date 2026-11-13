@@ -1,5 +1,5 @@
 import type { TabState } from '@shared/types/tabs/tabState';
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { ClaudePane } from '@renderer/claude/ClaudePane';
 import { FileViewer } from '@renderer/card/viewer/FileViewer';
 import { VAULT_PREFIX } from '@renderer/card/vault/VaultSwitch';
@@ -7,12 +7,15 @@ import { Notice } from '@renderer/shell/blocks/Notice';
 import { SplitHandle } from '@renderer/shell/split/SplitHandle';
 import { splitSize } from '@renderer/shell/split/splitSize';
 import { useColumnDrag } from '@renderer/shell/split/useColumnDrag';
+import { useMaple } from '@renderer/store';
 import { LessonList } from './LessonList';
 import { useLessons } from './useLessons';
 import styles from './LearningTab.module.css';
 
 export function LearningTab({ tab }: { tab: TabState }) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const selected = useMaple((s) => s.lessonNote);
+  const setSelected = useMaple((s) => s.selectLesson);
+  const learningBusy = useMaple((s) => tab.id in s.statuses && s.statuses[tab.id].dot === 'working');
   const { lessons, error, reload } = useLessons();
   const body = useRef<HTMLDivElement>(null);
   const left = useColumnDrag(body, {
@@ -38,7 +41,14 @@ export function LearningTab({ tab }: { tab: TabState }) {
       <div className={styles.left} style={{ width: left.size }}>
         {error !== null && <Notice tone="danger">{error}</Notice>}
         {(error === null || lessons.length > 0) && (
-          <LessonList lessons={lessons} selected={selected} onSelect={setSelected} onSaved={reload} />
+          <LessonList
+            projectKey={tab.projectKey}
+            learningBusy={learningBusy}
+            lessons={lessons}
+            selected={selected}
+            onSelect={setSelected}
+            onSaved={reload}
+          />
         )}
       </div>
       <SplitHandle drag={left} axis="x" label="Resize lesson list" />

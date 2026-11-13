@@ -10,6 +10,7 @@ export function lesson(slug: string, fields: Partial<LessonSummary> = {}): Lesso
     lastGrade: null,
     findings: 0,
     hasLesson: false,
+    pending: 0,
     error: null,
     ...fields,
   };

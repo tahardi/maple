@@ -20,6 +20,8 @@ const RECORDED_CHANNELS: ReadonlySet<string> = new Set([
   'jira:report',
   'findings:decide',
   'findings:override',
+  'learning:fromFinding',
+  'learning:teach',
 ]);
 
 type Entry = [EventRefs, UiActionData];
@@ -83,7 +85,7 @@ export function uiActionRecorder(
     if (channel === 'tabs:close' && first !== null && deps.closeNeedsConfirm(first, args[1] === true)) {
       return [];
     }
-    if (channel === 'tabs:openVault' || channel === 'tabs:openLearning') {
+    if (channel === 'tabs:openVault' || channel === 'tabs:openLearning' || channel === 'learning:teach') {
       return [[{ ...NO_REFS, project: first }, plain]];
     }
     return [[channel === 'jira:report' ? NO_REFS : tabRefs(first, lookup(first)), plain]];

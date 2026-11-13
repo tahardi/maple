@@ -241,8 +241,17 @@ Terms are sorted A to Z. Dot states use the code's names, with the on-screen lab
 - **Learning**: the pinned tab after Vault, shown when `vaultDir` is set. It lists the lesson notes in
   `Learning/Security/`, one per kind of vulnerability, with their to-learn, learned, and comfortable states, and runs
   its own Claude session in the vault. It is a tab of kind `learning`, one per project.
+- **Learning session**: the Learning tab's Claude session. It gets `MAPLE_FINDINGS_DIR` so it can read a finding.
+  Maple writes lessons through it with the prompt `/learn <note path>`, sent by Learn now on a finding or by Write
+  lesson on a note with pending work. Maple starts the tab with that prompt when it is closed, sends the prompt when it
+  is idle, and refuses while it is working or has exited.
+- **Learn now / Learn later**: buttons on each finding. Both add a dated entry with the PR link and the code to the
+  finding's lesson note, creating the note when needed, and record `lesson` on the finding in the findings file.
+  Learn now also asks the Learning session to write the lesson and opens the Learning tab on the note.
 - **Lesson note**: a vault note at `Learning/Security/<class>.md` whose frontmatter holds `status`, `comfortable`, and
-  quiz `grades`; Maple's `learning` IPC area lists them and sets `comfortable`.
+  quiz `grades`; Maple's `learning` IPC area lists them, sets `comfortable`, and adds finding entries under
+  `## Findings`. The Learn skill writes the `## Lesson` section and a tie-in paragraph under each entry; a comfortable
+  note gets only the tie-ins.
 - **`merged`** (Merged): the card is Done.
 - **Planner**: a project's Claude session in its `plannerDir`, shown in the Home tab's planner pane, for planning and
   suggesting batches of cards to start. It is a tab of kind `planner`.

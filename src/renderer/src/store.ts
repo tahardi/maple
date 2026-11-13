@@ -21,6 +21,7 @@ type MapleState = {
   confirmClose: string | null;
   lastActive: Record<string, string | null>;
   drafts: Record<string, Record<string, Draft>>;
+  lessonNote: string | null;
   init: () => Promise<void>;
   selectProject: (key: string, tabId?: string | null) => void;
   activate: (tabId: string | null) => void;
@@ -30,6 +31,8 @@ type MapleState = {
   closeTab: (tabId: string, force: boolean) => Promise<void>;
   cancelClose: () => void;
   setDraft: (tabId: string, path: string, draft: Draft | null) => void;
+  showLesson: (tabId: string, note: string) => void;
+  selectLesson: (note: string | null) => void;
 };
 
 let unsubscribes: Unsubscribe[] = [];
@@ -59,6 +62,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
   confirmClose: null,
   lastActive: {},
   drafts: {},
+  lessonNote: null,
 
   async init() {
     const { maple } = window;
@@ -123,6 +127,15 @@ export const useMaple = create<MapleState>()((set, get) => ({
     set({ projectKey: key });
     window.maple.app.setLastProject(key).catch(() => undefined);
     get().activate(tabs.some((t) => t.id === target) ? target : null);
+  },
+
+  showLesson(tabId, note) {
+    set({ lessonNote: note });
+    get().activate(tabId);
+  },
+
+  selectLesson(note) {
+    set({ lessonNote: note });
   },
 
   activate(tabId) {
