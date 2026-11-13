@@ -52,8 +52,7 @@ export function Board({
           const cards = sprint.cards.filter((c) => c.status === column);
           const title = (
             <>
-              {column}
-              <span className={styles.count}>{cards.length}</span>
+              {column} <span className={styles.count}>{cards.length}</span>
             </>
           );
           const shown = column !== 'Done' || doneOpen.open;
