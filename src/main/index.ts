@@ -56,6 +56,7 @@ import { createConfigGate } from '@main/app/config/configGate';
 import { StartQueue } from '@main/sessions/StartQueue';
 import { StatusEngine } from '@main/sessions/StatusEngine';
 import { AutoSync } from '@main/sessions/AutoSync';
+import { FindingsResume } from '@main/sessions/FindingsResume';
 import { endTmux, writeTmuxConf } from '@main/sessions/tmux';
 import { hasTranscript, transcriptOffset } from '@main/sessions/transcripts/transcripts';
 import { windowTitle } from '@main/app/window/windowTitle';
@@ -218,6 +219,7 @@ async function start(): Promise<Zoom> {
     pr: (tabId, worktree) => prPoller.latest(tabId, worktree),
   });
   const stopAutoSync = autoSync.start();
+  const stopFindingsResume = new FindingsResume({ sessions, status, findingsDir }).start();
   const stopPrPoller = prPoller.start();
   status.on('status', (s, prev) => {
     prPoller.dotChanged(s.dot, prev);
@@ -226,6 +228,7 @@ async function start(): Promise<Zoom> {
     event.preventDefault();
     stopQueue();
     stopAutoSync();
+    stopFindingsResume();
     stopPrPoller();
     sessions.killAll();
     terminals.closeAll();

@@ -38,6 +38,8 @@ flowchart LR
     SE -->|"fresh PR"| PP["PR poller"]
     AS["Auto-sync"] -->|"latest PR"| PP
     AS -->|"sync prompt"| SM
+    FR["Findings resume"] -->|"resume prompt"| SM
+    FR -->|"stamp resume"| CFG
     SE --> JC["Jira client"]
   end
   SM -->|"node-pty"| TMUX["tmux -L maple"]
@@ -181,6 +183,11 @@ user switches away while it is still `queued`.
 - **Auto-sync** (`src/main/sessions/AutoSync.ts`): every 120 s, and when the active tab changes, it checks the active
   tab only. If the card is In Review and an open PR conflicts with main, it queues a prompt asking Claude to merge
   main, once per PR head.
+- **Findings resume** (`src/main/sessions/FindingsResume.ts`): on every dot or sync change of any tab, and on every
+  change in the findings dir, it checks each card tab. Once every finding is decided and at least one is not yet
+  applied, it waits until the session is alive, not working, not asking for permission, and has no auto-sync queued.
+  Then it stamps `resume` with the round in the findings file and asks Claude to apply the decisions. The stamp makes
+  it send once per round, even across restarts.
 - **Start queue recheck**: every 15 s, plus on every dot change and tab change, the start queue retries queued cards.
 - **Worktree watcher** (`src/main/git/worktreeWatcher.ts`): file-system watches, debounced 300 ms, on `worktreesDir`
   (to find a card's worktrees), on the shown worktree (to refresh its file changes), on the vault, and on the
