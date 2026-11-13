@@ -286,7 +286,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                   setTryRuns((n) => n + 1);
                 }}
               >
-                make try
+                Make try
               </button>
             )}
             <button
