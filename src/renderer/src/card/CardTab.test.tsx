@@ -1806,6 +1806,7 @@ describe('CardTab', () => {
     // when
     await userEvent.click(runTry);
     // then
+    expect(runTry).toHaveTextContent(/^Make try$/);
     expect(screen.getByTestId('terminal-pane')).toBeVisible();
     expect(terminal).toHaveAttribute('aria-pressed', 'true');
     expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 1, worktreePath: tab.worktreePath });
