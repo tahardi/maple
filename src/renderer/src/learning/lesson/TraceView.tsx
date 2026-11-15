@@ -13,6 +13,7 @@ const OPTIONS = {
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
   lineHeight: LINE_HEIGHT,
+  automaticLayout: true,
 } as const;
 
 export function TraceView({ trace }: { trace: Trace }) {

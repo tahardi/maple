@@ -2,14 +2,18 @@ import type { z } from 'zod';
 import type { Lesson } from '@shared/types/learning/lesson';
 import type { LessonFinding } from '@shared/types/learning/lessonFinding';
 import { summarizeLesson } from '@main/learning/notes/summarizeLesson';
+import { exampleSchema } from './exampleSchema';
+import { pathSchema } from './pathSchema';
 import { quizSchema, type QuizKey } from './quizSchema';
+import { reachSchema } from './reachSchema';
 import { traceSchema } from './traceSchema';
 
-type Block = { tag: string; lines: string[] };
+type Block = { tag: string; key: string; lines: string[] };
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const ENTRY = /^(\d{4}-\d{2}-\d{2}) ([A-Z][A-Z0-9]*-\d+) F\d+: (.+)$/;
-const TAGS = ['maple-trace', 'maple-quiz'];
+const TAGS = ['maple-trace', 'maple-quiz', 'maple-example', 'maple-path', 'maple-reach'];
+const LINK = /\[([^\]]*)\]\(([^)]*)\)/g;
 
 function scan(text: string): { sections: Map<string, string[]>; blocks: Block[] } {
   const sections = new Map<string, string[]>();
@@ -30,21 +34,26 @@ function scan(text: string): { sections: Map<string, string[]>; blocks: Block[] 
         marker[1].length >= fence.mark.length &&
         marker[2].trim() === '';
       if (closes) {
+        if (fence.block === null) {
+          add(line);
+        }
         fence = null;
+      } else if (fence.block === null) {
+        add(line);
       } else {
-        fence.block?.lines.push(line);
+        fence.block.lines.push(line);
       }
-      add(line);
       continue;
     }
     if (marker !== null) {
       const tag = marker[2].trim();
-      const block = TAGS.includes(tag) ? { tag, lines: [] } : null;
-      if (block !== null) {
+      const block = TAGS.includes(tag) ? { tag, key: `${h2}\n${h3}`, lines: [] } : null;
+      if (block === null) {
+        add(line);
+      } else {
         blocks.push(block);
       }
       fence = { mark: marker[1], block };
-      add(line);
       continue;
     }
     const heading = /^(#{1,3}) (.+?)\s*$/.exec(line);
@@ -84,7 +93,22 @@ function readBlock<T>(blocks: readonly Block[], tag: string, schema: z.ZodType<T
   return parsed.success ? { data: parsed.data } : { error: issueText(parsed.error.issues[0]) };
 }
 
-function findings(sections: Map<string, string[]>): LessonFinding[] {
+function readOptional<T>(blocks: readonly Block[], tag: string, schema: z.ZodType<T>): T | null {
+  const read = readBlock(blocks, tag, schema);
+  return 'data' in read ? read.data : null;
+}
+
+function source(lines: readonly string[] | undefined): Lesson['source'] {
+  const links = [...(joined(lines) ?? '').matchAll(LINK)];
+  if (links.length !== 1) {
+    return null;
+  }
+  const [, title, url] = links[0];
+  const length = Array.from(title).length;
+  return title.trim() !== '' && length <= 120 && /^https:\/\/\S+$/.test(url) ? { title, url } : null;
+}
+
+function findings(sections: Map<string, string[]>, blocks: readonly Block[]): LessonFinding[] {
   return [...sections].flatMap(([key, lines]) => {
     const [h2, h3] = key.split('\n');
     const entry = h2 === 'Findings' ? ENTRY.exec(h3) : null;
@@ -99,6 +123,11 @@ function findings(sections: Map<string, string[]>): LessonFinding[] {
         title: entry[3],
         pr: pr === undefined || pr === 'none yet' ? null : pr,
         tieIn: joined(lines.filter((line) => !/^- (PR|Code): /.test(line))),
+        reach: readOptional(
+          blocks.filter((b) => b.key === key),
+          'maple-reach',
+          reachSchema,
+        ),
       },
     ];
   });
@@ -117,12 +146,15 @@ export function parseLesson(path: string, text: string): { lesson: Lesson; key: 
     lesson: {
       summary,
       explanation: joined(sections.get('Lesson\nWhat it is')),
+      example: readOptional(blocks, 'maple-example', exampleSchema),
       attack: joined(sections.get('Lesson\nHow an attack works')),
+      path: readOptional(blocks, 'maple-path', pathSchema),
       trace: 'data' in trace ? trace.data : null,
       traceError: 'error' in trace ? `reading lesson: trace: ${trace.error}` : null,
       quiz: key === null ? null : key.questions.map(({ question, choices }) => ({ question, choices })),
       quizError: 'error' in quiz ? `reading lesson: quiz: ${quiz.error}` : null,
-      findings: findings(sections),
+      source: source(sections.get('Lesson\nSource')),
+      findings: findings(sections, blocks),
     },
     key,
   };

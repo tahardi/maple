@@ -5,7 +5,12 @@ export function fullLesson(slug: string, fields: Partial<Lesson> = {}): Lesson {
   return {
     summary: lesson(slug, { title: 'Command injection', hasLesson: true }),
     explanation: 'Builds a **shell** command.',
+    example: { lang: 'bash', normal: 'git checkout main', attack: 'git checkout main; rm -rf ~', mark: '; rm -rf ~' },
     attack: 'An attacker names a branch.',
+    path: [
+      { actor: 'a stranger', step: 'Names a branch with a command in it.', zone: 'GitHub' },
+      { actor: 'Maple', step: 'Checks the branch out through a shell.', zone: 'Laptop', crosses: 'the branch name' },
+    ],
     trace: {
       lang: 'typescript',
       code: 'const a = 1\nrun(a)',
@@ -21,6 +26,7 @@ export function fullLesson(slug: string, fields: Partial<Lesson> = {}): Lesson {
       { question: 'Q3?', choices: ['a', 'b'] },
     ],
     quizError: null,
+    source: { title: 'OWASP: Command Injection', url: 'https://owasp.org/www-community/attacks/Command_Injection' },
     findings: [
       {
         date: '2026-11-12',
@@ -28,8 +34,9 @@ export function fullLesson(slug: string, fields: Partial<Lesson> = {}): Lesson {
         title: 'Branch name reaches the shell',
         pr: 'https://github.com/example/repo/pull/1',
         tieIn: 'The branch goes into a *shell* string.',
+        reach: { now: ['Run any command as you.'], afterFix: [] },
       },
-      { date: '2026-11-13', card: 'MPL-341', title: 'Pending one', pr: null, tieIn: null },
+      { date: '2026-11-13', card: 'MPL-341', title: 'Pending one', pr: null, tieIn: null, reach: null },
     ],
     ...fields,
   };

@@ -5,6 +5,80 @@
   padding: var(--space-3) var(--space-4);
 }
 
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.toggle {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.progress progress {
+  flex: 1;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.step + .step:not([hidden]) {
+  border-top: 1px solid var(--divider);
+  padding-top: var(--space-3);
+}
+
+.stepNav {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-top: 1px solid var(--divider);
+  padding-top: var(--space-2);
+}
+
+.stepNav > :only-child {
+  margin-left: auto;
+}
+
+.example {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-sunken);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-sm);
+  overflow-x: auto;
+}
+
+.example mark {
+  background: var(--danger-bg);
+  color: var(--text-strong);
+}
+
+.source {
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
 .badges {
   display: flex;
   flex-wrap: wrap;

@@ -25,7 +25,45 @@ const QUIZ = {
   ],
 };
 
-function note({ trace = JSON.stringify(TRACE), quiz = JSON.stringify(QUIZ), extra = '' } = {}): string {
+const EXAMPLE = {
+  lang: 'bash',
+  normal: 'git checkout main',
+  attack: 'git checkout main; rm -rf ~',
+  mark: '; rm -rf ~',
+};
+
+const PATH_STEPS = [
+  { actor: 'anyone who can open a PR', step: 'Names a branch with a shell command in it.', zone: 'GitHub' },
+  { actor: 'the CI runner', step: 'Later: runs it.', zone: 'CI runner', crosses: 'the branch name' },
+];
+
+const REACH = { now: ['Run any command on the CI runner.'], afterFix: [] };
+
+const SOURCE = '[OWASP: Command Injection](https://owasp.org/www-community/attacks/Command_Injection)';
+
+function fenced(tag: string, body: string | undefined): string[] {
+  return body === undefined ? [] : ['', `\`\`\`${tag}`, body, '```', ''];
+}
+
+type NoteParts = {
+  trace?: string;
+  quiz?: string;
+  extra?: string;
+  example?: string;
+  path?: string;
+  source?: string;
+  reach?: string;
+};
+
+function note({
+  trace = JSON.stringify(TRACE),
+  quiz = JSON.stringify(QUIZ),
+  extra = '',
+  example,
+  path,
+  source,
+  reach,
+}: NoteParts = {}): string {
   return [
     '---',
     'class: command-injection',
@@ -40,10 +78,11 @@ function note({ trace = JSON.stringify(TRACE), quiz = JSON.stringify(QUIZ), extr
     '### What it is',
     '',
     'A program builds a **shell command** from text.',
-    '',
+    ...fenced('maple-example', example),
     '### How an attack works',
     '',
     'An attacker names a branch.',
+    ...fenced('maple-path', path),
     extra,
     '### Trace',
     '',
@@ -57,6 +96,7 @@ function note({ trace = JSON.stringify(TRACE), quiz = JSON.stringify(QUIZ), extr
     quiz,
     '```',
     '',
+    ...(source === undefined ? [] : ['### Source', '', source, '']),
     '## Findings',
     '',
     '### 2026-11-12 MPL-340 F3: Branch name reaches the shell',
@@ -64,7 +104,7 @@ function note({ trace = JSON.stringify(TRACE), quiz = JSON.stringify(QUIZ), extr
     '- Code: `src/git.ts:4`',
     '',
     'The branch name goes into a shell string.',
-    '',
+    ...fenced('maple-reach', reach),
     '### 2026-11-13 MPL-341 F1: Pending entry',
     '- PR: none yet',
     '- Code: `src/x.ts:1`',
@@ -79,8 +119,9 @@ const FINDINGS = [
     title: 'Branch name reaches the shell',
     pr: 'https://github.com/example/repo/pull/1',
     tieIn: 'The branch name goes into a shell string.',
+    reach: null,
   },
-  { date: '2026-11-13', card: 'MPL-341', title: 'Pending entry', pr: null, tieIn: null },
+  { date: '2026-11-13', card: 'MPL-341', title: 'Pending entry', pr: null, tieIn: null, reach: null },
 ];
 
 function withTrace(fields: Record<string, unknown>): string {
@@ -114,6 +155,61 @@ describe('parseLesson', () => {
       findings: FINDINGS,
     });
     expect(key).toEqual(QUIZ);
+  });
+
+  const ALL = {
+    example: JSON.stringify(EXAMPLE),
+    path: JSON.stringify({ steps: PATH_STEPS }),
+    source: SOURCE,
+    reach: JSON.stringify(REACH),
+  };
+  const READ = {
+    example: EXAMPLE,
+    path: PATH_STEPS,
+    source: { title: 'OWASP: Command Injection', url: 'https://owasp.org/www-community/attacks/Command_Injection' },
+  };
+
+  test.each([
+    { name: 'all new blocks are read', parts: ALL, want: READ, reaches: [REACH, null] },
+    {
+      name: 'no new blocks give nulls',
+      parts: {},
+      want: { example: null, path: null, source: null },
+      reaches: [null, null],
+    },
+    {
+      name: 'a mark not in the attack gives no example',
+      parts: { ...ALL, example: JSON.stringify({ ...EXAMPLE, mark: 'curl' }) },
+      want: { ...READ, example: null },
+      reaches: [REACH, null],
+    },
+    {
+      name: 'an http source gives no source',
+      parts: { ...ALL, source: '[OWASP](http://owasp.org/x)' },
+      want: { ...READ, source: null },
+      reaches: [REACH, null],
+    },
+    {
+      name: 'a reach under one finding entry is only on that entry',
+      parts: { reach: JSON.stringify(REACH) },
+      want: { example: null, path: null, source: null },
+      reaches: [REACH, null],
+    },
+  ])('$name', ({ parts, want, reaches }) => {
+    // given
+    const text = note(parts);
+    // when
+    const { lesson } = parseLesson(PATH, text);
+    // then
+    expect(lesson).toMatchObject({
+      ...want,
+      explanation: 'A program builds a **shell command** from text.',
+      attack: 'An attacker names a branch.',
+      traceError: null,
+      quizError: null,
+    });
+    expect(lesson.findings.map((f) => f.reach)).toEqual(reaches);
+    expect(lesson.findings[0].tieIn).toBe('The branch name goes into a shell string.');
   });
 
   test('a ### Trace heading inside a code fence is ignored', () => {
@@ -338,6 +434,7 @@ describe('parseLesson', () => {
         title: 'Branch name reaches the shell',
         pr: 'https://github.com/example/repo/pull/1',
         tieIn: expect.stringMatching(/^The branch name goes into a shell string/) as unknown,
+        reach: null,
       },
     ]);
   });
