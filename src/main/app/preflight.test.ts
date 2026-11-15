@@ -225,6 +225,12 @@ describe('runPreflight claude sandbox', () => {
       expected: (path) => [off(path), missingTool('socat'), missingTool('bwrap')],
     },
     {
+      name: 'only the sandbox off when both tools are present',
+      contents: JSON.stringify({ sandbox: { enabled: false } }),
+      codes: {},
+      expected: (path) => [off(path)],
+    },
+    {
       name: 'sandbox off when there is no sandbox block',
       contents: JSON.stringify({ env: { TOKEN: 'secret' } }),
       codes: { 'socat --version': 127 },
@@ -327,10 +333,7 @@ describe('runPreflight claude sandbox', () => {
     // when
     const problems = await runPreflight(fakeRunner({ 'socat --version': 127 }), presentEnv, claudeJson, path, []);
     // then
-    expect(problems).toEqual([
-      { tool: 'claude-sandbox', message: `sandbox is off: set sandbox.enabled to true in ${path}` },
-      { tool: 'claude-sandbox', message: 'socat is not on PATH, so the Claude sandbox cannot start' },
-    ]);
+    expect(problems).toEqual([off(path), missingTool('socat')]);
   });
 
   test('logs no settings values besides the sandbox keys it checks', async () => {
