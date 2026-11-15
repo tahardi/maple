@@ -10,7 +10,12 @@ const step = z.object({
   crosses: z.string().max(60).optional(),
 });
 
-const path = z.array(step).min(2).max(6);
+function zonesInGroups(steps: readonly { zone?: string }[]): boolean {
+  const zones = steps.flatMap(({ zone }, index) => (zone && zone !== steps[index - 1]?.zone ? [zone] : []));
+  return zones.length <= 3 && new Set(zones).size === zones.length;
+}
+
+const path = z.array(step).min(2).max(6).refine(zonesInGroups);
 
 const reach = z.object({ now: z.array(item).min(1).max(4), afterFix: z.array(item).max(4) });
 

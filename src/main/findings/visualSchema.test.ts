@@ -43,6 +43,35 @@ describe('visualSchema', () => {
       want: { reach },
     },
     {
+      name: 'a path that returns to a zone it left drops the path',
+      input: {
+        path: [
+          { actor: 'a', step: 'One.', zone: 'A' },
+          { actor: 'b', step: 'Two.', zone: 'B' },
+          { actor: 'c', step: 'Three.', zone: 'A' },
+        ],
+        reach,
+      },
+      want: { reach },
+    },
+    {
+      name: 'a path with four zones drops the path',
+      input: {
+        path: ['A', 'B', 'C', 'D'].map((zone) => ({ actor: 'a', step: 'Goes.', zone })),
+        reach,
+      },
+      want: { reach },
+    },
+    {
+      name: 'a path with three zones in groups keeps the path',
+      input: {
+        path: ['A', 'A', 'B', 'C', 'C'].map((zone) => ({ actor: 'a', step: 'Goes.', zone })),
+      },
+      want: {
+        path: ['A', 'A', 'B', 'C', 'C'].map((zone) => ({ actor: 'a', step: 'Goes.', zone })),
+      },
+    },
+    {
       name: 'a visual with only map parses to undefined',
       input: { map: { zones: ['a', 'b'], from: 'a', to: 'b' } },
       want: undefined,

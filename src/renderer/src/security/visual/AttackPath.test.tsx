@@ -39,7 +39,7 @@ describe('AttackPath', () => {
     const label = screen.getByText(crosses);
     expect(follows(label, less)).toBe(true);
     expect(follows(more, label)).toBe(true);
-    expect(screen.getByRole('separator')).toContainElement(label);
+    expect(screen.getByRole('separator', { name: crosses })).toContainElement(label);
   });
 
   test('draws a wall with no label when crosses is missing', () => {
@@ -91,6 +91,20 @@ describe('AttackPath', () => {
       'the appRuns a shell command.',
       'the shellReads the token.',
     ]);
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+  });
+
+  test('draws a path with some steps missing a zone as one row', () => {
+    // given
+    const steps = [
+      { actor: 'a stranger', step: 'Opens a pull request.', zone: 'the internet' },
+      { actor: 'the app', step: 'Runs a shell command.' },
+    ];
+    // when
+    render(<AttackPath steps={steps} />);
+    // then
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
     expect(screen.queryByRole('region')).not.toBeInTheDocument();
     expect(screen.queryByRole('separator')).not.toBeInTheDocument();
   });
