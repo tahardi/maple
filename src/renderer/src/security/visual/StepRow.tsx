@@ -1,8 +1,8 @@
 import { Fragment } from 'react';
 import type { AttackStep } from '@shared/types/findings/findingVisual';
-import styles from './AttackPath.module.css';
+import styles from './StepRow.module.css';
 
-export function AttackPath({ steps }: { steps: readonly AttackStep[] }) {
+export function StepRow({ steps }: { steps: readonly AttackStep[] }) {
   return (
     <ol className={styles.path}>
       {steps.map((step, index) => (
