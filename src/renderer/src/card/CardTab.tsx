@@ -172,14 +172,6 @@ export function CardTab({ tab }: { tab: TabState }) {
         ci={pr?.data && <CiBadge pr={pr.data} reviewError={review?.error ?? null} />}
         reviewedSha={pinned?.headSha ?? null}
         reviewUpdated={reviewUpdated}
-        approve={
-          <ApproveButton
-            blocker={blocker}
-            busy={approval.approving}
-            onClick={approval.approve}
-            onReloadReview={reloadPinnedReview}
-          />
-        }
         branch={repo?.branch ?? null}
         changes={pinned ?? changes}
         cost={cost}
@@ -195,11 +187,6 @@ export function CardTab({ tab }: { tab: TabState }) {
           openFile(FINDINGS, null, true);
         }}
       />
-      {approval.error !== null && (
-        <div className={styles.approveError}>
-          <Notice tone="danger">{approval.error}</Notice>
-        </div>
-      )}
       <div ref={body} className={styles.body}>
         <div className={styles.left} style={{ width: left.size }} data-testid="tree-slot">
           {hasVault && <VaultSwitch view={view} onChange={setViewOverride} onRefresh={vault.refresh} />}
@@ -317,7 +304,21 @@ export function CardTab({ tab }: { tab: TabState }) {
               <button onClick={() => void closeTab(tab.id, false)}>Close tab</button>
             </Notice>
           )}
-          <ClaudePane tabId={tab.id} actions={actions} />
+          <ClaudePane
+            tabId={tab.id}
+            actions={actions}
+            approve={
+              <>
+                <ApproveButton
+                  blocker={blocker}
+                  busy={approval.approving}
+                  onClick={approval.approve}
+                  onReloadReview={reloadPinnedReview}
+                />
+                {approval.error !== null && <Notice tone="danger">{approval.error}</Notice>}
+              </>
+            }
+          />
         </div>
       </div>
       {approval.dialog !== null && (
