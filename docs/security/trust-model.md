@@ -42,7 +42,7 @@ Maple has ten parts:
 - `renderer`: the sandboxed app window.
 - `main-process`: the Node process that runs git, gh, the Jira client, the pollers, and IPC handlers.
 - `hook-server`: the hook script Claude runs and the socket that takes its events.
-- `sessions`: Claude sessions in tmux, with permissions skipped and Claude's Bash sandbox from user settings.
+- `sessions`: Claude sessions in tmux, with permissions skipped and Claude's Bash sandbox forced on by Maple.
 - `shell-terminals`: plain shells in a card tab that Taylor drives, with no sandbox.
 - `config-dir`: Maple's config, state, logs, events, findings, and snapshots.
 - `vault`: the Obsidian vault folder.
@@ -56,8 +56,10 @@ The boundaries between them:
   strict CSP. The sender frame is not checked.
 - `main-to-renderer`: outside text such as cards, PR comments, files, and terminal output. It renders as text, except
   code blocks, which Monaco's colorizer draws as escaped HTML. Links open in the browser.
-- `main-to-sessions`: Maple starts Claude with permissions skipped, relying on the Bash sandbox in user settings. Maple
-  neither turns the sandbox on nor warns when it is off. Sessions hold the Jira token and a broad GitHub token.
+- `main-to-sessions`: Maple starts Claude with permissions skipped. Maple's settings file turns the Bash sandbox on
+  with no escape hatch, and a session refuses to start if the sandbox cannot run. Startup warns when user settings
+  have the sandbox off. A worktree's own settings can still add sandbox exceptions. Sessions hold the Jira token and
+  a broad GitHub token.
 - `sessions-to-hook-server`: one JSON line per hook event, on a private socket, size-limited and validated. Events
   carry no commands.
 - `sessions-to-main-files`: worktrees, git config, findings, and notes Maple reads. git runs with fsmonitor off, and
