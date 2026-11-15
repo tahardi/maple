@@ -120,6 +120,10 @@ describe('remoteCommand', () => {
 });
 
 describe('SshRunner', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test('exec runs the quoted command over the master connection', async () => {
     // given
     const spawn = fakeSpawn(fakeChild('clean', 0, 'note'));
@@ -143,6 +147,19 @@ describe('SshRunner', () => {
     // then
     expect(Buffer.concat(chunks).toString('utf8')).toBe('x');
     expect(child.stdin.writableEnded).toBe(true);
+  });
+
+  test('exec stops the remote command at its timeout', async () => {
+    // given
+    vi.useFakeTimers();
+    const child = openChild();
+    // when
+    const result = runner(fakeSpawn(child)).exec(['git', 'fetch'], { timeout: 50 });
+    const checked = expect(result).rejects.toThrow('running command: timing out after 50ms');
+    await vi.advanceTimersByTimeAsync(50);
+    // then
+    await checked;
+    expect(child.kill).toHaveBeenCalled();
   });
 
   test('exec passes ssh failures through as code 255', async () => {
@@ -231,6 +248,10 @@ describe('SshRunner', () => {
 });
 
 describe('SshRunner.start', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test.each([
     {
       name: 'with a vault socket',
@@ -264,6 +285,28 @@ describe('SshRunner.start', () => {
     const result = runner(spawn).start();
     // then
     await expect(result).rejects.toThrow('starting ssh master: Host key verification failed.');
+  });
+
+  test('gives up after 60 seconds without a touch', async () => {
+    // given
+    vi.useFakeTimers();
+    const child = openChild();
+    const ssh = runner(fakeSpawn(child));
+    let settled = false;
+    // when
+    const result = ssh.start().finally(() => {
+      settled = true;
+    });
+    const checked = expect(result).rejects.toThrow(
+      'starting ssh master: timing out after 60s waiting for the VM or a YubiKey touch',
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    const settledAt30 = settled;
+    await vi.advanceTimersByTimeAsync(30_000);
+    // then
+    await checked;
+    expect(settledAt30).toBe(false);
+    expect(child.kill).toHaveBeenCalled();
   });
 });
 
@@ -342,6 +385,21 @@ describe('SshRunner.connect', () => {
     expect(started).toBe(true);
     expect(order).toEqual(['touch', 'start']);
   });
+
+  test('passes a start failure back after the touch', async () => {
+    // given
+    const err = new Error('starting ssh master: Host key verification failed.');
+    const { ssh } = stubbed(
+      () => Promise.resolve(false),
+      () => Promise.reject(err),
+    );
+    const touch = vi.fn();
+    // when
+    const result = ssh.connect(touch);
+    // then
+    await expect(result).rejects.toBe(err);
+    expect(touch).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('SshRunner.keepAlive', () => {
@@ -372,7 +430,7 @@ describe('SshRunner.keepAlive', () => {
 
   test('leaves a live master alone', async () => {
     // given
-    const { ssh, start } = stubbed(
+    const { ssh, check, start } = stubbed(
       () => Promise.resolve(true),
       () => Promise.resolve(),
     );
@@ -382,6 +440,7 @@ describe('SshRunner.keepAlive', () => {
     await vi.advanceTimersByTimeAsync(30_000);
     stop();
     // then
+    expect(check).toHaveBeenCalledTimes(1);
     expect(start).not.toHaveBeenCalled();
     expect(h.calls).toEqual([]);
   });

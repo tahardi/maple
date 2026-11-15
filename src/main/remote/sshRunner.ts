@@ -96,7 +96,11 @@ export class SshRunner implements Runner {
       ...forward,
       this.target,
     ]);
-    const result = await collect(child, undefined, MAX_BUFFER, START_TIMEOUT_MS);
+    const result = await collect(child, undefined, MAX_BUFFER, START_TIMEOUT_MS).catch(() => {
+      throw new Error(
+        `starting ssh master: timing out after ${String(START_TIMEOUT_MS / 1000)}s waiting for the VM or a YubiKey touch`,
+      );
+    });
     if (result.code !== 0) {
       throw new Error(`starting ssh master: ${result.stderr.trim()}`);
     }
@@ -112,6 +116,7 @@ export class SshRunner implements Runner {
     if (await this.check()) {
       return false;
     }
+
     touch();
     await this.start();
     return true;

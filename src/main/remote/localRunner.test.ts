@@ -37,6 +37,15 @@ describe('LocalRunner', () => {
     expect(result.stdout).toBe('x\ny');
   });
 
+  test('exec stops a command at its timeout', async () => {
+    // given
+    const runner = new LocalRunner();
+    // when
+    const result = runner.exec(['sleep', '5'], { timeout: 100 });
+    // then
+    await expect(result).rejects.toThrow('running command: timing out after 100ms');
+  });
+
   test('exec returns 127 for a missing program', async () => {
     // given
     const runner = new LocalRunner();

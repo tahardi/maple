@@ -86,6 +86,21 @@ describe('collect', () => {
     expect(result.code).toBe(1);
   });
 
+  test('never kills a child that finishes before the timeout', async () => {
+    // given
+    vi.useFakeTimers();
+    const child = openChild();
+    child.stdout.end('ok');
+    child.stderr.end();
+    // when
+    setImmediate(() => child.emit('close', 0));
+    const result = collect(asChild(child), undefined, 1024, 50);
+    await vi.advanceTimersByTimeAsync(100);
+    // then
+    await expect(result).resolves.toEqual({ stdout: Buffer.from('ok'), stderr: '', code: 0 });
+    expect(child.kill).not.toHaveBeenCalled();
+  });
+
   test('rejects and kills the child when it runs past the timeout', async () => {
     // given
     vi.useFakeTimers();
