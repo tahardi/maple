@@ -54,7 +54,8 @@ button.title:hover {
   text-decoration: underline;
 }
 
-.findings {
+.findings,
+.comments {
   background: transparent;
   border: none;
   padding: 0;
@@ -63,7 +64,8 @@ button.title:hover {
   cursor: pointer;
 }
 
-.findings:hover {
+.findings:hover,
+.comments:hover {
   text-decoration: underline;
 }
 

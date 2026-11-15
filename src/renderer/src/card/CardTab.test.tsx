@@ -395,6 +395,27 @@ describe('CardTab', () => {
     expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
   });
 
+  test('the Comments button opens the PR conversation', async () => {
+    // given
+    fakeRepo(true);
+    window.maple.pr.conversation = vi.fn(() =>
+      Promise.resolve([
+        {
+          url: 'https://github.com/tahardi/maple/pull/13#issuecomment-1',
+          author: 'tahardi',
+          at: '2026-10-25T10:00:00Z',
+          body: 'Looks good',
+        },
+      ]),
+    );
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (1)' }));
+    // then
+    expect(screen.getByRole('tab', { name: 'Comments', selected: true })).toBeInTheDocument();
+    expect(screen.getByText('Looks good')).toBeInTheDocument();
+  });
+
   test('shows no branch in the header before the repo info loads', async () => {
     // given
     fakeRepo(true);

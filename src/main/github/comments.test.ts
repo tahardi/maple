@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { commentOnLine, replyToComment, resolveThread, reviewComments } from './comments';
+import { commentOnLine, commentOnPr, prConversation, replyToComment, resolveThread, reviewComments } from './comments';
 import type { Runner } from '@main/app/preflight';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, '../../../test/fixtures/gh', name), 'utf8');
@@ -272,5 +272,94 @@ describe('resolveThread', () => {
     const result = resolveThread(run, '/wt', 'PRRT_101', resolved);
     // then
     await expect(result).rejects.toThrow(want);
+  });
+});
+
+describe('prConversation', () => {
+  const runner = () =>
+    vi.fn<Runner>((_cmd, args) =>
+      Promise.resolve(
+        ok(fixture(String(args.at(-1)).endsWith('issues/33/comments') ? 'pr-issue-comments.json' : 'pr-reviews.json')),
+      ),
+    );
+
+  test('returns comments and review summaries in time order, skipping empty and pending reviews', async () => {
+    // given
+    const run = runner();
+    // when
+    const result = await prConversation(run, '/wt', 33);
+    // then
+    expect(run).toHaveBeenCalledWith(
+      'gh',
+      ['api', '--paginate', '--slurp', 'repos/{owner}/{repo}/issues/33/comments'],
+      '/wt',
+    );
+    expect(run).toHaveBeenCalledWith(
+      'gh',
+      ['api', '--paginate', '--slurp', 'repos/{owner}/{repo}/pulls/33/reviews'],
+      '/wt',
+    );
+    expect(result.map((c) => c.url.split('#')[1])).toEqual([
+      'issuecomment-2001',
+      'pullrequestreview-3001',
+      'issuecomment-2002',
+      'issuecomment-2003',
+    ]);
+    expect(result[1]).toEqual({
+      url: 'https://github.com/tahardi/maple/pull/33#pullrequestreview-3001',
+      author: 'tahardi',
+      at: '2026-10-25T10:30:00Z',
+      body: 'Two nits, see the lines.',
+    });
+  });
+
+  test('shows a deleted user as ghost', async () => {
+    // given
+    const run = runner();
+    // when
+    const result = await prConversation(run, '/wt', 33);
+    // then
+    expect(result.find((c) => c.url.endsWith('issuecomment-2003'))?.author).toBe('ghost');
+  });
+
+  test.each([
+    { name: 'comments', path: 'issues/33/comments', want: 'listing PR comments: offline' },
+    { name: 'reviews', path: 'pulls/33/reviews', want: 'listing reviews: offline' },
+  ])('rejects with the gh error when listing $name fails', async ({ path, want }) => {
+    // given
+    const good = runner();
+    const run = vi.fn<Runner>((cmd, args, cwd) =>
+      String(args.at(-1)).endsWith(path)
+        ? Promise.resolve({ code: 1, stdout: '', stderr: 'offline' })
+        : good(cmd, args, cwd),
+    );
+    // when
+    const result = prConversation(run, '/wt', 33);
+    // then
+    await expect(result).rejects.toThrow(new Error(want));
+  });
+});
+
+describe('commentOnPr', () => {
+  test('posts a top-level comment on the PR', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve(ok('')));
+    // when
+    await commentOnPr(run, '/wt', 33, 'ship it');
+    // then
+    expect(run).toHaveBeenCalledWith(
+      'gh',
+      ['api', '--method', 'POST', 'repos/{owner}/{repo}/issues/33/comments', '-f', 'body=ship it'],
+      '/wt',
+    );
+  });
+
+  test('rejects with the GitHub reason', async () => {
+    // given
+    const run = vi.fn<Runner>(() => Promise.resolve({ code: 1, stdout: '{"message":"Not Found"}', stderr: 'gh: 404' }));
+    // when
+    const result = commentOnPr(run, '/wt', 33, 'ship it');
+    // then
+    await expect(result).rejects.toThrow(new Error('commenting on PR: Not Found'));
   });
 });

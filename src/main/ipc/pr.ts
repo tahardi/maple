@@ -5,11 +5,19 @@ import { tabWorktrees } from '@shared/worktree/tabWorktrees';
 import type { DiffLines } from '@shared/types/files/diffLines';
 import type { FilePair } from '@shared/types/files/filePair';
 import type { Fetched } from '@shared/types/app/fetched';
+import type { PrComment } from '@shared/types/github/prComment';
 import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Review } from '@shared/types/github/review';
 import type { ReviewComment } from '@shared/types/github/reviewComment';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { commentOnLine, replyToComment, resolveThread, reviewComments } from '@main/github/comments';
+import {
+  commentOnLine,
+  commentOnPr,
+  prConversation,
+  replyToComment,
+  resolveThread,
+  reviewComments,
+} from '@main/github/comments';
 import { ghRunner } from '@main/github/ghRunner';
 import { approveAndMerge, diffLines } from '@main/github/pr';
 import { reviewFilePair, reviewFiles } from '@main/github/reviewDiff';
@@ -169,6 +177,13 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         record(tabId, (tab) => events.replied(tab, pr, commentId, body.length));
       }),
   );
+  handle('pr', 'commentOnPr', z.tuple([tabIdArg, z.string().min(1).max(65_536)]), (tabId, body): Promise<void> =>
+    logFailure(logger, 'gh', { operation: 'pr:commentOnPr', tabId }, async () => {
+      const { worktree, run, pr } = await openPrFor(tabId, 'commenting on PR');
+      await commentOnPr(run, worktree, pr.number, body);
+      record(tabId, (tab) => events.commented(tab, pr, body.length));
+    }),
+  );
   handle(
     'pr',
     'resolve',
@@ -196,6 +211,19 @@ export function registerPr(deps: IpcDeps, logger: Logger = appLogger, events: Pr
         throw new Error(error);
       }
       return pr === null ? [] : reviewComments(ghRunner(prRepo(pr.url)), worktree, pr.number);
+    });
+  });
+  handle('pr', 'conversation', z.tuple([tabIdArg]), async (tabId): Promise<PrComment[]> => {
+    const worktree = deps.worktreeFor(tabId);
+    if (worktree === null) {
+      return [];
+    }
+    return logFailure(logger, 'gh', { operation: 'pr:conversation', tabId }, async () => {
+      const { data: pr, error } = await deps.prs.latest(tabId, worktree);
+      if (pr === null && error !== null) {
+        throw new Error(error);
+      }
+      return pr === null ? [] : prConversation(ghRunner(prRepo(pr.url)), worktree, pr.number);
     });
   });
   handle(
