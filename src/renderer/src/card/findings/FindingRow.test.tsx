@@ -9,10 +9,10 @@ describe('FindingRow', () => {
       name: 'the recommendation',
       given: finding({ ...glance, severityOverride: 'medium' }),
       tone: 'warning',
-      note: 'Recommended: Fix now',
+      text: 'mediumBranch name reaches a shellRecommended: Fix now',
     },
-    { name: 'no note for an old finding', given: finding(), tone: 'danger', note: null },
-  ])('shows severity, title, and $name', async ({ given, tone, note }) => {
+    { name: 'no note for an old finding', given: finding(), tone: 'danger', text: 'highBranch name reaches a shell' },
+  ])('shows severity, title, and $name', async ({ given, tone, text }) => {
     // given
     const onOpen = vi.fn();
     render(<FindingRow finding={given} onOpen={onOpen} />);
@@ -21,11 +21,7 @@ describe('FindingRow', () => {
     await userEvent.click(row);
     // then
     expect(row.querySelector('[data-tone]')).toHaveAttribute('data-tone', tone);
-    if (note === null) {
-      expect(row).toHaveTextContent(/^(high|medium)Branch name reaches a shell$/);
-    } else {
-      expect(screen.getByText(note)).toBeInTheDocument();
-    }
+    expect(row.textContent).toBe(text);
     expect(onOpen).toHaveBeenCalledWith('F1');
   });
 });
