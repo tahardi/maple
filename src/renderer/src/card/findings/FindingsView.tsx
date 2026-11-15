@@ -4,6 +4,7 @@ import type { Severity } from '@shared/types/findings/severity';
 import { effectiveSeverity } from '@shared/findings/effectiveSeverity';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { useMaple } from '@renderer/store';
+import { useLessons } from '@renderer/learning/useLessons';
 import { FindingCard } from './FindingCard';
 import styles from './FindingsView.module.css';
 
@@ -17,6 +18,7 @@ type FindingsViewProps = { tabId: string; file: FindingsFile | null; error: stri
 
 export function FindingsView({ tabId, file, error }: FindingsViewProps) {
   const working = useMaple((s) => tabId in s.statuses && s.statuses[tabId].dot === 'working');
+  const { lessons } = useLessons();
   const applying = file !== null && file.resume?.round === file.round;
   const findings = [...(file?.findings ?? [])].sort((a, b) => rank(a) - rank(b));
   return (
@@ -27,7 +29,14 @@ export function FindingsView({ tabId, file, error }: FindingsViewProps) {
         <p className={styles.empty}>No findings</p>
       ) : (
         findings.map((finding) => (
-          <FindingCard key={finding.id} tabId={tabId} finding={finding} working={working} applying={applying} />
+          <FindingCard
+            key={finding.id}
+            tabId={tabId}
+            finding={finding}
+            working={working}
+            applying={applying}
+            lessons={lessons}
+          />
         ))
       )}
     </div>

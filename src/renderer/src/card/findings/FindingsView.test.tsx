@@ -1,7 +1,8 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { finding, findingsFile } from '@renderer/testing/findingsFixture';
 import { useMaple } from '@renderer/store';
-import { fakeMaple } from '@renderer/testing/fakeMaple';
+import { FAKE_CONFIG, fakeMaple } from '@renderer/testing/fakeMaple';
+import { lesson } from '@renderer/testing/lessonFixture';
 import { FindingsView } from './FindingsView';
 
 const visual = {
@@ -208,5 +209,52 @@ describe('FindingsView', () => {
     expect(container.querySelector('b')).toBeNull();
     expect(container.querySelector('a')).toBeNull();
     expect(container.querySelector('script')).toBeNull();
+  });
+
+  test('shows Open lesson once the vault gains a lesson for the class', async () => {
+    // given
+    const changed = { value: (): void => undefined };
+    const list = vi.fn(() => Promise.resolve([lesson('command-injection')]));
+    fakeMaple({
+      learning: { list },
+      vault: {
+        onChanged: (cb) => {
+          changed.value = cb;
+          return vi.fn();
+        },
+      },
+    });
+    useMaple.setState({
+      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
+    });
+    render(<FindingsView tabId="t1" file={findingsFile([finding()])} error={null} />);
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledTimes(1);
+    });
+    list.mockResolvedValue([lesson('command-injection', { hasLesson: true })]);
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await screen.findByRole('button', { name: 'Open lesson' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Learn now' })).not.toBeInTheDocument();
+  });
+
+  test('keeps Learn now and Learn later when listing the lessons fails', async () => {
+    // given
+    const list = vi.fn(() => Promise.reject(new Error('listing lessons: vault unreadable')));
+    fakeMaple({ learning: { list } });
+    useMaple.setState({
+      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
+    });
+    // when
+    render(<FindingsView tabId="t1" file={findingsFile([finding()])} error={null} />);
+    // then
+    await waitFor(() => {
+      expect(list).toHaveBeenCalled();
+    });
+    expect(screen.getByRole('button', { name: 'Learn now' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Learn later' })).toBeInTheDocument();
   });
 });

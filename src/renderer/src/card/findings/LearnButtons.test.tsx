@@ -21,23 +21,20 @@ function statusOf(tabId: string, dot: TabStatus['dot']): TabStatus {
   return { tabId, dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null };
 }
 
-function setup(
-  vaultDir: string | null = '/vault',
-  tabs: TabState[] = [tabOf('t1', 'card', 'MPL-20')],
-  lessons: LessonSummary[] = [],
-) {
+function setup(vaultDir: string | null = '/vault', tabs: TabState[] = [tabOf('t1', 'card', 'MPL-20')]) {
   const fromFinding = vi.fn<MapleApi['learning']['fromFinding']>(() =>
     Promise.resolve({ note: NOTE, learningTabId: 'learn-1' }),
   );
-  const list = vi.fn(() => Promise.resolve(lessons));
   const setActive = vi.fn();
-  fakeMaple({ learning: { fromFinding, list }, tabs: { setActive } });
+  fakeMaple({ learning: { fromFinding }, tabs: { setActive } });
   useMaple.setState({
     config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir } },
     tabs,
   });
-  return { fromFinding, setActive, list };
+  return { fromFinding, setActive };
 }
+
+const KNOWN = [lesson('command-injection', { hasLesson: true })];
 
 const lessonOf = (mode: FindingLesson['mode']): FindingLesson => ({ note: NOTE, mode, at: '2026-11-13T12:00:00Z' });
 
@@ -52,7 +49,7 @@ describe('LearnButtons', () => {
   ])('$label calls fromFinding', async ({ label, mode }) => {
     // given
     const { fromFinding } = setup();
-    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} lessons={[]} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: label }));
     // then
@@ -85,7 +82,7 @@ describe('LearnButtons', () => {
     setup('/vault', [tabOf('t1', 'card', 'MPL-20'), tabOf('learn-1', 'learning', null)]);
     useMaple.setState({ statuses: { 'learn-1': statusOf('learn-1', learningDot) } });
     // when
-    render(<LearnButtons tabId="t1" finding={finding()} working={working} />);
+    render(<LearnButtons tabId="t1" finding={finding()} working={working} lessons={[]} />);
     // then
     expect(screen.getByRole('button', { name: 'Learn now' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Learn later' }).hasAttribute('disabled')).toBe(later !== null);
@@ -98,7 +95,7 @@ describe('LearnButtons', () => {
     // given
     setup(null);
     // when
-    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} lessons={[]} />);
     // then
     expect(screen.queryByRole('button', { name: 'Learn now' })).not.toBeInTheDocument();
   });
@@ -108,13 +105,13 @@ describe('LearnButtons', () => {
     setup();
     // when
     const { rerender } = render(
-      <LearnButtons tabId="t1" finding={finding({ lesson: lessonOf('later') })} working={false} />,
+      <LearnButtons tabId="t1" finding={finding({ lesson: lessonOf('later') })} working={false} lessons={[]} />,
     );
     const afterLater = {
       now: screen.queryByRole('button', { name: 'Learn now' }) !== null,
       later: screen.queryByRole('button', { name: 'Learn later' }) !== null,
     };
-    rerender(<LearnButtons tabId="t1" finding={finding({ lesson: lessonOf('now') })} working={false} />);
+    rerender(<LearnButtons tabId="t1" finding={finding({ lesson: lessonOf('now') })} working={false} lessons={[]} />);
     // then
     expect(afterLater).toEqual({ now: true, later: false });
     expect(screen.getByText('Lesson saved')).toBeInTheDocument();
@@ -125,7 +122,7 @@ describe('LearnButtons', () => {
   test('Learn now opens the Learning tab on the note', async () => {
     // given
     const { setActive } = setup();
-    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} lessons={[]} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Learn now' }));
     // then
@@ -139,7 +136,7 @@ describe('LearnButtons', () => {
   test('Open lesson opens the Learning tab when none is open', async () => {
     // given
     setup();
-    render(<LearnButtons tabId="t1" finding={finding({ lesson: lessonOf('later') })} working={false} />);
+    render(<LearnButtons tabId="t1" finding={finding({ lesson: lessonOf('later') })} working={false} lessons={[]} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Open lesson' }));
     // then
@@ -153,7 +150,7 @@ describe('LearnButtons', () => {
     // given
     const { fromFinding } = setup();
     fromFinding.mockRejectedValueOnce(new Error('starting lesson: the Learning session is not running'));
-    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} lessons={[]} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Learn now' }));
     // then
@@ -168,7 +165,7 @@ describe('LearnButtons', () => {
       config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
       tabs: [tabOf('t1', 'card', 'MPL-20'), tabOf('learn-1', 'learning', null)],
     });
-    render(<LearnButtons tabId="t1" finding={finding({ lesson: lessonOf('later') })} working={false} />);
+    render(<LearnButtons tabId="t1" finding={finding({ lesson: lessonOf('later') })} working={false} lessons={[]} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Open lesson' }));
     // then
@@ -181,7 +178,7 @@ describe('LearnButtons', () => {
     // given
     const { fromFinding } = setup();
     fromFinding.mockReturnValueOnce(new Promise(() => undefined));
-    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} lessons={[]} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Learn later' }));
     // then
@@ -189,13 +186,13 @@ describe('LearnButtons', () => {
     expect(screen.getByRole('button', { name: 'Learn now' })).toBeDisabled();
   });
 
-  test('offers Open lesson when the class already has a lesson', async () => {
+  test('offers Open lesson when the class already has a lesson', () => {
     // given
-    setup('/vault', undefined, [lesson('command-injection', { hasLesson: true })]);
+    setup();
     // when
-    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} lessons={KNOWN} />);
     // then
-    expect(await screen.findByRole('button', { name: 'Open lesson' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open lesson' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Learn now' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Learn later' })).not.toBeInTheDocument();
     expect(screen.queryByText('Lesson saved')).not.toBeInTheDocument();
@@ -203,10 +200,10 @@ describe('LearnButtons', () => {
 
   test('Open lesson starts the lesson the way Learn now does', async () => {
     // given
-    const { fromFinding } = setup('/vault', undefined, [lesson('command-injection', { hasLesson: true })]);
-    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    const { fromFinding } = setup();
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} lessons={KNOWN} />);
     // when
-    await userEvent.click(await screen.findByRole('button', { name: 'Open lesson' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Open lesson' }));
     // then
     expect(fromFinding).toHaveBeenCalledWith('t1', 'F1', 'now');
     await waitFor(() => {
@@ -218,17 +215,60 @@ describe('LearnButtons', () => {
   test.each<{ name: string; lessons: LessonSummary[] }>([
     { name: 'the class has no lesson', lessons: [lesson('path-traversal', { hasLesson: true })] },
     { name: 'the note has no lesson section', lessons: [lesson('command-injection', { hasLesson: false })] },
-  ])('offers Learn now and Learn later when $name', async ({ lessons }) => {
+  ])('offers Learn now and Learn later when $name', ({ lessons }) => {
     // given
-    const { list } = setup('/vault', undefined, lessons);
+    setup();
     // when
-    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} lessons={lessons} />);
     // then
-    await waitFor(() => {
-      expect(list).toHaveBeenCalled();
-    });
     expect(screen.getByRole('button', { name: 'Learn now' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Learn later' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open lesson' })).not.toBeInTheDocument();
+  });
+
+  test.each<{ name: string; working: boolean; learningDot: TabStatus['dot']; reason: string }>([
+    { name: 'the card is working', working: true, learningDot: 'idle', reason: 'Claude is working' },
+    {
+      name: 'the Learning session is working',
+      working: false,
+      learningDot: 'working',
+      reason: 'The Learning session is busy',
+    },
+  ])('disables Open lesson for a known class with a reason when $name', ({ working, learningDot, reason }) => {
+    // given
+    setup('/vault', [tabOf('t1', 'card', 'MPL-20'), tabOf('learn-1', 'learning', null)]);
+    useMaple.setState({ statuses: { 'learn-1': statusOf('learn-1', learningDot) } });
+    // when
+    render(<LearnButtons tabId="t1" finding={finding()} working={working} lessons={KNOWN} />);
+    // then
+    expect(screen.getByRole('button', { name: 'Open lesson' })).toBeDisabled();
+    expect(screen.getByText(reason)).toBeInTheDocument();
+  });
+
+  test('Open lesson for a known class shows Opening… while it waits', async () => {
+    // given
+    const { fromFinding } = setup();
+    fromFinding.mockReturnValueOnce(new Promise(() => undefined));
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} lessons={KNOWN} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Open lesson' }));
+    // then
+    expect(screen.getByText('Opening…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Open/ })).toBeDisabled();
+  });
+
+  test('a saved lesson in a known class shows one Open lesson that opens the saved note', async () => {
+    // given
+    const { fromFinding } = setup();
+    render(
+      <LearnButtons tabId="t1" finding={finding({ lesson: lessonOf('later') })} working={false} lessons={KNOWN} />,
+    );
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Open lesson' }));
+    // then
+    expect(screen.getByText('Lesson saved')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Open lesson' })).toHaveLength(1);
+    expect(fromFinding).not.toHaveBeenCalled();
+    expect(useMaple.getState().lessonNote).toBe(NOTE);
   });
 });

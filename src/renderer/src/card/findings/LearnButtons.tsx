@@ -1,19 +1,19 @@
 import { useState } from 'react';
 import type { Finding } from '@shared/types/findings/finding';
 import type { FindingLesson } from '@shared/types/findings/findingLesson';
+import type { LessonSummary } from '@shared/types/learning/lessonSummary';
 import { errorText } from '@shared/errors/errorText';
 import { lessonClass } from '@shared/learning/lessonClass';
 import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { useMaple } from '@renderer/store';
-import { useLessons } from '@renderer/learning/useLessons';
 import styles from './FindingCard.module.css';
 
-type LearnButtonsProps = { tabId: string; finding: Finding; working: boolean };
+type LearnButtonsProps = { tabId: string; finding: Finding; working: boolean; lessons: readonly LessonSummary[] };
 
 type Pending = FindingLesson['mode'] | 'open';
 
-export function LearnButtons({ tabId, finding, working }: LearnButtonsProps) {
+export function LearnButtons({ tabId, finding, working, lessons }: LearnButtonsProps) {
   const vaultDir = useMaple((s) => s.config?.data?.vaultDir ?? null);
   const projectKey = useMaple((s) => s.tabs.find((t) => t.id === tabId)?.projectKey ?? null);
   const learningTabId = useMaple(
@@ -23,7 +23,6 @@ export function LearnButtons({ tabId, finding, working }: LearnButtonsProps) {
     (s) => learningTabId !== null && learningTabId in s.statuses && s.statuses[learningTabId].dot === 'working',
   );
   const showLesson = useMaple((s) => s.showLesson);
-  const { lessons } = useLessons();
   const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState<string | null>(null);
 
