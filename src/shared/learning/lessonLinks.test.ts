@@ -10,6 +10,8 @@ describe('allowedLinkHost', () => {
     { url: 'https://portswigger.net/web-security', allowed: true },
     { url: 'https://owasp.org.evil.example/x', allowed: false },
     { url: 'https://evil.example/owasp.org', allowed: false },
+    { url: 'https://notowasp.org/x', allowed: false },
+    { url: 'https://owasp.org@evil.example/x', allowed: false },
     { url: 'http://owasp.org/x', allowed: false },
     { url: 'javascript:alert(1)', allowed: false },
     { url: 'data:text/html,x', allowed: false },

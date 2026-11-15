@@ -36,6 +36,10 @@ function limitLinks(linkHosts: readonly string[] | undefined): Components {
         return <Link href={href}>{children}</Link>;
       }
 
+      if (children === href) {
+        return href;
+      }
+
       return (
         <>
           {children}

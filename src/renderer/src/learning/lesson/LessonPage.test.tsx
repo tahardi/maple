@@ -44,10 +44,28 @@ describe('LessonPage', () => {
     expect(within(second).getByText('Tie-in pending')).toBeInTheDocument();
   });
 
-  test('does not link out of a lesson to an unapproved site', async () => {
+  const BAD_LINK = 'See [docs](https://evil.example/x).';
+
+  test.each([
+    { name: 'the explanation', fields: { explanation: BAD_LINK } },
+    { name: 'the attack', fields: { attack: BAD_LINK } },
+    {
+      name: 'a tie-in',
+      fields: {
+        findings: [
+          {
+            date: '2026-11-12',
+            card: 'MPL-340',
+            title: 'Branch name reaches the shell',
+            pr: 'https://github.com/example/repo/pull/1',
+            tieIn: BAD_LINK,
+          },
+        ],
+      },
+    },
+  ])('does not link out of $name to an unapproved site', async ({ fields }) => {
     // given
-    const bad = fullLesson('xss', { explanation: 'See [docs](https://evil.example/x).' });
-    fakeMaple({ learning: { read: () => Promise.resolve(bad) } });
+    fakeMaple({ learning: { read: () => Promise.resolve(fullLesson('xss', fields)) } });
     // when
     render(<LessonPage path={PATH} />);
     // then

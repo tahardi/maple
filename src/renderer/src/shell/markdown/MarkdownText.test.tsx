@@ -65,6 +65,16 @@ describe('MarkdownText', () => {
     expect(container).toHaveTextContent('https://evil.example/x');
   });
 
+  test('shows a bare address to any other host once', () => {
+    // given
+    const text = 'see https://evil.example/x now';
+    // when
+    const { container } = render(<MarkdownText text={text} linkHosts={['owasp.org']} />);
+    // then
+    expect(container.querySelector('a')).toBeNull();
+    expect(container.textContent.split('https://evil.example/x')).toHaveLength(2);
+  });
+
   test('leaves links alone when no hosts are given', () => {
     // given
     const text = '[click](https://evil.example/x)';
