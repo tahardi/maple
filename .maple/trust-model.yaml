@@ -165,4 +165,5 @@ build:
     log tail; no alerts. The Security Pass reads this model and security.yaml from the PR's base commit, never the
     PR branch, and raises every edit to them as a finding Taylor must decide
 accepted:
+  - {"identity": {"kind": "code", "class": "sandbox-settings-merge-bypass", "file": "src/main/sessions/hooks/hooksFile.ts", "hash": "909d1bf7a567c05b"}, "title": "Forced sandbox can still be widened by a worktree's own Claude settings or by editing the shared hooks file", "reason": "We only have to live with this shortcoming until we have Xena in-place to sandbox Claude", "card": "MPL-392", "finding": "F1", "at": "2026-11-15"}
 overrides:

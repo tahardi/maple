@@ -98,6 +98,7 @@ Design risks accepted until Xena moves sessions into a VM:
   from.
 
 Risks accepted from findings:
+- Forced sandbox can still be widened by a worktree's own Claude settings or by editing the shared hooks file (MPL-392 F1): We only have to live with this shortcoming until we have Xena in-place to sandbox Claude
 
 ## Severity Overrides
 
