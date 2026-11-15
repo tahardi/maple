@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { IpcMainInvokeEvent } from 'electron';
@@ -394,6 +394,46 @@ describe('registerLearning', () => {
         { path: 'Learning/Security/old.md', title: 'Command injection', index: 2, question: 'C?', choices: ['a', 'b'] },
       ]);
     });
+
+    test('learning:review skips a note with a broken quiz or that cannot be read', async () => {
+      // given
+      const broken = readFileSync(join(vault, 'Learning', 'Security', 'older.md'), 'utf8');
+      writeFileSync(join(vault, 'Learning', 'Security', 'older.md'), broken.replace('```maple-quiz', '```json'));
+      mkdirSync(join(vault, 'Learning', 'Security', 'locked.md'));
+      const { invoke } = register(vault);
+      // when
+      const got = (await invoke('learning:review', LESSON_PATH)) as { path: string }[];
+      // then
+      expect(got.map((r) => r.path)).toEqual(['Learning/Security/old.md', 'Learning/Security/newest.md']);
+    });
+
+    test('learning:review logs a note it cannot read and still answers', async () => {
+      // given
+      writeFileSync(join(vault, 'Learning', 'Security', 'locked.md'), 'x');
+      chmodSync(join(vault, 'Learning', 'Security', 'locked.md'), 0o000);
+      const { invoke } = register(vault);
+      // when
+      const got = (await invoke('learning:review', LESSON_PATH)) as { path: string }[];
+      // then
+      expect(got.map((r) => r.path)).toEqual(['Learning/Security/older.md', 'Learning/Security/old.md']);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'learning',
+        'failed',
+        expect.objectContaining({ operation: 'learning:review', path: 'Learning/Security/locked.md' }),
+      );
+    });
+
+    test.each(['Inbox.md', '../x.md', 'Learning/Security/../../Inbox.md'])(
+      'learning:review refuses a path outside the lesson folder: %s',
+      async (path) => {
+        // given
+        const { invoke } = register(vault);
+        // when
+        const got = Promise.resolve().then(() => invoke('learning:review', path));
+        // then
+        await expect(got).rejects.toThrow('handling learning:review: arguments are invalid');
+      },
+    );
 
     test('learning:gradeReview appends to reviews and leaves status alone', async () => {
       // given

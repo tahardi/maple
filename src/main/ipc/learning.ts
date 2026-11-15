@@ -141,7 +141,10 @@ export function registerLearning(
       const paths = (await listNotes(dir)).map((note) => note.path).filter(isLessonPath);
       const read = await Promise.all(
         paths.map(async (p) => {
-          const text = await readOrNull(dir, p).catch(() => null);
+          const text = await readOrNull(dir, p).catch((err: unknown) => {
+            logger.warn('learning', 'failed', { operation: 'learning:review', path: p, error: errorText(err) });
+            return null;
+          });
           return text === null ? null : readReviewSource(p, text);
         }),
       );

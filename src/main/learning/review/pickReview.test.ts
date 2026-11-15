@@ -67,6 +67,38 @@ describe('pickReview', () => {
       ],
     },
     {
+      name: 'a class missed earlier but right last time is not moved to the front',
+      notes: [
+        note('old', { grades: [{ date: '2025-01-01' }] }),
+        note('fixed', {
+          grades: [{ date: '2026-11-01' }],
+          reviews: [
+            { date: '2026-11-02', question: 0, right: false },
+            { date: '2026-11-03', question: 1, right: true },
+          ],
+        }),
+        note('mid', { grades: [{ date: '2026-06-01' }] }),
+      ],
+      random: 0,
+      want: [
+        { path: 'old', index: 0 },
+        { path: 'mid', index: 0 },
+      ],
+    },
+    {
+      name: 'three missed classes give two picks, oldest last-seen first',
+      notes: [
+        note('a', { reviews: [{ date: '2026-11-09', question: 0, right: false }] }),
+        note('b', { reviews: [{ date: '2026-11-03', question: 0, right: false }] }),
+        note('c', { reviews: [{ date: '2026-11-05', question: 0, right: false }] }),
+      ],
+      random: 0,
+      want: [
+        { path: 'b', index: 1 },
+        { path: 'c', index: 1 },
+      ],
+    },
+    {
       name: 'one question per class',
       notes: [note('a', { questions: 5 })],
       random: 0,
