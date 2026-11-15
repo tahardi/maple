@@ -187,18 +187,24 @@ async function reviewThreads(
   );
 }
 
-export async function reviewComments(run: Runner, worktree: string, num: number): Promise<ReviewComment[]> {
-  const { code, stdout, stderr } = await run(
-    'gh',
-    ['api', '--paginate', '--slurp', `repos/{owner}/{repo}/pulls/${String(num)}/comments`],
-    worktree,
-  );
+async function listPages(run: Runner, worktree: string, path: string, doing: string): Promise<unknown> {
+  const { code, stdout, stderr } = await run('gh', ['api', '--paginate', '--slurp', path], worktree);
   if (code !== 0) {
-    throw new Error(`listing review comments: ${stderr}`);
+    throw new Error(`${doing}: ${stderr}`);
   }
+  return JSON.parse(stdout);
+}
+
+export async function reviewComments(run: Runner, worktree: string, num: number): Promise<ReviewComment[]> {
+  const pages = await listPages(
+    run,
+    worktree,
+    `repos/{owner}/{repo}/pulls/${String(num)}/comments`,
+    'listing review comments',
+  );
   const threads = await reviewThreads(run, worktree, num);
   return reviewCommentsSchema
-    .parse(JSON.parse(stdout))
+    .parse(pages)
     .flat()
     .flatMap((c) =>
       c.line !== null && c.side === 'RIGHT'
@@ -228,14 +234,6 @@ export async function resolveThread(run: Runner, worktree: string, threadId: str
   if (code !== 0) {
     throw new Error(`${resolved ? 'resolving' : 'unresolving'} thread: ${stderr}`);
   }
-}
-
-async function listPages(run: Runner, worktree: string, path: string, doing: string): Promise<unknown> {
-  const { code, stdout, stderr } = await run('gh', ['api', '--paginate', '--slurp', path], worktree);
-  if (code !== 0) {
-    throw new Error(`${doing}: ${stderr}`);
-  }
-  return JSON.parse(stdout);
 }
 
 export async function prConversation(run: Runner, worktree: string, num: number): Promise<PrComment[]> {

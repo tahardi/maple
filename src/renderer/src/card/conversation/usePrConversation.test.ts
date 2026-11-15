@@ -104,4 +104,50 @@ describe('usePrConversation', () => {
     // then
     expect(result.current.comments).toEqual([comment]);
   });
+
+  test('reloads when the session dot changes', async () => {
+    // given
+    const conversation = vi.fn(() => Promise.resolve([]));
+    fakeMaple({ pr: { conversation } });
+    render();
+    await waitFor(() => {
+      expect(conversation).toHaveBeenCalledTimes(1);
+    });
+    // when
+    act(() => {
+      useMaple.setState({
+        statuses: {
+          t1: { tabId: 't1', dot: 'idle', sessionAlive: true, exitCode: null, resumeFailed: false, sync: null },
+        },
+      });
+    });
+    // then
+    await waitFor(() => {
+      expect(conversation).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  test('ignores a result that arrives after unmount', async () => {
+    // given
+    let finish: (next: PrComment[]) => void = () => undefined;
+    const conversation = vi.fn(
+      () =>
+        new Promise<PrComment[]>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fakeMaple({ pr: { conversation } });
+    const { result, unmount } = render();
+    await waitFor(() => {
+      expect(conversation).toHaveBeenCalledOnce();
+    });
+    unmount();
+    // when
+    await act(async () => {
+      finish([comment]);
+      await Promise.resolve();
+    });
+    // then
+    expect(result.current.comments).toEqual([]);
+  });
 });

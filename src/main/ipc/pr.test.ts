@@ -1140,6 +1140,29 @@ describe('registerPr', () => {
     expect(prConversation).not.toHaveBeenCalled();
   });
 
+  test('conversation lists the comments on the last good PR when the latest poll failed', async () => {
+    // given
+    latestPr.mockResolvedValue({ data: pr, error: 'listing PRs: offline', fetchedAt: '2026-11-11T12:00:00.000Z' });
+    prConversation.mockResolvedValue([]);
+    const conversation = register('pr:conversation', '/wt');
+    // when
+    const result = await conversation('t1');
+    // then
+    expect(result).toEqual([]);
+    expect(prConversation).toHaveBeenCalledWith(gh, '/wt', 33);
+  });
+
+  test('conversation rejects with the poll error when the poller has no PR', async () => {
+    // given
+    latestPr.mockResolvedValue({ data: null, error: 'listing PRs: offline', fetchedAt: null });
+    const conversation = register('pr:conversation', '/wt');
+    // when
+    const result = conversation('t1');
+    // then
+    await expect(result).rejects.toThrow('listing PRs: offline');
+    expect(prConversation).not.toHaveBeenCalled();
+  });
+
   test('logs a failed conversation lookup at warn and rejects', async () => {
     // given
     latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: '2026-11-11T12:00:00.000Z' });

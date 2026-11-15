@@ -47,6 +47,34 @@ describe('CommentsView', () => {
     expect(screen.getByRole('textbox', { name: 'Comment on the PR' })).toHaveValue('');
   });
 
+  test.each([
+    { name: 'empty', text: '' },
+    { name: 'blank', text: '   ' },
+  ])('disables Post while the text is $name', async ({ text }) => {
+    // given
+    fakeMaple();
+    render(<CommentsView tabId="t1" comments={[]} canPost onPosted={vi.fn()} />);
+    // when
+    if (text !== '') {
+      await userEvent.type(screen.getByRole('textbox', { name: 'Comment on the PR' }), text);
+    }
+    // then
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled();
+  });
+
+  test('Post reads Posting… and blocks a second click while it runs', async () => {
+    // given
+    const commentOnPr = vi.fn(() => new Promise<void>(() => undefined));
+    fakeMaple({ pr: { commentOnPr } });
+    render(<CommentsView tabId="t1" comments={[]} canPost onPosted={vi.fn()} />);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Comment on the PR' }), 'ship it');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    // then
+    expect(screen.getByRole('button', { name: 'Posting…' })).toBeDisabled();
+    expect(commentOnPr).toHaveBeenCalledOnce();
+  });
+
   test('shows why a post failed and keeps the text', async () => {
     // given
     const commentOnPr = vi.fn(() =>

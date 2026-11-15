@@ -313,6 +313,25 @@ describe('prConversation', () => {
     });
   });
 
+  test.each([
+    { name: 'a review whose summary is only whitespace', reviewBody: ' \n', commentBody: 'hi', want: ['hi'] },
+    { name: 'a comment with no body', reviewBody: '', commentBody: null, want: [''] },
+  ])('handles $name', async ({ reviewBody, commentBody, want }) => {
+    // given
+    const page = (entry: object) => ok(JSON.stringify([[entry]]));
+    const run = vi.fn<Runner>((_cmd, args) =>
+      Promise.resolve(
+        String(args.at(-1)).endsWith('issues/33/comments')
+          ? page({ user: { login: 'tahardi' }, body: commentBody, html_url: 'c', created_at: '2026-10-25T10:00:00Z' })
+          : page({ user: { login: 'tahardi' }, body: reviewBody, html_url: 'r', submitted_at: '2026-10-25T11:00:00Z' }),
+      ),
+    );
+    // when
+    const result = await prConversation(run, '/wt', 33);
+    // then
+    expect(result.map((c) => c.body)).toEqual(want);
+  });
+
   test('shows a deleted user as ghost', async () => {
     // given
     const run = runner();

@@ -42,6 +42,8 @@ type Props = {
 
 const NO_DRAFTS: Record<string, Draft> = {};
 
+const NAMED_TABS = [PR_DESCRIPTION, CARD_DESCRIPTION, FINDINGS, COMMENTS_TAB];
+
 export function FileViewer({
   tabId,
   openFiles,
@@ -138,7 +140,7 @@ export function FileViewer({
                 {label(path)}
               </button>
               <button
-                aria-label={`Close ${[PR_DESCRIPTION, CARD_DESCRIPTION, FINDINGS, COMMENTS_TAB].includes(path) ? baseName(path) : path}`}
+                aria-label={`Close ${NAMED_TABS.includes(path) ? baseName(path) : path}`}
                 className={styles.close}
                 onClick={() => {
                   onCloseFiles([path]);

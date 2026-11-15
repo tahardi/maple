@@ -416,6 +416,30 @@ describe('CardTab', () => {
     expect(screen.getByText('Looks good')).toBeInTheDocument();
   });
 
+  test('posting from the Comments tab raises the header count', async () => {
+    // given
+    fakeRepo(true);
+    const entry = (n: number) => ({
+      url: `https://github.com/tahardi/maple/pull/13#issuecomment-${String(n)}`,
+      author: 'tahardi',
+      at: `2026-10-25T1${String(n)}:00:00Z`,
+      body: `note ${String(n)}`,
+    });
+    let posted = false;
+    window.maple.pr.conversation = vi.fn(() => Promise.resolve(posted ? [entry(1), entry(2)] : [entry(1)]));
+    window.maple.pr.commentOnPr = vi.fn(() => {
+      posted = true;
+      return Promise.resolve();
+    });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (1)' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Comment on the PR' }), 'note 2');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    // then
+    expect(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (2)' })).toBeInTheDocument();
+  });
+
   test('shows no branch in the header before the repo info loads', async () => {
     // given
     fakeRepo(true);
