@@ -91,8 +91,10 @@ carries `MAPLE_TAB_ID`, `MAPLE_SOCKET`, and, for card tabs, `MAPLE_SNAPSHOT_DIR`
 `MAPLE_FINDINGS_DIR`. The process environment also carries the Jira credentials so Claude can call Jira.
 
 **Hooks.** `hooksFile.json` registers `maple-hook.mjs` for `Stop`, `UserPromptSubmit`, `SessionStart`, `Notification`
-(permission prompts only), and `PreToolUse` (file writes and vault note writes only). It also adds the findings dir
-to `sandbox.filesystem.allowWrite`, so the `/card` skill's script can write findings from Bash. `PreToolUse` sends
+(permission prompts only), and `PreToolUse` (file writes and vault note writes only). It also turns the Bash sandbox
+on with no unsandboxed escape hatch, and a session refuses to start when the sandbox cannot run. Settings passed with
+`--settings` outrank a worktree's own, so a worktree cannot turn the sandbox off. It adds the findings dir to
+`sandbox.filesystem.allowWrite`, so the `/card` skill's script can write findings from Bash. `PreToolUse` sends
 nothing; it copies the vault note about to change into the snapshot dir. Every other hook sends one JSON line (tab
 id, event, notification type, background tasks, cron count, session id) to the hook socket. The hook server,
 `src/main/sessions/hooks/hookServer.ts`, validates each line and hands it to the status engine, the event recorder,

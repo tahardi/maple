@@ -20,7 +20,8 @@ const missingEnv = join(dir, 'missing');
 writeFileSync(presentEnv, '');
 const claudeJson = join(dir, 'claude.json');
 writeFileSync(claudeJson, '{}');
-const noSettings = join(dir, 'no-settings.json');
+const sandboxOn = join(dir, 'settings.json');
+writeFileSync(sandboxOn, JSON.stringify({ sandbox: { enabled: true, allowUnsandboxedCommands: false } }));
 
 function fakeRunner(codes: Record<string, number>): Runner {
   return (cmd, args) => Promise.resolve({ code: codes[`${cmd} ${args.join(' ')}`] ?? 0, stdout: '', stderr: '' });
@@ -80,7 +81,7 @@ describe('runPreflight', () => {
     // given
     const run = fakeRunner(codes);
     // when
-    const problems = await runPreflight(run, envPath, claudeJson, noSettings, []);
+    const problems = await runPreflight(run, envPath, claudeJson, sandboxOn, []);
     // then
     expect(problems).toEqual(expected);
   });
@@ -89,7 +90,7 @@ describe('runPreflight', () => {
     // given
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     // when
-    await runPreflight(fakeRunner({ 'claude --version': 127 }), missingEnv, claudeJson, noSettings, [], logger);
+    await runPreflight(fakeRunner({ 'claude --version': 127 }), missingEnv, claudeJson, sandboxOn, [], logger);
     // then
     expect(logger.warn.mock.calls).toEqual([
       ['preflight', 'problem', { tool: 'claude', message: 'claude is not on PATH' }],
@@ -101,7 +102,7 @@ describe('runPreflight', () => {
     // given
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     // when
-    await runPreflight(fakeRunner({}), presentEnv, claudeJson, noSettings, [], logger);
+    await runPreflight(fakeRunner({}), presentEnv, claudeJson, sandboxOn, [], logger);
     // then
     expect(logger.info).toHaveBeenCalledWith('preflight', 'passed');
     expect(logger.warn).not.toHaveBeenCalled();
@@ -166,7 +167,7 @@ describe('runPreflight claude trust', () => {
       writeFileSync(path, contents);
     }
     // when
-    const problems = await runPreflight(fakeRunner({}), presentEnv, path, noSettings, plannerDirs);
+    const problems = await runPreflight(fakeRunner({}), presentEnv, path, sandboxOn, plannerDirs);
     // then
     expect(problems).toEqual(untrustedDirs.map((d) => ({ tool: 'claude-trust', message: message(d) })));
   });
@@ -176,7 +177,7 @@ describe('runPreflight claude trust', () => {
     const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-json-')), 'claude.json');
     mkdirSync(path);
     // when
-    const problems = await runPreflight(fakeRunner({}), presentEnv, path, noSettings, [trusted, untrusted]);
+    const problems = await runPreflight(fakeRunner({}), presentEnv, path, sandboxOn, [trusted, untrusted]);
     // then
     expect(problems).toEqual([trusted, untrusted].map((d) => ({ tool: 'claude-trust', message: message(d) })));
   });
@@ -187,7 +188,7 @@ describe('runPreflight claude trust', () => {
     const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-json-')), 'claude.json');
     writeFileSync(path, contents);
     // when
-    await runPreflight(fakeRunner({}), presentEnv, path, noSettings, [untrusted], logger);
+    await runPreflight(fakeRunner({}), presentEnv, path, sandboxOn, [untrusted], logger);
     // then
     expect(logger.warn.mock.calls).toEqual([
       ['preflight', 'problem', { tool: 'claude-trust', message: message(untrusted) }],
@@ -202,6 +203,10 @@ describe('runPreflight claude sandbox', () => {
     tool: 'claude-sandbox',
     message: `sandbox escape hatch is on: set sandbox.allowUnsandboxedCommands to false in ${path}`,
   });
+  const off = (path: string): PreflightProblem => ({
+    tool: 'claude-sandbox',
+    message: `sandbox is off: set sandbox.enabled to true in ${path}`,
+  });
   const missingTool = (tool: string): PreflightProblem => ({
     tool: 'claude-sandbox',
     message: `${tool} is not on PATH, so the Claude sandbox cannot start`,
@@ -214,16 +219,16 @@ describe('runPreflight claude sandbox', () => {
     expected: (path: string) => PreflightProblem[];
   }>([
     {
-      name: 'no problems when the sandbox is off',
+      name: 'sandbox off when enabled is false',
       contents: JSON.stringify({ sandbox: { enabled: false } }),
       codes: { 'socat --version': 127, 'bwrap --version': 127 },
-      expected: () => [],
+      expected: (path) => [off(path), missingTool('socat'), missingTool('bwrap')],
     },
     {
-      name: 'no problems when there is no sandbox block',
+      name: 'sandbox off when there is no sandbox block',
       contents: JSON.stringify({ env: { TOKEN: 'secret' } }),
       codes: { 'socat --version': 127 },
-      expected: () => [],
+      expected: (path) => [off(path), missingTool('socat')],
     },
     {
       name: 'no problems when the sandbox is hardened',
@@ -244,16 +249,16 @@ describe('runPreflight claude sandbox', () => {
       expected: (path) => [escape(path)],
     },
     {
-      name: 'no problems when sandbox is not an object',
+      name: 'sandbox off when sandbox is not an object',
       contents: JSON.stringify({ sandbox: true }),
       codes: { 'socat --version': 127 },
-      expected: () => [],
+      expected: (path) => [off(path), missingTool('socat')],
     },
     {
-      name: 'no problems when enabled is truthy but not true',
+      name: 'sandbox off when enabled is truthy but not true',
       contents: JSON.stringify({ sandbox: { enabled: 'true' } }),
       codes: { 'socat --version': 127 },
-      expected: () => [],
+      expected: (path) => [off(path), missingTool('socat')],
     },
     {
       name: 'the escape hatch when allowUnsandboxedCommands is falsy but not false',
@@ -286,22 +291,22 @@ describe('runPreflight claude sandbox', () => {
       expected: (path) => [escape(path), missingTool('socat'), missingTool('bwrap')],
     },
     {
-      name: 'no problems when the file is missing',
+      name: 'sandbox off when the file is missing',
       contents: null,
       codes: { 'socat --version': 127 },
-      expected: () => [],
+      expected: (path) => [off(path), missingTool('socat')],
     },
     {
-      name: 'no problems when the file is not JSON',
+      name: 'sandbox off when the file is not JSON',
       contents: '{',
       codes: { 'socat --version': 127 },
-      expected: () => [],
+      expected: (path) => [off(path), missingTool('socat')],
     },
     {
-      name: 'no problems when the file is JSON null',
+      name: 'sandbox off when the file is JSON null',
       contents: 'null',
       codes: { 'socat --version': 127 },
-      expected: () => [],
+      expected: (path) => [off(path), missingTool('socat')],
     },
   ])('reports $name', async ({ contents, codes, expected }) => {
     // given
@@ -315,14 +320,17 @@ describe('runPreflight claude sandbox', () => {
     expect(problems).toEqual(expected(path));
   });
 
-  test('reports no problems when the file is a directory', async () => {
+  test('reports the sandbox off when the file is a directory', async () => {
     // given
     const path = join(mkdtempSync(join(tmpdir(), 'maple-claude-settings-')), 'settings.json');
     mkdirSync(path);
     // when
     const problems = await runPreflight(fakeRunner({ 'socat --version': 127 }), presentEnv, claudeJson, path, []);
     // then
-    expect(problems).toEqual([]);
+    expect(problems).toEqual([
+      { tool: 'claude-sandbox', message: `sandbox is off: set sandbox.enabled to true in ${path}` },
+      { tool: 'claude-sandbox', message: 'socat is not on PATH, so the Claude sandbox cannot start' },
+    ]);
   });
 
   test('logs no settings values besides the sandbox keys it checks', async () => {
