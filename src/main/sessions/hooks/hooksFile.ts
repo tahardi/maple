@@ -23,7 +23,12 @@ export async function writeHooksFile(
         { matcher: 'Write|Edit|MultiEdit|mcp__anchorhold__anchorhold_write_note', hooks: hook('PreToolUse') },
       ],
     },
-    sandbox: { filesystem: { allowWrite: [findingsDir] } },
+    sandbox: {
+      enabled: true,
+      failIfUnavailable: true,
+      allowUnsandboxedCommands: false,
+      filesystem: { allowWrite: [findingsDir] },
+    },
   };
   const path = join(dir, 'hooksFile.json');
   await mkdir(dir, { recursive: true });
