@@ -22,6 +22,7 @@ export type LogScope =
   | 'learning'
   | 'findings'
   | 'events'
+  | 'remote'
   | 'app';
 
 type Level = 'info' | 'warn' | 'error';

@@ -17,6 +17,7 @@ const config: MapleConfig = {
   minFreeMegabytes: 512,
   projects: [],
   actions: [],
+  remote: null,
 };
 
 describe('createConfigGate', () => {

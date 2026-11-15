@@ -4,6 +4,7 @@ import { cardPrompt } from '@shared/prompts/cardPrompt';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { appLogger, type Logger } from '@main/app/log/log';
+import type { Runner } from '@main/remote/runner';
 import { ClaudeProcesses } from './manager/ClaudeProcesses';
 import { TabRegistry } from './manager/TabRegistry';
 import { TabSaver } from './manager/TabSaver';
@@ -25,6 +26,8 @@ export type SessionDeps = {
   endTmux: (name: string | null) => void;
   sessionEnv: Record<string, string>;
   logger?: Logger;
+  runner: Runner;
+  home: string;
 };
 
 type Events = {

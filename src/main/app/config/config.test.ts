@@ -23,6 +23,23 @@ const validConfig = {
   ],
 };
 
+const vmConfig = {
+  ...validConfig,
+  worktreesDir: '/home/dev/Documents/code/wts',
+  projects: [
+    { ...validConfig.projects[0], plannerDir: '/home/dev/Documents/code/dig-days' },
+    { ...validConfig.projects[1], plannerDir: '/home/dev/Documents/code/bearclave' },
+  ],
+};
+
+const vmRemote = {
+  host: '192.168.150.10',
+  user: 'dev',
+  keyPath: '~/.ssh/id_ed25519_sk',
+  knownHostsPath: '~/.config/xena/known_hosts',
+  vaultSocket: '~/.local/state/xena/vault.sock',
+};
+
 const withoutActions = { ...validConfig, actions: undefined };
 const withoutNotifications = { ...validConfig, notifications: undefined };
 const duplicateKey = { ...validConfig, projects: [validConfig.projects[0], validConfig.projects[0]] };
@@ -362,6 +379,76 @@ describe('loadConfig', () => {
     await loadConfig(dir, logger);
     // then
     expect(logger.info).toHaveBeenCalledWith('config', 'loaded', { projects: 2 });
+  });
+
+  test.each([
+    { name: 'remote absent', remote: undefined, want: { data: null } },
+    {
+      name: 'remote set',
+      remote: vmRemote,
+      want: {
+        data: {
+          host: '192.168.150.10',
+          user: 'dev',
+          keyPath: join(homedir(), '.ssh/id_ed25519_sk'),
+          knownHostsPath: join(homedir(), '.config/xena/known_hosts'),
+          vaultSocket: join(homedir(), '.local/state/xena/vault.sock'),
+        },
+      },
+    },
+    {
+      name: 'vaultSocket omitted',
+      remote: { ...vmRemote, vaultSocket: undefined },
+      want: {
+        data: {
+          host: '192.168.150.10',
+          user: 'dev',
+          keyPath: join(homedir(), '.ssh/id_ed25519_sk'),
+          knownHostsPath: join(homedir(), '.config/xena/known_hosts'),
+          vaultSocket: null,
+        },
+      },
+    },
+    {
+      name: 'host starting with a dash',
+      remote: { ...vmRemote, host: '-oProxyCommand=x' },
+      want: { error: 'remote.host: ' },
+    },
+    { name: 'bad user', remote: { ...vmRemote, user: 'Dev!' }, want: { error: 'remote.user: ' } },
+    {
+      name: 'relative worktreesDir',
+      remote: vmRemote,
+      worktreesDir: '~/wts',
+      want: { error: 'worktreesDir: must be an absolute VM path when remote is set' },
+    },
+    {
+      name: 'relative plannerDir',
+      remote: vmRemote,
+      plannerDir: 'code',
+      want: { error: 'projects.1.plannerDir: must be an absolute VM path when remote is set' },
+    },
+  ])('parses remote: $name', async ({ remote, worktreesDir, plannerDir, want }) => {
+    // given
+    const config = {
+      ...vmConfig,
+      remote,
+      worktreesDir: worktreesDir ?? vmConfig.worktreesDir,
+      projects: [
+        vmConfig.projects[0],
+        { ...vmConfig.projects[1], plannerDir: plannerDir ?? vmConfig.projects[1].plannerDir },
+      ],
+    };
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    if ('error' in want) {
+      expect(result.data).toBeNull();
+      expect(result.error?.startsWith(`reading config: ${want.error ?? ''}`)).toBe(true);
+    } else {
+      expect(result.error).toBeNull();
+      expect(result.data?.remote).toEqual(want.data);
+    }
   });
 
   test('logs the error when loading fails', async () => {

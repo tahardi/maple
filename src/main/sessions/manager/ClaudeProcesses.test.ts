@@ -4,6 +4,7 @@ import type { TabState } from '@shared/types/tabs/tabState';
 import { fakeSpawn, type FakePty } from '@main/testing/fakeSpawn';
 import { tmuxArgs } from '../tmux';
 import { ClaudeProcesses } from './ClaudeProcesses';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 const config: MapleConfig = {
   worktreesDir: '/tmp/wts',
@@ -29,6 +30,7 @@ const config: MapleConfig = {
     },
   ],
   actions: [],
+  remote: null,
 };
 
 const base = ['--dangerously-skip-permissions', '--settings', '/tmp/maple/hooksFile.json'];
@@ -54,6 +56,8 @@ function setup(hasTranscript = true, current: MapleConfig = config) {
     tmuxConf: '/tmp/maple/tmux.conf',
     endTmux,
     sessionEnv: { JIRA_SITE: 'https://x.atlassian.net' },
+    runner: fakeRunner(),
+    home: '/home/dev',
     logger,
   });
   return { processes, ptys, spawnFn, logger, endTmux };

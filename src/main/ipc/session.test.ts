@@ -6,6 +6,7 @@ import type { StatusEngine } from '@main/sessions/StatusEngine';
 import type { Terminals } from '@main/sessions/Terminals';
 import { registerSession } from './session';
 import type { StartQueue } from '@main/sessions/StartQueue';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 type Listener = (event: IpcMainEvent, ...args: unknown[]) => void;
@@ -49,6 +50,8 @@ function setup() {
     watchVault: () => undefined,
     findingsDir: '/tmp/maple/findings',
     decisionsDir: '/tmp/maple/decisions',
+    runner: fakeRunner(),
+    home: '/home/dev',
   });
   return { sessions, sendToWindow };
 }

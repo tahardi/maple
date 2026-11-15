@@ -16,6 +16,7 @@ import type { Finding } from '@shared/types/findings/finding';
 import { uiActionRecorder } from '@main/events/uiActions';
 import { recordActions } from './recordActions';
 import { registerFindings } from './findings';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
@@ -93,6 +94,8 @@ function register(findingsDir: string, decisionsDir: string, statuses: TabStatus
       watchVault: () => undefined,
       findingsDir,
       decisionsDir,
+      runner: fakeRunner(),
+      home: '/home/dev',
     },
     logger,
   );

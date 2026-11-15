@@ -33,6 +33,16 @@ const repoSchema = z
   .regex(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*$/, 'must be owner/name')
   .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..'), 'must be owner/name');
 
+const remoteSchema = z.object({
+  host: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9.-]*$/),
+  user: z.string().regex(/^[a-z_][a-z0-9_-]*$/),
+  keyPath: z.string().min(1),
+  knownHostsPath: z.string().min(1),
+  vaultSocket: z.string().min(1).nullable().default(null),
+});
+
+const VM_PATH_MESSAGE = 'must be an absolute VM path when remote is set';
+
 const configSchema = z
   .object({
     worktreesDir: z.string(),
@@ -58,6 +68,7 @@ const configSchema = z
       }),
     ),
     actions: z.array(z.object({ label: z.string(), prompt: z.string() })).default(defaultActions),
+    remote: remoteSchema.nullable().default(null),
   })
   .superRefine((config, ctx) => {
     if (config.projects.length === 0) {
@@ -70,6 +81,17 @@ const configSchema = z
       }
       seen.add(jiraKey);
     }
+    if (config.remote === null) {
+      return;
+    }
+    if (!config.worktreesDir.startsWith('/')) {
+      ctx.addIssue({ code: 'custom', path: ['worktreesDir'], message: VM_PATH_MESSAGE });
+    }
+    config.projects.forEach((project, i) => {
+      if (!project.plannerDir.startsWith('/')) {
+        ctx.addIssue({ code: 'custom', path: ['projects', i, 'plannerDir'], message: VM_PATH_MESSAGE });
+      }
+    });
   });
 
 export function configDir(): string {
@@ -143,6 +165,15 @@ async function readConfig(dir: string): Promise<Fetched<MapleConfig>> {
       worktreesDir: expandHome(config.worktreesDir),
       vaultDir: config.vaultDir === undefined ? null : expandHome(config.vaultDir),
       projects: config.projects.map((project) => ({ ...project, plannerDir: expandHome(project.plannerDir) })),
+      remote:
+        config.remote === null
+          ? null
+          : {
+              ...config.remote,
+              keyPath: expandHome(config.remote.keyPath),
+              knownHostsPath: expandHome(config.remote.knownHostsPath),
+              vaultSocket: config.remote.vaultSocket === null ? null : expandHome(config.remote.vaultSocket),
+            },
     },
     error: null,
     fetchedAt: new Date().toISOString(),
