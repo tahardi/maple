@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './theme.css';
 import { App } from './App';
+import { WindowErrorBoundary } from './shell/WindowErrorBoundary';
 
 const root = document.getElementById('root');
 if (!root) {
@@ -10,6 +11,12 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <WindowErrorBoundary
+      onReload={() => {
+        window.location.reload();
+      }}
+    >
+      <App />
+    </WindowErrorBoundary>
   </StrictMode>,
 );
