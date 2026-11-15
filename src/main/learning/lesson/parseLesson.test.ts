@@ -190,6 +190,45 @@ describe('parseLesson', () => {
       reaches: [REACH, null],
     },
     {
+      name: 'a path that goes back to a zone it left gives no path',
+      parts: { ...ALL, path: JSON.stringify({ steps: [...PATH_STEPS, { ...PATH_STEPS[0] }] }) },
+      want: { ...READ, path: null },
+      reaches: [REACH, null],
+    },
+    {
+      name: 'a path with 4 zones gives no path',
+      parts: {
+        ...ALL,
+        path: JSON.stringify({ steps: ['a', 'b', 'c', 'd'].map((zone) => ({ ...PATH_STEPS[0], zone })) }),
+      },
+      want: { ...READ, path: null },
+      reaches: [REACH, null],
+    },
+    {
+      name: 'a 4-line attack gives no example',
+      parts: { ...ALL, example: JSON.stringify({ ...EXAMPLE, attack: 'a\nb\nc\n; rm -rf ~' }) },
+      want: { ...READ, example: null },
+      reaches: [REACH, null],
+    },
+    {
+      name: 'a source with two links gives no source',
+      parts: { ...ALL, source: `${SOURCE} ${SOURCE}` },
+      want: { ...READ, source: null },
+      reaches: [REACH, null],
+    },
+    {
+      name: 'a source with an empty title gives no source',
+      parts: { ...ALL, source: '[ ](https://owasp.org/x)' },
+      want: { ...READ, source: null },
+      reaches: [REACH, null],
+    },
+    {
+      name: 'two reach blocks under one entry give no reach',
+      parts: { reach: `${JSON.stringify(REACH)}\n\`\`\`\n\n\`\`\`maple-reach\n${JSON.stringify(REACH)}` },
+      want: { example: null, path: null, source: null },
+      reaches: [null, null],
+    },
+    {
       name: 'a reach under one finding entry is only on that entry',
       parts: { reach: JSON.stringify(REACH) },
       want: { example: null, path: null, source: null },

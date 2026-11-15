@@ -27,6 +27,9 @@ export function LessonPage({ path }: { path: string }) {
   }
 
   const { summary } = lesson;
+  if (chosen === null) {
+    setChosen(summary.status !== 'to-learn');
+  }
   const onePage = chosen ?? summary.status !== 'to-learn';
   const steps = [
     {

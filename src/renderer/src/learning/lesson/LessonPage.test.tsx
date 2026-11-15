@@ -1,5 +1,5 @@
 import type { ReviewQuestion } from '@shared/types/learning/reviewQuestion';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { fullLesson } from '@renderer/testing/fullLessonFixture';
@@ -172,6 +172,35 @@ describe('LessonPage', () => {
     // then
     expect(screen.getByText('Binding keeps data apart.')).toBeVisible();
     expect(review).toHaveBeenCalledTimes(1);
+  });
+
+  test('stays in Steps when a vault change marks the lesson learned', async () => {
+    // given
+    let changed = (): void => undefined;
+    const learned = lesson('xss', { title: 'Command injection', hasLesson: true, status: 'learned' });
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce(fullLesson('xss'))
+      .mockResolvedValue(fullLesson('xss', { summary: learned }));
+    fakeMaple({
+      learning: { read },
+      vault: {
+        onChanged: (cb: () => void) => {
+          changed = cb;
+          return () => undefined;
+        },
+      },
+    });
+    render(<LessonPage path={PATH} />);
+    await screen.findByText('To learn');
+    // when
+    act(() => {
+      changed();
+    });
+    await screen.findByText('Learned');
+    // then
+    expect(visibleSteps()).toEqual(['What it is']);
+    expect(screen.getByRole('button', { name: 'Steps' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('a missing example leaves What it is as text only', async () => {
