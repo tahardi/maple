@@ -72,6 +72,38 @@ describe('visualSchema', () => {
       },
     },
     {
+      name: 'a path with no zones keeps the path',
+      input: {
+        path: [
+          { actor: 'a', step: 'One.' },
+          { actor: 'b', step: 'Two.' },
+        ],
+      },
+      want: {
+        path: [
+          { actor: 'a', step: 'One.' },
+          { actor: 'b', step: 'Two.' },
+        ],
+      },
+    },
+    {
+      name: 'a path with a zoneless step inside one zone keeps the path',
+      input: {
+        path: [
+          { actor: 'a', step: 'One.', zone: 'A' },
+          { actor: 'b', step: 'Two.' },
+          { actor: 'c', step: 'Three.', zone: 'A' },
+        ],
+      },
+      want: {
+        path: [
+          { actor: 'a', step: 'One.', zone: 'A' },
+          { actor: 'b', step: 'Two.' },
+          { actor: 'c', step: 'Three.', zone: 'A' },
+        ],
+      },
+    },
+    {
       name: 'a visual with only map parses to undefined',
       input: { map: { zones: ['a', 'b'], from: 'a', to: 'b' } },
       want: undefined,

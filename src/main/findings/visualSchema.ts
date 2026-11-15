@@ -11,7 +11,12 @@ const step = z.object({
 });
 
 function zonesInGroups(steps: readonly { zone?: string }[]): boolean {
-  const zones = steps.flatMap(({ zone }, index) => (zone && zone !== steps[index - 1]?.zone ? [zone] : []));
+  const zones: string[] = [];
+  for (const { zone } of steps) {
+    if (zone && zone !== zones.at(-1)) {
+      zones.push(zone);
+    }
+  }
   return zones.length <= 3 && new Set(zones).size === zones.length;
 }
 
