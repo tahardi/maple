@@ -7,9 +7,8 @@ import { Badge } from '@renderer/shell/blocks/Badge';
 import { chipLabel } from './chipLabel';
 import { DecisionButtons } from './DecisionButtons';
 import { LearnButtons } from './LearnButtons';
-import { AttackPath } from './visual/AttackPath';
-import { AttackerReach } from './visual/AttackerReach';
-import { TrustMap } from './visual/TrustMap';
+import { AttackPath } from '@renderer/security/visual/AttackPath';
+import { AttackerReach } from '@renderer/security/visual/AttackerReach';
 import styles from './FindingCard.module.css';
 
 const SECTIONS = [
@@ -56,12 +55,6 @@ export function FindingCard({ tabId, finding, working, applying, lessons }: Find
         <section className={styles.section}>
           <h4 className={styles.label}>How the attack goes</h4>
           <AttackPath steps={finding.visual.path} />
-        </section>
-      )}
-      {finding.visual?.map && (
-        <section className={styles.section}>
-          <h4 className={styles.label}>Where it crosses</h4>
-          <TrustMap zones={finding.visual.map.zones} from={finding.visual.map.from} to={finding.visual.map.to} />
         </section>
       )}
       {finding.visual?.reach && (
