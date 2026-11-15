@@ -95,7 +95,12 @@ describe('SessionEnded', () => {
     expect(screen.getByRole('button', { name: 'Start fresh' })).toBeEnabled();
   });
 
-  test.each(['Resume', 'Start fresh'])('a failed %s shows its error until the next click', async (label) => {
+  test.each([
+    { label: 'Resume', next: 'Resume' },
+    { label: 'Start fresh', next: 'Start fresh' },
+    { label: 'Resume', next: 'Start fresh' },
+    { label: 'Start fresh', next: 'Resume' },
+  ])('a failed $label shows its error until $next is clicked', async ({ label, next }) => {
     // given
     const request = vi
       .fn<() => Promise<void>>()
@@ -112,7 +117,7 @@ describe('SessionEnded', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('starting session: no vaultDir in config');
     });
     // when
-    await userEvent.click(screen.getByRole('button', { name: label }));
+    await userEvent.click(screen.getByRole('button', { name: next }));
     // then
     await vi.waitFor(() => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
