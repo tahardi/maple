@@ -1,4 +1,5 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import { useMaple } from './store';
 import { fakeMaple } from './testing/fakeMaple';
@@ -147,6 +148,23 @@ describe('App', () => {
     expect(danger).toHaveAttribute('data-tone', 'danger');
     expect(danger).toHaveTextContent('reading config: bad json');
     expect(warning.compareDocumentPosition(danger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test('Dismiss hides the warnings and keeps the config error', async () => {
+    // given
+    fakeMaple({
+      app: { warnings: () => Promise.resolve(['reading state: state.json is unreadable']) },
+      config: { get: () => Promise.resolve({ data: null, error: 'reading config: bad json', fetchedAt: null }) },
+    });
+    render(<App />);
+    const warning = await screen.findByRole('status');
+    // when
+    await userEvent.click(within(warning).getByRole('button', { name: 'Dismiss' }));
+    // then
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    const danger = screen.getByRole('alert');
+    expect(danger).toHaveTextContent('reading config: bad json');
+    expect(within(danger).queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument();
   });
 
   test('shows Home when warnings fail to load', async () => {
