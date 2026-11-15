@@ -44,6 +44,18 @@ describe('LessonPage', () => {
     expect(within(second).getByText('Tie-in pending')).toBeInTheDocument();
   });
 
+  test('does not link out of a lesson to an unapproved site', async () => {
+    // given
+    const bad = fullLesson('xss', { explanation: 'See [docs](https://evil.example/x).' });
+    fakeMaple({ learning: { read: () => Promise.resolve(bad) } });
+    // when
+    render(<LessonPage path={PATH} />);
+    // then
+    expect(await screen.findByText('docs', { exact: false })).toHaveTextContent('https://evil.example/x');
+    expect(screen.queryByRole('link', { name: 'docs' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'https://github.com/example/repo/pull/1' })).toBeInTheDocument();
+  });
+
   test.each([
     {
       name: 'no explanation',

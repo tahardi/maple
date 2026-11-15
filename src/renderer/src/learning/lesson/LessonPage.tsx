@@ -1,3 +1,4 @@
+import { LESSON_LINK_HOSTS } from '@shared/learning/lessonLinks';
 import { useId } from 'react';
 import { Badge } from '@renderer/shell/blocks/Badge';
 import { Notice } from '@renderer/shell/blocks/Notice';
@@ -36,9 +37,17 @@ export function LessonPage({ path }: { path: string }) {
         )}
       </div>
       <h2>What it is</h2>
-      {lesson.explanation === null ? <p>Not written yet.</p> : <MarkdownText text={lesson.explanation} />}
+      {lesson.explanation === null ? (
+        <p>Not written yet.</p>
+      ) : (
+        <MarkdownText text={lesson.explanation} linkHosts={LESSON_LINK_HOSTS} />
+      )}
       <h2>How an attack works</h2>
-      {lesson.attack === null ? <p>Not written yet.</p> : <MarkdownText text={lesson.attack} />}
+      {lesson.attack === null ? (
+        <p>Not written yet.</p>
+      ) : (
+        <MarkdownText text={lesson.attack} linkHosts={LESSON_LINK_HOSTS} />
+      )}
       <h2>Code walk</h2>
       {lesson.trace === null ? (
         <Notice tone="danger">{`${lesson.traceError ?? 'reading lesson: trace: missing'}. ${FIX}`}</Notice>
@@ -66,7 +75,7 @@ export function LessonPage({ path }: { path: string }) {
                   {f.pr}
                 </a>
               )}
-              {f.tieIn === null ? <p>Tie-in pending</p> : <MarkdownText text={f.tieIn} />}
+              {f.tieIn === null ? <p>Tie-in pending</p> : <MarkdownText text={f.tieIn} linkHosts={LESSON_LINK_HOSTS} />}
             </li>
           ))}
         </ul>
