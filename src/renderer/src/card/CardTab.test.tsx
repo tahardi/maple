@@ -2043,7 +2043,7 @@ describe('CardTab', () => {
     expect(written).toHaveBeenCalledTimes(2);
   });
 
-  test('the Terminal button shows its shortcut', () => {
+  test('the Terminal button reads only Terminal and keeps its shortcut for hover and screen readers', () => {
     // given
     fakeMaple();
     // when
@@ -2051,7 +2051,8 @@ describe('CardTab', () => {
     // then
     const button = screen.getByRole('button', { name: 'Terminal' });
     expect(button).toHaveAttribute('aria-keyshortcuts', 'Control+`');
-    expect(button).toHaveTextContent('Ctrl+`');
+    expect(button).toHaveAttribute('title', 'Show or hide the terminal (Ctrl+`)');
+    expect(button).toHaveTextContent(/^Terminal$/);
   });
 
   test.each([
