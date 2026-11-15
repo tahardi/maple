@@ -19,7 +19,6 @@ type Props = {
   branch: string | null;
   changes: Pick<ChangeSet, 'files' | 'added' | 'removed'> | null;
   cost: SessionCost | null;
-  projectRepo: string | null;
   onOpenCard: () => void;
   onOpenPr: () => void;
   findingsLabel: string | null;
@@ -57,7 +56,6 @@ export function CardHeader({
   branch,
   changes,
   cost,
-  projectRepo,
   onOpenCard,
   onOpenPr,
   findingsLabel,
@@ -87,7 +85,7 @@ export function CardHeader({
       {info && (
         <>
           <button className={styles.pr} title="Open PR description" onClick={onOpenPr}>
-            {prLabel(info, projectRepo)}
+            {prLabel(info)}
           </button>
           <a href={info.url} target="_blank" rel="noreferrer" title="Open on GitHub">
             ↗

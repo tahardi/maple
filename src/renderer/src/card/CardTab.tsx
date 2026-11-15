@@ -175,7 +175,6 @@ export function CardTab({ tab }: { tab: TabState }) {
         branch={repo?.branch ?? null}
         changes={pinned ?? changes}
         cost={cost}
-        projectRepo={project?.repo ?? null}
         onOpenCard={() => {
           openFile(CARD_DESCRIPTION, null, true);
         }}
