@@ -11,10 +11,12 @@ import { addFindingEntry } from '@main/learning/notes/addFindingEntry';
 import { listLessons } from '@main/learning/notes/listLessons';
 import { gradeQuiz } from '@main/learning/lesson/gradeQuiz';
 import { parseLesson } from '@main/learning/lesson/parseLesson';
+import { pickReview } from '@main/learning/review/pickReview';
+import { readReviewSource } from '@main/learning/review/readReviewSource';
 import { today } from '@main/learning/notes/today';
 import { readFrontmatter, writeFrontmatter } from '@main/learning/notes/frontmatter';
 import { isMissing } from '@main/util/isMissing';
-import { readNote, writeNote } from '@main/vault/vault';
+import { listNotes, readNote, writeNote } from '@main/vault/vault';
 import { errorText } from '@shared/errors/errorText';
 import { lessonClass } from '@shared/learning/lessonClass';
 import { isLessonPath, LESSON_DIR } from '@shared/learning/lessonPath';
@@ -126,11 +128,57 @@ export function registerLearning(
       }
       const result = gradeQuiz(key, answers);
       const { grades } = readFrontmatter(text).data;
-      const grade = { date: today(), score: result.score, total: result.total };
+      const missed = result.results.flatMap((r, i) => (r.correct ? [] : [i]));
+      const grade = { date: today(), score: result.score, total: result.total, missed };
       const fields = { grades: [...(Array.isArray(grades) ? (grades as unknown[]) : []), grade], status: 'learned' };
       await writeNote(dir, path, writeFrontmatter(text, fields));
       return result;
     }),
+  );
+  handle('learning', 'review', z.tuple([lessonPathArg]), (path) =>
+    logFailure(logger, 'learning', { operation: 'learning:review', args: [path] }, async () => {
+      const dir = await requireVaultDir('reading lessons');
+      const paths = (await listNotes(dir)).map((note) => note.path).filter(isLessonPath);
+      const read = await Promise.all(
+        paths.map(async (p) => {
+          const text = await readOrNull(dir, p).catch(() => null);
+          return text === null ? null : readReviewSource(p, text);
+        }),
+      );
+      const notes = read.flatMap((r) => (r === null ? [] : [r]));
+      return pickReview(
+        notes.map((n) => n.source),
+        path,
+        Math.random,
+      ).flatMap(({ path: picked, index }) => {
+        const note = notes.find((n) => n.source.path === picked);
+        const q = note?.key.questions.at(index);
+        if (note === undefined || q === undefined) {
+          return [];
+        }
+        return [{ path: picked, title: note.source.title, index, question: q.question, choices: q.choices }];
+      });
+    }),
+  );
+  handle(
+    'learning',
+    'gradeReview',
+    z.tuple([lessonPathArg, z.int().min(0).max(4), z.int().min(0).max(4)]),
+    (path, index, answer) =>
+      logFailure(logger, 'learning', { operation: 'learning:gradeReview', args: [path, String(index)] }, async () => {
+        const dir = await requireVaultDir('reading lessons');
+        const text = await readNote(dir, path);
+        const q = parseLesson(path, text).key?.questions.at(index);
+        if (q === undefined) {
+          throw new Error(`grading review: ${path} has no question ${String(index)}`);
+        }
+        const right = answer === q.answer;
+        const { reviews } = readFrontmatter(text).data;
+        const review = { date: today(), question: index, right };
+        const list = [...(Array.isArray(reviews) ? (reviews as unknown[]) : []), review];
+        await writeNote(dir, path, writeFrontmatter(text, { reviews: list }));
+        return { correct: right, answer: q.answer, why: q.why };
+      }),
   );
   handle('learning', 'fromFinding', z.tuple([tabIdArg, findingIdArg, modeArg]), (tabId, findingId, mode) =>
     logFailure(logger, 'learning', { operation: 'learning:fromFinding', args: [tabId, findingId, mode] }, async () => {

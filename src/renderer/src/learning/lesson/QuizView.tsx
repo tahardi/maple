@@ -1,10 +1,12 @@
 import type { QuizQuestion } from '@shared/types/learning/quizQuestion';
 import type { QuizResult } from '@shared/types/learning/quizResult';
+import type { ReviewQuestion as Review } from '@shared/types/learning/reviewQuestion';
 import { errorText } from '@shared/errors/errorText';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Badge } from '@renderer/shell/blocks/Badge';
 import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
+import { ReviewQuestion } from './ReviewQuestion';
 import styles from './LessonPage.module.css';
 
 export function QuizView({ path, questions }: { path: string; questions: readonly QuizQuestion[] }) {
@@ -13,8 +15,29 @@ export function QuizView({ path, questions }: { path: string; questions: readonl
   const [result, setResult] = useState<QuizResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<readonly Review[]>([]);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const chosen = questions.map((_, i) => answers.at(i) ?? null);
   const complete = chosen.every((a) => a !== null);
+
+  useEffect(() => {
+    let live = true;
+    window.maple.learning.review(path).then(
+      (picked) => {
+        if (live) {
+          setReviews(picked);
+        }
+      },
+      (err: unknown) => {
+        if (live) {
+          setReviewError(errorText(err));
+        }
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [path]);
 
   const submit = () => {
     const picked = chosen.flatMap((a) => (a === null ? [] : [a]));
@@ -86,6 +109,10 @@ export function QuizView({ path, questions }: { path: string; questions: readonl
           <Button label="Try again" onClick={retry} />
         </div>
       )}
+      {reviews.map((r) => (
+        <ReviewQuestion key={`${r.path} ${String(r.index)}`} review={r} />
+      ))}
+      {reviewError !== null && <Notice tone="warning">{reviewError}</Notice>}
     </div>
   );
 }
