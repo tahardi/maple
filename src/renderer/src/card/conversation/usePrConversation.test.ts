@@ -127,27 +127,31 @@ describe('usePrConversation', () => {
     });
   });
 
-  test('ignores a result that arrives after unmount', async () => {
+  test('ignores an earlier load that finishes after a newer one', async () => {
     // given
-    let finish: (next: PrComment[]) => void = () => undefined;
-    const conversation = vi.fn(
-      () =>
-        new Promise<PrComment[]>((resolve) => {
-          finish = resolve;
-        }),
-    );
+    let finishFirst: (next: PrComment[]) => void = () => undefined;
+    const newer = { ...comment, url: 'newer', body: 'newer' };
+    const conversation = vi
+      .fn<() => Promise<PrComment[]>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<PrComment[]>((resolve) => {
+            finishFirst = resolve;
+          }),
+      )
+      .mockResolvedValue([newer]);
     fakeMaple({ pr: { conversation } });
-    const { result, unmount } = render();
+    const { result, rerender } = render();
+    rerender({ ...props, prFetchedAt: '2026-10-25T12:00:00.000Z' });
     await waitFor(() => {
-      expect(conversation).toHaveBeenCalledOnce();
+      expect(result.current.comments).toEqual([newer]);
     });
-    unmount();
     // when
     await act(async () => {
-      finish([comment]);
+      finishFirst([comment]);
       await Promise.resolve();
     });
     // then
-    expect(result.current.comments).toEqual([]);
+    expect(result.current.comments).toEqual([newer]);
   });
 });
