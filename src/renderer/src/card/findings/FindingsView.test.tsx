@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { finding, findingsFile } from '@renderer/testing/findingsFixture';
 import { useMaple } from '@renderer/store';
+import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { FindingsView } from './FindingsView';
 
 const visual = {
@@ -21,6 +22,7 @@ const decided = { kind: 'fix-later' as const, reason: null, decidedAt: '2026-11-
 describe('FindingsView', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
+    fakeMaple();
   });
 
   test('shows each finding with its severity badge, chips, and the four sections', () => {

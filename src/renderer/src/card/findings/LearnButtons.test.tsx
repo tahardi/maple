@@ -4,9 +4,11 @@ import type { MapleApi } from '@shared/api/mapleApi';
 import type { TabState } from '@shared/types/tabs/tabState';
 import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import type { FindingLesson } from '@shared/types/findings/findingLesson';
+import type { LessonSummary } from '@shared/types/learning/lessonSummary';
 import { useMaple } from '@renderer/store';
 import { FAKE_CONFIG, fakeMaple } from '@renderer/testing/fakeMaple';
 import { finding } from '@renderer/testing/findingsFixture';
+import { lesson } from '@renderer/testing/lessonFixture';
 import { LearnButtons } from './LearnButtons';
 
 const NOTE = 'Learning/Security/command-injection.md';
@@ -19,17 +21,22 @@ function statusOf(tabId: string, dot: TabStatus['dot']): TabStatus {
   return { tabId, dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null };
 }
 
-function setup(vaultDir: string | null = '/vault', tabs: TabState[] = [tabOf('t1', 'card', 'MPL-20')]) {
+function setup(
+  vaultDir: string | null = '/vault',
+  tabs: TabState[] = [tabOf('t1', 'card', 'MPL-20')],
+  lessons: LessonSummary[] = [],
+) {
   const fromFinding = vi.fn<MapleApi['learning']['fromFinding']>(() =>
     Promise.resolve({ note: NOTE, learningTabId: 'learn-1' }),
   );
+  const list = vi.fn(() => Promise.resolve(lessons));
   const setActive = vi.fn();
-  fakeMaple({ learning: { fromFinding }, tabs: { setActive } });
+  fakeMaple({ learning: { fromFinding, list }, tabs: { setActive } });
   useMaple.setState({
     config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir } },
     tabs,
   });
-  return { fromFinding, setActive };
+  return { fromFinding, setActive, list };
 }
 
 const lessonOf = (mode: FindingLesson['mode']): FindingLesson => ({ note: NOTE, mode, at: '2026-11-13T12:00:00Z' });
@@ -180,5 +187,48 @@ describe('LearnButtons', () => {
     // then
     expect(screen.getByText('Saving…')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Learn now' })).toBeDisabled();
+  });
+
+  test('offers Open lesson when the class already has a lesson', async () => {
+    // given
+    setup('/vault', undefined, [lesson('command-injection', { hasLesson: true })]);
+    // when
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    // then
+    expect(await screen.findByRole('button', { name: 'Open lesson' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Learn now' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Learn later' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Lesson saved')).not.toBeInTheDocument();
+  });
+
+  test('Open lesson starts the lesson the way Learn now does', async () => {
+    // given
+    const { fromFinding } = setup('/vault', undefined, [lesson('command-injection', { hasLesson: true })]);
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: 'Open lesson' }));
+    // then
+    expect(fromFinding).toHaveBeenCalledWith('t1', 'F1', 'now');
+    await waitFor(() => {
+      expect(useMaple.getState().activeTabId).toBe('learn-1');
+    });
+    expect(useMaple.getState().lessonNote).toBe(NOTE);
+  });
+
+  test.each<{ name: string; lessons: LessonSummary[] }>([
+    { name: 'the class has no lesson', lessons: [lesson('path-traversal', { hasLesson: true })] },
+    { name: 'the note has no lesson section', lessons: [lesson('command-injection', { hasLesson: false })] },
+  ])('offers Learn now and Learn later when $name', async ({ lessons }) => {
+    // given
+    const { list } = setup('/vault', undefined, lessons);
+    // when
+    render(<LearnButtons tabId="t1" finding={finding()} working={false} />);
+    // then
+    await waitFor(() => {
+      expect(list).toHaveBeenCalled();
+    });
+    expect(screen.getByRole('button', { name: 'Learn now' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Learn later' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open lesson' })).not.toBeInTheDocument();
   });
 });

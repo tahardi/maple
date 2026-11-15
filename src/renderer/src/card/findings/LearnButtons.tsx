@@ -2,9 +2,11 @@ import { useState } from 'react';
 import type { Finding } from '@shared/types/findings/finding';
 import type { FindingLesson } from '@shared/types/findings/findingLesson';
 import { errorText } from '@shared/errors/errorText';
+import { lessonClass } from '@shared/learning/lessonClass';
 import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { useMaple } from '@renderer/store';
+import { useLessons } from '@renderer/learning/useLessons';
 import styles from './FindingCard.module.css';
 
 type LearnButtonsProps = { tabId: string; finding: Finding; working: boolean };
@@ -21,6 +23,7 @@ export function LearnButtons({ tabId, finding, working }: LearnButtonsProps) {
     (s) => learningTabId !== null && learningTabId in s.statuses && s.statuses[learningTabId].dot === 'working',
   );
   const showLesson = useMaple((s) => s.showLesson);
+  const { lessons } = useLessons();
   const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,11 +63,23 @@ export function LearnButtons({ tabId, finding, working }: LearnButtonsProps) {
   const lesson = finding.lesson ?? null;
   const nowReason = working ? 'Claude is working' : learningBusy ? 'The Learning session is busy' : null;
   const laterReason = working ? 'Claude is working' : null;
+  const slug = lessonClass(finding.identity);
+  const known = lesson === null && lessons.some((l) => l.slug === slug && l.hasLesson);
 
   return (
     <div className={styles.decisions}>
       <div className={styles.buttons}>
-        {lesson?.mode !== 'now' && (
+        {known && (
+          <Button
+            label="Open lesson"
+            disabled={nowReason !== null || pending !== null}
+            reason={nowReason}
+            busy={pending === 'now'}
+            busyLabel="Opening…"
+            onClick={() => void learn('now')}
+          />
+        )}
+        {!known && lesson?.mode !== 'now' && (
           <Button
             label="Learn now"
             disabled={nowReason !== null || pending !== null}
@@ -74,7 +89,7 @@ export function LearnButtons({ tabId, finding, working }: LearnButtonsProps) {
             onClick={() => void learn('now')}
           />
         )}
-        {lesson === null && (
+        {!known && lesson === null && (
           <Button
             label="Learn later"
             disabled={laterReason !== null || pending !== null}
