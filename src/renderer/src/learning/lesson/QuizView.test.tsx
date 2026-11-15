@@ -152,12 +152,12 @@ describe('QuizView', () => {
     const grade = vi.fn(() => Promise.resolve(RESULT));
     fakeMaple({ learning: { grade, review: () => Promise.reject(new Error('reading lessons: no vaultDir')) } });
     render(<QuizView path={PATH} questions={QUESTIONS} />);
-    expect(await screen.findByText('reading lessons: no vaultDir')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('radio', { name: 'Script injection' }));
     await userEvent.click(screen.getByRole('radio', { name: 'Nobody' }));
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
     // then
+    expect(await screen.findByText('reading lessons: no vaultDir')).toBeInTheDocument();
     expect(await screen.findByText('1 of 2')).toBeInTheDocument();
   });
 });

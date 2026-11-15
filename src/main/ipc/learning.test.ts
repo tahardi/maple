@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { IpcMainInvokeEvent } from 'electron';
@@ -395,11 +395,10 @@ describe('registerLearning', () => {
       ]);
     });
 
-    test('learning:review skips a note with a broken quiz or that cannot be read', async () => {
+    test('learning:review skips a note with a broken quiz', async () => {
       // given
       const broken = readFileSync(join(vault, 'Learning', 'Security', 'older.md'), 'utf8');
       writeFileSync(join(vault, 'Learning', 'Security', 'older.md'), broken.replace('```maple-quiz', '```json'));
-      mkdirSync(join(vault, 'Learning', 'Security', 'locked.md'));
       const { invoke } = register(vault);
       // when
       const got = (await invoke('learning:review', LESSON_PATH)) as { path: string }[];
@@ -409,8 +408,7 @@ describe('registerLearning', () => {
 
     test('learning:review logs a note it cannot read and still answers', async () => {
       // given
-      writeFileSync(join(vault, 'Learning', 'Security', 'locked.md'), 'x');
-      chmodSync(join(vault, 'Learning', 'Security', 'locked.md'), 0o000);
+      writeFileSync(join(vault, 'Learning', 'Security', 'huge.md'), 'x'.repeat(2_097_153));
       const { invoke } = register(vault);
       // when
       const got = (await invoke('learning:review', LESSON_PATH)) as { path: string }[];
@@ -419,7 +417,7 @@ describe('registerLearning', () => {
       expect(logger.warn).toHaveBeenCalledWith(
         'learning',
         'failed',
-        expect.objectContaining({ operation: 'learning:review', path: 'Learning/Security/locked.md' }),
+        expect.objectContaining({ operation: 'learning:review', path: 'Learning/Security/huge.md' }),
       );
     });
 
