@@ -1,16 +1,22 @@
 import { useState } from 'react';
+import { errorText } from '@shared/errors/errorText';
 import { Button } from '@renderer/shell/blocks/Button';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './SessionEnded.module.css';
 
 type SessionEndedProps = { tabId: string; exitCode: number | null; resumeFailed: boolean };
 
 export function SessionEnded({ tabId, exitCode, resumeFailed }: SessionEndedProps) {
   const [pending, setPending] = useState<'resume' | 'fresh' | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const run = (kind: 'resume' | 'fresh', request: Promise<unknown>) => {
     setPending(kind);
+    setError(null);
     request
-      .catch(() => undefined)
+      .catch((err: unknown) => {
+        setError(errorText(err));
+      })
       .finally(() => {
         setPending(null);
       });
@@ -42,6 +48,7 @@ export function SessionEnded({ tabId, exitCode, resumeFailed }: SessionEndedProp
           }}
         />
       </div>
+      {error !== null && <Notice tone="danger">{error}</Notice>}
     </div>
   );
 }
