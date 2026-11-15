@@ -3,9 +3,10 @@ import { homedir } from 'node:os';
 import type { IPty } from 'node-pty';
 import type { RemoteConfig } from '@shared/types/config/remoteConfig';
 import { errorText } from '@shared/errors/errorText';
+import { COMMAND_TIMEOUT_MS } from '@main/util/commandTimeout';
 
 export type ExecResult = { stdout: string; stderr: string; code: number };
-export type ExecOptions = { cwd?: string; input?: string; maxBuffer?: number };
+export type ExecOptions = { cwd?: string; input?: string; maxBuffer?: number; timeout?: number };
 export type PtyOptions = { cwd: string; env: Record<string, string>; cols: number; rows: number };
 
 export type Runner = {
@@ -22,6 +23,7 @@ export function collect(
   child: ChildProcessWithoutNullStreams,
   input: string | undefined,
   maxBuffer: number,
+  timeoutMs: number = COMMAND_TIMEOUT_MS,
 ): Promise<{ stdout: Buffer; stderr: string; code: number }> {
   return new Promise((resolve, reject) => {
     const out: Buffer[] = [];
@@ -29,13 +31,27 @@ export function collect(
     let stderr = '';
     let done = false;
 
+    const fail = (err: Error): void => {
+      done = true;
+      clearTimeout(timer);
+      child.kill();
+      reject(err);
+    };
+
     const finish = (code: number, text = stderr): void => {
       if (done) {
         return;
       }
       done = true;
+      clearTimeout(timer);
       resolve({ stdout: Buffer.concat(out), stderr: text, code });
     };
+
+    const timer = setTimeout(() => {
+      if (!done) {
+        fail(new Error(`running command: timing out after ${String(timeoutMs)}ms`));
+      }
+    }, timeoutMs);
 
     child.stdout.on('data', (chunk: Buffer) => {
       if (done) {
@@ -43,9 +59,7 @@ export function collect(
       }
       size += chunk.length;
       if (size > maxBuffer) {
-        done = true;
-        child.kill();
-        reject(new Error(`running command: output exceeds ${String(maxBuffer)} bytes`));
+        fail(new Error(`running command: output exceeds ${String(maxBuffer)} bytes`));
         return;
       }
       out.push(chunk);

@@ -125,15 +125,24 @@ async function start(): Promise<Zoom> {
   const home = vmHome(remote);
   let stopKeepAlive: () => void = () => undefined;
   if (ssh) {
-    new Notification({ title: 'Maple', body: 'Touch your YubiKey to connect Maple to the VM' }).show();
+    const touch = (): void => {
+      new Notification({ title: 'Maple', body: 'Touch your YubiKey to connect Maple to the VM' }).show();
+    };
     try {
-      await ssh.start();
+      const started = await ssh.connect(touch);
+      appLogger.info('remote', 'connected', { operation: 'start', reused: !started });
     } catch (err) {
       warnings.push(`connecting to VM: ${errorText(err)}`);
       appLogger.warn('remote', 'failed', { operation: 'start', error: errorText(err) });
     }
-    stopKeepAlive = ssh.keepAlive((err) => {
-      appLogger.warn('remote', 'failed', { operation: 'keepAlive', error: errorText(err) });
+    stopKeepAlive = ssh.keepAlive({
+      touch,
+      restarted: () => {
+        appLogger.info('remote', 'connected', { operation: 'keepAlive', reused: false });
+      },
+      failed: (err) => {
+        appLogger.warn('remote', 'failed', { operation: 'keepAlive', error: errorText(err) });
+      },
     });
   }
   let stopQueue: () => void = () => undefined;

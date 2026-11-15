@@ -17,7 +17,14 @@ import {
 
 export type SshDeps = { spawn: typeof childSpawn; spawnPty: typeof ptySpawn };
 
+export type KeepAliveHooks = {
+  touch: () => void;
+  restarted: () => void;
+  failed: (err: unknown) => void;
+};
+
 export const KEEP_ALIVE_MS = 30_000;
+export const START_TIMEOUT_MS = 60_000;
 
 export function shellQuote(arg: string): string {
   return `'${arg.replaceAll("'", "'\\''")}'`;
@@ -38,7 +45,7 @@ export class SshRunner implements Runner {
   ) {}
 
   async exec(cmd: string[], opts: ExecOptions = {}): Promise<ExecResult> {
-    const result = await this.run(remoteCommand(cmd, opts.cwd), opts.input, opts.maxBuffer ?? MAX_BUFFER);
+    const result = await this.run(remoteCommand(cmd, opts.cwd), opts.input, opts.maxBuffer ?? MAX_BUFFER, opts.timeout);
     return { ...result, stdout: result.stdout.toString('utf8') };
   }
 
@@ -84,10 +91,12 @@ export class SshRunner implements Runner {
       '-N',
       '-o',
       'ExitOnForwardFailure=yes',
+      '-o',
+      'ConnectTimeout=10',
       ...forward,
       this.target,
     ]);
-    const result = await collect(child, undefined, MAX_BUFFER);
+    const result = await collect(child, undefined, MAX_BUFFER, START_TIMEOUT_MS);
     if (result.code !== 0) {
       throw new Error(`starting ssh master: ${result.stderr.trim()}`);
     }
@@ -99,7 +108,16 @@ export class SshRunner implements Runner {
     return result.code === 0;
   }
 
-  keepAlive(onError: (err: unknown) => void, intervalMs = KEEP_ALIVE_MS): () => void {
+  async connect(touch: () => void): Promise<boolean> {
+    if (await this.check()) {
+      return false;
+    }
+    touch();
+    await this.start();
+    return true;
+  }
+
+  keepAlive(hooks: KeepAliveHooks, intervalMs = KEEP_ALIVE_MS): () => void {
     let busy = false;
     const tick = async (): Promise<void> => {
       if (busy) {
@@ -107,11 +125,11 @@ export class SshRunner implements Runner {
       }
       busy = true;
       try {
-        if (!(await this.check())) {
-          await this.start();
+        if (await this.connect(hooks.touch)) {
+          hooks.restarted();
         }
       } catch (err) {
-        onError(err);
+        hooks.failed(err);
       } finally {
         busy = false;
       }
@@ -155,8 +173,13 @@ export class SshRunner implements Runner {
     ];
   }
 
-  private run(command: string, input: string | undefined, maxBuffer: number): ReturnType<typeof collect> {
+  private run(
+    command: string,
+    input: string | undefined,
+    maxBuffer: number,
+    timeoutMs?: number,
+  ): ReturnType<typeof collect> {
     const child = this.deps.spawn('ssh', [...this.base(), this.target, '--', command]);
-    return collect(child, input, maxBuffer);
+    return collect(child, input, maxBuffer, timeoutMs);
   }
 }

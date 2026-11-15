@@ -20,7 +20,7 @@ export class LocalRunner implements Runner {
   async exec(cmd: string[], opts: ExecOptions = {}): Promise<ExecResult> {
     const [program, ...args] = cmd;
     const child = this.deps.spawn(program, args, { cwd: opts.cwd });
-    const result = await collect(child, opts.input, opts.maxBuffer ?? MAX_BUFFER);
+    const result = await collect(child, opts.input, opts.maxBuffer ?? MAX_BUFFER, opts.timeout);
     return { ...result, stdout: result.stdout.toString('utf8') };
   }
 

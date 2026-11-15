@@ -130,6 +130,21 @@ describe('SshRunner', () => {
     expect(result).toEqual({ stdout: 'clean', stderr: 'note', code: 0 });
   });
 
+  test('exec pipes input to the remote command', async () => {
+    // given
+    const child = fakeChild('', 0);
+    const chunks: Buffer[] = [];
+    child.stdin.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    const spawn = fakeSpawn(child);
+    // when
+    await runner(spawn).exec(['cat'], { input: 'x' });
+    // then
+    expect(Buffer.concat(chunks).toString('utf8')).toBe('x');
+    expect(child.stdin.writableEnded).toBe(true);
+  });
+
   test('exec passes ssh failures through as code 255', async () => {
     // given
     const spawn = fakeSpawn(fakeChild('', 255, 'Connection refused'));
@@ -235,6 +250,8 @@ describe('SshRunner.start', () => {
       '-N',
       '-o',
       'ExitOnForwardFailure=yes',
+      '-o',
+      'ConnectTimeout=10',
       ...forward,
       TARGET,
     ]);
@@ -265,6 +282,68 @@ describe('SshRunner.check', () => {
   });
 });
 
+function openChild(): FakeChild {
+  return Object.assign(new EventEmitter(), {
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    stdin: new PassThrough(),
+    kill: vi.fn(),
+  });
+}
+
+function stubbed(check: () => Promise<boolean>, start: () => Promise<void>) {
+  const ssh = runner(fakeSpawn());
+  return {
+    ssh,
+    check: vi.spyOn(ssh, 'check').mockImplementation(check),
+    start: vi.spyOn(ssh, 'start').mockImplementation(start),
+  };
+}
+
+function hooks() {
+  const calls: string[] = [];
+  return {
+    calls,
+    touch: vi.fn(() => calls.push('touch')),
+    restarted: vi.fn(() => calls.push('restarted')),
+    failed: vi.fn<(err: unknown) => void>(),
+  };
+}
+
+describe('SshRunner.connect', () => {
+  test('reuses a live master without a touch', async () => {
+    // given
+    const { ssh, start } = stubbed(
+      () => Promise.resolve(true),
+      () => Promise.resolve(),
+    );
+    const touch = vi.fn();
+    // when
+    const started = await ssh.connect(touch);
+    // then
+    expect(started).toBe(false);
+    expect(touch).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  test('asks for a touch before starting a new master', async () => {
+    // given
+    const order: string[] = [];
+    const { ssh } = stubbed(
+      () => Promise.resolve(false),
+      () => {
+        order.push('start');
+        return Promise.resolve();
+      },
+    );
+    // when
+    const started = await ssh.connect(() => order.push('touch'));
+    // then
+    expect(started).toBe(true);
+    expect(order).toEqual(['touch', 'start']);
+  });
+});
+
 describe('SshRunner.keepAlive', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -274,59 +353,68 @@ describe('SshRunner.keepAlive', () => {
     vi.useRealTimers();
   });
 
-  function stubbed(check: () => Promise<boolean>, start: () => Promise<void>) {
-    const ssh = runner(fakeSpawn());
-    return {
-      ssh,
-      check: vi.spyOn(ssh, 'check').mockImplementation(check),
-      start: vi.spyOn(ssh, 'start').mockImplementation(start),
-    };
-  }
-
-  test('restarts the master after a failed check', async () => {
+  test('asks for a touch and restarts the master after a failed check', async () => {
     // given
     const { ssh, check, start } = stubbed(
       () => Promise.resolve(false),
       () => Promise.resolve(),
     );
+    const h = hooks();
     // when
-    const stop = ssh.keepAlive(() => undefined);
+    const stop = ssh.keepAlive(h);
     await vi.advanceTimersByTimeAsync(30_000);
     stop();
     // then
     expect(check).toHaveBeenCalledTimes(1);
     expect(start).toHaveBeenCalledTimes(1);
+    expect(h.calls).toEqual(['touch', 'restarted']);
   });
 
   test('leaves a live master alone', async () => {
     // given
-    const { ssh, check, start } = stubbed(
+    const { ssh, start } = stubbed(
       () => Promise.resolve(true),
       () => Promise.resolve(),
     );
+    const h = hooks();
     // when
-    const stop = ssh.keepAlive(() => undefined);
+    const stop = ssh.keepAlive(h);
     await vi.advanceTimersByTimeAsync(30_000);
     stop();
     // then
-    expect(check).toHaveBeenCalledTimes(1);
     expect(start).not.toHaveBeenCalled();
+    expect(h.calls).toEqual([]);
   });
 
-  test('sends a start failure to onError', async () => {
+  test('sends a start failure to failed', async () => {
     // given
     const err = new Error('starting ssh master: boom');
     const { ssh } = stubbed(
       () => Promise.resolve(false),
       () => Promise.reject(err),
     );
-    const onError = vi.fn();
+    const h = hooks();
     // when
-    const stop = ssh.keepAlive(onError);
+    const stop = ssh.keepAlive(h);
     await vi.advanceTimersByTimeAsync(30_000);
     stop();
     // then
-    expect(onError).toHaveBeenCalledWith(err);
+    expect(h.failed).toHaveBeenCalledWith(err);
+    expect(h.restarted).not.toHaveBeenCalled();
+  });
+
+  test('a hung check times out and reaches failed', async () => {
+    // given
+    const child = openChild();
+    const ssh = runner(fakeSpawn(child));
+    const h = hooks();
+    // when
+    const stop = ssh.keepAlive(h);
+    await vi.advanceTimersByTimeAsync(60_000);
+    stop();
+    // then
+    expect(child.kill).toHaveBeenCalled();
+    expect(h.failed).toHaveBeenCalledWith(new Error('running command: timing out after 30000ms'));
   });
 
   test('stop ends the interval', async () => {
@@ -335,7 +423,7 @@ describe('SshRunner.keepAlive', () => {
       () => Promise.resolve(true),
       () => Promise.resolve(),
     );
-    const stop = ssh.keepAlive(() => undefined);
+    const stop = ssh.keepAlive(hooks());
     // when
     stop();
     await vi.advanceTimersByTimeAsync(90_000);
@@ -350,7 +438,7 @@ describe('SshRunner.keepAlive', () => {
       () => Promise.resolve(),
     );
     // when
-    const stop = ssh.keepAlive(() => undefined);
+    const stop = ssh.keepAlive(hooks());
     await vi.advanceTimersByTimeAsync(90_000);
     stop();
     // then

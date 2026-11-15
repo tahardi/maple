@@ -35,6 +35,10 @@ function asChild(child: FakeChild): ChildProcessWithoutNullStreams {
 }
 
 describe('collect', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test('returns stdout bytes, stderr text, and the exit code', async () => {
     // given
     const bytes = Buffer.from([0x61, 0x00, 0x62]);
@@ -57,14 +61,42 @@ describe('collect', () => {
     expect(child.stdin.writableEnded).toBe(true);
   });
 
-  test('maps a spawn ENOENT error to code 127', async () => {
+  test.each([
+    { errno: 'ENOENT', message: 'spawn x ENOENT', code: 127 },
+    { errno: 'EACCES', message: 'spawn x EACCES', code: 1 },
+  ])('maps a spawn $errno error to code $code', async ({ errno, message, code }) => {
     // given
     const child = openChild();
-    setImmediate(() => child.emit('error', Object.assign(new Error('spawn x ENOENT'), { code: 'ENOENT' })));
+    setImmediate(() => child.emit('error', Object.assign(new Error(message), { code: errno })));
     // when
     const result = await collect(asChild(child), undefined, 1024);
     // then
-    expect(result).toEqual({ stdout: Buffer.alloc(0), stderr: 'spawn x ENOENT', code: 127 });
+    expect(result).toEqual({ stdout: Buffer.alloc(0), stderr: message, code });
+  });
+
+  test('maps a child killed by a signal to code 1', async () => {
+    // given
+    const child = openChild();
+    child.stdout.end();
+    child.stderr.end();
+    setImmediate(() => child.emit('close', null));
+    // when
+    const result = await collect(asChild(child), undefined, 1024);
+    // then
+    expect(result.code).toBe(1);
+  });
+
+  test('rejects and kills the child when it runs past the timeout', async () => {
+    // given
+    vi.useFakeTimers();
+    const child = openChild();
+    // when
+    const result = collect(asChild(child), undefined, 1024, 50);
+    const checked = expect(result).rejects.toThrow('running command: timing out after 50ms');
+    await vi.advanceTimersByTimeAsync(50);
+    // then
+    await checked;
+    expect(child.kill).toHaveBeenCalled();
   });
 
   test('rejects and kills the child when stdout passes maxBuffer', async () => {
