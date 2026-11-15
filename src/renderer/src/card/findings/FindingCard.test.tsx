@@ -31,25 +31,39 @@ describe('FindingCard', () => {
     expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(want);
   });
 
-  test('shows only the facts it has', () => {
+  test.each([
+    {
+      name: 'some facts',
+      given: finding({ attacker: glance.attacker, fixSize: 'large' }),
+      want: { 'Who can do it': glance.attacker, 'Likely?': null, 'Fix size': 'Large', Where: 'src/main/x.ts:42' },
+    },
+    {
+      name: 'every fact',
+      given: finding(glance),
+      want: { 'Who can do it': glance.attacker, 'Likely?': 'Possible', 'Fix size': 'Small', Where: 'src/main/x.ts:42' },
+    },
+    {
+      name: 'a dependency',
+      given: finding({ identity: { kind: 'dependency', advisory: 'GHSA-1234-5678-9abc', package: 'lodash' } }),
+      want: { 'Who can do it': null, 'Likely?': null, 'Fix size': null, Where: 'lodash GHSA-1234-5678-9abc' },
+    },
+  ])('shows only the facts it has: $name', ({ given, want }) => {
     // given
-    const given = finding({ attacker: glance.attacker, fixSize: 'large' });
     // when
     show(given);
     // then
-    expect(fact('Who can do it')).toBe('anyone who can push a branch');
-    expect(fact('Likely?')).toBeNull();
-    expect(fact('Fix size')).toBe('Large');
-    expect(fact('Where')).toBe('src/main/x.ts:42');
+    const shown = Object.fromEntries(Object.keys(want).map((term) => [term, fact(term)]));
+    expect(shown).toEqual(want);
   });
 
-  test('shows every fact when the finding has them all', () => {
+  test('shows the severity badge and chip labels', () => {
     // given
     // when
-    show(finding(glance));
+    show(finding({ severity: 'medium' }));
     // then
-    expect(fact('Likely?')).toBe('Possible');
-    expect(fact('Fix size')).toBe('Small');
+    expect(screen.getByText('medium', { selector: 'span' })).toHaveAttribute('data-tone', 'warning');
+    expect(screen.getByText('could run attacker code')).toHaveAttribute('data-tone', 'neutral');
+    expect(screen.getByText('could leak credentials')).toBeInTheDocument();
   });
 
   test.each([

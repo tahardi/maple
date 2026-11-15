@@ -1,8 +1,8 @@
 import type { Finding } from '@shared/types/findings/finding';
 import { effectiveSeverity } from '@shared/findings/effectiveSeverity';
 import { Badge } from '@renderer/shell/blocks/Badge';
-import { DECISION_LABELS } from './DecisionButtons';
-import { SEVERITY_TONES } from './severityTone';
+import { DECISION_LABELS } from './decisionLabels';
+import { SEVERITY_TONES } from './severityTones';
 import styles from './FindingsView.module.css';
 
 function note(finding: Finding): string | null {

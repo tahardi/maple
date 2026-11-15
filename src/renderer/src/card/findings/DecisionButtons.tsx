@@ -7,16 +7,10 @@ import { errorText } from '@shared/errors/errorText';
 import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { AcceptRiskDialog } from './AcceptRiskDialog';
+import { DECISION_LABELS } from './decisionLabels';
 import styles from './FindingCard.module.css';
 
 type Kind = FindingDecision['kind'];
-
-export const DECISION_LABELS: Record<Kind, string> = {
-  'fix-now': 'Fix now',
-  'fix-later': 'Fix later',
-  'accept-risk': 'Accept risk',
-  'not-real': 'Not real',
-};
 
 const KINDS: readonly Kind[] = ['fix-now', 'fix-later', 'accept-risk', 'not-real'];
 

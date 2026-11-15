@@ -26,6 +26,12 @@ const glance = {
   recommend: { decision: 'fix-now', why: 'One quoted argument closes it.' },
 };
 
+const atLimits = {
+  headline: 'x'.repeat(160),
+  attacker: 'x'.repeat(60),
+  recommend: { decision: 'fix-later', why: 'x'.repeat(200) },
+};
+
 function file(finding: Record<string, unknown>) {
   return {
     version: 1,
@@ -60,6 +66,21 @@ describe('findingsSchema', () => {
       name: 'an attacker of 61 characters drops only attacker',
       input: { ...base, ...glance, attacker: 'x'.repeat(61) },
       want: { ...base, ...glance, attacker: undefined },
+    },
+    {
+      name: 'a fix size of huge drops only fixSize',
+      input: { ...base, ...glance, fixSize: 'huge' },
+      want: { ...base, ...glance, fixSize: undefined },
+    },
+    {
+      name: 'a recommended decision of ignore drops only recommend',
+      input: { ...base, ...glance, recommend: { decision: 'ignore', why: 'x' } },
+      want: { ...base, ...glance, recommend: undefined },
+    },
+    {
+      name: 'text at each length limit is kept',
+      input: { ...base, ...glance, ...atLimits },
+      want: { ...base, ...glance, ...atLimits },
     },
     { name: 'a file without the fields still loads', input: base, want: base },
   ])('$name', ({ input, want }) => {

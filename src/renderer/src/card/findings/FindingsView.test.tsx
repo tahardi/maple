@@ -75,6 +75,38 @@ describe('FindingsView', () => {
     expect(done).toHaveAttribute('data-decided', 'true');
   });
 
+  test('opens nothing when every finding is decided', () => {
+    // given
+    const file = findingsFile([
+      finding({ id: 'F1', title: 'first', decision: decided }),
+      finding({ id: 'F2', title: 'second', decision: decided }),
+    ]);
+    // when
+    render(<FindingsView tabId="t1" file={file} error={null} />);
+    // then
+    expect(screen.queryByRole('article')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /first/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /second/ })).toBeInTheDocument();
+  });
+
+  test.each([
+    { name: 'opened on load moves on to the next undecided', click: null, want: 'second' },
+    { name: 'opened by a click stays open', click: /first/, want: 'first' },
+  ])('a decided finding $name', async ({ click, want }) => {
+    // given
+    const findings = [finding({ id: 'F1', title: 'first' }), finding({ id: 'F2', title: 'second' })];
+    const { rerender } = render(<FindingsView tabId="t1" file={findingsFile(findings)} error={null} />);
+    if (click !== null) {
+      await userEvent.click(screen.getByRole('button', { name: /second/ }));
+      await userEvent.click(screen.getByRole('button', { name: click }));
+    }
+    // when
+    const decidedFirst = [{ ...findings[0], decision: decided }, findings[1]];
+    rerender(<FindingsView tabId="t1" file={findingsFile(decidedFirst)} error={null} />);
+    // then
+    expect(within(screen.getByRole('article')).getByRole('heading', { level: 3 })).toHaveTextContent(want);
+  });
+
   test('shows a severity override instead of the reported severity', () => {
     // given
     const file = findingsFile([finding({ severity: 'high', severityOverride: 'medium' })]);
