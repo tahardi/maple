@@ -1,4 +1,5 @@
 import type { Finding } from '@shared/types/findings/finding';
+import type { LessonSummary } from '@shared/types/learning/lessonSummary';
 import type { Severity } from '@shared/types/findings/severity';
 import type { Tone } from '@renderer/shell/blocks/tone';
 import { effectiveSeverity } from '@shared/findings/effectiveSeverity';
@@ -27,9 +28,15 @@ function place(finding: Finding): string {
   return finding.line === null ? finding.identity.file : `${finding.identity.file}:${String(finding.line)}`;
 }
 
-type FindingCardProps = { tabId: string; finding: Finding; working: boolean; applying: boolean };
+type FindingCardProps = {
+  tabId: string;
+  finding: Finding;
+  working: boolean;
+  applying: boolean;
+  lessons: readonly LessonSummary[];
+};
 
-export function FindingCard({ tabId, finding, working, applying }: FindingCardProps) {
+export function FindingCard({ tabId, finding, working, applying, lessons }: FindingCardProps) {
   const severity = effectiveSeverity(finding);
   return (
     <article className={styles.finding}>
@@ -70,7 +77,7 @@ export function FindingCard({ tabId, finding, working, applying }: FindingCardPr
         </section>
       ))}
       <DecisionButtons tabId={tabId} finding={finding} working={working} applying={applying} />
-      <LearnButtons tabId={tabId} finding={finding} working={working} />
+      <LearnButtons tabId={tabId} finding={finding} working={working} lessons={lessons} />
     </article>
   );
 }
