@@ -33,6 +33,7 @@ type MapleState = {
   setDraft: (tabId: string, path: string, draft: Draft | null) => void;
   showLesson: (tabId: string, note: string) => void;
   selectLesson: (note: string | null) => void;
+  dismissWarnings: () => void;
 };
 
 let unsubscribes: Unsubscribe[] = [];
@@ -200,5 +201,9 @@ export const useMaple = create<MapleState>()((set, get) => ({
     const { drafts } = get();
     const rest = Object.fromEntries(Object.entries(drafts[tabId] ?? {}).filter(([p]) => p !== path));
     set({ drafts: { ...drafts, [tabId]: draft === null ? rest : { ...rest, [path]: draft } } });
+  },
+
+  dismissWarnings() {
+    set({ warnings: [] });
   },
 }));
