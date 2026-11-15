@@ -94,4 +94,28 @@ describe('SessionEnded', () => {
     });
     expect(screen.getByRole('button', { name: 'Start fresh' })).toBeEnabled();
   });
+
+  test.each(['Resume', 'Start fresh'])('a failed %s shows its error until the next click', async (label) => {
+    // given
+    const request = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(
+        new Error("Error invoking remote method 'tabs:resume': Error: starting session: no vaultDir in config"),
+      )
+      .mockResolvedValue(undefined);
+    fakeMaple({ tabs: { resume: request, startFresh: request } });
+    render(<SessionEnded tabId="t1" exitCode={0} resumeFailed={false} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: label }));
+    // then
+    await vi.waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('starting session: no vaultDir in config');
+    });
+    // when
+    await userEvent.click(screen.getByRole('button', { name: label }));
+    // then
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
 });
