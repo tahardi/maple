@@ -1,5 +1,6 @@
 import type { QuizQuestion } from '@shared/types/learning/quizQuestion';
 import type { QuizResult } from '@shared/types/learning/quizResult';
+import type { ReviewQuestion } from '@shared/types/learning/reviewQuestion';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
@@ -20,6 +21,11 @@ const RESULT: QuizResult = {
     { correct: false, answer: 0, why: 'Anyone can post.' },
   ],
 };
+
+const REVIEWS: readonly ReviewQuestion[] = [
+  { path: 'Learning/Security/sqli.md', title: 'SQL injection', index: 0, question: 'Fix?', choices: ['Bind', 'Hope'] },
+  { path: 'Learning/Security/csrf.md', title: 'CSRF', index: 2, question: 'Token?', choices: ['Yes', 'No'] },
+];
 
 describe('QuizView', () => {
   test('Submit stays disabled with its reason until every question is answered', async () => {
@@ -86,5 +92,72 @@ describe('QuizView', () => {
     expect(screen.queryByText('1 of 2')).not.toBeInTheDocument();
     expect(screen.queryByText('Correct')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
+  });
+
+  test('shows review questions after the lesson questions', async () => {
+    // given
+    const review = vi.fn(() => Promise.resolve([...REVIEWS]));
+    fakeMaple({ learning: { review } });
+    // when
+    render(<QuizView path={PATH} questions={QUESTIONS} />);
+    // then
+    expect(review).toHaveBeenCalledWith(PATH);
+    await screen.findByRole('group', { name: 'Review · SQL injection' });
+    expect(screen.getAllByRole('group').map((g) => g.textContent)).toEqual([
+      expect.stringContaining('What is it?'),
+      expect.stringContaining('Who attacks?'),
+      expect.stringContaining('Review · SQL injection'),
+      expect.stringContaining('Review · CSRF'),
+    ]);
+  });
+
+  test('review answers do not change the lesson score', async () => {
+    // given
+    const grade = vi.fn(() => Promise.resolve(RESULT));
+    const gradeReview = vi.fn(() => Promise.resolve({ correct: true, answer: 0, why: 'Bound.' }));
+    fakeMaple({ learning: { grade, gradeReview, review: () => Promise.resolve([...REVIEWS]) } });
+    render(<QuizView path={PATH} questions={QUESTIONS} />);
+    const sqli = await screen.findByRole('group', { name: 'Review · SQL injection' });
+    await userEvent.click(within(sqli).getByRole('radio', { name: 'Bind' }));
+    await userEvent.click(within(sqli).getByRole('button', { name: 'Check' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Script injection' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Nobody' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    // then
+    expect(grade).toHaveBeenCalledWith(PATH, [0, 1]);
+    expect(await screen.findByText('1 of 2')).toBeInTheDocument();
+    expect(within(sqli).getByText('Correct')).toBeInTheDocument();
+  });
+
+  test('asks for review questions once', async () => {
+    // given
+    const review = vi.fn(() => Promise.resolve([...REVIEWS]));
+    fakeMaple({ learning: { review, grade: () => Promise.resolve(RESULT) } });
+    const { rerender } = render(<QuizView path={PATH} questions={QUESTIONS} />);
+    await screen.findByRole('group', { name: 'Review · CSRF' });
+    // when
+    rerender(<QuizView path={PATH} questions={[...QUESTIONS]} />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Script injection' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Nobody' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+    // then
+    expect(review).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('group', { name: 'Review · CSRF' })).toBeInTheDocument();
+  });
+
+  test('shows why review questions could not load and still grades the lesson', async () => {
+    // given
+    const grade = vi.fn(() => Promise.resolve(RESULT));
+    fakeMaple({ learning: { grade, review: () => Promise.reject(new Error('reading lessons: no vaultDir')) } });
+    render(<QuizView path={PATH} questions={QUESTIONS} />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Script injection' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Nobody' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    // then
+    expect(await screen.findByText('reading lessons: no vaultDir')).toBeInTheDocument();
+    expect(await screen.findByText('1 of 2')).toBeInTheDocument();
   });
 });
