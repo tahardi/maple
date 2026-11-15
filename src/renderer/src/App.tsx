@@ -19,6 +19,7 @@ export function App() {
   const configError = useMaple((s) => s.config?.error ?? null);
   const problems = useMaple((s) => s.problems);
   const warnings = useMaple((s) => s.warnings);
+  const dismissWarnings = useMaple((s) => s.dismissWarnings);
   const projectKey = useMaple((s) => s.projectKey);
   const tabs = useMaple((s) => s.tabs);
   const activeTabId = useMaple((s) => s.activeTabId);
@@ -42,7 +43,7 @@ export function App() {
   return (
     <div className={styles.app}>
       {warnings.length > 0 && (
-        <Notice tone="warning">
+        <Notice tone="warning" onDismiss={dismissWarnings}>
           <ul>
             {warnings.map((m) => (
               <li key={m}>{m}</li>
