@@ -243,17 +243,18 @@ describe('FindingsView', () => {
 
   test('keeps Learn now and Learn later when listing the lessons fails', async () => {
     // given
-    const list = vi.fn(() => Promise.reject(new Error('listing lessons: vault unreadable')));
+    const failure = Promise.reject(new Error('listing lessons: vault unreadable'));
+    failure.catch(() => undefined);
+    const list = vi.fn(() => failure);
     fakeMaple({ learning: { list } });
     useMaple.setState({
       config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
     });
     // when
     render(<FindingsView tabId="t1" file={findingsFile([finding()])} error={null} />);
+    await act(() => failure.catch(() => undefined));
     // then
-    await waitFor(() => {
-      expect(list).toHaveBeenCalled();
-    });
+    expect(list).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Learn now' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Learn later' })).toBeInTheDocument();
   });
