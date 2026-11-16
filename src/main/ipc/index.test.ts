@@ -144,6 +144,9 @@ describe('registerIpc', () => {
     { channel: 'pr:resolve', args: ['t1', 'PRRT_1'] },
     { channel: 'pr:resolve', args: ['t1', 'PRRT_1', 'yes'] },
     { channel: 'pr:comments', args: [1] },
+    { channel: 'pr:commentOnPr', args: ['t1', ''] },
+    { channel: 'pr:commentOnPr', args: ['t1', 'x'.repeat(65_537)] },
+    { channel: 'pr:conversation', args: [1] },
     { channel: 'pr:diffLines', args: [1] },
     { channel: 'app:setNotifications', args: ['yes'] },
   ])('$channel rejects invalid arguments $args', async ({ channel, args }) => {

@@ -25,6 +25,10 @@ export function registerApp({
   handle('app', 'lastProject', z.tuple([]), () => lastProject());
   handle('app', 'setSeen', z.tuple([z.record(tabIdArg, dotSchema)]), (map) => setSeen(map));
   handle('app', 'seen', z.tuple([]), () => seen());
+  handle('app', 'kept', z.tuple([]), () => sessions.keptTabs());
+  handle('app', 'discardKept', z.tuple([tabIdArg]), (tabId) => {
+    sessions.discardKept(tabId);
+  });
   on('app', 'confirmQuit', z.tuple([]), () => {
     confirmed = true;
     app.quit();

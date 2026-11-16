@@ -12,6 +12,7 @@ const RECORDED_CHANNELS: ReadonlySet<string> = new Set([
   'tabs:openLearning',
   'tabs:close',
   'tabs:resume',
+  'app:discardKept',
   'tabs:startFresh',
   'tabs:selectWorktree',
   'tabs:setActive',

@@ -12,6 +12,7 @@ import { FileViewer } from './FileViewer';
 import css from './FileViewer.module.css?raw';
 import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
+import { COMMENTS_TAB } from '@renderer/card/viewer/tabs/commentsTab';
 
 vi.mock('@renderer/card/viewer/editor/monacoSetup', () => ({}));
 
@@ -143,9 +144,36 @@ describe('FileViewer', () => {
     expect(onChanged).not.toHaveBeenCalled();
   });
 
+  test('shows the comments view on the Comments tab without reading a file', () => {
+    // given
+    const readFile = vi.fn();
+    fakeMaple({ repo: { readFile } });
+    // when
+    render(
+      <FileViewer
+        tabId="t1"
+        openFiles={[COMMENTS_TAB]}
+        activeFile={COMMENTS_TAB}
+        onActivate={vi.fn()}
+        onCloseFiles={vi.fn()}
+        prBody={null}
+        line={null}
+        canComment={false}
+        prFetchedAt={null}
+        commentsView={<p>conversation</p>}
+      />,
+    );
+    // then
+    expect(screen.getByRole('tab', { name: 'Comments' })).toBeInTheDocument();
+    expect(screen.getByText('conversation')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'In file' })).not.toBeInTheDocument();
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
   test.each([
     { name: 'PR description', path: PR_DESCRIPTION },
     { name: 'Card description', path: CARD_DESCRIPTION },
+    { name: 'Comments', path: COMMENTS_TAB },
   ])('closes the $name from its tab', async ({ name, path }) => {
     // given
     const onCloseFiles = vi.fn();

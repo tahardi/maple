@@ -274,7 +274,7 @@ describe('registerLearning', () => {
     });
     expect(readFileSync(join(vault, LESSON_PATH), 'utf8')).toBe(
       '---\nclass: command-injection\nstatus: learned\ncomfortable: false\ngrades:\n' +
-        '  - date: 2026-11-13\n    score: 2\n    total: 3\n---\n' +
+        '  - date: 2026-11-13\n    score: 2\n    total: 3\n    missed:\n      - 1\n---\n' +
         LESSON_BODY,
     );
   });
@@ -296,7 +296,8 @@ describe('registerLearning', () => {
       lastGrade: { date: '2026-11-14', score: 3, total: 3 },
     });
     expect(readFileSync(join(vault, LESSON_PATH), 'utf8')).toContain(
-      'grades:\n  - date: 2026-11-13\n    score: 2\n    total: 3\n  - date: 2026-11-14\n    score: 3\n    total: 3\n',
+      'grades:\n  - date: 2026-11-13\n    score: 2\n    total: 3\n    missed:\n      - 1\n' +
+        '  - date: 2026-11-14\n    score: 3\n    total: 3\n    missed: []\n',
     );
   });
 
@@ -341,7 +342,137 @@ describe('registerLearning', () => {
       lastGrade: { date: '2026-11-13', score: 3, total: 3 },
     });
     expect(readFileSync(join(vault, LESSON_PATH), 'utf8')).toContain(
-      'grades:\n  - date: 2026-11-13\n    score: 3\n    total: 3\n---\n',
+      'grades:\n  - date: 2026-11-13\n    score: 3\n    total: 3\n    missed: []\n---\n',
+    );
+  });
+
+  test('learning:grade records missed questions', async () => {
+    // given
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 13, 9));
+    writeFileSync(join(vault, LESSON_PATH), LESSON_TEXT);
+    const { invoke } = register(vault);
+    // when
+    await invoke('learning:grade', LESSON_PATH, [1, 0, 0]);
+    await invoke('learning:grade', LESSON_PATH, [0, 1, 0]);
+    // then
+    expect(readFileSync(join(vault, LESSON_PATH), 'utf8')).toContain(
+      'grades:\n' +
+        '  - date: 2026-11-13\n    score: 1\n    total: 3\n    missed:\n      - 0\n      - 1\n' +
+        '  - date: 2026-11-13\n    score: 3\n    total: 3\n    missed: []\n---\n',
+    );
+  });
+
+  describe('review', () => {
+    const reviewed = (date: string) =>
+      `reviews:\n  - date: ${date}\n    question: 0\n    right: true\n` +
+      `  - date: ${date}\n    question: 1\n    right: true\n`;
+    const graded = (date: string) =>
+      LESSON_TEXT.replace('grades: []', `grades:\n  - date: ${date}\n    score: 3\n    total: 3\n${reviewed(date)}`);
+
+    beforeEach(() => {
+      writeFileSync(join(vault, 'Learning', 'Security', 'old.md'), graded('2026-01-01'));
+      writeFileSync(join(vault, 'Learning', 'Security', 'older.md'), graded('2025-01-01'));
+      writeFileSync(join(vault, 'Learning', 'Security', 'newest.md'), graded('2026-11-10'));
+      writeFileSync(join(vault, LESSON_PATH), LESSON_TEXT);
+    });
+
+    test('learning:review returns questions without answers', async () => {
+      // given
+      const { invoke } = register(vault);
+      // when
+      const got = await invoke('learning:review', LESSON_PATH);
+      // then
+      expect(got).toEqual([
+        {
+          path: 'Learning/Security/older.md',
+          title: 'Command injection',
+          index: 2,
+          question: 'C?',
+          choices: ['a', 'b'],
+        },
+        { path: 'Learning/Security/old.md', title: 'Command injection', index: 2, question: 'C?', choices: ['a', 'b'] },
+      ]);
+    });
+
+    test('learning:review skips a note with a broken quiz', async () => {
+      // given
+      const broken = readFileSync(join(vault, 'Learning', 'Security', 'older.md'), 'utf8');
+      writeFileSync(join(vault, 'Learning', 'Security', 'older.md'), broken.replace('```maple-quiz', '```json'));
+      const { invoke } = register(vault);
+      // when
+      const got = (await invoke('learning:review', LESSON_PATH)) as { path: string }[];
+      // then
+      expect(got.map((r) => r.path)).toEqual(['Learning/Security/old.md', 'Learning/Security/newest.md']);
+    });
+
+    test('learning:review logs a note it cannot read and still answers', async () => {
+      // given
+      writeFileSync(join(vault, 'Learning', 'Security', 'huge.md'), 'x'.repeat(2_097_153));
+      const { invoke } = register(vault);
+      // when
+      const got = (await invoke('learning:review', LESSON_PATH)) as { path: string }[];
+      // then
+      expect(got.map((r) => r.path)).toEqual(['Learning/Security/older.md', 'Learning/Security/old.md']);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'learning',
+        'failed',
+        expect.objectContaining({ operation: 'learning:review', path: 'Learning/Security/huge.md' }),
+      );
+    });
+
+    test.each(['Inbox.md', '../x.md', 'Learning/Security/../../Inbox.md'])(
+      'learning:review refuses a path outside the lesson folder: %s',
+      async (path) => {
+        // given
+        const { invoke } = register(vault);
+        // when
+        const got = Promise.resolve().then(() => invoke('learning:review', path));
+        // then
+        await expect(got).rejects.toThrow('handling learning:review: arguments are invalid');
+      },
+    );
+
+    test('learning:gradeReview appends to reviews and leaves status alone', async () => {
+      // given
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2026, 10, 13, 9));
+      const path = 'Learning/Security/old.md';
+      const before = readFileSync(join(vault, path), 'utf8').replace('status: to-learn', 'status: learned');
+      writeFileSync(join(vault, path), before);
+      const { invoke } = register(vault);
+      // when
+      const got = await invoke('learning:gradeReview', path, 2, 1);
+      // then
+      expect(got).toEqual({ correct: false, answer: 0, why: 'Because c.' });
+      const after = readFileSync(join(vault, path), 'utf8');
+      expect(after).toContain(`${reviewed('2026-01-01')}  - date: 2026-11-13\n    question: 2\n    right: false\n`);
+      expect(after).toContain('status: learned\ncomfortable: false\n');
+    });
+
+    test('learning:gradeReview refuses a question the quiz does not have', async () => {
+      // given
+      const path = 'Learning/Security/old.md';
+      const before = readFileSync(join(vault, path), 'utf8');
+      const { invoke } = register(vault);
+      // when
+      const got = invoke('learning:gradeReview', path, 3, 0);
+      // then
+      await expect(got).rejects.toThrow(`grading review: ${path} has no question 3`);
+      expect(readFileSync(join(vault, path), 'utf8')).toBe(before);
+    });
+
+    test.each(['Inbox.md', '../x.md', 'Learning/Security/../../Inbox.md'])(
+      'learning:gradeReview refuses a path outside the lesson folder: %s',
+      async (path) => {
+        // given
+        const { invoke } = register(vault);
+        // when
+        const got = Promise.resolve().then(() => invoke('learning:gradeReview', path, 0, 0));
+        // then
+        await expect(got).rejects.toThrow('handling learning:gradeReview: arguments are invalid');
+        expect(readFileSync(join(vault, 'Inbox.md'), 'utf8')).toBe(NOTE);
+      },
     );
   });
 

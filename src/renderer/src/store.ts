@@ -4,6 +4,7 @@ import type { PreflightProblem } from '@shared/types/app/preflightProblem';
 import type { Unsubscribe } from '@shared/types/app/unsubscribe';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { Dot } from '@shared/types/tabs/dot';
+import type { KeptTab } from '@shared/types/tabs/keptTab';
 import type { TabState } from '@shared/types/tabs/tabState';
 import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { create } from 'zustand';
@@ -12,6 +13,7 @@ type MapleState = {
   config: Fetched<MapleConfig> | null;
   problems: PreflightProblem[];
   warnings: string[];
+  keptTabs: KeptTab[];
   projectKey: string | null;
   tabs: TabState[];
   statuses: Record<string, TabStatus>;
@@ -33,6 +35,8 @@ type MapleState = {
   setDraft: (tabId: string, path: string, draft: Draft | null) => void;
   showLesson: (tabId: string, note: string) => void;
   selectLesson: (note: string | null) => void;
+  dismissWarnings: () => void;
+  discardKept: (tabId: string) => Promise<void>;
 };
 
 let unsubscribes: Unsubscribe[] = [];
@@ -45,6 +49,15 @@ function saveSeen(seen: Record<string, Dot>): void {
   window.maple.app.setSeen(seen).catch(() => undefined);
 }
 
+function loadKept(set: (state: { keptTabs: KeptTab[] }) => void): void {
+  window.maple.app.kept().then(
+    (keptTabs) => {
+      set({ keptTabs });
+    },
+    () => undefined,
+  );
+}
+
 function firstProject(config: Fetched<MapleConfig>): string | null {
   return config.data?.projects[0]?.jiraKey ?? null;
 }
@@ -53,6 +66,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
   config: null,
   problems: [],
   warnings: [],
+  keptTabs: [],
   projectKey: null,
   tabs: [],
   statuses: {},
@@ -72,6 +86,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
     unsubscribes = [
       maple.tabs.onChanged((tabs) => {
         get().setTabs(tabs);
+        loadKept(set);
       }),
       maple.tabs.onStatus((s) => {
         get().setStatus(s);
@@ -88,9 +103,10 @@ export const useMaple = create<MapleState>()((set, get) => ({
         const keys = config.data?.projects.map((p) => p.jiraKey) ?? [];
         const current = get().projectKey;
         set({ config, projectKey: current !== null && keys.includes(current) ? current : firstProject(config) });
+        loadKept(set);
       }),
     ];
-    const [config, problems, warnings, tabs, statuses, lastProject, seen] = await Promise.all([
+    const [config, problems, warnings, tabs, statuses, lastProject, seen, keptTabs] = await Promise.all([
       maple.config.get(),
       maple.preflight.run(),
       maple.app.warnings().catch((): string[] => []),
@@ -98,6 +114,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
       maple.tabs.statuses().catch((): TabStatus[] => []),
       maple.app.lastProject().catch(() => null),
       maple.app.seen().catch((): Record<string, Dot> => ({})),
+      maple.app.kept().catch((): KeptTab[] => []),
     ]);
     const keys = config.data?.projects.map((p) => p.jiraKey) ?? [];
     const live = get();
@@ -109,6 +126,7 @@ export const useMaple = create<MapleState>()((set, get) => ({
       config,
       problems,
       warnings,
+      keptTabs,
       tabs,
       statuses: current,
       since: { ...Object.fromEntries(statuses.map((s) => [s.tabId, Date.now()])), ...live.since },
@@ -200,5 +218,14 @@ export const useMaple = create<MapleState>()((set, get) => ({
     const { drafts } = get();
     const rest = Object.fromEntries(Object.entries(drafts[tabId] ?? {}).filter(([p]) => p !== path));
     set({ drafts: { ...drafts, [tabId]: draft === null ? rest : { ...rest, [path]: draft } } });
+  },
+
+  dismissWarnings() {
+    set({ warnings: [] });
+  },
+
+  async discardKept(tabId) {
+    await window.maple.app.discardKept(tabId);
+    set({ keptTabs: get().keptTabs.filter((k) => k.tab.id !== tabId) });
   },
 }));

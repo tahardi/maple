@@ -1,31 +1,37 @@
 import { z } from 'zod';
 import type { FindingVisual } from '@shared/types/findings/findingVisual';
 
-const zone = z.string().max(40);
 const item = z.string().max(120);
 
-const path = z
-  .array(z.object({ actor: z.string().max(40), step: item }))
-  .min(2)
-  .max(6);
+const step = z.object({
+  actor: z.string().max(40),
+  step: item,
+  zone: z.string().max(40).optional(),
+  crosses: z.string().max(60).optional(),
+});
 
-const map = z
-  .object({ zones: z.array(zone).min(2).max(6), from: zone, to: zone })
-  .refine(({ zones }) => new Set(zones).size === zones.length)
-  .refine(({ zones, from, to }) => from !== to && zones.includes(from) && zones.includes(to));
+function zonesInGroups(steps: readonly { zone?: string }[]): boolean {
+  const zones: string[] = [];
+  for (const { zone } of steps) {
+    if (zone && zone !== zones.at(-1)) {
+      zones.push(zone);
+    }
+  }
+  return zones.length <= 3 && new Set(zones).size === zones.length;
+}
+
+const path = z.array(step).min(2).max(6).refine(zonesInGroups);
 
 const reach = z.object({ now: z.array(item).min(1).max(4), afterFix: z.array(item).max(4) });
 
 export const visualSchema: z.ZodType<FindingVisual | undefined> = z
   .object({
     path: path.optional().catch(undefined),
-    map: map.optional().catch(undefined),
     reach: reach.optional().catch(undefined),
   })
-  .transform(({ path, map, reach }) => {
+  .transform(({ path, reach }) => {
     const visual: FindingVisual = {
       ...(path && { path }),
-      ...(map && { map }),
       ...(reach && { reach }),
     };
     return Object.keys(visual).length > 0 ? visual : undefined;

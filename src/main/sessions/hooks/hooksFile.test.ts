@@ -73,14 +73,19 @@ describe('writeHooksFile', () => {
     ).toBe(`${execPath}\n${scriptPath}\nStop\n`);
   });
 
-  test('allows sandboxed writes to the findings dir', async () => {
+  test('turns the sandbox on with no escape hatch and allows writes to the findings dir', async () => {
     // given
     const findingsDir = '/home/me/.config/maple/findings';
     // when
     const path = await writeHooksFile(dir, '/maple', '/s.mjs', findingsDir);
     // then
     const parsed = JSON.parse(await readFile(path, 'utf8')) as { sandbox: unknown };
-    expect(parsed.sandbox).toEqual({ filesystem: { allowWrite: [findingsDir] } });
+    expect(parsed.sandbox).toEqual({
+      enabled: true,
+      failIfUnavailable: true,
+      allowUnsandboxedCommands: false,
+      filesystem: { allowWrite: [findingsDir] },
+    });
   });
 
   test('creates the config dir when it is missing', async () => {

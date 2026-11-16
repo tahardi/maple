@@ -91,8 +91,10 @@ carries `MAPLE_TAB_ID`, `MAPLE_SOCKET`, and, for card tabs, `MAPLE_SNAPSHOT_DIR`
 `MAPLE_FINDINGS_DIR`. The process environment also carries the Jira credentials so Claude can call Jira.
 
 **Hooks.** `hooksFile.json` registers `maple-hook.mjs` for `Stop`, `UserPromptSubmit`, `SessionStart`, `Notification`
-(permission prompts only), and `PreToolUse` (file writes and vault note writes only). It also adds the findings dir
-to `sandbox.filesystem.allowWrite`, so the `/card` skill's script can write findings from Bash. `PreToolUse` sends
+(permission prompts only), and `PreToolUse` (file writes and vault note writes only). It also turns the Bash sandbox
+on with no unsandboxed escape hatch, and a session refuses to start when the sandbox cannot run. Settings passed with
+`--settings` outrank a worktree's own, so a worktree cannot turn the sandbox off. It adds the findings dir to
+`sandbox.filesystem.allowWrite`, so the `/card` skill's script can write findings from Bash. `PreToolUse` sends
 nothing; it copies the vault note about to change into the snapshot dir. Every other hook sends one JSON line (tab
 id, event, notification type, background tasks, cron count, session id) to the hook socket. The hook server,
 `src/main/sessions/hooks/hookServer.ts`, validates each line and hands it to the status engine, the event recorder,
@@ -108,9 +110,10 @@ same card later resumes that session.
 two seconds for the event recorder to finish writing.
 
 **Launch.** Maple loads `config.json` and `state.json`, then `src/main/sessions/restore.ts` reopens every saved tab with
-its session id, so each one resumes. A tab whose project is gone from config is dropped with a warning. A tab that
-fails to open is kept in `state.json` for the next launch. If config is missing at launch, restore waits until the
-user saves it.
+its session id, so each one resumes. A tab whose project is gone from config, or that fails to open, is kept in
+`state.json` with the reason. Kept tabs are listed above the tab bar, where each can be discarded, and every config
+reload retries them, so a tab comes back once its project does. If config is missing at launch, restore waits until
+the user saves it.
 
 **Start queue.** Every Start goes through `src/main/sessions/StartQueue.ts`, shared by all projects. A card starts at
 once when nothing is queued and the limits allow; otherwise it waits in the queue, saved in `state.json`. A queued
@@ -251,13 +254,15 @@ Terms are sorted A to Z. Dot states use the code's names, with the on-screen lab
 - **Learn now / Learn later**: buttons on each finding. Both add a dated entry with the PR link and the code to the
   finding's lesson note, creating the note when needed, and record `lesson` on the finding in the findings file.
   Learn now also asks the Learning session to write the lesson and opens the Learning tab on the note.
-- **Lesson note**: a vault note at `Learning/Security/<class>.md` whose frontmatter holds `status`, `comfortable`, and
-  quiz `grades`; Maple's `learning` IPC area lists them, sets `comfortable`, and adds finding entries under
-  `## Findings`. The Learn skill writes the `## Lesson` section and a tie-in paragraph under each entry; a comfortable
-  note gets only the tie-ins. A note with a `## Lesson` section opens as the lesson page: the explanation, how an attack
-  works, a step-by-step code walk in a read-only editor, a multiple-choice quiz, and the findings. The main process
-  parses the note's `maple-trace` and `maple-quiz` blocks and keeps the quiz answers until grading; each graded attempt
-  appends a dated grade and sets `status: learned`.
+- **Lesson note**: a vault note at `Learning/Security/<class>.md` whose frontmatter holds `status`, `comfortable`, quiz
+  `grades`, and review answers in `reviews`; Maple's `learning` IPC area lists them, sets `comfortable`, and adds
+  finding entries under `## Findings`. The Learn skill writes the `## Lesson` section and a tie-in paragraph under each
+  entry; a comfortable note gets only the tie-ins. A note with a `## Lesson` section opens as the lesson page: the
+  explanation, how an attack works, a step-by-step code walk in a read-only editor, a multiple-choice quiz, and the
+  findings. The main process parses the note's `maple-trace` and `maple-quiz` blocks and keeps the quiz answers until
+  grading; each graded attempt appends a dated grade, with the indexes of missed questions, and sets `status: learned`.
+  Each quiz ends with up to two review questions from other graded lesson notes, picked by Maple; each review answer is
+  saved to its own note's `reviews` and leaves the lesson's score alone.
 - **`merged`** (Merged): the card is Done.
 - **Planner**: a project's Claude session in its `plannerDir`, shown in the Home tab's planner pane, for planning and
   suggesting batches of cards to start. It is a tab of kind `planner`.

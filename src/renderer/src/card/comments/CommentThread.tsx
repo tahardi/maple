@@ -6,6 +6,7 @@ import { Notice } from '@renderer/shell/blocks/Notice';
 import { CommentEditor } from './CommentEditor';
 import styles from './CommentThread.module.css';
 import type { Thread } from './commentThreads';
+import { threadLabel } from './threadLabel';
 import { errorText } from '@shared/errors/errorText';
 
 type Props = {
@@ -13,12 +14,6 @@ type Props = {
   thread: Thread;
   onPosted: () => void;
 };
-
-function label(thread: Thread): string {
-  return thread.startLine === null
-    ? `Line ${String(thread.line)}`
-    : `Lines ${String(thread.startLine)}-${String(thread.line)}`;
-}
 
 export function CommentThread({ tabId, thread, onPosted }: Props) {
   const [text, setText] = useState('');
@@ -57,7 +52,7 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
   return (
     <div className={styles.thread}>
       <div className={styles.label}>
-        <span>{label(thread)}</span>
+        <span>{threadLabel(thread)}</span>
         {!open && (
           <>
             <Badge tone="success">Resolved</Badge>
