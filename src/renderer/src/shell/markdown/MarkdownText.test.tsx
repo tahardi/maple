@@ -43,6 +43,47 @@ describe('MarkdownText', () => {
     expect(link).toHaveAttribute('rel', 'noreferrer');
   });
 
+  test('renders an allowed link as a link', () => {
+    // given
+    const text = '[OWASP](https://owasp.org/x)';
+    // when
+    render(<MarkdownText text={text} linkHosts={['owasp.org']} />);
+    // then
+    const link = screen.getByRole('link', { name: 'OWASP' });
+    expect(link).toHaveAttribute('href', 'https://owasp.org/x');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  test('renders a link to any other host as text with its address', () => {
+    // given
+    const text = '[click](https://evil.example/x)';
+    // when
+    const { container } = render(<MarkdownText text={text} linkHosts={['owasp.org']} />);
+    // then
+    expect(container.querySelector('a')).toBeNull();
+    expect(container).toHaveTextContent('click');
+    expect(container).toHaveTextContent('https://evil.example/x');
+  });
+
+  test('shows a bare address to any other host once', () => {
+    // given
+    const text = 'see https://evil.example/x now';
+    // when
+    const { container } = render(<MarkdownText text={text} linkHosts={['owasp.org']} />);
+    // then
+    expect(container.querySelector('a')).toBeNull();
+    expect(container.textContent.split('https://evil.example/x')).toHaveLength(2);
+  });
+
+  test('leaves links alone when no hosts are given', () => {
+    // given
+    const text = '[click](https://evil.example/x)';
+    // when
+    render(<MarkdownText text={text} />);
+    // then
+    expect(screen.getByRole('link', { name: 'click' })).toHaveAttribute('href', 'https://evil.example/x');
+  });
+
   test('does not render raw HTML', () => {
     // given
     const { container } = render(<MarkdownText text={'before\n\n<img src=x onerror=alert(1)>\n\nafter'} />);
