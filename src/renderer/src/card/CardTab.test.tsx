@@ -566,17 +566,35 @@ describe('CardTab', () => {
       .fn()
       .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
       .mockResolvedValue({ data: { ...pr, state: 'MERGED' }, error: null, fetchedAt: '2026-10-18T12:00:00.000Z' });
-    const changed = captureRepoChanged({ pr: { get, comments: () => Promise.resolve([lineComment]) } });
+    let changed: () => void = () => undefined;
+    fakeMaple({
+      pr: { get, comments: () => Promise.resolve([lineComment]) },
+      repo: {
+        changes: () =>
+          Promise.resolve({
+            base: 'abc',
+            files: [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: '1:1' }],
+            added: 1,
+            removed: 0,
+          }),
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+    });
     render(<CardTab tab={tab} />);
     const banner = within(screen.getByRole('banner'));
+    expect(await screen.findByRole('img', { name: 'Has review comments' })).toBeInTheDocument();
     await userEvent.click(await banner.findByRole('button', { name: 'Comments (1)' }));
     // when
     act(() => {
-      changed.value();
+      changed();
     });
     // then
     expect(await banner.findByRole('button', { name: 'Comments (0)' })).toBeInTheDocument();
     expect(screen.getByText('No line comments')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Has review comments' })).not.toBeInTheDocument();
   });
 
   test('a line comment in the Comments tab opens its file at that line', async () => {
