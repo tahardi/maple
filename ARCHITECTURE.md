@@ -110,9 +110,10 @@ same card later resumes that session.
 two seconds for the event recorder to finish writing.
 
 **Launch.** Maple loads `config.json` and `state.json`, then `src/main/sessions/restore.ts` reopens every saved tab with
-its session id, so each one resumes. A tab whose project is gone from config is dropped with a warning. A tab that
-fails to open is kept in `state.json` for the next launch. If config is missing at launch, restore waits until the
-user saves it.
+its session id, so each one resumes. A tab whose project is gone from config, or that fails to open, is kept in
+`state.json` with the reason. Kept tabs are listed above the tab bar, where each can be discarded, and every config
+reload retries them, so a tab comes back once its project does. If config is missing at launch, restore waits until
+the user saves it.
 
 **Start queue.** Every Start goes through `src/main/sessions/StartQueue.ts`, shared by all projects. A card starts at
 once when nothing is queued and the limits allow; otherwise it waits in the queue, saved in `state.json`. A queued

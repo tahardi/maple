@@ -10,6 +10,7 @@ import { ReportLauncher } from './shell/ReportLauncher';
 import { ShortcutSheet } from './shell/shortcuts/ShortcutSheet';
 import { TabErrorBoundary } from './shell/TabErrorBoundary';
 import { TabBar } from '@renderer/shell/tabs/TabBar';
+import { KeptTabs } from '@renderer/shell/kept/KeptTabs';
 import { useMaple } from './store';
 
 const RELOAD_HINT = 'Fix ~/.config/maple/config.json, then Reload config (Ctrl+Shift+R)';
@@ -60,6 +61,7 @@ export function App() {
           </ul>
         </Notice>
       )}
+      <KeptTabs />
       <TabBar />
       {cardTabs.map((tab) => (
         <div key={tab.id} className={styles.slot} hidden={tab.id !== activeTabId}>

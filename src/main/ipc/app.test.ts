@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { Dot } from '@shared/types/tabs/dot';
+import type { KeptTab } from '@shared/types/tabs/keptTab';
 import type { TabState } from '@shared/types/tabs/tabState';
 import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import type { SessionManager } from '@main/sessions/SessionManager';
@@ -66,8 +67,10 @@ function setup(
   warnings: string[] = [],
   lastProject: string | null = 'MPL',
   seen: Record<string, Dot> = {},
+  kept: KeptTab[] = [],
 ) {
   const sendToWindow = vi.fn();
+  const discardKept = vi.fn();
   const setNotifications = vi.fn(() => Promise.resolve());
   const setLastProject = vi.fn(() => Promise.resolve());
   const setSeen = vi.fn(() => Promise.resolve());
@@ -83,7 +86,11 @@ function setup(
     window: () => ({ isDestroyed: () => false, webContents: { send: sendToWindow } }) as unknown as BrowserWindow,
     worktreeFor: () => null,
     project: () => Promise.resolve(null),
-    sessions: { get: (id: string) => tabs[id] ?? null } as unknown as SessionManager,
+    sessions: {
+      get: (id: string) => tabs[id] ?? null,
+      keptTabs: () => kept,
+      discardKept,
+    } as unknown as SessionManager,
     terminals: {} as Terminals,
     status: { statuses: () => statuses } as unknown as StatusEngine,
     setActiveTab: () => undefined,
@@ -113,7 +120,7 @@ function setup(
     beforeQuit(event);
     return event;
   };
-  return { sendToWindow, setNotifications, setLastProject, setSeen, requestQuit, confirmQuit };
+  return { sendToWindow, setNotifications, setLastProject, setSeen, requestQuit, confirmQuit, discardKept };
 }
 
 describe('registerApp', () => {
@@ -129,6 +136,27 @@ describe('registerApp', () => {
     await call?.[1]({} as IpcMainInvokeEvent, on);
     // then
     expect(setNotifications).toHaveBeenCalledWith(on);
+  });
+
+  test('app:kept returns the kept tabs', async () => {
+    // given
+    const kept: KeptTab[] = [{ tab: tabs.t4, reason: 'project DIG is not in config' }];
+    setup({}, [], 'MPL', {}, kept);
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:kept');
+    // when
+    const got = await call?.[1]({} as IpcMainInvokeEvent);
+    // then
+    expect(got).toEqual(kept);
+  });
+
+  test('app:discardKept passes the tab id to the session manager', async () => {
+    // given
+    const { discardKept } = setup();
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:discardKept');
+    // when
+    await call?.[1]({} as IpcMainInvokeEvent, 'old-1');
+    // then
+    expect(discardKept).toHaveBeenCalledWith('old-1');
   });
 
   test('app:setLastProject passes the key to the setter', async () => {

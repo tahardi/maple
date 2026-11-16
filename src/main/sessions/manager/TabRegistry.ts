@@ -1,9 +1,10 @@
+import type { KeptTab } from '@shared/types/tabs/keptTab';
 import type { TabState } from '@shared/types/tabs/tabState';
 
 export class TabRegistry {
   private readonly tabs = new Map<string, TabState>();
   private readonly closed: Record<string, string>;
-  private kept: TabState[] = [];
+  private kept: KeptTab[] = [];
 
   constructor(closedSessions: Record<string, string>) {
     this.closed = { ...closedSessions };
@@ -64,22 +65,31 @@ export class TabRegistry {
   }
 
   resumeIdFor(projectKey: string, cardKey: string): string | null {
-    const kept = this.kept.find((k) => k.projectKey === projectKey && k.cardKey === cardKey);
-    return kept?.sessionId ?? this.closedSession(cardKey);
+    const kept = this.kept.find((k) => k.tab.projectKey === projectKey && k.tab.cardKey === cardKey);
+    return kept?.tab.sessionId ?? this.closedSession(cardKey);
   }
 
-  keep(tab: TabState): void {
-    this.kept.push(tab);
+  keep(tab: TabState, reason: string): void {
+    this.kept = this.kept.filter((k) => k.tab.id !== tab.id);
+    this.kept.push({ tab, reason });
+  }
+
+  keptTabs(): KeptTab[] {
+    return [...this.kept];
+  }
+
+  discardKept(tabId: string): void {
+    this.kept = this.kept.filter((k) => k.tab.id !== tabId);
   }
 
   forgetKept(tab: TabState): void {
     this.kept = this.kept.filter(
-      (k) => k.kind !== tab.kind || k.projectKey !== tab.projectKey || k.cardKey !== tab.cardKey,
+      (k) => k.tab.kind !== tab.kind || k.tab.projectKey !== tab.projectKey || k.tab.cardKey !== tab.cardKey,
     );
   }
 
   snapshot(): { tabs: TabState[]; closedSessions: Record<string, string> } {
-    return { tabs: [...this.list(), ...this.kept], closedSessions: { ...this.closed } };
+    return { tabs: [...this.list(), ...this.kept.map((k) => k.tab)], closedSessions: { ...this.closed } };
   }
 
   private closedSession(cardKey: string): string | null {
