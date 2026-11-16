@@ -273,4 +273,34 @@ describe('FileTree', () => {
     expect(onFileMenu).toHaveBeenCalledWith('src/b.ts', 30, 50);
     expect(opened).toBe(false);
   });
+
+  test('right-clicking a folder reports nothing and keeps the default menu', () => {
+    // given
+    const onFileMenu = vi.fn();
+    render(<FileTree nodes={buildTree(paths, [], false)} selected={null} onSelect={vi.fn()} onFileMenu={onFileMenu} />);
+    // when
+    const opened = fireEvent.contextMenu(screen.getByText('src'), { clientX: 30, clientY: 50 });
+    // then
+    expect(onFileMenu).not.toHaveBeenCalled();
+    expect(opened).toBe(true);
+  });
+
+  test('shows the name box as the first row of the root when its folder is empty', () => {
+    // given
+    const nodes = buildTree(['README.md', 'src/b.ts'], [], false);
+    // when
+    render(
+      <FileTree
+        nodes={nodes}
+        selected={null}
+        onSelect={vi.fn()}
+        nameBox={{ folder: '', box: <input aria-label="New note name" /> }}
+        collapsedByDefault
+      />,
+    );
+    // then
+    const rows = screen.getAllByRole('listitem');
+    expect(rows.map((row) => row.textContent)).toEqual(['', 'src', 'README.md']);
+    expect(screen.getByRole('textbox', { name: 'New note name' }).closest('li')).toBe(rows[0]);
+  });
 });

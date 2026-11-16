@@ -18,18 +18,11 @@ import { splitSize } from '@renderer/shell/split/splitSize';
 import { useColumnDrag } from '@renderer/shell/split/useColumnDrag';
 import { NameBox } from './NameBox';
 import { NoteMenu } from './NoteMenu';
+import { inFolder } from './path/inFolder';
+import { parentOf } from './path/parentOf';
 import styles from './VaultTab.module.css';
 
 const NO_DRAFTS: Record<string, Draft> = {};
-
-function parentOf(path: string): string {
-  const slash = path.lastIndexOf('/');
-  return slash === -1 ? '' : path.slice(0, slash);
-}
-
-function inFolder(folder: string, name: string): string {
-  return folder === '' ? name : `${folder}/${name}`;
-}
 
 export function VaultTab({ tab }: { tab: TabState }) {
   const [openFiles, setOpenFiles] = useState<readonly string[]>([]);
@@ -111,6 +104,7 @@ export function VaultTab({ tab }: { tab: TabState }) {
     setMenu(null);
     window.maple.vault.trash(path).then(
       () => {
+        setError(null);
         closeTabs([`${VAULT_PREFIX}${path}`]);
         vault.refresh();
       },

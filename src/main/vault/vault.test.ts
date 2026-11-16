@@ -170,6 +170,16 @@ describe('vault', () => {
     expect(readFileSync(join(root, 'outside.md'), 'utf8')).toBe('secret');
   });
 
+  test('createNote rejects a name that is not Markdown', async () => {
+    // given
+    const path = 'Plan.txt';
+    // when
+    const created = createNote(vault, path);
+    // then
+    await expect(created).rejects.toThrow('creating note: path is not a Markdown file');
+    expect(existsSync(join(vault, path))).toBe(false);
+  });
+
   test('createFolder creates a folder', async () => {
     // given
     const path = 'Projects/Ideas';
@@ -224,6 +234,16 @@ describe('vault', () => {
     const trashed = trashNote(vault, '../outside.md', trash);
     // then
     await expect(trashed).rejects.toThrow('trashing note: path is outside the vault');
+    expect(trash).not.toHaveBeenCalled();
+  });
+
+  test('trashNote rejects a folder', async () => {
+    // given
+    const trash = vi.fn(() => Promise.resolve());
+    // when
+    const trashed = trashNote(vault, 'Projects', trash);
+    // then
+    await expect(trashed).rejects.toThrow('trashing note: path is not a Markdown file');
     expect(trash).not.toHaveBeenCalled();
   });
 });

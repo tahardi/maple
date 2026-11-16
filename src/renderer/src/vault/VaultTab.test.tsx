@@ -271,10 +271,14 @@ describe('VaultTab', () => {
     expect(screen.queryByRole('textbox', { name: 'New folder name' })).not.toBeInTheDocument();
   });
 
-  test('Move to trash trashes the note and closes its tab', async () => {
+  test('Move to trash trashes the note, closes its tab, and drops it from the tree', async () => {
     // given
-    const trash = vi.fn(() => Promise.resolve());
-    fakeVault({ trash });
+    const { list } = fakeVault();
+    const trash = vi.fn(() => {
+      list.mockResolvedValue([{ path: 'Projects/Maple/Spike.md', modifiedAt: '2026-10-23T12:00:00.000Z' }]);
+      return Promise.resolve();
+    });
+    fakeVault({ trash, list });
     render(<VaultTab tab={vaultTab} />);
     await userEvent.click(await screen.findByText('Inbox.md'));
     expect(screen.getByRole('tab', { name: 'Inbox.md' })).toBeInTheDocument();
@@ -284,9 +288,71 @@ describe('VaultTab', () => {
     // then
     expect(trash).toHaveBeenCalledWith('Inbox.md');
     await waitFor(() => {
-      expect(screen.queryByRole('tab', { name: 'Inbox.md' })).not.toBeInTheDocument();
+      expect(screen.queryByText('Inbox.md')).not.toBeInTheDocument();
     });
+    expect(screen.queryByRole('tab', { name: 'Inbox.md' })).not.toBeInTheDocument();
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  test('shows why moving a note to the trash failed', async () => {
+    // given
+    const trash = vi.fn(() => Promise.reject(new Error('trashing note: path is outside the vault')));
+    fakeVault({ trash });
+    render(<VaultTab tab={vaultTab} />);
+    // when
+    fireEvent.contextMenu(await screen.findByText('Inbox.md'));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Move to trash' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent('trashing note: path is outside the vault');
+    expect(screen.getByText('Inbox.md')).toBeInTheDocument();
+  });
+
+  test('a later trash clears the notice from an earlier failure', async () => {
+    // given
+    const createNote = vi.fn(() => Promise.reject(new Error('creating note: a note with that name already exists')));
+    fakeVault({ createNote });
+    render(<VaultTab tab={vaultTab} />);
+    await screen.findByText('Inbox.md');
+    await userEvent.click(screen.getByRole('button', { name: '+ Note' }));
+    await userEvent.keyboard('Inbox{Enter}');
+    await screen.findByRole('alert');
+    // when
+    fireEvent.contextMenu(screen.getByText('Inbox.md'));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Move to trash' }));
+    // then
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
+
+  test('Move to trash is disabled while the note has unsaved edits', async () => {
+    // given
+    fakeVault();
+    useMaple.getState().setDraft('v1', 'vault:Inbox.md', { text: '# Edited', disk: '# Inbox' });
+    render(<VaultTab tab={vaultTab} />);
+    // when
+    fireEvent.contextMenu(await screen.findByText('Inbox.md'));
+    // then
+    expect(screen.getByRole('menuitem', { name: /Move to trash/ })).toBeDisabled();
+    expect(screen.getByText('Save or discard your edits first')).toBeInTheDocument();
+  });
+
+  test.each([
+    { name: 'the folder of the last note clicked', typed: 'Plan', made: 'Projects/Maple/Plan.md' },
+    { name: 'a name that already ends in .md', typed: 'Plan.md', made: 'Projects/Maple/Plan.md' },
+  ])('+ Note creates in $name', async ({ typed, made }) => {
+    // given
+    const createNote = vi.fn(() => Promise.resolve());
+    fakeVault({ createNote });
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Projects'));
+    await userEvent.click(screen.getByText('Maple'));
+    await userEvent.click(screen.getByText('Spike.md', { selector: 'li span' }));
+    await userEvent.click(screen.getByRole('button', { name: '+ Note' }));
+    // when
+    await userEvent.keyboard(`${typed}{Enter}`);
+    // then
+    expect(createNote).toHaveBeenCalledWith(made);
   });
 
   test('shows why creating a note failed', async () => {
