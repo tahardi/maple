@@ -1,6 +1,6 @@
 import { constants } from 'node:fs';
 import { copyFile, lstat, mkdir, readdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import type { VaultNote } from '@shared/types/files/vaultNote';
 import { isMissing } from '@main/util/isMissing';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/util/paths';
@@ -109,6 +109,9 @@ export async function renameNote(vaultDir: string, from: string, to: string): Pr
   const target = await notePath(vaultDir, to, 'renaming');
   if (await exists(target.link)) {
     throw new Error('renaming note: a note with that name already exists');
+  }
+  if (!(await exists(dirname(target.link)))) {
+    throw new Error('renaming note: that folder does not exist');
   }
   await rename(source.link, target.link);
 }

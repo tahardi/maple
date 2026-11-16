@@ -237,12 +237,14 @@ export function VaultTab({ tab }: { tab: TabState }) {
             <Button
               label="+ Note"
               onClick={() => {
+                setRenaming(null);
                 setNaming('note');
               }}
             />
             <Button
               label="+ Folder"
               onClick={() => {
+                setRenaming(null);
                 setNaming('folder');
               }}
             />

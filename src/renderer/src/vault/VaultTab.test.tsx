@@ -443,12 +443,10 @@ describe('VaultTab', () => {
     fakeVault({ rename, list });
     render(<VaultTab tab={vaultTab} />);
     await userEvent.click(await screen.findByText('Inbox.md'));
-    // when
     fireEvent.contextMenu(screen.getByText('Inbox.md', { selector: 'li span' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
-    const box = screen.getByRole('textbox', { name: 'New name for Inbox.md' });
-    expect(box).toHaveValue('Inbox');
-    await userEvent.clear(box);
+    await userEvent.clear(screen.getByRole('textbox', { name: 'New name for Inbox.md' }));
+    // when
     await userEvent.keyboard('Ideas{Enter}');
     // then
     expect(rename).toHaveBeenCalledWith('Inbox.md', 'Ideas.md');
@@ -478,7 +476,7 @@ describe('VaultTab', () => {
     render(<VaultTab tab={vaultTab} />);
     await userEvent.click(await screen.findByText('Inbox.md'));
     // when
-    fireEvent.keyDown(screen.getByTestId('tree-slot'), { key: 'F2' });
+    await userEvent.keyboard('{F2}');
     // then
     expect(screen.getByRole('textbox', { name: 'New name for Inbox.md' })).toHaveValue('Inbox');
   });
@@ -490,7 +488,7 @@ describe('VaultTab', () => {
     render(<VaultTab tab={vaultTab} />);
     await userEvent.click(await screen.findByText('Inbox.md'));
     // when
-    fireEvent.keyDown(screen.getByTestId('tree-slot'), { key: 'Delete' });
+    await userEvent.keyboard('{Delete}');
     // then
     expect(trash).toHaveBeenCalledWith('Inbox.md');
   });
@@ -548,5 +546,76 @@ describe('VaultTab', () => {
     // then
     expect(openInObsidian).toHaveBeenCalledWith('Inbox.md');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  test.each([
+    { key: 'F2', notice: 'renaming note: save or discard your edits first' },
+    { key: 'Delete', notice: 'trashing note: save or discard your edits first' },
+  ])('$key on a note with unsaved edits shows why and changes nothing', async ({ key, notice }) => {
+    // given
+    const trash = vi.fn(() => Promise.resolve());
+    fakeVault({ trash });
+    useMaple.getState().setDraft('v1', 'vault:Inbox.md', { text: '# Edited', disk: '# Inbox' });
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Inbox.md'));
+    // when
+    await userEvent.keyboard(`{${key}}`);
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent(notice);
+    expect(screen.queryByRole('textbox', { name: 'New name for Inbox.md' })).not.toBeInTheDocument();
+    expect(trash).not.toHaveBeenCalled();
+  });
+
+  test.each(['F2', 'Delete'])('%s with no note open does nothing', async (key) => {
+    // given
+    const trash = vi.fn(() => Promise.resolve());
+    fakeVault({ trash });
+    render(<VaultTab tab={vaultTab} />);
+    await screen.findByText('Inbox.md');
+    // when
+    fireEvent.keyDown(screen.getByTestId('tree-slot'), { key });
+    // then
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(trash).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('renaming to the same name closes the box without renaming', async () => {
+    // given
+    const rename = vi.fn(() => Promise.resolve());
+    fakeVault({ rename });
+    render(<VaultTab tab={vaultTab} />);
+    fireEvent.contextMenu(await screen.findByText('Inbox.md'));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    // when
+    await userEvent.keyboard('{Enter}');
+    // then
+    expect(rename).not.toHaveBeenCalled();
+    expect(screen.queryByRole('textbox', { name: 'New name for Inbox.md' })).not.toBeInTheDocument();
+  });
+
+  test('shows why duplicating a note failed', async () => {
+    // given
+    const duplicate = vi.fn(() => Promise.reject(new Error('duplicating note: path is outside the vault')));
+    fakeVault({ duplicate });
+    render(<VaultTab tab={vaultTab} />);
+    // when
+    fireEvent.contextMenu(await screen.findByText('Inbox.md'));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent('duplicating note: path is outside the vault');
+  });
+
+  test.each(['+ Note', '+ Folder'])('%s closes an open rename box', async (button) => {
+    // given
+    fakeVault();
+    render(<VaultTab tab={vaultTab} />);
+    fireEvent.contextMenu(await screen.findByText('Inbox.md'));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: button }));
+    // then
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
+    expect(screen.queryByRole('textbox', { name: 'New name for Inbox.md' })).not.toBeInTheDocument();
   });
 });

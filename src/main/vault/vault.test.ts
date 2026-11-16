@@ -1,5 +1,6 @@
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -290,18 +291,50 @@ describe('vault', () => {
   });
 
   test.each([
-    { existing: [], made: 'Inbox 1.md' },
-    { existing: ['Inbox 1.md'], made: 'Inbox 2.md' },
-  ])('duplicateNote copies the note to $made', async ({ existing, made }) => {
+    { source: 'Inbox.md', existing: [], made: 'Inbox 1.md', text: '# Inbox\n' },
+    { source: 'Inbox.md', existing: ['Inbox 1.md'], made: 'Inbox 2.md', text: '# Inbox\n' },
+    { source: 'Projects/Maple/Spike.md', existing: [], made: 'Projects/Maple/Spike 1.md', text: '## Findings\n' },
+  ])('duplicateNote copies $source to $made', async ({ source, existing, made, text }) => {
     // given
     for (const name of existing) {
       writeFileSync(join(vault, name), 'taken');
     }
     // when
-    const path = await duplicateNote(vault, 'Inbox.md');
+    const path = await duplicateNote(vault, source);
     // then
     expect(path).toBe(made);
-    expect(readFileSync(join(vault, made), 'utf8')).toBe('# Inbox\n');
+    expect(readFileSync(join(vault, made), 'utf8')).toBe(text);
+  });
+
+  test('duplicateNote rejects a path outside the vault', async () => {
+    // given
+    const path = '../outside.md';
+    // when
+    const duplicated = duplicateNote(vault, path);
+    // then
+    await expect(duplicated).rejects.toThrow('duplicating note: path is outside the vault');
+    expect(existsSync(join(root, 'outside 1.md'))).toBe(false);
+  });
+
+  test('renameNote renames a symlink, not the note it points to', async () => {
+    // given
+    symlinkSync(join(vault, 'Inbox.md'), join(vault, 'Alias.md'));
+    // when
+    await renameNote(vault, 'Alias.md', 'Moved.md');
+    // then
+    expect(lstatSync(join(vault, 'Moved.md')).isSymbolicLink()).toBe(true);
+    expect(existsSync(join(vault, 'Alias.md'))).toBe(false);
+    expect(readFileSync(join(vault, 'Inbox.md'), 'utf8')).toBe('# Inbox\n');
+  });
+
+  test('renameNote rejects a folder that does not exist', async () => {
+    // given
+    const to = 'Nope/Ideas.md';
+    // when
+    const renamed = renameNote(vault, 'Inbox.md', to);
+    // then
+    await expect(renamed).rejects.toThrow('renaming note: that folder does not exist');
+    expect(existsSync(join(vault, 'Inbox.md'))).toBe(true);
   });
 
   test('openInObsidian opens the full note path as an Obsidian link', async () => {
