@@ -33,6 +33,11 @@ async function openLesson(fields: Parameters<typeof fullLesson>[1] = {}, learnin
 
 async function goTo(step: string): Promise<void> {
   const nav = screen.getByRole('navigation', { name: 'Lesson steps' });
+  if (step === 'Walk the code') {
+    await userEvent.click(within(nav).getByRole('button', { name: 'Next: Walk the code (1 of 2)' }));
+    await userEvent.click(within(nav).getByRole('button', { name: 'Next: Walk the code (2 of 2)' }));
+    return;
+  }
   await userEvent.click(within(nav).getByRole('button', { name: `Next: ${step}` }));
 }
 
@@ -57,7 +62,7 @@ describe('LessonPage', () => {
     expect(screen.getByRole('heading', { name: 'The attack' })).toBeInTheDocument();
     expect(screen.getByText('An attacker names a branch.')).toBeInTheDocument();
     expect(screen.getByTestId('editor')).toBeInTheDocument();
-    expect(screen.getByText('Step 1 of 2')).toBeInTheDocument();
+    expect(screen.getByText('Line 2: Step two.')).toBeInTheDocument();
     expect(screen.getByText('Q1?')).toBeInTheDocument();
     const findings = screen.getByRole('list', { name: 'Your finding' });
     const [first, second] = Array.from(findings.children) as HTMLElement[];

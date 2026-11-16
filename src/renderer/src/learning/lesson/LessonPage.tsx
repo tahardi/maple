@@ -31,10 +31,12 @@ export function LessonPage({ path }: { path: string }) {
     setChosen(summary.status !== 'to-learn');
   }
   const onePage = chosen ?? summary.status !== 'to-learn';
+  const { trace } = lesson;
   const steps = [
     {
       name: 'What it is',
-      body: (
+      pages: 1,
+      body: () => (
         <>
           {lesson.explanation === null ? <p>Not written yet.</p> : <MarkdownText text={lesson.explanation} />}
           {lesson.example !== null && <ExampleView example={lesson.example} />}
@@ -43,7 +45,8 @@ export function LessonPage({ path }: { path: string }) {
     },
     {
       name: 'The attack',
-      body: (
+      pages: 1,
+      body: () => (
         <>
           {lesson.attack === null ? <p>Not written yet.</p> : <MarkdownText text={lesson.attack} />}
           {lesson.path !== null && <AttackPath steps={lesson.path} />}
@@ -52,16 +55,18 @@ export function LessonPage({ path }: { path: string }) {
     },
     {
       name: 'Walk the code',
-      body:
-        lesson.trace === null ? (
+      pages: trace === null ? 1 : trace.steps.length,
+      body: (page: number | null) =>
+        trace === null ? (
           <Notice tone="danger">{`${lesson.traceError ?? 'reading lesson: trace: missing'}. ${FIX}`}</Notice>
         ) : (
-          <TraceView trace={lesson.trace} />
+          <TraceView trace={trace} step={page} />
         ),
     },
     {
       name: 'Your finding',
-      body: (
+      pages: 1,
+      body: () => (
         <>
           {lesson.findings.length === 0 ? (
             <p>No findings yet.</p>
@@ -96,7 +101,8 @@ export function LessonPage({ path }: { path: string }) {
     },
     {
       name: 'Quiz',
-      body:
+      pages: 1,
+      body: () =>
         lesson.quiz === null ? (
           <Notice tone="danger">{`${lesson.quizError ?? 'reading lesson: quiz: missing'}. ${FIX}`}</Notice>
         ) : (
