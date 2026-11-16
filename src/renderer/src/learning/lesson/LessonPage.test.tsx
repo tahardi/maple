@@ -95,6 +95,18 @@ describe('LessonPage', () => {
     expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
   });
 
+  test('Back and Next sit in the top row beside the layout toggle', async () => {
+    // given
+    await openLesson();
+    // when
+    await goTo('The attack');
+    // then
+    const row = screen.getByRole('group', { name: 'Lesson layout' }).parentElement;
+    const nav = screen.getByRole('navigation', { name: 'Lesson steps' });
+    expect(row?.contains(nav)).toBe(true);
+    expect(within(row ?? document.body).getByRole('separator')).toHaveAttribute('aria-orientation', 'vertical');
+  });
+
   test('opens a learned lesson in One page', async () => {
     // given
     const summary = lesson('xss', { title: 'Command injection', hasLesson: true, status: 'learned' });

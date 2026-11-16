@@ -6,6 +6,8 @@ import { Notice } from '@renderer/shell/blocks/Notice';
 import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { ExampleView } from './ExampleView';
 import { LessonModeToggle } from './LessonModeToggle';
+import { lessonPlaces, type LessonStep } from './lessonPlaces';
+import { LessonStepNav } from './LessonStepNav';
 import { LessonSteps } from './LessonSteps';
 import { QuizView } from './QuizView';
 import { TraceView } from './TraceView';
@@ -17,6 +19,7 @@ const FIX = 'Ask the Learning session to fix it.';
 export function LessonPage({ path }: { path: string }) {
   const { data: lesson, error } = useLesson(path);
   const [chosen, setChosen] = useState<boolean | null>(null);
+  const [at, setAt] = useState(0);
 
   if (lesson === null) {
     return (
@@ -32,7 +35,7 @@ export function LessonPage({ path }: { path: string }) {
   }
   const onePage = chosen ?? summary.status !== 'to-learn';
   const { trace } = lesson;
-  const steps = [
+  const steps: LessonStep[] = [
     {
       name: 'What it is',
       pages: 1,
@@ -111,6 +114,9 @@ export function LessonPage({ path }: { path: string }) {
     },
   ];
 
+  const places = lessonPlaces(steps);
+  const index = Math.min(at, places.length - 1);
+
   return (
     <div className={styles.page}>
       {error !== null && <Notice tone="danger">{error}</Notice>}
@@ -129,9 +135,17 @@ export function LessonPage({ path }: { path: string }) {
             </Badge>
           )}
         </div>
-        <LessonModeToggle onePage={onePage} onChange={setChosen} />
+        <div className={styles.controls}>
+          <LessonModeToggle onePage={onePage} onChange={setChosen} />
+          {!onePage && (
+            <>
+              <span role="separator" aria-orientation="vertical" className={styles.divider} />
+              <LessonStepNav places={places} at={index} onMove={setAt} />
+            </>
+          )}
+        </div>
       </div>
-      <LessonSteps steps={steps} onePage={onePage} />
+      <LessonSteps steps={steps} onePage={onePage} place={places[index]} />
     </div>
   );
 }

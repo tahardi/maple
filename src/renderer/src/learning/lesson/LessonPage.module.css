@@ -9,8 +9,18 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
+}
+
+.divider {
+  align-self: stretch;
+  border-left: 1px solid var(--divider);
 }
 
 .toggle {
@@ -52,14 +62,8 @@
 
 .stepNav {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: var(--space-2);
-  border-top: 1px solid var(--divider);
-  padding-top: var(--space-2);
-}
-
-.stepNav > :only-child {
-  margin-left: auto;
 }
 
 .example {
