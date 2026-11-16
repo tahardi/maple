@@ -5,6 +5,7 @@ import { visualSchema } from './visualSchema';
 
 const prose = z.string().max(2000);
 const time = z.string().max(100);
+const decisionKind = z.enum(['fix-now', 'fix-later', 'accept-risk', 'not-real']);
 
 function isChip(chip: string): chip is ImpactChip {
   return (IMPACT_CHIPS as readonly string[]).includes(chip);
@@ -35,13 +36,21 @@ const finding = z.object({
     .array(z.string())
     .max(20)
     .transform((chips) => chips.filter(isChip)),
+  headline: z.string().max(160).optional().catch(undefined),
+  attacker: z.string().max(60).optional().catch(undefined),
+  likelihood: z.enum(['likely', 'possible', 'unlikely']).optional().catch(undefined),
+  fixSize: z.enum(['small', 'medium', 'large']).optional().catch(undefined),
+  recommend: z
+    .object({ decision: decisionKind, why: z.string().max(200) })
+    .optional()
+    .catch(undefined),
   visual: visualSchema.optional().catch(undefined),
   applied: z
     .object({ at: time, commit: z.string().max(64).nullable(), cardKey: z.string().max(40).nullable() })
     .nullable(),
   decision: z
     .object({
-      kind: z.enum(['fix-now', 'fix-later', 'accept-risk', 'not-real']),
+      kind: decisionKind,
       reason: prose.nullable(),
       decidedAt: time,
     })
