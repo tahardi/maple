@@ -267,6 +267,29 @@ describe('LessonPage', () => {
 
   test.each([
     {
+      name: 'links an approved source',
+      source: { title: 'OWASP', url: 'https://owasp.org/x' },
+      link: true,
+      text: 'Source: OWASP',
+    },
+    {
+      name: 'shows any other source as text with its address',
+      source: { title: 'Docs', url: 'https://evil.example/x' },
+      link: false,
+      text: 'Source: Docs (https://evil.example/x)',
+    },
+  ])('$name', async ({ source, link, text }) => {
+    // given
+    const fields = { summary: LEARNED, source };
+    // when
+    await openLesson(fields);
+    // then
+    expect(screen.getByText('Source:', { exact: false })).toHaveTextContent(text);
+    expect(screen.queryByRole('link', { name: source.title }) !== null).toBe(link);
+  });
+
+  test.each([
+    {
       name: 'no explanation',
       fields: { explanation: null },
       message: 'Not written yet.',

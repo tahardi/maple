@@ -1,4 +1,4 @@
-import { LESSON_LINK_HOSTS } from '@shared/learning/lessonLinks';
+import { allowedLinkHost, LESSON_LINK_HOSTS } from '@shared/learning/lessonLinks';
 import { useState } from 'react';
 import { AttackPath } from '@renderer/security/visual/AttackPath';
 import { AttackerReach } from '@renderer/security/visual/AttackerReach';
@@ -107,9 +107,13 @@ export function LessonPage({ path }: { path: string }) {
           {lesson.source !== null && (
             <p className={styles.source}>
               Source:{' '}
-              <a href={lesson.source.url} target="_blank" rel="noreferrer">
-                {lesson.source.title}
-              </a>
+              {allowedLinkHost(lesson.source.url) ? (
+                <a href={lesson.source.url} target="_blank" rel="noreferrer">
+                  {lesson.source.title}
+                </a>
+              ) : (
+                `${lesson.source.title} (${lesson.source.url})`
+              )}
             </p>
           )}
         </>
