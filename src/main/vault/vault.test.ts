@@ -14,7 +14,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { MAX_BYTES } from '@main/util/paths';
-import { createFolder, createNote, listNotes, readNote, trashNote, writeNote } from './vault';
+import {
+  createFolder,
+  createNote,
+  duplicateNote,
+  listNotes,
+  openInObsidian,
+  readNote,
+  renameNote,
+  trashNote,
+  writeNote,
+} from './vault';
 
 describe('vault', () => {
   let root = '';
@@ -245,5 +255,72 @@ describe('vault', () => {
     // then
     await expect(trashed).rejects.toThrow('trashing note: path is not a Markdown file');
     expect(trash).not.toHaveBeenCalled();
+  });
+
+  test('renameNote moves the note to its new name', async () => {
+    // given
+    const to = 'Projects/Inbox.md';
+    // when
+    await renameNote(vault, 'Inbox.md', to);
+    // then
+    expect(readFileSync(join(vault, to), 'utf8')).toBe('# Inbox\n');
+    expect(existsSync(join(vault, 'Inbox.md'))).toBe(false);
+  });
+
+  test('renameNote rejects a name that already exists', async () => {
+    // given
+    writeFileSync(join(vault, 'Taken.md'), '# Taken\n');
+    // when
+    const renamed = renameNote(vault, 'Inbox.md', 'Taken.md');
+    // then
+    await expect(renamed).rejects.toThrow('renaming note: a note with that name already exists');
+    expect(readFileSync(join(vault, 'Inbox.md'), 'utf8')).toBe('# Inbox\n');
+    expect(readFileSync(join(vault, 'Taken.md'), 'utf8')).toBe('# Taken\n');
+  });
+
+  test('renameNote rejects a path outside the vault', async () => {
+    // given
+    const to = '../moved.md';
+    // when
+    const renamed = renameNote(vault, 'Inbox.md', to);
+    // then
+    await expect(renamed).rejects.toThrow('renaming note: path is outside the vault');
+    expect(existsSync(join(root, 'moved.md'))).toBe(false);
+    expect(existsSync(join(vault, 'Inbox.md'))).toBe(true);
+  });
+
+  test.each([
+    { existing: [], made: 'Inbox 1.md' },
+    { existing: ['Inbox 1.md'], made: 'Inbox 2.md' },
+  ])('duplicateNote copies the note to $made', async ({ existing, made }) => {
+    // given
+    for (const name of existing) {
+      writeFileSync(join(vault, name), 'taken');
+    }
+    // when
+    const path = await duplicateNote(vault, 'Inbox.md');
+    // then
+    expect(path).toBe(made);
+    expect(readFileSync(join(vault, made), 'utf8')).toBe('# Inbox\n');
+  });
+
+  test('openInObsidian opens the full note path as an Obsidian link', async () => {
+    // given
+    const open = vi.fn(() => Promise.resolve());
+    // when
+    await openInObsidian(vault, 'Projects/Maple/Spike.md', open);
+    // then
+    const full = join(realpathSync(vault), 'Projects', 'Maple', 'Spike.md');
+    expect(open).toHaveBeenCalledWith(`obsidian://open?path=${encodeURIComponent(full)}`);
+  });
+
+  test('openInObsidian rejects a path outside the vault', async () => {
+    // given
+    const open = vi.fn(() => Promise.resolve());
+    // when
+    const opened = openInObsidian(vault, '../outside.md', open);
+    // then
+    await expect(opened).rejects.toThrow('opening note: path is outside the vault');
+    expect(open).not.toHaveBeenCalled();
   });
 });

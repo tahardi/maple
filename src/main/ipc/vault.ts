@@ -2,7 +2,17 @@ import { shell } from 'electron';
 import { z } from 'zod';
 import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { readSnapshot } from '@main/vault/snapshots';
-import { createFolder, createNote, listNotes, readNote, trashNote, writeNote } from '@main/vault/vault';
+import {
+  createFolder,
+  createNote,
+  duplicateNote,
+  listNotes,
+  openInObsidian,
+  readNote,
+  renameNote,
+  trashNote,
+  writeNote,
+} from '@main/vault/vault';
 import { vaultWrites } from '@main/vault/vaultWrites';
 import { vaultDir as configuredVaultDir } from '@main/app/config/configCache';
 import type { IpcDeps } from './index';
@@ -52,6 +62,21 @@ export function registerVault(
   handle('vault', 'trash', z.tuple([z.string().max(4096)]), (path) =>
     logFailure(logger, 'vault', { operation: 'vault:trash', args: [path] }, async () =>
       trashNote(await requireVaultDir(), path, (full) => shell.trashItem(full)),
+    ),
+  );
+  handle('vault', 'rename', z.tuple([z.string().max(4096), z.string().max(4096)]), (from, to) =>
+    logFailure(logger, 'vault', { operation: 'vault:rename', args: [from, to] }, async () =>
+      renameNote(await requireVaultDir(), from, to),
+    ),
+  );
+  handle('vault', 'duplicate', z.tuple([z.string().max(4096)]), (path) =>
+    logFailure(logger, 'vault', { operation: 'vault:duplicate', args: [path] }, async () =>
+      duplicateNote(await requireVaultDir(), path),
+    ),
+  );
+  handle('vault', 'openInObsidian', z.tuple([z.string().max(4096)]), (path) =>
+    logFailure(logger, 'vault', { operation: 'vault:openInObsidian', args: [path] }, async () =>
+      openInObsidian(await requireVaultDir(), path, (uri) => shell.openExternal(uri)),
     ),
   );
   handle('vault', 'written', z.tuple([tabIdArg]), (tabId) =>

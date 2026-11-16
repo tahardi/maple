@@ -313,4 +313,23 @@ describe('FileTree', () => {
     const current = screen.getAllByRole('listitem').filter((row) => row.getAttribute('aria-current') === 'location');
     expect(current.map((row) => row.textContent)).toEqual(['lib']);
   });
+
+  test('shows the rename box in place of the file row', () => {
+    // given
+    const nodes = buildTree(['README.md', 'src/b.ts'], [], false);
+    // when
+    render(
+      <FileTree
+        nodes={nodes}
+        selected={null}
+        onSelect={vi.fn()}
+        renaming={{ path: 'src/b.ts', box: <input aria-label="New name" /> }}
+      />,
+    );
+    // then
+    const rows = screen.getAllByRole('listitem');
+    expect(rows.map((row) => row.textContent)).toEqual(['src', '', 'README.md']);
+    expect(screen.getByRole('textbox', { name: 'New name' }).closest('li')).toBe(rows[1]);
+    expect(screen.queryByText('b.ts')).not.toBeInTheDocument();
+  });
 });

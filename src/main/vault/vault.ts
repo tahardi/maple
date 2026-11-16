@@ -1,6 +1,8 @@
-import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { copyFile, lstat, mkdir, readdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { VaultNote } from '@shared/types/files/vaultNote';
+import { isMissing } from '@main/util/isMissing';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/util/paths';
 
 async function walk(vaultDir: string, dir: string): Promise<VaultNote[]> {
@@ -25,7 +27,7 @@ export async function listNotes(vaultDir: string): Promise<VaultNote[]> {
   return (await walk(vaultDir, '')).sort((a, b) => a.path.localeCompare(b.path));
 }
 
-type Verb = 'reading' | 'writing' | 'creating' | 'trashing';
+type Verb = 'reading' | 'writing' | 'creating' | 'trashing' | 'renaming' | 'duplicating' | 'opening';
 
 async function vaultPath(vaultDir: string, path: string, action: string): Promise<{ link: string; full: string }> {
   const root = await realpath(vaultDir);
@@ -88,4 +90,53 @@ export async function createFolder(vaultDir: string, path: string): Promise<void
 
 export async function trashNote(vaultDir: string, path: string, trash: (full: string) => Promise<void>): Promise<void> {
   await trash((await notePath(vaultDir, path, 'trashing')).link);
+}
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch (err) {
+    if (isMissing(err)) {
+      return false;
+    }
+    throw err;
+  }
+}
+
+export async function renameNote(vaultDir: string, from: string, to: string): Promise<void> {
+  const source = await notePath(vaultDir, from, 'renaming');
+  const target = await notePath(vaultDir, to, 'renaming');
+  if (await exists(target.link)) {
+    throw new Error('renaming note: a note with that name already exists');
+  }
+  await rename(source.link, target.link);
+}
+
+export async function duplicateNote(vaultDir: string, path: string): Promise<string> {
+  const source = await notePath(vaultDir, path, 'duplicating');
+  const stem = path.replace(/\.md$/, '');
+  for (let n = 1; ; n++) {
+    const copy = `${stem} ${String(n)}.md`;
+    try {
+      await copyFile(source.link, (await notePath(vaultDir, copy, 'duplicating')).link, constants.COPYFILE_EXCL);
+      return copy;
+    } catch (err) {
+      if (!isTaken(err)) {
+        throw err;
+      }
+    }
+  }
+}
+
+export function obsidianUri(fullPath: string): string {
+  return `obsidian://open?path=${encodeURIComponent(fullPath)}`;
+}
+
+export async function openInObsidian(
+  vaultDir: string,
+  path: string,
+  open: (uri: string) => Promise<void>,
+): Promise<void> {
+  await open(obsidianUri((await notePath(vaultDir, path, 'opening')).full));
 }

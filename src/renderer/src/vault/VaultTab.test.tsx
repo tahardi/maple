@@ -333,8 +333,9 @@ describe('VaultTab', () => {
     // when
     fireEvent.contextMenu(await screen.findByText('Inbox.md'));
     // then
-    expect(screen.getByRole('menuitem', { name: /Move to trash/ })).toBeDisabled();
-    expect(screen.getByText('Save or discard your edits first')).toBeInTheDocument();
+    const item = screen.getByRole('menuitem', { name: /Move to trash/ });
+    expect(item).toBeDisabled();
+    expect(within(item).getByText('Save or discard your edits first')).toBeInTheDocument();
   });
 
   test.each([
@@ -430,5 +431,122 @@ describe('VaultTab', () => {
     await userEvent.click(screen.getByRole('button', { name: button }));
     // then
     expect(screen.getByPlaceholderText(placeholder)).toHaveFocus();
+  });
+
+  test('Rename renames the note and keeps its tab open under the new name', async () => {
+    // given
+    const { list } = fakeVault();
+    const rename = vi.fn(() => {
+      list.mockResolvedValue([{ path: 'Ideas.md', modifiedAt: '2026-10-23T12:00:00.000Z' }]);
+      return Promise.resolve();
+    });
+    fakeVault({ rename, list });
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Inbox.md'));
+    // when
+    fireEvent.contextMenu(screen.getByText('Inbox.md', { selector: 'li span' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    const box = screen.getByRole('textbox', { name: 'New name for Inbox.md' });
+    expect(box).toHaveValue('Inbox');
+    await userEvent.clear(box);
+    await userEvent.keyboard('Ideas{Enter}');
+    // then
+    expect(rename).toHaveBeenCalledWith('Inbox.md', 'Ideas.md');
+    expect(await screen.findByRole('tab', { name: 'Ideas.md' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Inbox.md' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'New name for Inbox.md' })).not.toBeInTheDocument();
+  });
+
+  test('shows why renaming a note failed and keeps the rename box', async () => {
+    // given
+    const rename = vi.fn(() => Promise.reject(new Error('renaming note: a note with that name already exists')));
+    fakeVault({ rename });
+    render(<VaultTab tab={vaultTab} />);
+    fireEvent.contextMenu(await screen.findByText('Inbox.md'));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    await userEvent.clear(screen.getByRole('textbox', { name: 'New name for Inbox.md' }));
+    // when
+    await userEvent.keyboard('Taken{Enter}');
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent('renaming note: a note with that name already exists');
+    expect(screen.getByRole('textbox', { name: 'New name for Inbox.md' })).toBeInTheDocument();
+  });
+
+  test('F2 on the tree starts renaming the active note', async () => {
+    // given
+    fakeVault();
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Inbox.md'));
+    // when
+    fireEvent.keyDown(screen.getByTestId('tree-slot'), { key: 'F2' });
+    // then
+    expect(screen.getByRole('textbox', { name: 'New name for Inbox.md' })).toHaveValue('Inbox');
+  });
+
+  test('Delete on the tree moves the active note to the trash', async () => {
+    // given
+    const trash = vi.fn(() => Promise.resolve());
+    fakeVault({ trash });
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Inbox.md'));
+    // when
+    fireEvent.keyDown(screen.getByTestId('tree-slot'), { key: 'Delete' });
+    // then
+    expect(trash).toHaveBeenCalledWith('Inbox.md');
+  });
+
+  test('Delete in a name box does not trash the active note', async () => {
+    // given
+    const trash = vi.fn(() => Promise.resolve());
+    fakeVault({ trash });
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Inbox.md'));
+    await userEvent.click(screen.getByRole('button', { name: '+ Note' }));
+    // when
+    await userEvent.keyboard('Plan{Delete}');
+    // then
+    expect(trash).not.toHaveBeenCalled();
+  });
+
+  test('Duplicate opens the copy', async () => {
+    // given
+    const duplicate = vi.fn(() => Promise.resolve('Inbox 1.md'));
+    fakeVault({ duplicate });
+    render(<VaultTab tab={vaultTab} />);
+    // when
+    fireEvent.contextMenu(await screen.findByText('Inbox.md'));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+    // then
+    expect(duplicate).toHaveBeenCalledWith('Inbox.md');
+    expect(await screen.findByRole('tab', { name: 'Inbox 1.md' })).toBeInTheDocument();
+  });
+
+  test('Copy path puts the vault path on the clipboard', async () => {
+    // given
+    fakeVault();
+    const user = userEvent.setup();
+    render(<VaultTab tab={vaultTab} />);
+    await user.click(await screen.findByText('Projects'));
+    await user.click(screen.getByText('Maple'));
+    // when
+    fireEvent.contextMenu(screen.getByText('Spike.md'));
+    await user.click(screen.getByRole('menuitem', { name: 'Copy path' }));
+    // then
+    await waitFor(async () => {
+      expect(await navigator.clipboard.readText()).toBe('Projects/Maple/Spike.md');
+    });
+  });
+
+  test('Open in Obsidian asks main to open the note', async () => {
+    // given
+    const openInObsidian = vi.fn(() => Promise.resolve());
+    fakeVault({ openInObsidian });
+    render(<VaultTab tab={vaultTab} />);
+    // when
+    fireEvent.contextMenu(await screen.findByText('Inbox.md'));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Open in Obsidian' }));
+    // then
+    expect(openInObsidian).toHaveBeenCalledWith('Inbox.md');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 });

@@ -20,8 +20,16 @@ const {
   createFolder,
   trashNote,
   trashItem,
+  renameNote,
+  duplicateNote,
+  openInObsidian,
+  openExternal,
 } = vi.hoisted(() => {
   return {
+    renameNote: vi.fn(),
+    duplicateNote: vi.fn(),
+    openInObsidian: vi.fn(),
+    openExternal: vi.fn(),
     handle: vi.fn<(channel: string, handler: Handler) => void>(),
     createNote: vi.fn(),
     createFolder: vi.fn(),
@@ -35,8 +43,18 @@ const {
   };
 });
 
-vi.mock('electron', () => ({ ipcMain: { handle }, shell: { trashItem } }));
-vi.mock('@main/vault/vault', () => ({ listNotes, readNote, writeNote, createNote, createFolder, trashNote }));
+vi.mock('electron', () => ({ ipcMain: { handle }, shell: { trashItem, openExternal } }));
+vi.mock('@main/vault/vault', () => ({
+  listNotes,
+  readNote,
+  writeNote,
+  createNote,
+  createFolder,
+  trashNote,
+  renameNote,
+  duplicateNote,
+  openInObsidian,
+}));
 vi.mock('@main/vault/vaultWrites', () => ({ vaultWrites }));
 vi.mock('@main/vault/snapshots', () => ({ readSnapshot }));
 
@@ -207,6 +225,9 @@ describe('registerVault', () => {
     { channel: 'vault:createNote', args: ['a.md'], logged: ['a.md'] },
     { channel: 'vault:createFolder', args: ['a'], logged: ['a'] },
     { channel: 'vault:trash', args: ['a.md'], logged: ['a.md'] },
+    { channel: 'vault:rename', args: ['a.md', 'b.md'], logged: ['a.md', 'b.md'] },
+    { channel: 'vault:duplicate', args: ['a.md'], logged: ['a.md'] },
+    { channel: 'vault:openInObsidian', args: ['a.md'], logged: ['a.md'] },
   ])('$channel rejects and logs without a vaultDir', async ({ channel, args, logged }) => {
     // given
     const vaultDir = null;
@@ -260,5 +281,38 @@ describe('registerVault', () => {
     // then
     expect(got).toThrow('handling vault:read: arguments are invalid');
     expect(readNote).not.toHaveBeenCalled();
+  });
+
+  test('vault:rename renames the note in the configured dir', async () => {
+    // given
+    renameNote.mockResolvedValue(undefined);
+    // when
+    await invoke('/vault', 'vault:rename', 'Inbox.md', 'Projects/Inbox.md');
+    // then
+    expect(renameNote).toHaveBeenCalledWith('/vault', 'Inbox.md', 'Projects/Inbox.md');
+  });
+
+  test('vault:duplicate returns the path of the copy', async () => {
+    // given
+    duplicateNote.mockResolvedValue('Inbox 1.md');
+    // when
+    const got = await invoke('/vault', 'vault:duplicate', 'Inbox.md');
+    // then
+    expect(got).toBe('Inbox 1.md');
+    expect(duplicateNote).toHaveBeenCalledWith('/vault', 'Inbox.md');
+  });
+
+  test('vault:openInObsidian opens the note in Obsidian', async () => {
+    // given
+    const { obsidianUri } = await vi.importActual<typeof import('@main/vault/vault')>('@main/vault/vault');
+    openExternal.mockResolvedValue(undefined);
+    openInObsidian.mockImplementation((dir: string, path: string, open: (uri: string) => Promise<void>) =>
+      open(obsidianUri(`${dir}/${path}`)),
+    );
+    // when
+    await invoke('/x/vault', 'vault:openInObsidian', 'Projects/Maple/Spike.md');
+    // then
+    expect(openInObsidian).toHaveBeenCalledWith('/x/vault', 'Projects/Maple/Spike.md', expect.any(Function));
+    expect(openExternal).toHaveBeenCalledWith('obsidian://open?path=%2Fx%2Fvault%2FProjects%2FMaple%2FSpike.md');
   });
 });
