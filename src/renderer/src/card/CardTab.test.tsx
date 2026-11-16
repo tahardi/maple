@@ -1,3 +1,4 @@
+import type { ReviewComment } from '@shared/types/github/reviewComment';
 import type { Card } from '@shared/types/jira/card';
 import type { Fetched } from '@shared/types/app/fetched';
 import type { PrInfo } from '@shared/types/github/prInfo';
@@ -71,6 +72,18 @@ const pr: PrInfo = {
 };
 
 const head = 'a'.repeat(40);
+
+const lineComment: ReviewComment = {
+  id: 1,
+  replyTo: null,
+  startLine: null,
+  path: 'src/a.ts',
+  line: 1,
+  author: 'tahardi',
+  body: 'why?',
+  threadId: null,
+  resolved: false,
+};
 
 async function clickApprove() {
   await userEvent.click(
@@ -525,6 +538,38 @@ describe('CardTab', () => {
     } finally {
       setItem.mockRestore();
     }
+  });
+
+  test('counts top-level comments and line threads on the Comments button', async () => {
+    // given
+    fakeRepo(true);
+    window.maple.pr.conversation = vi.fn(() =>
+      Promise.resolve([
+        {
+          url: 'https://github.com/tahardi/maple/pull/13#issuecomment-1',
+          author: 'tahardi',
+          at: '2026-10-25T10:00:00Z',
+          body: 'Looks good',
+        },
+      ]),
+    );
+    window.maple.pr.comments = vi.fn(() => Promise.resolve([lineComment]));
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (2)' })).toBeInTheDocument();
+  });
+
+  test('a line comment in the Comments tab opens its file at that line', async () => {
+    // given
+    fakeRepo(true);
+    window.maple.pr.comments = vi.fn(() => Promise.resolve([lineComment]));
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (1)' }));
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: /Line 1/ }));
+    // then
+    expect(await screen.findByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
   });
 
   test('marks the files that have review comments in the tree', async () => {

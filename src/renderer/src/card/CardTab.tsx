@@ -1,6 +1,6 @@
 import type { ReviewComment } from '@shared/types/github/reviewComment';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
@@ -21,6 +21,7 @@ import { FINDINGS } from '@renderer/card/viewer/tabs/findingsTab';
 import { COMMENTS_TAB } from '@renderer/card/viewer/tabs/commentsTab';
 import { usePrConversation } from '@renderer/card/conversation/usePrConversation';
 import { CommentsView } from '@renderer/card/conversation/CommentsView';
+import { threadsByFile } from '@renderer/card/conversation/threadsByFile';
 import { useFindings } from '@renderer/card/findings/useFindings';
 import { findingsLabel } from '@renderer/card/findings/findingsLabel';
 import { undecided } from '@shared/findings/undecided';
@@ -97,10 +98,10 @@ export function CardTab({ tab }: { tab: TabState }) {
   const viewedScope =
     tab.worktreePaths.length > 1 && tab.worktreePath !== null ? `${folderName(tab.worktreePath)}:` : '';
   const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed, viewedScope);
-  const [commented, setCommented] = useState<ReadonlySet<string>>(new Set());
-  const showComments = useCallback((comments: readonly ReviewComment[]) => {
-    setCommented(new Set(comments.map((c) => c.path)));
-  }, []);
+  const [lineComments, setLineComments] = useState<readonly ReviewComment[]>([]);
+  const commented = useMemo(() => new Set(lineComments.map((c) => c.path)), [lineComments]);
+  const lineThreads = useMemo(() => threadsByFile(lineComments), [lineComments]);
+  const lineThreadCount = [...lineThreads.open, ...lineThreads.resolved].reduce((n, g) => n + g.threads.length, 0);
   const unviewed = changed.length - viewed.size;
   const worktreeExists = tab.worktreePath !== null;
   useQuickOpenKeys(active && worktreeExists ? setQuickOpen : null);
@@ -189,7 +190,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         onOpenFindings={() => {
           openFile(FINDINGS, null, true);
         }}
-        commentCount={conversation.comments.length}
+        commentCount={conversation.comments.length + lineThreadCount}
         onOpenComments={() => {
           openFile(COMMENTS_TAB, null, true);
         }}
@@ -262,7 +263,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 cardBody={card?.descriptionMd}
                 canComment={pr?.data?.state === 'OPEN'}
                 prFetchedAt={pr?.fetchedAt ?? null}
-                onComments={showComments}
+                onComments={setLineComments}
                 line={openFiles.line}
                 review={pinned}
                 onReloadReview={reloadPinnedReview}
@@ -273,6 +274,10 @@ export function CardTab({ tab }: { tab: TabState }) {
                     comments={conversation.comments}
                     canPost={pr?.data?.state === 'OPEN'}
                     onPosted={conversation.reload}
+                    lineThreads={lineThreads}
+                    onOpenLine={(path, line) => {
+                      openFile(path, line);
+                    }}
                   />
                 }
                 noteChanges
