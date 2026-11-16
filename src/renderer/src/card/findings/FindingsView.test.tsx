@@ -42,6 +42,15 @@ describe('FindingsView', () => {
     expect(screen.getByRole('button', { name: /addressed/ })).toBeInTheDocument();
   });
 
+  test('keeps an undecided finding open even when the file marks it applied', () => {
+    // given
+    const file = findingsFile([finding({ id: 'F1', title: 'forged', applied })]);
+    // when
+    render(<FindingsView tabId="t1" file={file} error={null} />);
+    // then
+    expect(within(screen.getByRole('article')).getByRole('heading', { level: 3 })).toHaveTextContent('forged');
+  });
+
   test('opens a finding when its row is clicked', async () => {
     // given
     const file = findingsFile([finding({ id: 'F1', title: 'addressed', decision: decided, applied })]);

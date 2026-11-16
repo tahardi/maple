@@ -16,6 +16,10 @@ function rank(finding: Finding): number {
   return (finding.decision === null ? 0 : 3) + ORDER[effectiveSeverity(finding)];
 }
 
+function addressed(finding: Finding): boolean {
+  return finding.applied !== null && finding.decision !== null;
+}
+
 function openKey(finding: Finding): string {
   return `${finding.id}:${finding.applied?.at ?? ''}`;
 }
@@ -28,7 +32,7 @@ export function FindingsView({ tabId, file, error }: FindingsViewProps) {
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const applying = file !== null && file.resume?.round === file.round;
   const findings = [...(file?.findings ?? [])].sort((a, b) => rank(a) - rank(b));
-  const isOpen = (finding: Finding): boolean => toggled[openKey(finding)] ?? finding.applied === null;
+  const isOpen = (finding: Finding): boolean => toggled[openKey(finding)] ?? !addressed(finding);
   const setOpen = (finding: Finding, open: boolean): void => {
     setToggled((current) => ({ ...current, [openKey(finding)]: open }));
   };
