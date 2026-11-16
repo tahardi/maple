@@ -1,5 +1,6 @@
 import { threadLabel } from '@renderer/card/comments/threadLabel';
 import type { FileThreads } from './threadsByFile';
+import { threadCount } from './threadCount';
 import styles from './LineComments.module.css';
 
 type Props = {
@@ -8,8 +9,6 @@ type Props = {
 };
 
 const replies = (n: number) => (n === 1 ? '1 reply' : `${String(n)} replies`);
-
-const count = (groups: readonly FileThreads[]) => groups.reduce((n, g) => n + g.threads.length, 0);
 
 export function LineComments({ threads, onOpen }: Props) {
   const list = (groups: readonly FileThreads[]) =>
@@ -34,7 +33,7 @@ export function LineComments({ threads, onOpen }: Props) {
         ))}
       </section>
     ));
-  const resolved = count(threads.resolved);
+  const resolved = threadCount(threads.resolved);
 
   return (
     <div className={styles.view}>

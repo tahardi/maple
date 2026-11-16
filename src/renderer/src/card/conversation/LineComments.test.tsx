@@ -33,6 +33,39 @@ describe('LineComments', () => {
     expect(entry).toHaveTextContent('1 reply');
   });
 
+  test.each([
+    { name: 'no replies', comments: [first], want: '0 replies' },
+    { name: 'two replies', comments: [first, reply, comment({ id: 3, replyTo: 1 })], want: '2 replies' },
+  ])('counts $name', ({ comments, want }) => {
+    // given
+    const threads = threadsByFile(comments);
+    // when
+    render(<LineComments threads={threads} onOpen={vi.fn()} />);
+    // then
+    expect(screen.getByRole('button', { name: /Line 1/ })).toHaveTextContent(want);
+  });
+
+  test('shows only the Resolved group when every thread is resolved', () => {
+    // given
+    const threads = threadsByFile([comment({ id: 3, line: 4, resolved: true })]);
+    // when
+    render(<LineComments threads={threads} onOpen={vi.fn()} />);
+    // then
+    expect(screen.getByText('Resolved (1)')).toBeInTheDocument();
+    expect(screen.queryByText('No line comments')).not.toBeInTheDocument();
+  });
+
+  test('opens a resolved thread at its line on click', async () => {
+    // given
+    const onOpen = vi.fn();
+    render(<LineComments threads={threadsByFile([comment({ id: 3, line: 4, resolved: true })])} onOpen={onOpen} />);
+    await userEvent.click(screen.getByText('Resolved (1)'));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /Line 4/ }));
+    // then
+    expect(onOpen).toHaveBeenCalledWith('src/a.ts', 4);
+  });
+
   test('folds resolved threads into a closed Resolved group', () => {
     // given
     const threads = threadsByFile([first, comment({ id: 3, line: 4, resolved: true })]);

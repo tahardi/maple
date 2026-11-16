@@ -560,6 +560,25 @@ describe('CardTab', () => {
     expect(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (2)' })).toBeInTheDocument();
   });
 
+  test('drops the line comments once the PR is no longer open', async () => {
+    // given
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, state: 'MERGED' }, error: null, fetchedAt: '2026-10-18T12:00:00.000Z' });
+    const changed = captureRepoChanged({ pr: { get, comments: () => Promise.resolve([lineComment]) } });
+    render(<CardTab tab={tab} />);
+    const banner = within(screen.getByRole('banner'));
+    await userEvent.click(await banner.findByRole('button', { name: 'Comments (1)' }));
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await banner.findByRole('button', { name: 'Comments (0)' })).toBeInTheDocument();
+    expect(screen.getByText('No line comments')).toBeInTheDocument();
+  });
+
   test('a line comment in the Comments tab opens its file at that line', async () => {
     // given
     fakeRepo(true);

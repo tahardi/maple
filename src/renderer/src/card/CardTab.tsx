@@ -22,6 +22,7 @@ import { COMMENTS_TAB } from '@renderer/card/viewer/tabs/commentsTab';
 import { usePrConversation } from '@renderer/card/conversation/usePrConversation';
 import { CommentsView } from '@renderer/card/conversation/CommentsView';
 import { threadsByFile } from '@renderer/card/conversation/threadsByFile';
+import { threadCount } from '@renderer/card/conversation/threadCount';
 import { useFindings } from '@renderer/card/findings/useFindings';
 import { findingsLabel } from '@renderer/card/findings/findingsLabel';
 import { undecided } from '@shared/findings/undecided';
@@ -45,6 +46,7 @@ import { VAULT_PREFIX, VaultSwitch, type TreeView } from '@renderer/card/vault/V
 const WAITING = 'Waiting for worktree…';
 const MERGED = 'Merged, worktree removed';
 const CLOSED = 'Closed, worktree removed';
+const NO_LINE_COMMENTS: readonly ReviewComment[] = [];
 
 export function CardTab({ tab }: { tab: TabState }) {
   const { changes, files, repo, pr, review, reviewUpdated, reloadReview, card, cost, outsideSprint } = useCardData(tab);
@@ -99,9 +101,11 @@ export function CardTab({ tab }: { tab: TabState }) {
     tab.worktreePaths.length > 1 && tab.worktreePath !== null ? `${folderName(tab.worktreePath)}:` : '';
   const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed, viewedScope);
   const [lineComments, setLineComments] = useState<readonly ReviewComment[]>([]);
-  const commented = useMemo(() => new Set(lineComments.map((c) => c.path)), [lineComments]);
-  const lineThreads = useMemo(() => threadsByFile(lineComments), [lineComments]);
-  const lineThreadCount = [...lineThreads.open, ...lineThreads.resolved].reduce((n, g) => n + g.threads.length, 0);
+  const prOpen = pr?.data?.state === 'OPEN';
+  const shownComments = prOpen ? lineComments : NO_LINE_COMMENTS;
+  const commented = useMemo(() => new Set(shownComments.map((c) => c.path)), [shownComments]);
+  const lineThreads = useMemo(() => threadsByFile(shownComments), [shownComments]);
+  const lineThreadCount = threadCount(lineThreads.open) + threadCount(lineThreads.resolved);
   const unviewed = changed.length - viewed.size;
   const worktreeExists = tab.worktreePath !== null;
   useQuickOpenKeys(active && worktreeExists ? setQuickOpen : null);
@@ -261,7 +265,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                 onCloseFiles={openFiles.close}
                 prBody={pr?.data?.body ?? null}
                 cardBody={card?.descriptionMd}
-                canComment={pr?.data?.state === 'OPEN'}
+                canComment={prOpen}
                 prFetchedAt={pr?.fetchedAt ?? null}
                 onComments={setLineComments}
                 line={openFiles.line}
@@ -272,7 +276,7 @@ export function CardTab({ tab }: { tab: TabState }) {
                   <CommentsView
                     tabId={tab.id}
                     comments={conversation.comments}
-                    canPost={pr?.data?.state === 'OPEN'}
+                    canPost={prOpen}
                     onPosted={conversation.reload}
                     lineThreads={lineThreads}
                     onOpenLine={(path, line) => {
