@@ -20,7 +20,7 @@ describe('LessonStepNav', () => {
     render(<LessonStepNav places={PLACES} at={at} onMove={onMove} />);
     // then
     expect(screen.getByRole('button', { name: 'Back' })).toHaveProperty('disabled', !back);
-    expect(screen.queryByText('First step') === null).toBe(back);
+    expect(screen.getByRole('navigation').textContent).toBe(`Back${next ?? ''}`);
     expect(screen.queryByRole('button', { name: /^Next/ })?.textContent ?? null).toBe(next);
   });
 

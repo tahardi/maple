@@ -93,7 +93,7 @@ describe('LessonPage', () => {
     expect(screen.getByText('Step 1 of 5')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next: The attack' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
-    expect(screen.getByText('First step')).toBeInTheDocument();
+    expect(screen.queryByText('First step')).not.toBeInTheDocument();
   });
 
   test('Back and Next sit in the top row beside the layout toggle', async () => {

@@ -11,7 +11,6 @@ export function LessonStepNav({ places, at, onMove }: LessonStepNavProps) {
       <Button
         label="Back"
         disabled={at === 0}
-        reason={at === 0 ? 'First step' : null}
         onClick={() => {
           onMove(at - 1);
         }}
