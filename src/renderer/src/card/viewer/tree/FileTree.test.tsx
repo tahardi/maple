@@ -303,4 +303,14 @@ describe('FileTree', () => {
     expect(rows.map((row) => row.textContent)).toEqual(['', 'src', 'README.md']);
     expect(screen.getByRole('textbox', { name: 'New note name' }).closest('li')).toBe(rows[0]);
   });
+
+  test('marks only the target folder as current', () => {
+    // given
+    const nodes = buildTree(['README.md', 'src/lib/a.ts', 'src/b.ts'], [], false);
+    // when
+    render(<FileTree nodes={nodes} selected={null} onSelect={vi.fn()} targetFolder="src/lib" />);
+    // then
+    const current = screen.getAllByRole('listitem').filter((row) => row.getAttribute('aria-current') === 'location');
+    expect(current.map((row) => row.textContent)).toEqual(['lib']);
+  });
 });

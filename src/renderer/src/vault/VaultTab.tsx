@@ -123,6 +123,7 @@ export function VaultTab({ tab }: { tab: TabState }) {
             <NameBox
               key={naming}
               label={naming === 'note' ? 'New note name' : 'New folder name'}
+              placeholder={`${naming === 'note' ? 'Note' : 'Folder'} name in ${folder === '' ? 'the vault root' : folder}`}
               busy={busy}
               onSubmit={create}
               onCancel={() => {
@@ -156,6 +157,17 @@ export function VaultTab({ tab }: { tab: TabState }) {
             />
           </div>
         </div>
+        <div className={styles.target}>
+          <span>{`New items go in ${folder === '' ? 'the vault root' : folder}`}</span>
+          {folder !== '' && (
+            <Button
+              label="Use vault root"
+              onClick={() => {
+                setFolder('');
+              }}
+            />
+          )}
+        </div>
         {error !== null && (
           <Notice
             tone="danger"
@@ -175,6 +187,7 @@ export function VaultTab({ tab }: { tab: TabState }) {
             setMenu({ path, x, y });
           }}
           nameBox={nameBox}
+          targetFolder={folder}
           collapsedByDefault
         />
         {menu !== null && (

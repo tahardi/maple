@@ -1,12 +1,19 @@
 import { useState } from 'react';
 
-type Props = { label: string; busy: boolean; onSubmit: (name: string) => void; onCancel: () => void };
+type Props = {
+  label: string;
+  placeholder: string;
+  busy: boolean;
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+};
 
-export function NameBox({ label, busy, onSubmit, onCancel }: Props) {
+export function NameBox({ label, placeholder, busy, onSubmit, onCancel }: Props) {
   const [name, setName] = useState('');
   return (
     <input
       aria-label={label}
+      placeholder={placeholder}
       autoFocus
       readOnly={busy}
       value={name}

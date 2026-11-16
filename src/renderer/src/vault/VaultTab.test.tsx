@@ -368,4 +368,67 @@ describe('VaultTab', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('creating note: a note with that name already exists');
     expect(createNote).toHaveBeenCalledWith('Inbox.md');
   });
+
+  test('says new items go in the vault root until a folder is clicked', async () => {
+    // given
+    fakeVault();
+    // when
+    render(<VaultTab tab={vaultTab} />);
+    // then
+    expect(await screen.findByText('New items go in the vault root')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Use vault root' })).not.toBeInTheDocument();
+  });
+
+  test('clicking a folder highlights it and names it as where new items go', async () => {
+    // given
+    fakeVault();
+    render(<VaultTab tab={vaultTab} />);
+    // when
+    await userEvent.click(await screen.findByText('Projects'));
+    // then
+    expect(screen.getByText('New items go in Projects')).toBeInTheDocument();
+    expect(screen.getByText('Projects').parentElement).toHaveAttribute('aria-current', 'location');
+  });
+
+  test('clicking a note makes its folder the target', async () => {
+    // given
+    fakeVault();
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Projects'));
+    await userEvent.click(screen.getByText('Maple'));
+    // when
+    await userEvent.click(screen.getByText('Spike.md', { selector: 'li span' }));
+    // then
+    expect(screen.getByText('New items go in Projects/Maple')).toBeInTheDocument();
+    expect(screen.getByText('Maple').parentElement).toHaveAttribute('aria-current', 'location');
+  });
+
+  test('Use vault root moves the target back to the vault root', async () => {
+    // given
+    const createNote = vi.fn(() => Promise.resolve());
+    fakeVault({ createNote });
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Projects'));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Use vault root' }));
+    await userEvent.click(screen.getByRole('button', { name: '+ Note' }));
+    await userEvent.keyboard('Plan{Enter}');
+    // then
+    expect(screen.getByText('Projects').parentElement).not.toHaveAttribute('aria-current');
+    expect(createNote).toHaveBeenCalledWith('Plan.md');
+  });
+
+  test.each([
+    { button: '+ Note', placeholder: 'Note name in Projects' },
+    { button: '+ Folder', placeholder: 'Folder name in Projects' },
+  ])('$button names the target folder in the name box', async ({ button, placeholder }) => {
+    // given
+    fakeVault();
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Projects'));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: button }));
+    // then
+    expect(screen.getByPlaceholderText(placeholder)).toHaveFocus();
+  });
 });

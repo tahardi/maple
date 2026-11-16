@@ -3,7 +3,13 @@ import userEvent from '@testing-library/user-event';
 import { NameBox } from './NameBox';
 
 function renderBox(busy = false) {
-  const props = { label: 'New note name', busy, onSubmit: vi.fn(), onCancel: vi.fn() };
+  const props = {
+    label: 'New note name',
+    placeholder: 'Note name in Projects',
+    busy,
+    onSubmit: vi.fn(),
+    onCancel: vi.fn(),
+  };
   render(<NameBox {...props} />);
   return props;
 }
@@ -61,5 +67,16 @@ describe('NameBox', () => {
     renderBox();
     // then
     expect(screen.getByRole('textbox', { name: 'New note name' })).toHaveFocus();
+  });
+
+  test('shows where the new item goes as its placeholder', () => {
+    // given
+    // when
+    renderBox();
+    // then
+    expect(screen.getByRole('textbox', { name: 'New note name' })).toHaveAttribute(
+      'placeholder',
+      'Note name in Projects',
+    );
   });
 });

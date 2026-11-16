@@ -17,6 +17,7 @@ type Props = {
   onSelectFolder?: (path: string) => void;
   onFileMenu?: (path: string, x: number, y: number) => void;
   nameBox?: { folder: string; box: ReactNode };
+  targetFolder?: string;
 };
 
 export function FileTree({
@@ -34,6 +35,7 @@ export function FileTree({
   onSelectFolder,
   onFileMenu,
   nameBox,
+  targetFolder,
 }: Props) {
   const [flipped, setFlipped] = useState<ReadonlySet<string>>(new Set());
   const holdsNameBox = (path: string) =>
@@ -62,7 +64,14 @@ export function FileTree({
     list.flatMap((node) => [
       <li
         key={node.path}
-        className={node.path === selected ? `${styles.row} ${styles.selected}` : styles.row}
+        className={[
+          styles.row,
+          node.path === selected ? styles.selected : '',
+          node.dir && node.path === targetFolder ? styles.target : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        aria-current={node.dir && node.path === targetFolder ? 'location' : undefined}
         style={{ paddingLeft: 8 + depth * 12 }}
         aria-expanded={node.dir ? !collapsed(node.path) : undefined}
         onClick={() => {
