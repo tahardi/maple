@@ -10,6 +10,8 @@ updates:
     ignore:
       - dependency-name: 'typescript'
         update-types: ['version-update:semver-major']
+      - dependency-name: 'electron'
+        versions: ['>=44.11.0']
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
