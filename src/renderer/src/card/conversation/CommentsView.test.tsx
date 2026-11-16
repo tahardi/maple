@@ -11,23 +11,55 @@ const comment: PrComment = {
   body: 'Looks **bold**.',
 };
 
+const noLines = { open: [], resolved: [] };
+
 describe('CommentsView', () => {
   test('lists the conversation with author, time, and Markdown body', () => {
     // given
     fakeMaple();
     // when
-    const { container } = render(<CommentsView tabId="t1" comments={[comment]} canPost onPosted={vi.fn()} />);
+    const { container } = render(
+      <CommentsView
+        tabId="t1"
+        comments={[comment]}
+        canPost
+        onPosted={vi.fn()}
+        lineThreads={noLines}
+        onOpenLine={vi.fn()}
+      />,
+    );
     // then
     expect(screen.getByText('tahardi')).toBeInTheDocument();
     expect(container.querySelector('strong')).toHaveTextContent('bold');
     expect(container.querySelector('time')).toHaveAttribute('dateTime', '2026-10-25T10:00:00Z');
   });
 
+  test('shows the line comments above the conversation', () => {
+    // given
+    fakeMaple();
+    // when
+    render(
+      <CommentsView
+        tabId="t1"
+        comments={[comment]}
+        canPost
+        onPosted={vi.fn()}
+        lineThreads={noLines}
+        onOpenLine={vi.fn()}
+      />,
+    );
+    // then
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(headings).toEqual(['Line comments', 'Conversation']);
+  });
+
   test('shows a note when the PR has no comments', () => {
     // given
     fakeMaple();
     // when
-    render(<CommentsView tabId="t1" comments={[]} canPost onPosted={vi.fn()} />);
+    render(
+      <CommentsView tabId="t1" comments={[]} canPost onPosted={vi.fn()} lineThreads={noLines} onOpenLine={vi.fn()} />,
+    );
     // then
     expect(screen.getByText('No comments yet')).toBeInTheDocument();
   });
@@ -37,7 +69,9 @@ describe('CommentsView', () => {
     const commentOnPr = vi.fn(() => Promise.resolve());
     fakeMaple({ pr: { commentOnPr } });
     const onPosted = vi.fn();
-    render(<CommentsView tabId="t1" comments={[]} canPost onPosted={onPosted} />);
+    render(
+      <CommentsView tabId="t1" comments={[]} canPost onPosted={onPosted} lineThreads={noLines} onOpenLine={vi.fn()} />,
+    );
     // when
     await userEvent.type(screen.getByRole('textbox', { name: 'Comment on the PR' }), 'ship it');
     await userEvent.click(screen.getByRole('button', { name: 'Post' }));
@@ -53,7 +87,9 @@ describe('CommentsView', () => {
   ])('disables Post while the text is $name', async ({ text }) => {
     // given
     fakeMaple();
-    render(<CommentsView tabId="t1" comments={[]} canPost onPosted={vi.fn()} />);
+    render(
+      <CommentsView tabId="t1" comments={[]} canPost onPosted={vi.fn()} lineThreads={noLines} onOpenLine={vi.fn()} />,
+    );
     // when
     if (text !== '') {
       await userEvent.type(screen.getByRole('textbox', { name: 'Comment on the PR' }), text);
@@ -66,7 +102,9 @@ describe('CommentsView', () => {
     // given
     const commentOnPr = vi.fn(() => new Promise<void>(() => undefined));
     fakeMaple({ pr: { commentOnPr } });
-    render(<CommentsView tabId="t1" comments={[]} canPost onPosted={vi.fn()} />);
+    render(
+      <CommentsView tabId="t1" comments={[]} canPost onPosted={vi.fn()} lineThreads={noLines} onOpenLine={vi.fn()} />,
+    );
     await userEvent.type(screen.getByRole('textbox', { name: 'Comment on the PR' }), 'ship it');
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Post' }));
@@ -82,7 +120,9 @@ describe('CommentsView', () => {
     );
     fakeMaple({ pr: { commentOnPr } });
     const onPosted = vi.fn();
-    render(<CommentsView tabId="t1" comments={[]} canPost onPosted={onPosted} />);
+    render(
+      <CommentsView tabId="t1" comments={[]} canPost onPosted={onPosted} lineThreads={noLines} onOpenLine={vi.fn()} />,
+    );
     // when
     await userEvent.type(screen.getByRole('textbox', { name: 'Comment on the PR' }), 'ship it');
     await userEvent.click(screen.getByRole('button', { name: 'Post' }));
@@ -96,7 +136,16 @@ describe('CommentsView', () => {
     // given
     fakeMaple();
     // when
-    render(<CommentsView tabId="t1" comments={[comment]} canPost={false} onPosted={vi.fn()} />);
+    render(
+      <CommentsView
+        tabId="t1"
+        comments={[comment]}
+        canPost={false}
+        onPosted={vi.fn()}
+        lineThreads={noLines}
+        onOpenLine={vi.fn()}
+      />,
+    );
     // then
     expect(screen.queryByRole('textbox', { name: 'Comment on the PR' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Post' })).not.toBeInTheDocument();

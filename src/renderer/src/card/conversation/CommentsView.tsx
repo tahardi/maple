@@ -6,18 +6,22 @@ import { Notice } from '@renderer/shell/blocks/Notice';
 import { CommentEditor } from '@renderer/card/comments/CommentEditor';
 import { errorText } from '@shared/errors/errorText';
 import styles from './CommentsView.module.css';
+import { LineComments } from './LineComments';
+import type { FileThreads } from './threadsByFile';
 
 type Props = {
   tabId: string;
   comments: readonly PrComment[];
   canPost: boolean;
   onPosted: () => void;
+  lineThreads: { open: readonly FileThreads[]; resolved: readonly FileThreads[] };
+  onOpenLine: (path: string, line: number) => void;
 };
 
 const when = (at: string) =>
   new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
-export function CommentsView({ tabId, comments, canPost, onPosted }: Props) {
+export function CommentsView({ tabId, comments, canPost, onPosted, lineThreads, onOpenLine }: Props) {
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +46,7 @@ export function CommentsView({ tabId, comments, canPost, onPosted }: Props) {
 
   return (
     <div className={styles.view}>
+      <LineComments threads={lineThreads} onOpen={onOpenLine} />
       <h3 className={styles.heading}>Conversation</h3>
       {comments.length === 0 && <p className={styles.empty}>No comments yet</p>}
       {comments.map((c) => (
