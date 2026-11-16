@@ -29,12 +29,39 @@ export async function listNotes(vaultDir: string): Promise<VaultNote[]> {
 
 type Verb = 'reading' | 'writing' | 'creating' | 'trashing' | 'renaming' | 'duplicating' | 'opening';
 
+async function exists(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch (err) {
+    if (isMissing(err)) {
+      return false;
+    }
+    throw err;
+  }
+}
+
+async function isBrokenLink(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return false;
+  } catch (err) {
+    if (isMissing(err)) {
+      return exists(path);
+    }
+    throw err;
+  }
+}
+
 async function vaultPath(vaultDir: string, path: string, action: string): Promise<{ link: string; full: string }> {
   const root = await realpath(vaultDir);
   const link = resolve(root, path);
   const full = await realOrSelf(link);
   if (!isInside(root, link) || !isInside(root, full)) {
     throw new Error(`${action}: path is outside the vault`);
+  }
+  if (await isBrokenLink(link)) {
+    throw new Error(`${action}: path is a broken link`);
   }
   return { link, full };
 }
@@ -90,18 +117,6 @@ export async function createFolder(vaultDir: string, path: string): Promise<void
 
 export async function trashNote(vaultDir: string, path: string, trash: (full: string) => Promise<void>): Promise<void> {
   await trash((await notePath(vaultDir, path, 'trashing')).link);
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await lstat(path);
-    return true;
-  } catch (err) {
-    if (isMissing(err)) {
-      return false;
-    }
-    throw err;
-  }
 }
 
 export async function renameNote(vaultDir: string, from: string, to: string): Promise<void> {

@@ -356,4 +356,18 @@ describe('vault', () => {
     await expect(opened).rejects.toThrow('opening note: path is outside the vault');
     expect(open).not.toHaveBeenCalled();
   });
+
+  test.each([
+    { name: 'writeNote', run: (dir: string) => writeNote(dir, 'Dangling.md', 'x'), error: 'writing note' },
+    { name: 'renameNote', run: (dir: string) => renameNote(dir, 'Dangling.md', 'Moved.md'), error: 'renaming note' },
+    { name: 'duplicateNote', run: (dir: string) => duplicateNote(dir, 'Dangling.md'), error: 'duplicating note' },
+  ])('$name rejects a link whose target is missing', async ({ run, error }) => {
+    // given
+    symlinkSync(join(root, 'missing.md'), join(vault, 'Dangling.md'));
+    // when
+    const done = run(vault);
+    // then
+    await expect(done).rejects.toThrow(`${error}: path is a broken link`);
+    expect(existsSync(join(root, 'missing.md'))).toBe(false);
+  });
 });
