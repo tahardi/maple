@@ -68,8 +68,8 @@ The boundaries between them:
   Taylor can except a short deny list, including the installed app, shell startup files, and Claude config.
 - `main-to-outside`: Jira and gh calls as Taylor, with timeouts, argument arrays, fork PRs ignored, and merges pinned to
   the head commit.
-- `github-to-ci`: PRs trigger CI with a read-only token. `main` needs a PR and passing checks but no approval; five jobs
-  pin actions to tags, and audit and package are not required.
+- `github-to-ci`: PRs trigger CI with a read-only token, and every action is pinned to a commit that Dependabot keeps
+  current. `main` needs a PR and passing checks but no approval; audit and package are not required.
 
 ## Users and Access
 
