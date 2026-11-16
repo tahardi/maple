@@ -28,7 +28,7 @@ describe('DecisionButtons', () => {
   ])('$label calls decide', async ({ label, decision }) => {
     // given
     const { decide } = fakeFindings();
-    render(<DecisionButtons tabId="t1" finding={finding()} working={false} applying={false} />);
+    render(<DecisionButtons tabId="t1" recommended={null} finding={finding()} working={false} applying={false} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: label }));
     if (decision.kind === 'accept-risk') {
@@ -40,11 +40,29 @@ describe('DecisionButtons', () => {
     expect(decide).toHaveBeenCalledWith('t1', 'F1', decision);
   });
 
+  test.each([
+    { name: 'the recommended decision', recommended: 'not-real' as const, primary: ['Not real'] },
+    { name: 'none', recommended: null, primary: [] },
+  ])('draws $name as primary', ({ recommended, primary }) => {
+    // given
+    fakeFindings();
+    // when
+    render(
+      <DecisionButtons tabId="t1" recommended={recommended} finding={finding()} working={false} applying={false} />,
+    );
+    // then
+    const drawn = screen
+      .getAllByRole('button')
+      .filter((b) => b.getAttribute('data-variant') === 'primary')
+      .map((b) => b.textContent);
+    expect(drawn).toEqual(primary);
+  });
+
   test('clicking the chosen decision clears it', async () => {
     // given
     const { decide } = fakeFindings();
     const decided = finding({ decision: { kind: 'fix-later', reason: null, decidedAt: '2026-11-12T12:00:00.000Z' } });
-    render(<DecisionButtons tabId="t1" finding={decided} working={false} applying={false} />);
+    render(<DecisionButtons tabId="t1" recommended={null} finding={decided} working={false} applying={false} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Fix later' }));
     // then
@@ -56,7 +74,15 @@ describe('DecisionButtons', () => {
     fakeFindings();
     const decision = { kind: 'accept-risk' as const, reason: 'Only Taylor runs it', decidedAt: '2026-11-12T12:00:00Z' };
     // when
-    render(<DecisionButtons tabId="t1" finding={finding({ decision })} working={false} applying={false} />);
+    render(
+      <DecisionButtons
+        tabId="t1"
+        recommended={null}
+        finding={finding({ decision })}
+        working={false}
+        applying={false}
+      />,
+    );
     // then
     expect(screen.getByRole('button', { name: 'Accept risk' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Fix now' })).toHaveAttribute('aria-pressed', 'false');
@@ -76,7 +102,7 @@ describe('DecisionButtons', () => {
     // given
     fakeFindings();
     // when
-    render(<DecisionButtons tabId="t1" finding={given} {...props} />);
+    render(<DecisionButtons tabId="t1" recommended={null} finding={given} {...props} />);
     // then
     expect(screen.getByText(reason)).toBeInTheDocument();
     for (const label of ['Fix now', 'Fix later', 'Accept risk', 'Not real']) {
@@ -92,7 +118,13 @@ describe('DecisionButtons', () => {
     // given
     const { override } = fakeFindings();
     render(
-      <DecisionButtons tabId="t1" finding={finding({ severityOverride: 'medium' })} working={false} applying={false} />,
+      <DecisionButtons
+        tabId="t1"
+        recommended={null}
+        finding={finding({ severityOverride: 'medium' })}
+        working={false}
+        applying={false}
+      />,
     );
     // when
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Severity' }), option);
@@ -103,7 +135,7 @@ describe('DecisionButtons', () => {
   test('a decision waiting on IPC shows busy and blocks the others', async () => {
     // given
     fakeMaple({ findings: { decide: vi.fn(() => new Promise<void>(() => undefined)) } });
-    render(<DecisionButtons tabId="t1" finding={finding()} working={false} applying={false} />);
+    render(<DecisionButtons tabId="t1" recommended={null} finding={finding()} working={false} applying={false} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Fix now' }));
     // then
@@ -115,7 +147,7 @@ describe('DecisionButtons', () => {
     // given
     const error = "Error invoking remote method 'findings:decide': Error: deciding finding: Claude is working";
     fakeMaple({ findings: { decide: vi.fn(() => Promise.reject(new Error(error))) } });
-    render(<DecisionButtons tabId="t1" finding={finding()} working={false} applying={false} />);
+    render(<DecisionButtons tabId="t1" recommended={null} finding={finding()} working={false} applying={false} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Fix now' }));
     // then
@@ -127,7 +159,7 @@ describe('DecisionButtons', () => {
   test('a failed Accept risk keeps the dialog open with the error inside it', async () => {
     // given
     fakeMaple({ findings: { decide: vi.fn(() => Promise.reject(new Error('saving findings: MPL-20.json: EACCES'))) } });
-    render(<DecisionButtons tabId="t1" finding={finding()} working={false} applying={false} />);
+    render(<DecisionButtons tabId="t1" recommended={null} finding={finding()} working={false} applying={false} />);
     await userEvent.click(screen.getByRole('button', { name: 'Accept risk' }));
     const dialog = screen.getByRole('dialog', { name: 'Accept risk' });
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'Reason' }), 'Local only');
@@ -144,7 +176,15 @@ describe('DecisionButtons', () => {
     // given
     const { decide } = fakeFindings();
     const decision = { kind: 'accept-risk' as const, reason: 'Local only', decidedAt: '2026-11-12T12:00:00Z' };
-    render(<DecisionButtons tabId="t1" finding={finding({ decision })} working={false} applying={false} />);
+    render(
+      <DecisionButtons
+        tabId="t1"
+        recommended={null}
+        finding={finding({ decision })}
+        working={false}
+        applying={false}
+      />,
+    );
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Accept risk' }));
     // then
@@ -157,7 +197,7 @@ describe('DecisionButtons', () => {
     fakeMaple({
       findings: { override: vi.fn(() => Promise.reject(new Error('overriding severity: Claude is working'))) },
     });
-    render(<DecisionButtons tabId="t1" finding={finding()} working={false} applying={false} />);
+    render(<DecisionButtons tabId="t1" recommended={null} finding={finding()} working={false} applying={false} />);
     // when
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Severity' }), 'low');
     // then
@@ -169,7 +209,7 @@ describe('DecisionButtons', () => {
   test('a severity change waiting on IPC disables the decision buttons', async () => {
     // given
     fakeMaple({ findings: { override: vi.fn(() => new Promise<void>(() => undefined)) } });
-    render(<DecisionButtons tabId="t1" finding={finding()} working={false} applying={false} />);
+    render(<DecisionButtons tabId="t1" recommended={null} finding={finding()} working={false} applying={false} />);
     // when
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Severity' }), 'low');
     // then

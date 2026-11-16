@@ -178,6 +178,8 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       reply: vi.fn(() => Promise.resolve()),
       resolve: vi.fn(() => Promise.resolve()),
       comments: vi.fn(() => Promise.resolve([])),
+      conversation: vi.fn(() => Promise.resolve([])),
+      commentOnPr: vi.fn(() => Promise.resolve()),
       diffLines: vi.fn(() => Promise.resolve({ ranges: {} })),
       ...overrides.pr,
     },

@@ -23,6 +23,8 @@ type Props = {
   onOpenPr: () => void;
   findingsLabel: string | null;
   onOpenFindings: () => void;
+  commentCount: number;
+  onOpenComments: () => void;
 };
 
 const NO_PR_HINT =
@@ -60,6 +62,8 @@ export function CardHeader({
   onOpenPr,
   findingsLabel,
   onOpenFindings,
+  commentCount,
+  onOpenComments,
 }: Props) {
   const info = pr?.data ?? null;
   const noPr = pr !== null && info === null && pr.error === null && pr.fetchedAt !== null && searchedRepos.length > 0;
@@ -91,6 +95,9 @@ export function CardHeader({
             ↗
           </a>
           {ci}
+          <button className={styles.comments} onClick={onOpenComments}>
+            {`Comments (${String(commentCount)})`}
+          </button>
           {reviewedSha !== null &&
             (info.state === 'OPEN' && reviewUpdated ? (
               <Badge tone="warning">{`Updated to ${reviewedSha.slice(0, 7)}`}</Badge>

@@ -1,0 +1,27 @@
+[
+  [
+    {
+      "id": 3001,
+      "user": { "login": "tahardi" },
+      "body": "Two nits, see the lines.",
+      "state": "COMMENTED",
+      "html_url": "https://github.com/tahardi/maple/pull/33#pullrequestreview-3001",
+      "submitted_at": "2026-10-25T10:30:00Z"
+    },
+    {
+      "id": 3002,
+      "user": { "login": "tahardi" },
+      "body": "",
+      "state": "APPROVED",
+      "html_url": "https://github.com/tahardi/maple/pull/33#pullrequestreview-3002",
+      "submitted_at": "2026-10-25T11:20:00Z"
+    },
+    {
+      "id": 3003,
+      "user": { "login": "tahardi" },
+      "body": "draft",
+      "state": "PENDING",
+      "html_url": "https://github.com/tahardi/maple/pull/33#pullrequestreview-3003"
+    }
+  ]
+]

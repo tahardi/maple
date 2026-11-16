@@ -21,6 +21,14 @@ export function finding(overrides: Partial<Finding> = {}): Finding {
   };
 }
 
+export const glance = {
+  headline: 'Anyone who names a branch can run commands on your machine.',
+  attacker: 'anyone who can push a branch',
+  likelihood: 'possible',
+  fixSize: 'small',
+  recommend: { decision: 'fix-now', why: 'One array argument closes it.' },
+} satisfies Partial<Finding>;
+
 export function findingsFile(findings: Finding[]): FindingsFile {
   return {
     version: 1,

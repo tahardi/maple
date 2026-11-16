@@ -7,18 +7,20 @@ import { errorText } from '@shared/errors/errorText';
 import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { AcceptRiskDialog } from './AcceptRiskDialog';
+import { DECISION_LABELS } from './decisionLabels';
 import styles from './FindingCard.module.css';
 
 type Kind = FindingDecision['kind'];
 
-const KINDS: readonly (readonly [Kind, string])[] = [
-  ['fix-now', 'Fix now'],
-  ['fix-later', 'Fix later'],
-  ['accept-risk', 'Accept risk'],
-  ['not-real', 'Not real'],
-];
+const KINDS: readonly Kind[] = ['fix-now', 'fix-later', 'accept-risk', 'not-real'];
 
-type DecisionButtonsProps = { tabId: string; finding: Finding; working: boolean; applying: boolean };
+type DecisionButtonsProps = {
+  tabId: string;
+  finding: Finding;
+  recommended: Kind | null;
+  working: boolean;
+  applying: boolean;
+};
 
 function lockReason(finding: Finding, working: boolean, applying: boolean): string | null {
   if (finding.applied !== null) {
@@ -30,7 +32,7 @@ function lockReason(finding: Finding, working: boolean, applying: boolean): stri
   return applying ? 'Claude is applying your decisions' : null;
 }
 
-export function DecisionButtons({ tabId, finding, working, applying }: DecisionButtonsProps) {
+export function DecisionButtons({ tabId, finding, recommended, working, applying }: DecisionButtonsProps) {
   const [pending, setPending] = useState<Kind | 'override' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
@@ -57,10 +59,11 @@ export function DecisionButtons({ tabId, finding, working, applying }: DecisionB
   return (
     <div className={styles.decisions}>
       <div className={styles.buttons}>
-        {KINDS.map(([kind, label]) => (
+        {KINDS.map((kind) => (
           <Button
             key={kind}
-            label={label}
+            label={DECISION_LABELS[kind]}
+            variant={recommended === kind ? 'primary' : undefined}
             pressed={chosen === kind}
             disabled={locked !== null || pending !== null}
             busy={pending === kind}
