@@ -26,6 +26,25 @@ describe('AttackPath', () => {
     expect(screen.getAllByRole('region')).toHaveLength(2);
   });
 
+  test('labels a single zone with its name alone', () => {
+    // given
+    const steps = [
+      { actor: 'a session', step: 'Rewrites the findings file.', zone: 'Claude sessions' },
+      { actor: 'a session', step: 'Adds a fake decision.', zone: 'Claude sessions' },
+    ];
+    // when
+    render(<AttackPath steps={steps} />);
+    // then
+    const area = screen.getByRole('region', { name: 'Claude sessions' });
+    expect(area).toHaveTextContent('Rewrites the findings file.');
+    expect(area).toHaveTextContent('Adds a fake decision.');
+    expect(area).toHaveTextContent('Claude sessions');
+    expect(area).toHaveAttribute('data-trust', 'less');
+    expect(screen.getAllByRole('region')).toHaveLength(1);
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Less trusted/)).not.toBeInTheDocument();
+  });
+
   test('labels the wall with crosses', () => {
     // given
     const steps = [

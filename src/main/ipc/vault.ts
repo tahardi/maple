@@ -1,7 +1,8 @@
+import { shell } from 'electron';
 import { z } from 'zod';
 import { appLogger, logFailure, type Logger } from '@main/app/log/log';
 import { readSnapshot } from '@main/vault/snapshots';
-import { listNotes, readNote, writeNote } from '@main/vault/vault';
+import { createFolder, createNote, listNotes, readNote, trashNote, writeNote } from '@main/vault/vault';
 import { vaultWrites } from '@main/vault/vaultWrites';
 import { vaultDir as configuredVaultDir } from '@main/app/config/configCache';
 import type { IpcDeps } from './index';
@@ -36,6 +37,21 @@ export function registerVault(
   handle('vault', 'write', z.tuple([z.string().max(4096), z.string().max(2_097_152)]), (path, text) =>
     logFailure(logger, 'vault', { operation: 'vault:write', args: [path] }, async () =>
       writeNote(await requireVaultDir(), path, text),
+    ),
+  );
+  handle('vault', 'createNote', z.tuple([z.string().max(4096)]), (path) =>
+    logFailure(logger, 'vault', { operation: 'vault:createNote', args: [path] }, async () =>
+      createNote(await requireVaultDir(), path),
+    ),
+  );
+  handle('vault', 'createFolder', z.tuple([z.string().max(4096)]), (path) =>
+    logFailure(logger, 'vault', { operation: 'vault:createFolder', args: [path] }, async () =>
+      createFolder(await requireVaultDir(), path),
+    ),
+  );
+  handle('vault', 'trash', z.tuple([z.string().max(4096)]), (path) =>
+    logFailure(logger, 'vault', { operation: 'vault:trash', args: [path] }, async () =>
+      trashNote(await requireVaultDir(), path, (full) => shell.trashItem(full)),
     ),
   );
   handle('vault', 'written', z.tuple([tabIdArg]), (tabId) =>

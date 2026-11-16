@@ -38,6 +38,7 @@ type Props = {
   onReloadReview?: () => void;
   findings?: Fetched<FindingsFile> | null;
   commentsView?: ReactNode;
+  editFile?: string | null;
 };
 
 const NO_DRAFTS: Record<string, Draft> = {};
@@ -63,6 +64,7 @@ export function FileViewer({
   onReloadReview,
   findings = null,
   commentsView,
+  editFile = null,
 }: Props) {
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
@@ -95,7 +97,16 @@ export function FileViewer({
       return commentsView ?? null;
     }
     if (activeFile.startsWith(VAULT_PREFIX)) {
-      return <NoteView tabId={tabId} path={activeFile} noteChanges={noteChanges} onPin={onPin} toolbar={toolbar} />;
+      return (
+        <NoteView
+          tabId={tabId}
+          path={activeFile}
+          noteChanges={noteChanges}
+          onPin={onPin}
+          toolbar={toolbar}
+          editByDefault={activeFile === editFile}
+        />
+      );
     }
     return (
       <CodeView

@@ -22,11 +22,13 @@ export function AttackPath({ steps }: { steps: readonly AttackStep[] }) {
   if (!steps.every((step) => step.zone)) {
     return <StepRow steps={steps} />;
   }
+  const grouped = areas(steps);
   return (
     <div className={styles.frame}>
       <div className={styles.zones}>
-        {areas(steps).map((area, index) => {
-          const label = `${index === 0 ? 'Less trusted' : 'More trusted'} · ${area.zone}`;
+        {grouped.map((area, index) => {
+          const label =
+            grouped.length === 1 ? area.zone : `${index === 0 ? 'Less trusted' : 'More trusted'} · ${area.zone}`;
           return (
             <Fragment key={index}>
               {index > 0 && (

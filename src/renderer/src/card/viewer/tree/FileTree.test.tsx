@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { buildTree } from './buildTree';
@@ -223,5 +223,94 @@ describe('FileTree', () => {
     );
     // then
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  test('shows the name box as the first row of its folder and opens the folder', () => {
+    // given
+    const nodes = buildTree(['README.md', 'src/lib/a.ts', 'src/b.ts'], [], false);
+    // when
+    render(
+      <FileTree
+        nodes={nodes}
+        selected={null}
+        onSelect={vi.fn()}
+        nameBox={{ folder: 'src/lib', box: <input aria-label="New note name" /> }}
+        collapsedByDefault
+      />,
+    );
+    // then
+    const rows = screen.getAllByRole('listitem').map((row) => row.textContent);
+    expect(rows).toEqual(['src', 'lib', '', 'a.ts', 'b.ts', 'README.md']);
+    expect(screen.getByRole('textbox', { name: 'New note name' }).closest('li')).toBe(
+      screen.getAllByRole('listitem')[2],
+    );
+  });
+
+  test('clicking a folder reports it as the selected folder', async () => {
+    // given
+    const onSelectFolder = vi.fn();
+    render(
+      <FileTree
+        nodes={buildTree(paths, [], false)}
+        selected={null}
+        onSelect={vi.fn()}
+        onSelectFolder={onSelectFolder}
+      />,
+    );
+    // when
+    await userEvent.click(screen.getByText('src'));
+    // then
+    expect(onSelectFolder).toHaveBeenCalledWith('src');
+  });
+
+  test('right-clicking a file reports its path and the pointer position', () => {
+    // given
+    const onFileMenu = vi.fn();
+    render(<FileTree nodes={buildTree(paths, [], false)} selected={null} onSelect={vi.fn()} onFileMenu={onFileMenu} />);
+    // when
+    const opened = fireEvent.contextMenu(screen.getByText('b.ts'), { clientX: 30, clientY: 50 });
+    // then
+    expect(onFileMenu).toHaveBeenCalledWith('src/b.ts', 30, 50);
+    expect(opened).toBe(false);
+  });
+
+  test('right-clicking a folder reports nothing and keeps the default menu', () => {
+    // given
+    const onFileMenu = vi.fn();
+    render(<FileTree nodes={buildTree(paths, [], false)} selected={null} onSelect={vi.fn()} onFileMenu={onFileMenu} />);
+    // when
+    const opened = fireEvent.contextMenu(screen.getByText('src'), { clientX: 30, clientY: 50 });
+    // then
+    expect(onFileMenu).not.toHaveBeenCalled();
+    expect(opened).toBe(true);
+  });
+
+  test('shows the name box as the first row of the vault root', () => {
+    // given
+    const nodes = buildTree(['README.md', 'src/b.ts'], [], false);
+    // when
+    render(
+      <FileTree
+        nodes={nodes}
+        selected={null}
+        onSelect={vi.fn()}
+        nameBox={{ folder: '', box: <input aria-label="New note name" /> }}
+        collapsedByDefault
+      />,
+    );
+    // then
+    const rows = screen.getAllByRole('listitem');
+    expect(rows.map((row) => row.textContent)).toEqual(['', 'src', 'README.md']);
+    expect(screen.getByRole('textbox', { name: 'New note name' }).closest('li')).toBe(rows[0]);
+  });
+
+  test('marks only the target folder as current', () => {
+    // given
+    const nodes = buildTree(['README.md', 'src/lib/a.ts', 'src/b.ts'], [], false);
+    // when
+    render(<FileTree nodes={nodes} selected={null} onSelect={vi.fn()} targetFolder="src/lib" />);
+    // then
+    const current = screen.getAllByRole('listitem').filter((row) => row.getAttribute('aria-current') === 'location');
+    expect(current.map((row) => row.textContent)).toEqual(['lib']);
   });
 });

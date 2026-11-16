@@ -176,6 +176,16 @@ describe('NoteView', () => {
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
+  test('opens in Edit mode when asked', async () => {
+    // given
+    fakeMaple({ vault: { read: vi.fn(() => Promise.resolve('## Findings\n')) } });
+    // when
+    render(<NoteView tabId="t1" path="vault:Spike.md" noteChanges={false} toolbar={slot} editByDefault />);
+    // then
+    expect(await screen.findByTestId('editor')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Findings' })).not.toBeInTheDocument();
+  });
+
   test('Edit toggles between the editor and the formatted note', async () => {
     // given
     renderNote();
