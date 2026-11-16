@@ -1,0 +1,47 @@
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  overflow-y: auto;
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--font-md);
+  color: var(--text-strong);
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.comment {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+}
+
+.meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.author {
+  font-size: var(--font-md);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.post {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

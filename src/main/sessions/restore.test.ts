@@ -81,7 +81,7 @@ describe('restoreTabs', () => {
     // when
     const result = await restoreTabs(state, manager, findWt);
     // then
-    expect(result).toEqual({ restored: 3, warnings: [] });
+    expect(result).toEqual({ restored: 3 });
     expect(sessions.openCard.mock.calls).toEqual([
       ['DIG', 'DIG-44', 's1', 'old-s1'],
       ['BEAR', 'BEAR-12', 's3', 'old-s3'],
@@ -95,20 +95,20 @@ describe('restoreTabs', () => {
   });
 
   test.each([
-    { tab: savedTab('card', 'DIG', 'DIG-44', 's1'), warning: 'dropped DIG-44: project DIG is not in config' },
-    { tab: savedTab('planner', 'DIG', null, 's2'), warning: 'dropped DIG planner: project DIG is not in config' },
-    { tab: savedTab('vault', 'DIG', null, 's4'), warning: 'dropped DIG vault: project DIG is not in config' },
-  ])('drops a $tab.kind tab whose project is gone', async ({ tab, warning }) => {
+    { tab: savedTab('card', 'DIG', 'DIG-44', 's1') },
+    { tab: savedTab('planner', 'DIG', null, 's2') },
+    { tab: savedTab('vault', 'DIG', null, 's4') },
+  ])('keeps a $tab.kind tab whose project is gone', async ({ tab }) => {
     // given
     const { sessions, manager } = fakeSessions(['BEAR']);
     const state = saved([tab, savedTab('card', 'BEAR', 'BEAR-12', 's3')]);
     // when
     const result = await restoreTabs(state, manager, () => Promise.resolve([]));
     // then
-    expect(result).toEqual({ restored: 1, warnings: [warning] });
+    expect(result).toEqual({ restored: 1 });
     expect(sessions.openCard.mock.calls).toEqual([['BEAR', 'BEAR-12', 's3', 'old-s3']]);
     expect(sessions.openPlanner).not.toHaveBeenCalled();
-    expect(sessions.keep).not.toHaveBeenCalled();
+    expect(sessions.keep.mock.calls).toEqual([[tab, 'project DIG is not in config']]);
   });
 
   test('reopens a vault tab with its saved session id', async () => {
@@ -117,7 +117,7 @@ describe('restoreTabs', () => {
     // when
     const result = await restoreTabs(saved([savedTab('vault', 'DIG', null, 's4')]), manager, () => Promise.resolve([]));
     // then
-    expect(result).toEqual({ restored: 1, warnings: [] });
+    expect(result).toEqual({ restored: 1 });
     expect(sessions.openVault.mock.calls).toEqual([['DIG', 's4', 'old-s4']]);
   });
 
@@ -128,7 +128,7 @@ describe('restoreTabs', () => {
     // when
     const result = await restoreTabs(state, manager, () => Promise.resolve([]));
     // then
-    expect(result).toEqual({ restored: 1, warnings: [] });
+    expect(result).toEqual({ restored: 1 });
     expect(sessions.openLearning.mock.calls).toEqual([['DIG', 's6', 'old-s6']]);
     expect(sessions.openPlanner).not.toHaveBeenCalled();
   });
@@ -143,18 +143,12 @@ describe('restoreTabs', () => {
       throw new Error(reason);
     });
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const tab = savedTab(kind, 'DIG', null, 's4');
     // when
-    const result = await restoreTabs(
-      saved([savedTab(kind, 'DIG', null, 's4')]),
-      manager,
-      () => Promise.resolve([]),
-      logger,
-    );
+    const result = await restoreTabs(saved([tab]), manager, () => Promise.resolve([]), logger);
     // then
-    expect(result).toEqual({
-      restored: 0,
-      warnings: [`kept DIG ${kind} for the next launch: ${reason}`],
-    });
+    expect(result).toEqual({ restored: 0 });
+    expect(sessions.keep.mock.calls).toEqual([[tab, reason]]);
     expect(logger.warn).toHaveBeenCalledWith('restore', 'kept', { tab: `DIG ${kind}`, reason });
   });
 
@@ -181,10 +175,10 @@ describe('restoreTabs', () => {
   });
 
   test.each([
-    { tab: savedTab('card', 'DIG', 'DIG-44', 's1'), method: 'openCard', name: 'DIG-44' },
-    { tab: savedTab('planner', 'DIG', null, 's2'), method: 'openPlanner', name: 'DIG planner' },
-    { tab: savedTab('vault', 'DIG', null, 's4'), method: 'openVault', name: 'DIG vault' },
-  ] as const)('keeps a $tab.kind tab that fails to launch and restores the rest', async ({ tab, method, name }) => {
+    { tab: savedTab('card', 'DIG', 'DIG-44', 's1'), method: 'openCard' },
+    { tab: savedTab('planner', 'DIG', null, 's2'), method: 'openPlanner' },
+    { tab: savedTab('vault', 'DIG', null, 's4'), method: 'openVault' },
+  ] as const)('keeps a $tab.kind tab that fails to launch and restores the rest', async ({ tab, method }) => {
     // given
     const { sessions, opened, manager } = fakeSessions(['DIG']);
     sessions[method].mockImplementationOnce(() => {
@@ -195,11 +189,8 @@ describe('restoreTabs', () => {
     // when
     const result = await restoreTabs(state, manager, findWt);
     // then
-    expect(result).toEqual({
-      restored: 1,
-      warnings: [`kept ${name} for the next launch: starting session: spawn failed`],
-    });
-    expect(sessions.keep.mock.calls).toEqual([[tab]]);
+    expect(result).toEqual({ restored: 1 });
+    expect(sessions.keep.mock.calls).toEqual([[tab, 'starting session: spawn failed']]);
     expect(opened.map((t) => t.cardKey)).toEqual(['DIG-45']);
     expect(findWt.mock.calls).toEqual([['DIG-45']]);
     expect(sessions.setWorktrees.mock.calls).toEqual([['old-s5', ['/wts/dig-45']]]);
@@ -212,12 +203,12 @@ describe('restoreTabs', () => {
       const thrown: unknown = 'boom';
       throw thrown;
     });
+    const tab = savedTab('planner', 'DIG', null, 's2');
     // when
-    const result = await restoreTabs(saved([savedTab('planner', 'DIG', null, 's2')]), manager, () =>
-      Promise.resolve([]),
-    );
+    const result = await restoreTabs(saved([tab]), manager, () => Promise.resolve([]));
     // then
-    expect(result).toEqual({ restored: 0, warnings: ['kept DIG planner for the next launch: boom'] });
+    expect(result).toEqual({ restored: 0 });
+    expect(sessions.keep.mock.calls).toEqual([[tab, 'boom']]);
   });
 
   test('holds and releases saves once when there are no tabs to restore', async () => {
@@ -226,7 +217,7 @@ describe('restoreTabs', () => {
     // when
     const result = await restoreTabs(saved([]), manager, () => Promise.resolve([]));
     // then
-    expect(result).toEqual({ restored: 0, warnings: [] });
+    expect(result).toEqual({ restored: 0 });
     expect(sessions.holdSaves).toHaveBeenCalledTimes(1);
     expect(release).toHaveBeenCalledTimes(1);
   });
@@ -239,7 +230,7 @@ describe('restoreTabs', () => {
     // when
     const result = await restoreTabs(state, manager, () => Promise.resolve(['/wts/dig']));
     // then
-    expect(result).toEqual({ restored: 2, warnings: [] });
+    expect(result).toEqual({ restored: 2 });
     expect(sessions.setWorktrees.mock.calls).toEqual([['old-s5', ['/wts/dig']]]);
   });
 
@@ -279,7 +270,7 @@ describe('restoreTabs', () => {
     // when
     const result = await restoreTabs(saved([savedTab('card', 'DIG', 'DIG-44', 's1')]), manager, findWt);
     // then
-    expect(result).toEqual({ restored: 1, warnings: [] });
+    expect(result).toEqual({ restored: 1 });
     expect(findWt).toHaveBeenCalledWith('DIG-44');
     expect(sessions.setWorktrees).not.toHaveBeenCalled();
     expect(opened[0]?.worktreePath).toBeNull();
@@ -343,14 +334,17 @@ describe('restoreTabs', () => {
     ]);
   });
 
-  test('logs a dropped tab with the reason at warn', async () => {
+  test('logs a kept tab with the reason at warn', async () => {
     // given
     const { manager } = fakeSessions([]);
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     // when
     await restoreTabs(saved([savedTab('card', 'DIG', 'DIG-44', 's1')]), manager, () => Promise.resolve([]), logger);
     // then
-    expect(logger.warn).toHaveBeenCalledWith('restore', 'dropped', { tab: 'DIG-44', reason: 'project not in config' });
+    expect(logger.warn).toHaveBeenCalledWith('restore', 'kept', {
+      tab: 'DIG-44',
+      reason: 'project DIG is not in config',
+    });
   });
 
   test('logs a failed worktree lookup at warn and restores the tab', async () => {

@@ -74,6 +74,13 @@ describe('buildTree', () => {
       changedOnly: false,
       expected: [dir('m', [file('m/y.ts')]), dir('z', [file('z/x.ts')]), file('a.ts'), file('b.ts')],
     },
+    {
+      name: 'a path ending in a slash adds an empty folder',
+      paths: ['Inbox.md', 'Drafts/'],
+      changes: [],
+      changedOnly: false,
+      expected: [dir('Drafts', []), file('Inbox.md')],
+    },
   ])('handles $name', ({ paths: input, changes: changed, changedOnly, expected }) => {
     // given
     const args = { input, changed };

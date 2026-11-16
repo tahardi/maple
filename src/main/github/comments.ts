@@ -1,3 +1,4 @@
+import type { PrComment } from '@shared/types/github/prComment';
 import type { ReviewComment } from '@shared/types/github/reviewComment';
 import { z } from 'zod';
 import type { Runner } from '@main/app/preflight';
@@ -35,6 +36,23 @@ const threadsSchema = z.array(
       }),
     }),
   }),
+);
+
+const userSchema = z.object({ login: z.string() }).nullable();
+
+const issueCommentsSchema = z.array(
+  z.array(z.object({ user: userSchema, body: z.string().nullable(), html_url: z.string(), created_at: z.string() })),
+);
+
+const reviewsSchema = z.array(
+  z.array(
+    z.object({
+      user: userSchema,
+      body: z.string().nullable(),
+      html_url: z.string(),
+      submitted_at: z.string().nullable().optional(),
+    }),
+  ),
 );
 
 const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
@@ -169,18 +187,24 @@ async function reviewThreads(
   );
 }
 
-export async function reviewComments(run: Runner, worktree: string, num: number): Promise<ReviewComment[]> {
-  const { code, stdout, stderr } = await run(
-    'gh',
-    ['api', '--paginate', '--slurp', `repos/{owner}/{repo}/pulls/${String(num)}/comments`],
-    worktree,
-  );
+async function listPages(run: Runner, worktree: string, path: string, doing: string): Promise<unknown> {
+  const { code, stdout, stderr } = await run('gh', ['api', '--paginate', '--slurp', path], worktree);
   if (code !== 0) {
-    throw new Error(`listing review comments: ${stderr}`);
+    throw new Error(`${doing}: ${stderr}`);
   }
+  return JSON.parse(stdout);
+}
+
+export async function reviewComments(run: Runner, worktree: string, num: number): Promise<ReviewComment[]> {
+  const pages = await listPages(
+    run,
+    worktree,
+    `repos/{owner}/{repo}/pulls/${String(num)}/comments`,
+    'listing review comments',
+  );
   const threads = await reviewThreads(run, worktree, num);
   return reviewCommentsSchema
-    .parse(JSON.parse(stdout))
+    .parse(pages)
     .flat()
     .flatMap((c) =>
       c.line !== null && c.side === 'RIGHT'
@@ -209,5 +233,36 @@ export async function resolveThread(run: Runner, worktree: string, threadId: str
   );
   if (code !== 0) {
     throw new Error(`${resolved ? 'resolving' : 'unresolving'} thread: ${stderr}`);
+  }
+}
+
+export async function prConversation(run: Runner, worktree: string, num: number): Promise<PrComment[]> {
+  const [comments, reviews] = await Promise.all([
+    listPages(run, worktree, `repos/{owner}/{repo}/issues/${String(num)}/comments`, 'listing PR comments'),
+    listPages(run, worktree, `repos/{owner}/{repo}/pulls/${String(num)}/reviews`, 'listing reviews'),
+  ]);
+  const fromComments = issueCommentsSchema
+    .parse(comments)
+    .flat()
+    .map((c) => ({ url: c.html_url, author: c.user?.login ?? 'ghost', at: c.created_at, body: c.body ?? '' }));
+  const fromReviews = reviewsSchema
+    .parse(reviews)
+    .flat()
+    .flatMap((r) =>
+      r.submitted_at && r.body?.trim()
+        ? [{ url: r.html_url, author: r.user?.login ?? 'ghost', at: r.submitted_at, body: r.body }]
+        : [],
+    );
+  return [...fromComments, ...fromReviews].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+
+export async function commentOnPr(run: Runner, worktree: string, num: number, body: string): Promise<void> {
+  const { code, stdout, stderr } = await run(
+    'gh',
+    ['api', '--method', 'POST', `repos/{owner}/{repo}/issues/${String(num)}/comments`, '-f', `body=${body}`],
+    worktree,
+  );
+  if (code !== 0) {
+    throw new Error(`commenting on PR: ${apiReason(stdout, stderr)}`);
   }
 }

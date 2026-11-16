@@ -34,6 +34,11 @@
   background: var(--accent);
 }
 
+.target {
+  box-shadow: inset 3px 0 0 var(--accent-strong);
+  background: var(--surface-hover);
+}
+
 .dir {
   font-weight: 600;
 }

@@ -48,12 +48,14 @@ export function NoteView({
   noteChanges,
   onPin,
   toolbar,
+  editByDefault = false,
 }: {
   tabId: string;
   path: string;
   noteChanges: boolean;
   onPin?: (path: string) => void;
   toolbar: HTMLElement | null;
+  editByDefault?: boolean;
 }) {
   const { mode, choose } = useDiffMode();
   const [wrap, setWrap] = useState(loadWrap);
@@ -71,7 +73,7 @@ export function NoteView({
   const wordWrap = wrap ? 'on' : 'off';
   const shownNote = note !== null && note.path === path ? note : null;
   const noteDraft = shownNote !== null && Object.hasOwn(drafts, shownNote.path) ? drafts[shownNote.path] : null;
-  const editsNote = shownNote !== null && (editing[shownNote.path] ?? noteDraft !== null);
+  const editsNote = shownNote !== null && (editing[shownNote.path] ?? (noteDraft !== null || editByDefault));
   const noteBefore = before !== null && before.path === path ? before.text : null;
   const changesOn = shownNote !== null && noteBefore !== null && (changes[shownNote.path] ?? true);
   const showsChanges = shownNote !== null && noteBefore !== null && changesOn && !editsNote;

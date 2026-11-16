@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { spawn } from 'node-pty';
 import { cardPrompt } from '@shared/prompts/cardPrompt';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { KeptTab } from '@shared/types/tabs/keptTab';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { appLogger, type Logger } from '@main/app/log/log';
 import type { Runner } from '@main/remote/runner';
@@ -172,8 +173,17 @@ export class SessionManager extends EventEmitter<Events> {
     return this.saver.hold();
   }
 
-  keep(tab: TabState): void {
-    this.tabs.keep(tab);
+  keep(tab: TabState, reason: string): void {
+    this.tabs.keep(tab, reason);
+  }
+
+  keptTabs(): KeptTab[] {
+    return this.tabs.keptTabs();
+  }
+
+  discardKept(tabId: string): void {
+    this.tabs.discardKept(tabId);
+    this.changed();
   }
 
   write(tabId: string, data: string): void {

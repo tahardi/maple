@@ -1,3 +1,4 @@
+import type { ReviewComment } from '@shared/types/github/reviewComment';
 import type { Card } from '@shared/types/jira/card';
 import type { Fetched } from '@shared/types/app/fetched';
 import type { PrInfo } from '@shared/types/github/prInfo';
@@ -71,6 +72,18 @@ const pr: PrInfo = {
 };
 
 const head = 'a'.repeat(40);
+
+const lineComment: ReviewComment = {
+  id: 1,
+  replyTo: null,
+  startLine: null,
+  path: 'src/a.ts',
+  line: 1,
+  author: 'tahardi',
+  body: 'why?',
+  threadId: null,
+  resolved: false,
+};
 
 async function clickApprove() {
   await userEvent.click(
@@ -395,6 +408,51 @@ describe('CardTab', () => {
     expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
   });
 
+  test('the Comments button opens the PR conversation', async () => {
+    // given
+    fakeRepo(true);
+    window.maple.pr.conversation = vi.fn(() =>
+      Promise.resolve([
+        {
+          url: 'https://github.com/tahardi/maple/pull/13#issuecomment-1',
+          author: 'tahardi',
+          at: '2026-10-25T10:00:00Z',
+          body: 'Looks good',
+        },
+      ]),
+    );
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (1)' }));
+    // then
+    expect(screen.getByRole('tab', { name: 'Comments', selected: true })).toBeInTheDocument();
+    expect(screen.getByText('Looks good')).toBeInTheDocument();
+  });
+
+  test('posting from the Comments tab raises the header count', async () => {
+    // given
+    fakeRepo(true);
+    const entry = (n: number) => ({
+      url: `https://github.com/tahardi/maple/pull/13#issuecomment-${String(n)}`,
+      author: 'tahardi',
+      at: `2026-10-25T1${String(n)}:00:00Z`,
+      body: `note ${String(n)}`,
+    });
+    let posted = false;
+    window.maple.pr.conversation = vi.fn(() => Promise.resolve(posted ? [entry(1), entry(2)] : [entry(1)]));
+    window.maple.pr.commentOnPr = vi.fn(() => {
+      posted = true;
+      return Promise.resolve();
+    });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (1)' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Comment on the PR' }), 'note 2');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    // then
+    expect(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (2)' })).toBeInTheDocument();
+  });
+
   test('shows no branch in the header before the repo info loads', async () => {
     // given
     fakeRepo(true);
@@ -480,6 +538,75 @@ describe('CardTab', () => {
     } finally {
       setItem.mockRestore();
     }
+  });
+
+  test('counts top-level comments and line threads on the Comments button', async () => {
+    // given
+    fakeRepo(true);
+    window.maple.pr.conversation = vi.fn(() =>
+      Promise.resolve([
+        {
+          url: 'https://github.com/tahardi/maple/pull/13#issuecomment-1',
+          author: 'tahardi',
+          at: '2026-10-25T10:00:00Z',
+          body: 'Looks good',
+        },
+      ]),
+    );
+    window.maple.pr.comments = vi.fn(() => Promise.resolve([lineComment]));
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (2)' })).toBeInTheDocument();
+  });
+
+  test('drops the line comments once the PR is no longer open', async () => {
+    // given
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, state: 'MERGED' }, error: null, fetchedAt: '2026-10-18T12:00:00.000Z' });
+    let changed: () => void = () => undefined;
+    fakeMaple({
+      pr: { get, comments: () => Promise.resolve([lineComment]) },
+      repo: {
+        changes: () =>
+          Promise.resolve({
+            base: 'abc',
+            files: [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: '1:1' }],
+            added: 1,
+            removed: 0,
+          }),
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    const banner = within(screen.getByRole('banner'));
+    expect(await screen.findByRole('img', { name: 'Has review comments' })).toBeInTheDocument();
+    await userEvent.click(await banner.findByRole('button', { name: 'Comments (1)' }));
+    // when
+    act(() => {
+      changed();
+    });
+    // then
+    expect(await banner.findByRole('button', { name: 'Comments (0)' })).toBeInTheDocument();
+    expect(screen.getByText('No line comments')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Has review comments' })).not.toBeInTheDocument();
+  });
+
+  test('a line comment in the Comments tab opens its file at that line', async () => {
+    // given
+    fakeRepo(true);
+    window.maple.pr.comments = vi.fn(() => Promise.resolve([lineComment]));
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (1)' }));
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: /Line 1/ }));
+    // then
+    expect(await screen.findByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
   });
 
   test('marks the files that have review comments in the tree', async () => {

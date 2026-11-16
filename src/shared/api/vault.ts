@@ -8,6 +8,9 @@ export type VaultApi = {
   written(tabId: string): Promise<string[]>;
   before(tabId: string, path: string): Promise<string | null>;
   write(path: string, text: string): Promise<void>;
+  createNote(path: string): Promise<void>;
+  createFolder(path: string): Promise<void>;
+  trash(path: string): Promise<void>;
   onChanged(cb: () => void): Unsubscribe;
 };
 
@@ -17,5 +20,8 @@ export const VAULT_CHANNELS = {
   written: 'invoke',
   before: 'invoke',
   write: 'invoke',
+  createNote: 'invoke',
+  createFolder: 'invoke',
+  trash: 'invoke',
   onChanged: 'event',
 } as const satisfies { [M in keyof VaultApi]: ChannelKind };

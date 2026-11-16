@@ -26,6 +26,9 @@ export function buildTree(paths: readonly string[], changes: readonly FileChange
       }
       siblings = children;
     }
+    if (parts[parts.length - 1] === '') {
+      continue;
+    }
     siblings.push({
       name: parts[parts.length - 1],
       path: file,

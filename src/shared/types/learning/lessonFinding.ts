@@ -4,4 +4,5 @@ export type LessonFinding = {
   title: string;
   pr: string | null;
   tieIn: string | null;
+  reach: { now: string[]; afterFix: string[] } | null;
 };

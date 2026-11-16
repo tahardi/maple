@@ -64,11 +64,13 @@ export async function runPreflight(
 
 async function sandboxProblems(run: Runner, claudeSettingsPath: string): Promise<PreflightProblem[]> {
   const sandbox = await sandboxSettings(claudeSettingsPath);
-  if (sandbox?.enabled !== true) {
-    return [];
-  }
   const problems: PreflightProblem[] = [];
-  if (sandbox.allowUnsandboxedCommands !== false) {
+  if (sandbox?.enabled !== true) {
+    problems.push({
+      tool: 'claude-sandbox',
+      message: `sandbox is off: set sandbox.enabled to true in ${claudeSettingsPath}`,
+    });
+  } else if (sandbox.allowUnsandboxedCommands !== false) {
     problems.push({
       tool: 'claude-sandbox',
       message: `sandbox escape hatch is on: set sandbox.allowUnsandboxedCommands to false in ${claudeSettingsPath}`,

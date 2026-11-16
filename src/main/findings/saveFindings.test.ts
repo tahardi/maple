@@ -92,8 +92,8 @@ describe('saveFindings', () => {
   test.each([
     {
       name: 'a visual with a part Maple dropped',
-      stored: { path: [{ actor: 'only one' }], map: { zones: ['a', 'b'], from: 'a', to: 'b' } },
-      read: { map: { zones: ['a', 'b'], from: 'a', to: 'b' } },
+      stored: { path: [{ actor: 'only one' }], reach: { now: ['Run.'], afterFix: [] } },
+      read: { reach: { now: ['Run.'], afterFix: [] } },
     },
     { name: 'a visual Maple dropped whole', stored: { path: 'draw me' }, read: undefined },
   ])('keeps $name as the session wrote it', async ({ stored, read }) => {

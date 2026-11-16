@@ -146,11 +146,18 @@ async function start(): Promise<Zoom> {
     });
   }
   let stopQueue: () => void = () => undefined;
-  const gate = createConfigGate(loaded.data, async ({ worktreesDir }) => {
-    const restored = await restoreTabs(state, sessions, (key) => findWorktrees(worktreesDir, key));
-    warnings.push(...restored.warnings);
-    stopQueue = startQueue.start();
-  });
+  const gate = createConfigGate(
+    loaded.data,
+    async ({ worktreesDir }) => {
+      await restoreTabs(state, sessions, (key) => findWorktrees(worktreesDir, key));
+      stopQueue = startQueue.start();
+    },
+    async ({ worktreesDir }) => {
+      await restoreTabs({ ...state, tabs: sessions.keptTabs().map((k) => k.tab) }, sessions, (key) =>
+        findWorktrees(worktreesDir, key),
+      );
+    },
+  );
   const config = gate.current;
   startEventLog({
     limits: pruneLimits(config()),
@@ -288,7 +295,7 @@ async function start(): Promise<Zoom> {
 
   recordActions(
     uiActionRecorder({
-      tab: (id) => sessions.get(id),
+      tab: (id) => sessions.get(id) ?? sessions.keptTabs().find((k) => k.tab.id === id)?.tab ?? null,
       actions: () => config()?.actions ?? [],
       closeNeedsConfirm: (tabId, force) => closeNeedsConfirm(status.statuses(), tabId, force),
       append: (refs, data) => eventLog().append('ui.action', refs, data),
