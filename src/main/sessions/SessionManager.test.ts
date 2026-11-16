@@ -560,6 +560,20 @@ describe('SessionManager', () => {
     expect(save).toHaveBeenLastCalledWith([card45, card44], {});
   });
 
+  test.each([
+    { kind: 'planner', cardKey: null, open: (m: SessionManager) => m.openPlanner('DIG', null) },
+    { kind: 'card', cardKey: 'DIG-44', open: (m: SessionManager) => m.openCard('DIG', 'DIG-44', null) },
+    { kind: 'vault', cardKey: null, open: (m: SessionManager) => m.openVault('DIG', null) },
+  ] as const)('a kept $kind tab leaves the kept list once it reopens', ({ kind, cardKey, open }) => {
+    // given
+    const { manager } = setup({}, () => true, vaultConfig);
+    manager.keep(keptTab(kind, 'DIG', cardKey), 'project DIG is not in config');
+    // when
+    open(manager);
+    // then
+    expect(manager.keptTabs()).toEqual([]);
+  });
+
   test('discardKept drops the kept tab and saves', () => {
     // given
     const { manager, save } = setup();

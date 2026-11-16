@@ -363,6 +363,19 @@ describe('useMaple', () => {
     expect(useMaple.getState().keptTabs).toEqual([old2]);
   });
 
+  test('discardKept keeps the tab when the main process fails', async () => {
+    // given
+    const old1 = keptTab('old-1', 'a');
+    const discardKept = vi.fn(() => Promise.reject(new Error('discarding kept tab: gone')));
+    setup(undefined, { kept: () => Promise.resolve([old1]), discardKept });
+    await useMaple.getState().init();
+    // when
+    const got = useMaple.getState().discardKept('old-1');
+    // then
+    await expect(got).rejects.toThrow('discarding kept tab: gone');
+    expect(useMaple.getState().keptTabs).toEqual([old1]);
+  });
+
   test('init loads the saved seen map', async () => {
     // given
     setup(undefined, { seen: () => Promise.resolve({ 'dig-1': 'waiting' }) });
