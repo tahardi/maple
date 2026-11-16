@@ -1,6 +1,5 @@
 import type { Trace } from '@shared/types/learning/trace';
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { monaco } from '@renderer/testing/fakeMonaco';
 import { TraceView } from './TraceView';
 
@@ -26,11 +25,11 @@ describe('TraceView', () => {
     vi.clearAllMocks();
   });
 
-  test('highlights the first step lines', async () => {
+  test('highlights the given step lines', async () => {
     // given
     const trace = TRACE;
     // when
-    render(<TraceView trace={trace} />);
+    render(<TraceView trace={trace} step={0} />);
     // then
     await waitFor(() => {
       expect(highlighted(-1)).toEqual([
@@ -48,49 +47,45 @@ describe('TraceView', () => {
     expect(editor).toHaveAttribute('data-minimap', JSON.stringify({ enabled: false }));
   });
 
-  test('Next and Back move the highlight and the step text', async () => {
+  test('a new step moves the highlight and the step text, with no buttons of its own', async () => {
     // given
-    render(<TraceView trace={TRACE} />);
+    const { rerender } = render(<TraceView trace={TRACE} step={0} />);
     await waitFor(() => {
       expect(monaco.editor.revealLineInCenter).toHaveBeenCalled();
     });
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    rerender(<TraceView trace={TRACE} step={1} />);
     // then
-    expect(screen.getByText('Step 2 of 2')).toBeInTheDocument();
+    expect(screen.getByText('Code step 2 of 2')).toBeInTheDocument();
     expect(screen.getByText('Second.')).toBeInTheDocument();
     expect(highlighted(-1)).toEqual([
       expect.objectContaining({ range: { startLineNumber: 2, startColumn: 1, endLineNumber: 3, endColumn: 1 } }),
     ]);
     expect(monaco.editor.revealLineInCenter).toHaveBeenLastCalledWith(2);
     expect(monaco.collection.clear).toHaveBeenCalled();
-    // when
-    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
-    // then
-    expect(screen.getByText('Step 1 of 2')).toBeInTheDocument();
-    expect(monaco.editor.revealLineInCenter).toHaveBeenLastCalledWith(1);
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  test('Back and Next show their reason at the ends', async () => {
+  test('with no step, lists every step by its lines and highlights none', async () => {
     // given
-    render(<TraceView trace={TRACE} />);
-    // then
-    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
-    expect(screen.getByText('First step')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+    const trace = TRACE;
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    render(<TraceView trace={trace} step={null} />);
     // then
-    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
-    expect(screen.getByText('Last step')).toBeInTheDocument();
-    expect(screen.queryByText('First step')).not.toBeInTheDocument();
+    const items = screen.getAllByRole('listitem').map((item) => item.textContent);
+    expect(items).toEqual(['Line 1: First **bold** <b>tag</b>.', 'Lines 2–3: Second.']);
+    await waitFor(() => {
+      expect(screen.getByTestId('editor')).toBeInTheDocument();
+    });
+    expect(monaco.editor.createDecorationsCollection).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Code step/)).not.toBeInTheDocument();
   });
 
   test('shows step text with Markdown and HTML as plain text', () => {
     // given
     const trace = TRACE;
     // when
-    render(<TraceView trace={trace} />);
+    render(<TraceView trace={trace} step={0} />);
     // then
     expect(screen.getByText('First **bold** <b>tag</b>.')).toBeInTheDocument();
     expect(document.querySelector('b')).toBeNull();
