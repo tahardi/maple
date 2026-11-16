@@ -71,11 +71,28 @@ describe('findingFingerprint', () => {
       change: { decision: { kind: 'not-real', reason: null, decidedAt: '2026-11-16T12:00:00.000Z' } },
     },
     { field: 'severityOverride', change: { severityOverride: 'low' } },
+    { field: 'identity', change: { identity: { kind: 'dependency', advisory: 'GHSA-1', package: 'lodash' } } },
+    { field: 'attacker', change: { attacker: 'anyone who can open a PR' } },
+    { field: 'likelihood', change: { likelihood: 'likely' } },
+    { field: 'fixSize', change: { fixSize: 'large' } },
+    {
+      field: 'lesson',
+      change: { lesson: { note: 'Quote branch names.', mode: 'now', at: '2026-11-16T12:00:00.000Z' } },
+    },
   ])('ignores $field', ({ change }) => {
     // given
     const before = findingFingerprint(finding());
     // when
     const got = findingFingerprint(finding(change));
+    // then
+    expect(got).toBe(before);
+  });
+
+  test('treats a key set to undefined as missing', () => {
+    // given
+    const before = findingFingerprint(finding({ visual: { path: [{ actor: 'a', step: 's' }] } }));
+    // when
+    const got = findingFingerprint(finding({ visual: { path: [{ actor: 'a', step: 's', crosses: undefined }] } }));
     // then
     expect(got).toBe(before);
   });

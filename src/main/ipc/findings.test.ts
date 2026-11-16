@@ -270,6 +270,23 @@ describe('registerFindings', () => {
     expect(got).toMatchObject({ data: { findings: [finding({ id: 'F1', title: 'Nothing to see here' })] } });
   });
 
+  test('findings:decide drops the record of a finding whose text changed', async () => {
+    // given
+    const findings = [finding({ id: 'F1' }), finding({ id: 'F2', title: 'Token printed to the log' })];
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings }));
+    const invoke = register(dir, decisions);
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
+    await invoke('findings:decide', 'card', 'F2', { kind: 'fix-now', reason: null });
+    const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as { findings: Finding[] };
+    const rewritten = [{ ...saved.findings[0], title: 'Nothing to see here' }, saved.findings[1]];
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: rewritten }));
+    // when
+    await invoke('findings:decide', 'card', 'F2', { kind: 'not-real', reason: null });
+    // then
+    const stored = JSON.parse(await readFile(join(decisions, 'MPL-1.json'), 'utf8')) as { id: string }[];
+    expect(stored.map((r) => r.id)).toEqual(['F2']);
+  });
+
   test('findings:get keeps the decision when only the line changed', async () => {
     // given
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
