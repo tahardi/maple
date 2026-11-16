@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { TreeNode } from './buildTree';
 import styles from './FileTree.module.css';
 
@@ -14,6 +14,10 @@ type Props = {
   onToggleViewed?: (path: string) => void;
   commented?: ReadonlySet<string>;
   collapsedByDefault?: boolean;
+  onSelectFolder?: (path: string) => void;
+  onFileMenu?: (path: string, x: number, y: number) => void;
+  nameBox?: { folder: string; box: ReactNode };
+  targetFolder?: string;
 };
 
 export function FileTree({
@@ -28,9 +32,23 @@ export function FileTree({
   onToggleViewed,
   commented,
   collapsedByDefault = false,
+  onSelectFolder,
+  onFileMenu,
+  nameBox,
+  targetFolder,
 }: Props) {
   const [flipped, setFlipped] = useState<ReadonlySet<string>>(new Set());
-  const collapsed = (path: string) => collapsedByDefault !== flipped.has(path);
+  const holdsNameBox = (path: string) =>
+    nameBox !== undefined && (nameBox.folder === path || nameBox.folder.startsWith(`${path}/`));
+  const collapsed = (path: string) => !holdsNameBox(path) && collapsedByDefault !== flipped.has(path);
+  const boxRow = (folder: string, depth: number) =>
+    nameBox?.folder === folder
+      ? [
+          <li key={`${folder}/\0name-box`} className={styles.row} style={{ paddingLeft: 8 + depth * 12 }}>
+            {nameBox.box}
+          </li>,
+        ]
+      : [];
 
   const flip = (path: string) => {
     setFlipped((dirs) => {
@@ -42,16 +60,24 @@ export function FileTree({
     });
   };
 
-  const rows = (list: readonly TreeNode[], depth: number): React.ReactNode[] =>
+  const rows = (list: readonly TreeNode[], depth: number): ReactNode[] =>
     list.flatMap((node) => [
       <li
         key={node.path}
-        className={node.path === selected ? `${styles.row} ${styles.selected}` : styles.row}
+        className={[
+          styles.row,
+          node.path === selected ? styles.selected : '',
+          node.dir && node.path === targetFolder ? styles.target : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        aria-current={node.dir && node.path === targetFolder ? 'location' : undefined}
         style={{ paddingLeft: 8 + depth * 12 }}
         aria-expanded={node.dir ? !collapsed(node.path) : undefined}
         onClick={() => {
           if (node.dir) {
             flip(node.path);
+            onSelectFolder?.(node.path);
           } else {
             onSelect(node.path);
           }
@@ -59,6 +85,12 @@ export function FileTree({
         onDoubleClick={() => {
           if (!node.dir) {
             onPin?.(node.path);
+          }
+        }}
+        onContextMenu={(e) => {
+          if (!node.dir && onFileMenu !== undefined) {
+            e.preventDefault();
+            onFileMenu(node.path, e.clientX, e.clientY);
           }
         }}
       >
@@ -90,7 +122,7 @@ export function FileTree({
           </span>
         )}
       </li>,
-      ...(collapsed(node.path) ? [] : rows(node.children, depth + 1)),
+      ...(collapsed(node.path) ? [] : [...boxRow(node.path, depth + 1), ...rows(node.children, depth + 1)]),
     ]);
 
   return (
@@ -117,7 +149,7 @@ export function FileTree({
           </div>
         </div>
       )}
-      <ul className={styles.list}>{rows(nodes, 0)}</ul>
+      <ul className={styles.list}>{[...boxRow('', 0), ...rows(nodes, 0)]}</ul>
     </div>
   );
 }
