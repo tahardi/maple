@@ -338,9 +338,9 @@ describe('VaultTab', () => {
   });
 
   test.each([
-    { name: 'the folder of the last note clicked', typed: 'Plan', made: 'Projects/Maple/Plan.md' },
-    { name: 'a name that already ends in .md', typed: 'Plan.md', made: 'Projects/Maple/Plan.md' },
-  ])('+ Note creates in $name', async ({ typed, made }) => {
+    { name: 'adds .md to a name without it', typed: 'Plan', made: 'Projects/Maple/Plan.md' },
+    { name: 'keeps a name that already ends in .md', typed: 'Plan.md', made: 'Projects/Maple/Plan.md' },
+  ])('+ Note after clicking a note creates in its folder and $name', async ({ typed, made }) => {
     // given
     const createNote = vi.fn(() => Promise.resolve());
     fakeVault({ createNote });

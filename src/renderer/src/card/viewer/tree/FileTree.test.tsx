@@ -285,7 +285,7 @@ describe('FileTree', () => {
     expect(opened).toBe(true);
   });
 
-  test('shows the name box as the first row of the root when its folder is empty', () => {
+  test('shows the name box as the first row of the vault root', () => {
     // given
     const nodes = buildTree(['README.md', 'src/b.ts'], [], false);
     // when
