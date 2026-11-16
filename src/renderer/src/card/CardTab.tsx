@@ -1,6 +1,6 @@
 import type { ReviewComment } from '@shared/types/github/reviewComment';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
@@ -21,6 +21,8 @@ import { FINDINGS } from '@renderer/card/viewer/tabs/findingsTab';
 import { COMMENTS_TAB } from '@renderer/card/viewer/tabs/commentsTab';
 import { usePrConversation } from '@renderer/card/conversation/usePrConversation';
 import { CommentsView } from '@renderer/card/conversation/CommentsView';
+import { threadsByFile } from '@renderer/card/conversation/threadsByFile';
+import { threadCount } from '@renderer/card/conversation/threadCount';
 import { useFindings } from '@renderer/card/findings/useFindings';
 import { findingsLabel } from '@renderer/card/findings/findingsLabel';
 import { undecided } from '@shared/findings/undecided';
@@ -44,6 +46,7 @@ import { VAULT_PREFIX, VaultSwitch, type TreeView } from '@renderer/card/vault/V
 const WAITING = 'Waiting for worktree…';
 const MERGED = 'Merged, worktree removed';
 const CLOSED = 'Closed, worktree removed';
+const NO_LINE_COMMENTS: readonly ReviewComment[] = [];
 
 export function CardTab({ tab }: { tab: TabState }) {
   const { changes, files, repo, pr, review, reviewUpdated, reloadReview, card, cost, outsideSprint } = useCardData(tab);
@@ -97,10 +100,12 @@ export function CardTab({ tab }: { tab: TabState }) {
   const viewedScope =
     tab.worktreePaths.length > 1 && tab.worktreePath !== null ? `${folderName(tab.worktreePath)}:` : '';
   const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed, viewedScope);
-  const [commented, setCommented] = useState<ReadonlySet<string>>(new Set());
-  const showComments = useCallback((comments: readonly ReviewComment[]) => {
-    setCommented(new Set(comments.map((c) => c.path)));
-  }, []);
+  const [lineComments, setLineComments] = useState<readonly ReviewComment[]>([]);
+  const prOpen = pr?.data?.state === 'OPEN';
+  const shownComments = prOpen ? lineComments : NO_LINE_COMMENTS;
+  const commented = useMemo(() => new Set(shownComments.map((c) => c.path)), [shownComments]);
+  const lineThreads = useMemo(() => threadsByFile(shownComments), [shownComments]);
+  const lineThreadCount = threadCount(lineThreads.open) + threadCount(lineThreads.resolved);
   const unviewed = changed.length - viewed.size;
   const worktreeExists = tab.worktreePath !== null;
   useQuickOpenKeys(active && worktreeExists ? setQuickOpen : null);
@@ -189,7 +194,7 @@ export function CardTab({ tab }: { tab: TabState }) {
         onOpenFindings={() => {
           openFile(FINDINGS, null, true);
         }}
-        commentCount={conversation.comments.length}
+        commentCount={conversation.comments.length + lineThreadCount}
         onOpenComments={() => {
           openFile(COMMENTS_TAB, null, true);
         }}
@@ -260,9 +265,9 @@ export function CardTab({ tab }: { tab: TabState }) {
                 onCloseFiles={openFiles.close}
                 prBody={pr?.data?.body ?? null}
                 cardBody={card?.descriptionMd}
-                canComment={pr?.data?.state === 'OPEN'}
+                canComment={prOpen}
                 prFetchedAt={pr?.fetchedAt ?? null}
-                onComments={showComments}
+                onComments={setLineComments}
                 line={openFiles.line}
                 review={pinned}
                 onReloadReview={reloadPinnedReview}
@@ -271,8 +276,12 @@ export function CardTab({ tab }: { tab: TabState }) {
                   <CommentsView
                     tabId={tab.id}
                     comments={conversation.comments}
-                    canPost={pr?.data?.state === 'OPEN'}
+                    canPost={prOpen}
                     onPosted={conversation.reload}
+                    lineThreads={lineThreads}
+                    onOpenLine={(path, line) => {
+                      openFile(path, line);
+                    }}
                   />
                 }
                 noteChanges
