@@ -1,3 +1,4 @@
+import { allowedLinkHost, LESSON_LINK_HOSTS } from '@shared/learning/lessonLinks';
 import { useState } from 'react';
 import { AttackPath } from '@renderer/security/visual/AttackPath';
 import { AttackerReach } from '@renderer/security/visual/AttackerReach';
@@ -41,7 +42,11 @@ export function LessonPage({ path }: { path: string }) {
       pages: 1,
       body: () => (
         <>
-          {lesson.explanation === null ? <p>Not written yet.</p> : <MarkdownText text={lesson.explanation} />}
+          {lesson.explanation === null ? (
+            <p>Not written yet.</p>
+          ) : (
+            <MarkdownText text={lesson.explanation} linkHosts={LESSON_LINK_HOSTS} />
+          )}
           {lesson.example !== null && <ExampleView example={lesson.example} />}
         </>
       ),
@@ -51,7 +56,11 @@ export function LessonPage({ path }: { path: string }) {
       pages: 1,
       body: () => (
         <>
-          {lesson.attack === null ? <p>Not written yet.</p> : <MarkdownText text={lesson.attack} />}
+          {lesson.attack === null ? (
+            <p>Not written yet.</p>
+          ) : (
+            <MarkdownText text={lesson.attack} linkHosts={LESSON_LINK_HOSTS} />
+          )}
           {lesson.path !== null && <AttackPath steps={lesson.path} />}
         </>
       ),
@@ -85,7 +94,11 @@ export function LessonPage({ path }: { path: string }) {
                       {f.pr}
                     </a>
                   )}
-                  {f.tieIn === null ? <p>Tie-in pending</p> : <MarkdownText text={f.tieIn} />}
+                  {f.tieIn === null ? (
+                    <p>Tie-in pending</p>
+                  ) : (
+                    <MarkdownText text={f.tieIn} linkHosts={LESSON_LINK_HOSTS} />
+                  )}
                   {f.reach !== null && <AttackerReach now={f.reach.now} afterFix={f.reach.afterFix} />}
                 </li>
               ))}
@@ -94,9 +107,13 @@ export function LessonPage({ path }: { path: string }) {
           {lesson.source !== null && (
             <p className={styles.source}>
               Source:{' '}
-              <a href={lesson.source.url} target="_blank" rel="noreferrer">
-                {lesson.source.title}
-              </a>
+              {allowedLinkHost(lesson.source.url) ? (
+                <a href={lesson.source.url} target="_blank" rel="noreferrer">
+                  {lesson.source.title}
+                </a>
+              ) : (
+                `${lesson.source.title} (${lesson.source.url})`
+              )}
             </p>
           )}
         </>
