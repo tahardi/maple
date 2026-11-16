@@ -92,7 +92,8 @@ describe('LessonPage', () => {
     expect(screen.getByRole('button', { name: 'Steps' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Step 1 of 5')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next: The attack' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
+    expect(screen.getByText('First step')).toBeInTheDocument();
   });
 
   test('Back and Next sit in the top row beside the layout toggle', async () => {

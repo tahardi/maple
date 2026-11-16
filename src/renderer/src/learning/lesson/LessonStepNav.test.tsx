@@ -13,13 +13,14 @@ describe('LessonStepNav', () => {
     { at: 0, back: false, next: 'Next: Code (1 of 2)' },
     { at: 1, back: true, next: 'Next: Code (2 of 2)' },
     { at: 2, back: true, next: null },
-  ])('at place $at shows Back $back and $next', ({ at, back, next }) => {
+  ])('at place $at shows Back enabled $back and $next', ({ at, back, next }) => {
     // given
     const onMove = vi.fn();
     // when
     render(<LessonStepNav places={PLACES} at={at} onMove={onMove} />);
     // then
-    expect(screen.queryByRole('button', { name: 'Back' }) !== null).toBe(back);
+    expect(screen.getByRole('button', { name: 'Back' })).toHaveProperty('disabled', !back);
+    expect(screen.queryByText('First step') === null).toBe(back);
     expect(screen.queryByRole('button', { name: /^Next/ })?.textContent ?? null).toBe(next);
   });
 

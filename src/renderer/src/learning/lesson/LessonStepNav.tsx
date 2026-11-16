@@ -8,14 +8,14 @@ export function LessonStepNav({ places, at, onMove }: LessonStepNavProps) {
   const next = places.at(at + 1);
   return (
     <nav aria-label="Lesson steps" className={styles.stepNav}>
-      <span style={at === 0 ? { visibility: 'hidden' } : undefined}>
-        <Button
-          label="Back"
-          onClick={() => {
-            onMove(at - 1);
-          }}
-        />
-      </span>
+      <Button
+        label="Back"
+        disabled={at === 0}
+        reason={at === 0 ? 'First step' : null}
+        onClick={() => {
+          onMove(at - 1);
+        }}
+      />
       {next !== undefined && (
         <Button
           label={`Next: ${next.label}`}
