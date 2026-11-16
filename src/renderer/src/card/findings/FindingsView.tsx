@@ -16,15 +16,22 @@ function rank(finding: Finding): number {
   return (finding.decision === null ? 0 : 3) + ORDER[effectiveSeverity(finding)];
 }
 
+function openKey(finding: Finding): string {
+  return `${finding.id}:${finding.applied?.at ?? ''}`;
+}
+
 type FindingsViewProps = { tabId: string; file: FindingsFile | null; error: string | null };
 
 export function FindingsView({ tabId, file, error }: FindingsViewProps) {
   const working = useMaple((s) => tabId in s.statuses && s.statuses[tabId].dot === 'working');
   const { lessons } = useLessons();
-  const [chosen, setChosen] = useState<string | null>(null);
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const applying = file !== null && file.resume?.round === file.round;
   const findings = [...(file?.findings ?? [])].sort((a, b) => rank(a) - rank(b));
-  const openId = findings.find((f) => f.id === chosen)?.id ?? findings.find((f) => f.decision === null)?.id ?? null;
+  const isOpen = (finding: Finding): boolean => toggled[openKey(finding)] ?? finding.applied === null;
+  const setOpen = (finding: Finding, open: boolean): void => {
+    setToggled((current) => ({ ...current, [openKey(finding)]: open }));
+  };
   if (error !== null) {
     return (
       <div className={styles.view}>
@@ -40,10 +47,24 @@ export function FindingsView({ tabId, file, error }: FindingsViewProps) {
         <ol className={styles.list} aria-label="Findings">
           {findings.map((finding) => (
             <li key={finding.id}>
-              {finding.id === openId ? (
-                <FindingCard tabId={tabId} finding={finding} working={working} applying={applying} lessons={lessons} />
+              {isOpen(finding) ? (
+                <FindingCard
+                  tabId={tabId}
+                  finding={finding}
+                  working={working}
+                  applying={applying}
+                  lessons={lessons}
+                  onCollapse={() => {
+                    setOpen(finding, false);
+                  }}
+                />
               ) : (
-                <FindingRow finding={finding} onOpen={setChosen} />
+                <FindingRow
+                  finding={finding}
+                  onOpen={() => {
+                    setOpen(finding, true);
+                  }}
+                />
               )}
             </li>
           ))}

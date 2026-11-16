@@ -12,20 +12,13 @@ function note(finding: Finding): string | null {
   return finding.recommend ? `Recommended: ${DECISION_LABELS[finding.recommend.decision]}` : null;
 }
 
-type FindingRowProps = { finding: Finding; onOpen: (id: string) => void };
+type FindingRowProps = { finding: Finding; onOpen: () => void };
 
 export function FindingRow({ finding, onOpen }: FindingRowProps) {
   const severity = effectiveSeverity(finding);
   const text = note(finding);
   return (
-    <button
-      type="button"
-      className={styles.row}
-      data-decided={finding.decision !== null}
-      onClick={() => {
-        onOpen(finding.id);
-      }}
-    >
+    <button type="button" className={styles.row} data-decided={finding.decision !== null} onClick={onOpen}>
       <Badge tone={SEVERITY_TONES[severity]}>{severity}</Badge>
       <span className={styles.rowTitle}>{finding.title}</span>
       {text !== null && <span className={styles.rowNote}>{text}</span>}

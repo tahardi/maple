@@ -22,6 +22,6 @@ describe('FindingRow', () => {
     // then
     expect(row.querySelector('[data-tone]')).toHaveAttribute('data-tone', tone);
     expect(row.textContent).toBe(text);
-    expect(onOpen).toHaveBeenCalledWith('F1');
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 });

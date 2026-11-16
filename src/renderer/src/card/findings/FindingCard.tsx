@@ -2,6 +2,7 @@ import type { Finding } from '@shared/types/findings/finding';
 import type { LessonSummary } from '@shared/types/learning/lessonSummary';
 import { effectiveSeverity } from '@shared/findings/effectiveSeverity';
 import { Badge } from '@renderer/shell/blocks/Badge';
+import { Button } from '@renderer/shell/blocks/Button';
 import { chipLabel } from './chipLabel';
 import { DecisionButtons } from './DecisionButtons';
 import { DECISION_LABELS } from './decisionLabels';
@@ -35,9 +36,10 @@ type FindingCardProps = {
   working: boolean;
   applying: boolean;
   lessons: readonly LessonSummary[];
+  onCollapse: () => void;
 };
 
-export function FindingCard({ tabId, finding, working, applying, lessons }: FindingCardProps) {
+export function FindingCard({ tabId, finding, working, applying, lessons, onCollapse }: FindingCardProps) {
   const severity = effectiveSeverity(finding);
   const facts = [
     ['Who can do it', finding.attacker],
@@ -49,11 +51,14 @@ export function FindingCard({ tabId, finding, working, applying, lessons }: Find
   return (
     <article className={styles.finding}>
       <div className={styles.part}>
-        <div className={styles.chips}>
-          <Badge tone={SEVERITY_TONES[severity]}>{severity}</Badge>
-          {finding.chips.map((chip) => (
-            <Badge key={chip}>{chipLabel(chip)}</Badge>
-          ))}
+        <div className={styles.top}>
+          <div className={styles.chips}>
+            <Badge tone={SEVERITY_TONES[severity]}>{severity}</Badge>
+            {finding.chips.map((chip) => (
+              <Badge key={chip}>{chipLabel(chip)}</Badge>
+            ))}
+          </div>
+          <Button label="Collapse" onClick={onCollapse} />
         </div>
         <h3 className={styles.title}>{finding.headline ?? finding.title}</h3>
         <dl className={styles.facts}>
