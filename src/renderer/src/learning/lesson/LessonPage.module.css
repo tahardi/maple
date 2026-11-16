@@ -65,6 +65,16 @@
   padding-top: var(--space-3);
 }
 
+.around {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-top: 1px solid var(--divider);
+  padding-top: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
 .stepNav {
   display: flex;
   align-items: center;

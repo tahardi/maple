@@ -140,12 +140,12 @@ export function LessonPage({ path }: { path: string }) {
           {!onePage && (
             <>
               <span role="separator" aria-orientation="vertical" className={styles.divider} />
-              <LessonStepNav places={places} at={index} onMove={setAt} />
+              <LessonStepNav count={places.length} at={index} onMove={setAt} />
             </>
           )}
         </div>
       </div>
-      <LessonSteps steps={steps} onePage={onePage} place={places[index]} />
+      <LessonSteps steps={steps} onePage={onePage} places={places} at={index} />
     </div>
   );
 }

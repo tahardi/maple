@@ -32,13 +32,12 @@ async function openLesson(fields: Parameters<typeof fullLesson>[1] = {}, learnin
 }
 
 async function goTo(step: string): Promise<void> {
+  const labels = step === 'Walk the code' ? ['Walk the code (1 of 2)', 'Walk the code (2 of 2)'] : [step];
   const nav = screen.getByRole('navigation', { name: 'Lesson steps' });
-  if (step === 'Walk the code') {
-    await userEvent.click(within(nav).getByRole('button', { name: 'Next: Walk the code (1 of 2)' }));
-    await userEvent.click(within(nav).getByRole('button', { name: 'Next: Walk the code (2 of 2)' }));
-    return;
+  for (const label of labels) {
+    expect(screen.getByText(`Next: ${label}`)).toBeVisible();
+    await userEvent.click(within(nav).getByRole('button', { name: 'Next' }));
   }
-  await userEvent.click(within(nav).getByRole('button', { name: `Next: ${step}` }));
 }
 
 describe('LessonPage', () => {
@@ -91,7 +90,8 @@ describe('LessonPage', () => {
     expect(visibleSteps()).toEqual(['What it is']);
     expect(screen.getByRole('button', { name: 'Steps' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Step 1 of 5')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Next: The attack' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+    expect(screen.getByText('Next: The attack')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
     expect(screen.queryByText('First step')).not.toBeInTheDocument();
   });
@@ -131,7 +131,9 @@ describe('LessonPage', () => {
     // then
     expect(seen).toEqual(STEPS.slice(1).map((step) => [step]));
     expect(screen.getByText('Step 5 of 5')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Next/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    expect(screen.getByText('Back: Your finding')).toBeInTheDocument();
+    expect(screen.queryByText(/^Next:/)).not.toBeInTheDocument();
     // when
     const nav = screen.getByRole('navigation', { name: 'Lesson steps' });
     await userEvent.click(within(nav).getByRole('button', { name: 'Back' }));

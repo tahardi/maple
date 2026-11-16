@@ -1,11 +1,9 @@
-import type { LessonPlace } from './lessonPlaces';
 import { Button } from '@renderer/shell/blocks/Button';
 import styles from './LessonPage.module.css';
 
-type LessonStepNavProps = { places: readonly LessonPlace[]; at: number; onMove: (at: number) => void };
+type LessonStepNavProps = { count: number; at: number; onMove: (at: number) => void };
 
-export function LessonStepNav({ places, at, onMove }: LessonStepNavProps) {
-  const next = places.at(at + 1);
+export function LessonStepNav({ count, at, onMove }: LessonStepNavProps) {
   return (
     <nav aria-label="Lesson steps" className={styles.stepNav}>
       <Button
@@ -15,15 +13,14 @@ export function LessonStepNav({ places, at, onMove }: LessonStepNavProps) {
           onMove(at - 1);
         }}
       />
-      {next !== undefined && (
-        <Button
-          label={`Next: ${next.label}`}
-          variant="primary"
-          onClick={() => {
-            onMove(at + 1);
-          }}
-        />
-      )}
+      <Button
+        label="Next"
+        variant="primary"
+        disabled={at === count - 1}
+        onClick={() => {
+          onMove(at + 1);
+        }}
+      />
     </nav>
   );
 }
