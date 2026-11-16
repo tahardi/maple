@@ -262,7 +262,7 @@ async function start(): Promise<Zoom> {
 
   recordActions(
     uiActionRecorder({
-      tab: (id) => sessions.get(id),
+      tab: (id) => sessions.get(id) ?? sessions.keptTabs().find((k) => k.tab.id === id)?.tab ?? null,
       actions: () => config()?.actions ?? [],
       closeNeedsConfirm: (tabId, force) => closeNeedsConfirm(status.statuses(), tabId, force),
       append: (refs, data) => eventLog().append('ui.action', refs, data),

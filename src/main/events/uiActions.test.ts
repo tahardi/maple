@@ -49,7 +49,7 @@ describe('uiActionRecorder', () => {
     { channel: 'learning:fromFinding', args: ['t1', 'F1', 'now'], refs: tabRefs },
     { channel: 'tabs:close', args: ['t1', false], refs: tabRefs },
     { channel: 'tabs:resume', args: ['t1'], refs: tabRefs },
-    { channel: 'app:discardKept', args: ['old-1'], refs: { ...noRefs, tab: 'old-1' } },
+    { channel: 'app:discardKept', args: ['t1'], refs: tabRefs },
     { channel: 'tabs:startFresh', args: ['t1'], refs: tabRefs },
     { channel: 'tabs:selectWorktree', args: ['t1', '/wts/a'], refs: tabRefs },
     { channel: 'tabs:setActive', args: ['t1'], refs: tabRefs },
