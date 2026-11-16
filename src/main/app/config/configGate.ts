@@ -9,6 +9,7 @@ export type ConfigGate = {
 export function createConfigGate(
   initial: MapleConfig | null,
   onFirstConfig: (config: MapleConfig) => Promise<void>,
+  onLaterConfig: (config: MapleConfig) => Promise<void> = () => Promise.resolve(),
 ): ConfigGate {
   let config = initial;
   let ran = false;
@@ -27,6 +28,10 @@ export function createConfigGate(
         return;
       }
       config = next;
+      if (ran) {
+        await onLaterConfig(next);
+        return;
+      }
       await runOnce(next);
     },
   };

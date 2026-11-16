@@ -119,9 +119,9 @@ describe('TabRegistry', () => {
     const keptCard = tab('old-1', 'card', 'DIG-44');
     const keptOther = tab('old-2', 'card', 'DIG-45');
     const keptPlanner = tab('old-3', 'planner', null);
-    registry.keep(keptCard);
-    registry.keep(keptOther);
-    registry.keep(keptPlanner);
+    registry.keep(keptCard, 'starting session: spawn failed');
+    registry.keep(keptOther, 'starting session: spawn failed');
+    registry.keep(keptPlanner, 'starting session: spawn failed');
     const card = tab('t1', 'card', 'DIG-44');
     registry.add(card);
     // when
@@ -137,11 +137,37 @@ describe('TabRegistry', () => {
   ])('resumeIdFor returns $name', ({ keptCard, closed, want }) => {
     // given
     const registry = new TabRegistry(closed ? { 'DIG-44': 'closed' } : {});
-    registry.keep(tab('old-1', 'card', keptCard, 's-old'));
+    registry.keep(tab('old-1', 'card', keptCard, 's-old'), 'starting session: spawn failed');
     // when
     const got = registry.resumeIdFor('DIG', 'DIG-44');
     // then
     expect(got).toBe(want);
+  });
+
+  test('keep replaces an earlier entry for the same tab', () => {
+    // given
+    const registry = new TabRegistry({});
+    const kept = tab('old-1', 'card', 'DIG-44');
+    registry.keep(kept, 'a');
+    // when
+    registry.keep(kept, 'b');
+    // then
+    expect(registry.keptTabs()).toEqual([{ tab: kept, reason: 'b' }]);
+    expect(registry.snapshot().tabs).toEqual([kept]);
+  });
+
+  test('discardKept drops only that kept tab', () => {
+    // given
+    const registry = new TabRegistry({});
+    const old1 = tab('old-1', 'card', 'DIG-44');
+    const old2 = tab('old-2', 'card', 'DIG-45');
+    registry.keep(old1, 'a');
+    registry.keep(old2, 'b');
+    // when
+    registry.discardKept('old-1');
+    // then
+    expect(registry.keptTabs()).toEqual([{ tab: old2, reason: 'b' }]);
+    expect(registry.snapshot().tabs).toEqual([old2]);
   });
 
   test('snapshot lists open tabs, then kept tabs, and a copy of the closed sessions', () => {
@@ -149,7 +175,7 @@ describe('TabRegistry', () => {
     const closedSessions = { 'DIG-1': 'old' };
     const registry = new TabRegistry(closedSessions);
     const kept = tab('old-1', 'card', 'DIG-45');
-    registry.keep(kept);
+    registry.keep(kept, 'starting session: spawn failed');
     const card = tab('t1', 'card', 'DIG-44');
     registry.add(card);
     // when

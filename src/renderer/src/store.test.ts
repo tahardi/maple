@@ -1,6 +1,7 @@
 import type { MapleApi } from '@shared/api/mapleApi';
 import type { Fetched } from '@shared/types/app/fetched';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { KeptTab } from '@shared/types/tabs/keptTab';
 import type { TabState } from '@shared/types/tabs/tabState';
 import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { useMaple } from './store';
@@ -24,6 +25,8 @@ const status = (tabId: string, dot: TabStatus['dot']): TabStatus => ({
   resumeFailed: false,
   sync: null,
 });
+
+const keptTab = (id: string, reason: string): KeptTab => ({ tab: tab(id, 'DIG'), reason });
 
 const MPL_CONFIG: Fetched<MapleConfig> = {
   ...FAKE_CONFIG,
@@ -297,6 +300,67 @@ describe('useMaple', () => {
     expect(sinceWaiting).toBe(loaded);
     expect(sinceRepeated).toBe(loaded);
     expect(useMaple.getState().since['bear-1']).toBe(loaded + 120_000);
+  });
+
+  test('init loads the kept tabs', async () => {
+    // given
+    const kept = [keptTab('old-1', 'project DIG is not in config')];
+    setup(undefined, { kept: () => Promise.resolve(kept) });
+    // when
+    await useMaple.getState().init();
+    // then
+    expect(useMaple.getState().keptTabs).toEqual(kept);
+  });
+
+  test('init starts with no kept tabs when reading them fails', async () => {
+    // given
+    setup(undefined, { kept: () => Promise.reject(new Error('reading kept tabs: gone')) });
+    // when
+    await useMaple.getState().init();
+    // then
+    expect(useMaple.getState().keptTabs).toEqual([]);
+  });
+
+  test.each([
+    {
+      event: 'configChanged',
+      fire: (events: ReturnType<typeof setup>['events']) => {
+        events.configChanged(FAKE_CONFIG);
+      },
+    },
+    {
+      event: 'tabsChanged',
+      fire: (events: ReturnType<typeof setup>['events']) => {
+        events.tabsChanged([]);
+      },
+    },
+  ])('$event reloads the kept tabs', async ({ fire }) => {
+    // given
+    const kept = vi.fn(() => Promise.resolve<KeptTab[]>([]));
+    const { events } = setup(undefined, { kept });
+    await useMaple.getState().init();
+    const next = [keptTab('old-1', 'project DIG is not in config')];
+    kept.mockResolvedValue(next);
+    // when
+    fire(events);
+    // then
+    await vi.waitFor(() => {
+      expect(useMaple.getState().keptTabs).toEqual(next);
+    });
+  });
+
+  test('discardKept asks the main process and drops that kept tab', async () => {
+    // given
+    const old1 = keptTab('old-1', 'a');
+    const old2 = keptTab('old-2', 'b');
+    const discardKept = vi.fn(() => Promise.resolve());
+    setup(undefined, { kept: () => Promise.resolve([old1, old2]), discardKept });
+    await useMaple.getState().init();
+    // when
+    await useMaple.getState().discardKept('old-1');
+    // then
+    expect(discardKept).toHaveBeenCalledWith('old-1');
+    expect(useMaple.getState().keptTabs).toEqual([old2]);
   });
 
   test('init loads the saved seen map', async () => {

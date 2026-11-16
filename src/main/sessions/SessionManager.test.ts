@@ -549,7 +549,7 @@ describe('SessionManager', () => {
     // given
     const { manager, save } = setup();
     const kept = keptTab('card', 'DIG', 'DIG-44');
-    manager.keep(kept);
+    manager.keep(kept, 'starting session: spawn failed');
     // when
     const card45 = manager.startCard('DIG', 'DIG-45');
     // then
@@ -560,11 +560,23 @@ describe('SessionManager', () => {
     expect(save).toHaveBeenLastCalledWith([card45, card44], {});
   });
 
+  test('discardKept drops the kept tab and saves', () => {
+    // given
+    const { manager, save } = setup();
+    const kept = keptTab('card', 'DIG', 'DIG-44');
+    manager.keep(kept, 'starting session: spawn failed');
+    // when
+    manager.discardKept(kept.id);
+    // then
+    expect(save).toHaveBeenLastCalledWith([], {});
+    expect(manager.keptTabs()).toEqual([]);
+  });
+
   test('holdSaves does not save on release when no tab changed', () => {
     // given
     const { manager, save } = setup();
     const release = manager.holdSaves();
-    manager.keep(keptTab('card', 'DIG', 'DIG-44'));
+    manager.keep(keptTab('card', 'DIG', 'DIG-44'), 'starting session: spawn failed');
     // when
     release();
     // then
@@ -592,7 +604,7 @@ describe('SessionManager', () => {
   ])('openCard resumes $name', ({ keptCard, resumeId, want }) => {
     // given
     const { manager } = setup({ 'DIG-44': 'closed' });
-    manager.keep(keptTab('card', 'DIG', keptCard));
+    manager.keep(keptTab('card', 'DIG', keptCard), 'starting session: spawn failed');
     // when
     const tab = manager.openCard('DIG', 'DIG-44', resumeId);
     // then
@@ -619,7 +631,7 @@ describe('SessionManager', () => {
     const kept = keptTab('card', 'DIG', 'DIG-44');
     const release = manager.holdSaves();
     // when
-    manager.keep(kept);
+    manager.keep(kept, 'starting session: spawn failed');
     const card = manager.startCard('DIG', 'DIG-45');
     release();
     // then
@@ -630,7 +642,7 @@ describe('SessionManager', () => {
     // given
     const { manager, save, spawnFn } = setup();
     const kept = keptTab('card', 'DIG', 'DIG-44');
-    manager.keep(kept);
+    manager.keep(kept, 'starting session: spawn failed');
     const card = manager.startCard('DIG', 'DIG-45');
     vi.mocked(spawnFn).mockImplementationOnce(() => {
       throw new Error('starting session: spawn failed');
@@ -649,7 +661,7 @@ describe('SessionManager', () => {
     // given
     const { manager, save } = setup({}, () => true, vaultConfig);
     const kept = keptTab('planner', 'DIG', null);
-    manager.keep(kept);
+    manager.keep(kept, 'starting session: spawn failed');
     // when
     const tab = open(manager);
     // then

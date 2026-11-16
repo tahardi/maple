@@ -22,16 +22,16 @@ export async function restoreTabs(
   sessions: SessionManager,
   findWt: (key: string) => Promise<string[]>,
   logger: Logger = appLogger,
-): Promise<{ restored: number; warnings: string[] }> {
-  const warnings: string[] = [];
+): Promise<{ restored: number }> {
   let restored = 0;
   const release = sessions.holdSaves();
   try {
     for (const tab of saved.tabs) {
       const name = tab.cardKey ?? `${tab.projectKey} ${tab.kind}`;
       if (!sessions.hasProject(tab.projectKey)) {
-        warnings.push(`dropped ${name}: project ${tab.projectKey} is not in config`);
-        logger.warn('restore', 'dropped', { tab: name, reason: 'project not in config' });
+        const reason = `project ${tab.projectKey} is not in config`;
+        sessions.keep(tab, reason);
+        logger.warn('restore', 'kept', { tab: name, reason });
         continue;
       }
       let opened: TabState;
@@ -39,8 +39,7 @@ export async function restoreTabs(
         opened = reopen(tab, sessions);
       } catch (err) {
         const reason = errorText(err);
-        sessions.keep(tab);
-        warnings.push(`kept ${name} for the next launch: ${reason}`);
+        sessions.keep(tab, reason);
         logger.warn('restore', 'kept', { tab: name, reason });
         continue;
       }
@@ -71,5 +70,5 @@ export async function restoreTabs(
   } finally {
     release();
   }
-  return { restored, warnings };
+  return { restored };
 }

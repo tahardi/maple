@@ -116,11 +116,18 @@ async function start(): Promise<Zoom> {
   const { state, warning, readOnly } = await loadState(configDir(), loaded.data?.stateBackups ?? STATE_BACKUPS);
   const warnings: string[] = warning === null ? [] : [warning];
   let stopQueue: () => void = () => undefined;
-  const gate = createConfigGate(loaded.data, async ({ worktreesDir }) => {
-    const restored = await restoreTabs(state, sessions, (key) => findWorktrees(worktreesDir, key));
-    warnings.push(...restored.warnings);
-    stopQueue = startQueue.start();
-  });
+  const gate = createConfigGate(
+    loaded.data,
+    async ({ worktreesDir }) => {
+      await restoreTabs(state, sessions, (key) => findWorktrees(worktreesDir, key));
+      stopQueue = startQueue.start();
+    },
+    async ({ worktreesDir }) => {
+      await restoreTabs({ ...state, tabs: sessions.keptTabs().map((k) => k.tab) }, sessions, (key) =>
+        findWorktrees(worktreesDir, key),
+      );
+    },
+  );
   const config = gate.current;
   startEventLog({
     limits: pruneLimits(config()),

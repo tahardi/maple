@@ -88,4 +88,30 @@ describe('createConfigGate', () => {
     // then
     expect(gate.current()).toBe(next);
   });
+
+  test('runs the later-config step on each reload after the first', async () => {
+    // given
+    const onFirstConfig = vi.fn(() => Promise.resolve());
+    const onLaterConfig = vi.fn(() => Promise.resolve());
+    const next: MapleConfig = { ...config, worktreesDir: '/other' };
+    const gate = createConfigGate(null, onFirstConfig, onLaterConfig);
+    await gate.start();
+    // when
+    await gate.loaded(config);
+    await gate.loaded(next);
+    // then
+    expect(onFirstConfig).toHaveBeenCalledExactlyOnceWith(config);
+    expect(onLaterConfig).toHaveBeenCalledExactlyOnceWith(next);
+  });
+
+  test('ignores a reload with no config for the later-config step', async () => {
+    // given
+    const onLaterConfig = vi.fn(() => Promise.resolve());
+    const gate = createConfigGate(config, () => Promise.resolve(), onLaterConfig);
+    await gate.start();
+    // when
+    await gate.loaded(null);
+    // then
+    expect(onLaterConfig).not.toHaveBeenCalled();
+  });
 });
