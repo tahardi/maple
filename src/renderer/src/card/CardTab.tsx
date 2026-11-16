@@ -18,6 +18,9 @@ import { QuickOpen } from '@renderer/card/viewer/quickOpen/QuickOpen';
 import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
 import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
 import { FINDINGS } from '@renderer/card/viewer/tabs/findingsTab';
+import { COMMENTS_TAB } from '@renderer/card/viewer/tabs/commentsTab';
+import { usePrConversation } from '@renderer/card/conversation/usePrConversation';
+import { CommentsView } from '@renderer/card/conversation/CommentsView';
 import { useFindings } from '@renderer/card/findings/useFindings';
 import { findingsLabel } from '@renderer/card/findings/findingsLabel';
 import { undecided } from '@shared/findings/undecided';
@@ -49,6 +52,7 @@ export function CardTab({ tab }: { tab: TabState }) {
   const closeTab = useMaple((s) => s.closeTab);
   const active = useMaple((s) => s.activeTabId === tab.id);
   const findings = useFindings(tab.id);
+  const conversation = usePrConversation(tab.id, Boolean(pr?.data), pr?.fetchedAt ?? null);
   const body = useRef<HTMLDivElement>(null);
   const middle = useRef<HTMLDivElement>(null);
   const left = useColumnDrag(body, {
@@ -185,6 +189,10 @@ export function CardTab({ tab }: { tab: TabState }) {
         onOpenFindings={() => {
           openFile(FINDINGS, null, true);
         }}
+        commentCount={conversation.comments.length}
+        onOpenComments={() => {
+          openFile(COMMENTS_TAB, null, true);
+        }}
       />
       <div ref={body} className={styles.body}>
         <div className={styles.left} style={{ width: left.size }} data-testid="tree-slot">
@@ -259,6 +267,14 @@ export function CardTab({ tab }: { tab: TabState }) {
                 review={pinned}
                 onReloadReview={reloadPinnedReview}
                 findings={findings}
+                commentsView={
+                  <CommentsView
+                    tabId={tab.id}
+                    comments={conversation.comments}
+                    canPost={pr?.data?.state === 'OPEN'}
+                    onPosted={conversation.reload}
+                  />
+                }
                 noteChanges
               />
             )}

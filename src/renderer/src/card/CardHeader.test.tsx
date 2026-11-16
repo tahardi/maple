@@ -66,6 +66,8 @@ const base = {
   onOpenPr: vi.fn(),
   findingsLabel: null,
   onOpenFindings: vi.fn(),
+  commentCount: 0,
+  onOpenComments: vi.fn(),
 };
 
 describe('CardHeader', () => {
@@ -256,6 +258,24 @@ describe('CardHeader', () => {
     expect(onOpenPr).toHaveBeenCalledOnce();
   });
 
+  test('the Comments button shows the count and opens the comments', async () => {
+    // given
+    const onOpenComments = vi.fn();
+    render(<CardHeader {...base} pr={fetched(pr)} commentCount={3} onOpenComments={onOpenComments} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Comments (3)' }));
+    // then
+    expect(onOpenComments).toHaveBeenCalledOnce();
+  });
+
+  test('shows no Comments button without a PR', () => {
+    // given
+    // when
+    render(<CardHeader {...base} pr={fetched(null)} commentCount={3} />);
+    // then
+    expect(screen.queryByRole('button', { name: /^Comments/ })).not.toBeInTheDocument();
+  });
+
   test('shows the CI badge after the PR number', () => {
     // given
     const ci = <span data-testid="ci">CI</span>;
@@ -312,7 +332,7 @@ describe('CardHeader', () => {
     { name: 'the review did not reload', updated: false, state: 'OPEN', want: 'Reviewing ddddddd', tone: null },
     { name: 'the review reloaded itself', updated: true, state: 'OPEN', want: 'Updated to ddddddd', tone: 'warning' },
     { name: 'a merged PR reloaded', updated: true, state: 'MERGED', want: 'Reviewing ddddddd', tone: null },
-  ])('shows $want after the CI badge when $name', ({ updated, state, want, tone }) => {
+  ])('shows $want after the CI badge and Comments button when $name', ({ updated, state, want, tone }) => {
     // given
     const props = {
       ...base,
@@ -326,7 +346,9 @@ describe('CardHeader', () => {
     // then
     const note = screen.getByText(want);
     expect(note.getAttribute('data-tone')).toBe(tone);
-    expect(screen.getByTestId('ci').nextElementSibling).toBe(note);
+    const comments = screen.getByRole('button', { name: 'Comments (0)' });
+    expect(screen.getByTestId('ci').nextElementSibling).toBe(comments);
+    expect(comments.nextElementSibling).toBe(note);
   });
 
   test('shows no reviewed commit without a loaded review', () => {

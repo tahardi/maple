@@ -131,10 +131,11 @@ boundaries:
     between: [outside-services, ci]
     crosses: PRs and fork PRs that trigger CI
     checks: >-
-      contents read token, no pull_request_target; main needs a PR, squash merges, and the format, lint, typecheck,
-      unit-test, and e2e checks, with no bypass. Gaps: five jobs pin actions to tags, not SHAs; audit and package are
-      not required checks; 0 approvals are required, so only the /card skill and Maple's Approve button stop a session
-      merging its own PR, accepted until Xena
+      contents read token, no pull_request_target; every action pinned to a full commit SHA with a version comment,
+      kept current by weekly Dependabot github-actions updates; main needs a PR, squash merges, and the format, lint,
+      typecheck, unit-test, and e2e checks, with no bypass. Gaps: audit and package are not required checks; 0
+      approvals are required, so only the /card skill and Maple's Approve button stop a session merging its own PR,
+      accepted until Xena
 users:
   - id: taylor
     who: Owner and only person who uses Maple

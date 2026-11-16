@@ -2,6 +2,7 @@ import type { ChannelKind } from './mapleApi';
 import type { DiffLines } from '../types/files/diffLines';
 import type { FilePair } from '../types/files/filePair';
 import type { Fetched } from '../types/app/fetched';
+import type { PrComment } from '../types/github/prComment';
 import type { PrInfo } from '../types/github/prInfo';
 import type { Review } from '../types/github/review';
 import type { ReviewComment } from '../types/github/reviewComment';
@@ -22,6 +23,8 @@ export type PrApi = {
   reply(tabId: string, commentId: number, body: string): Promise<void>;
   resolve(tabId: string, threadId: string, resolved: boolean): Promise<void>;
   comments(tabId: string): Promise<ReviewComment[]>;
+  conversation(tabId: string): Promise<PrComment[]>;
+  commentOnPr(tabId: string, body: string): Promise<void>;
   diffLines(tabId: string, baseSha: string, headSha: string): Promise<DiffLines>;
 };
 
@@ -34,5 +37,7 @@ export const PR_CHANNELS = {
   reply: 'invoke',
   resolve: 'invoke',
   comments: 'invoke',
+  conversation: 'invoke',
+  commentOnPr: 'invoke',
   diffLines: 'invoke',
 } as const satisfies { [M in keyof PrApi]: ChannelKind };
