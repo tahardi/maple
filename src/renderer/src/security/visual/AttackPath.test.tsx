@@ -39,6 +39,7 @@ describe('AttackPath', () => {
     expect(area).toHaveTextContent('Rewrites the findings file.');
     expect(area).toHaveTextContent('Adds a fake decision.');
     expect(area).toHaveTextContent('Claude sessions');
+    expect(area).toHaveAttribute('data-trust', 'less');
     expect(screen.getAllByRole('region')).toHaveLength(1);
     expect(screen.queryByRole('separator')).not.toBeInTheDocument();
     expect(screen.queryByText(/Less trusted/)).not.toBeInTheDocument();
