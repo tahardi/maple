@@ -13,6 +13,7 @@ import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import type { EventRefs } from '@shared/types/events/eventRecord';
 import type { UiActionData } from '@shared/types/events/eventSchemas';
 import type { Finding } from '@shared/types/findings/finding';
+import { findingFingerprint } from '@main/findings/decisions/findingFingerprint';
 import { uiActionRecorder } from '@main/events/uiActions';
 import { recordActions } from './recordActions';
 import { registerFindings } from './findings';
@@ -237,6 +238,58 @@ describe('registerFindings', () => {
             id: 'F1',
             decision: { kind: 'fix-later', reason: null, decidedAt: expect.any(String) as string },
             severityOverride: 'medium',
+          }),
+        ],
+      },
+    });
+  });
+
+  test('findings:decide saves the fingerprint of the finding Taylor decided', async () => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
+    const invoke = register(dir, decisions, [statusOf('idle')]);
+    // when
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
+    // then
+    const saved = JSON.parse(await readFile(join(decisions, 'MPL-1.json'), 'utf8')) as { fingerprint: string }[];
+    expect(saved.map((r) => r.fingerprint)).toEqual([findingFingerprint(finding({ id: 'F1' }))]);
+  });
+
+  test('findings:get shows a finding as undecided once its text changed', async () => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
+    const invoke = register(dir, decisions);
+    await invoke('findings:decide', 'card', 'F1', { kind: 'not-real', reason: null });
+    await invoke('findings:override', 'card', 'F1', 'low');
+    const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as { findings: Finding[] };
+    const rewritten = { ...saved.findings[0], title: 'Nothing to see here' };
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [rewritten] }));
+    // when
+    const got = await invoke('findings:get', 'card');
+    // then
+    expect(got).toMatchObject({ data: { findings: [finding({ id: 'F1', title: 'Nothing to see here' })] } });
+  });
+
+  test('findings:get keeps the decision when only the line changed', async () => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
+    const invoke = register(dir, decisions);
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-later', reason: null });
+    const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as { findings: Finding[] };
+    await writeFile(
+      join(dir, 'MPL-1.json'),
+      JSON.stringify({ ...file, findings: [{ ...saved.findings[0], line: 7 }] }),
+    );
+    // when
+    const got = await invoke('findings:get', 'card');
+    // then
+    expect(got).toMatchObject({
+      data: {
+        findings: [
+          finding({
+            id: 'F1',
+            line: 7,
+            decision: { kind: 'fix-later', reason: null, decidedAt: expect.any(String) as string },
           }),
         ],
       },
