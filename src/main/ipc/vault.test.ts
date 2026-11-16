@@ -9,9 +9,24 @@ import type { StartQueue } from '@main/sessions/StartQueue';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, listNotes, readNote, readSnapshot, writeNote, vaultWrites } = vi.hoisted(() => {
+const {
+  handle,
+  listNotes,
+  readNote,
+  readSnapshot,
+  writeNote,
+  vaultWrites,
+  createNote,
+  createFolder,
+  trashNote,
+  trashItem,
+} = vi.hoisted(() => {
   return {
     handle: vi.fn<(channel: string, handler: Handler) => void>(),
+    createNote: vi.fn(),
+    createFolder: vi.fn(),
+    trashNote: vi.fn(),
+    trashItem: vi.fn(),
     listNotes: vi.fn(),
     readNote: vi.fn(),
     readSnapshot: vi.fn(),
@@ -20,8 +35,8 @@ const { handle, listNotes, readNote, readSnapshot, writeNote, vaultWrites } = vi
   };
 });
 
-vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('@main/vault/vault', () => ({ listNotes, readNote, writeNote }));
+vi.mock('electron', () => ({ ipcMain: { handle }, shell: { trashItem } }));
+vi.mock('@main/vault/vault', () => ({ listNotes, readNote, writeNote, createNote, createFolder, trashNote }));
 vi.mock('@main/vault/vaultWrites', () => ({ vaultWrites }));
 vi.mock('@main/vault/snapshots', () => ({ readSnapshot }));
 
@@ -189,6 +204,9 @@ describe('registerVault', () => {
     { channel: 'vault:written', args: ['t1'], logged: ['t1'] },
     { channel: 'vault:before', args: ['t1', 'a.md'], logged: ['t1', 'a.md'] },
     { channel: 'vault:write', args: ['a.md', 'x'], logged: ['a.md'] },
+    { channel: 'vault:createNote', args: ['a.md'], logged: ['a.md'] },
+    { channel: 'vault:createFolder', args: ['a'], logged: ['a'] },
+    { channel: 'vault:trash', args: ['a.md'], logged: ['a.md'] },
   ])('$channel rejects and logs without a vaultDir', async ({ channel, args, logged }) => {
     // given
     const vaultDir = null;
@@ -201,6 +219,37 @@ describe('registerVault', () => {
       args: logged,
       error: 'reading vault: no vaultDir in config',
     });
+  });
+
+  test('vault:createNote creates the note in the configured dir', async () => {
+    // given
+    createNote.mockResolvedValue(undefined);
+    // when
+    await invoke('/vault', 'vault:createNote', 'Projects/Plan.md');
+    // then
+    expect(createNote).toHaveBeenCalledWith('/vault', 'Projects/Plan.md');
+  });
+
+  test('vault:createFolder creates the folder in the configured dir', async () => {
+    // given
+    createFolder.mockResolvedValue(undefined);
+    // when
+    await invoke('/vault', 'vault:createFolder', 'Projects/Ideas');
+    // then
+    expect(createFolder).toHaveBeenCalledWith('/vault', 'Projects/Ideas');
+  });
+
+  test('vault:trash moves the note to the system trash', async () => {
+    // given
+    trashItem.mockResolvedValue(undefined);
+    trashNote.mockImplementation((_dir: string, path: string, trash: (full: string) => Promise<void>) =>
+      trash(`/vault/${path}`),
+    );
+    // when
+    await invoke('/vault', 'vault:trash', 'Inbox.md');
+    // then
+    expect(trashNote).toHaveBeenCalledWith('/vault', 'Inbox.md', expect.any(Function));
+    expect(trashItem).toHaveBeenCalledWith('/vault/Inbox.md');
   });
 
   test('vault:read rejects a path longer than 4096', () => {

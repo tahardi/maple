@@ -1,5 +1,6 @@
+import type { MapleApi } from '@shared/api/mapleApi';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '@renderer/store';
 import { FAKE_CONFIG, fakeMaple } from '@renderer/testing/fakeMaple';
@@ -27,7 +28,7 @@ const vaultTab: TabState = {
   worktreePaths: [],
 };
 
-function fakeVault() {
+function fakeVault(vault: Partial<MapleApi['vault']> = {}) {
   const now = new Date().toISOString();
   const changed: { value: () => void } = { value: () => undefined };
   const read = vi.fn(() => Promise.resolve('## Findings'));
@@ -49,6 +50,7 @@ function fakeVault() {
         changed.value = cb;
         return vi.fn();
       },
+      ...vault,
     },
   });
   return { read, before, written, list, changed };
@@ -221,5 +223,83 @@ describe('VaultTab', () => {
       'Resize file tree',
       'Resize Claude pane',
     ]);
+  });
+
+  test('+ Note puts a name box in the selected folder, and Enter creates the note and opens it in Edit mode', async () => {
+    // given
+    const createNote = vi.fn(() => Promise.resolve());
+    const { list } = fakeVault({ createNote });
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Projects'));
+    await userEvent.click(screen.getByRole('button', { name: '+ Note' }));
+    list.mockResolvedValue([{ path: 'Projects/Plan.md', modifiedAt: '2026-10-23T12:00:00.000Z' }]);
+    // when
+    await userEvent.keyboard('Plan{Enter}');
+    // then
+    expect(createNote).toHaveBeenCalledWith('Projects/Plan.md');
+    expect(await screen.findByTestId('editor')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Plan.md' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('textbox', { name: 'New note name' })).not.toBeInTheDocument();
+  });
+
+  test('Escape removes the name box without creating anything', async () => {
+    // given
+    const createNote = vi.fn(() => Promise.resolve());
+    fakeVault({ createNote });
+    render(<VaultTab tab={vaultTab} />);
+    await screen.findByText('Inbox.md');
+    await userEvent.click(screen.getByRole('button', { name: '+ Note' }));
+    // when
+    await userEvent.keyboard('Plan{Escape}');
+    // then
+    expect(screen.queryByRole('textbox', { name: 'New note name' })).not.toBeInTheDocument();
+    expect(createNote).not.toHaveBeenCalled();
+  });
+
+  test('+ Folder creates the folder and keeps it in the tree while it is empty', async () => {
+    // given
+    const createFolder = vi.fn(() => Promise.resolve());
+    fakeVault({ createFolder });
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Projects'));
+    await userEvent.click(screen.getByRole('button', { name: '+ Folder' }));
+    // when
+    await userEvent.keyboard('Ideas{Enter}');
+    // then
+    expect(createFolder).toHaveBeenCalledWith('Projects/Ideas');
+    expect(await screen.findByText('Ideas')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'New folder name' })).not.toBeInTheDocument();
+  });
+
+  test('Move to trash trashes the note and closes its tab', async () => {
+    // given
+    const trash = vi.fn(() => Promise.resolve());
+    fakeVault({ trash });
+    render(<VaultTab tab={vaultTab} />);
+    await userEvent.click(await screen.findByText('Inbox.md'));
+    expect(screen.getByRole('tab', { name: 'Inbox.md' })).toBeInTheDocument();
+    // when
+    fireEvent.contextMenu(screen.getByText('Inbox.md', { selector: 'li span' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Move to trash' }));
+    // then
+    expect(trash).toHaveBeenCalledWith('Inbox.md');
+    await waitFor(() => {
+      expect(screen.queryByRole('tab', { name: 'Inbox.md' })).not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  test('shows why creating a note failed', async () => {
+    // given
+    const createNote = vi.fn(() => Promise.reject(new Error('creating note: a note with that name already exists')));
+    fakeVault({ createNote });
+    render(<VaultTab tab={vaultTab} />);
+    await screen.findByText('Inbox.md');
+    await userEvent.click(screen.getByRole('button', { name: '+ Note' }));
+    // when
+    await userEvent.keyboard('Inbox{Enter}');
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent('creating note: a note with that name already exists');
+    expect(createNote).toHaveBeenCalledWith('Inbox.md');
   });
 });

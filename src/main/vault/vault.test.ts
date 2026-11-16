@@ -1,9 +1,20 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { MAX_BYTES } from '@main/util/paths';
-import { listNotes, readNote, writeNote } from './vault';
+import { createFolder, createNote, listNotes, readNote, trashNote, writeNote } from './vault';
 
 describe('vault', () => {
   let root = '';
@@ -128,5 +139,91 @@ describe('vault', () => {
     const written = writeNote(vault, path, '# New\n');
     // then
     await expect(written).rejects.toThrow('ENOENT');
+  });
+
+  test('createNote creates an empty note', async () => {
+    // given
+    const path = 'Projects/Plan.md';
+    // when
+    await createNote(vault, path);
+    // then
+    expect(readFileSync(join(vault, path), 'utf8')).toBe('');
+  });
+
+  test('createNote rejects a name that already exists', async () => {
+    // given
+    const path = 'Inbox.md';
+    // when
+    const created = createNote(vault, path);
+    // then
+    await expect(created).rejects.toThrow('creating note: a note with that name already exists');
+    expect(readFileSync(join(vault, path), 'utf8')).toBe('# Inbox\n');
+  });
+
+  test('createNote rejects a path outside the vault', async () => {
+    // given
+    const path = '../outside.md';
+    // when
+    const created = createNote(vault, path);
+    // then
+    await expect(created).rejects.toThrow('creating note: path is outside the vault');
+    expect(readFileSync(join(root, 'outside.md'), 'utf8')).toBe('secret');
+  });
+
+  test('createFolder creates a folder', async () => {
+    // given
+    const path = 'Projects/Ideas';
+    // when
+    await createFolder(vault, path);
+    // then
+    expect(statSync(join(vault, path)).isDirectory()).toBe(true);
+  });
+
+  test('createFolder rejects a name that already exists', async () => {
+    // given
+    const path = 'Projects';
+    // when
+    const created = createFolder(vault, path);
+    // then
+    await expect(created).rejects.toThrow('creating folder: a folder with that name already exists');
+  });
+
+  test('createFolder rejects a path outside the vault', async () => {
+    // given
+    const path = '../x';
+    // when
+    const created = createFolder(vault, path);
+    // then
+    await expect(created).rejects.toThrow('creating folder: path is outside the vault');
+    expect(existsSync(join(root, 'x'))).toBe(false);
+  });
+
+  test('trashNote passes the full note path to the trash', async () => {
+    // given
+    const trash = vi.fn(() => Promise.resolve());
+    // when
+    await trashNote(vault, 'Projects/Maple/Spike.md', trash);
+    // then
+    expect(trash).toHaveBeenCalledWith(join(realpathSync(vault), 'Projects', 'Maple', 'Spike.md'));
+  });
+
+  test('trashNote trashes a symlink, not the note it points to', async () => {
+    // given
+    symlinkSync(join(vault, 'Inbox.md'), join(vault, 'Alias.md'));
+    const trash = vi.fn(() => Promise.resolve());
+    // when
+    await trashNote(vault, 'Alias.md', trash);
+    // then
+    expect(trash).toHaveBeenCalledWith(join(realpathSync(vault), 'Alias.md'));
+  });
+
+  test('trashNote rejects a path outside the vault', async () => {
+    // given
+    const trash = vi.fn(() => Promise.resolve());
+    // when
+    const trashed = trashNote(vault, '../outside.md', trash);
+    // then
+    await expect(trashed).rejects.toThrow('trashing note: path is outside the vault');
+    expect(trash).not.toHaveBeenCalled();
   });
 });

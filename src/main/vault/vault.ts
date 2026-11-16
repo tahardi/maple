@@ -1,4 +1,4 @@
-import { readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { VaultNote } from '@shared/types/files/vaultNote';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/util/paths';
@@ -25,20 +25,32 @@ export async function listNotes(vaultDir: string): Promise<VaultNote[]> {
   return (await walk(vaultDir, '')).sort((a, b) => a.path.localeCompare(b.path));
 }
 
-async function notePath(vaultDir: string, path: string, verb: 'reading' | 'writing'): Promise<string> {
+type Verb = 'reading' | 'writing' | 'creating' | 'trashing';
+
+async function vaultPath(vaultDir: string, path: string, action: string): Promise<{ link: string; full: string }> {
   const root = await realpath(vaultDir);
-  const full = await realOrSelf(resolve(root, path));
-  if (!isInside(root, full)) {
-    throw new Error(`${verb} note: path is outside the vault`);
+  const link = resolve(root, path);
+  const full = await realOrSelf(link);
+  if (!isInside(root, link) || !isInside(root, full)) {
+    throw new Error(`${action}: path is outside the vault`);
   }
-  if (!full.endsWith('.md')) {
+  return { link, full };
+}
+
+async function notePath(vaultDir: string, path: string, verb: Verb): Promise<{ link: string; full: string }> {
+  const paths = await vaultPath(vaultDir, path, `${verb} note`);
+  if (!paths.full.endsWith('.md')) {
     throw new Error(`${verb} note: path is not a Markdown file`);
   }
-  return full;
+  return paths;
+}
+
+function isTaken(err: unknown): boolean {
+  return err instanceof Error && 'code' in err && err.code === 'EEXIST';
 }
 
 export async function readNote(vaultDir: string, path: string): Promise<string> {
-  const full = await notePath(vaultDir, path, 'reading');
+  const { full } = await notePath(vaultDir, path, 'reading');
   const info = await stat(full);
   if (info.size > MAX_BYTES) {
     throw new Error('reading note: file is too large');
@@ -47,5 +59,33 @@ export async function readNote(vaultDir: string, path: string): Promise<string> 
 }
 
 export async function writeNote(vaultDir: string, path: string, text: string): Promise<void> {
-  await writeFile(await notePath(vaultDir, path, 'writing'), text);
+  await writeFile((await notePath(vaultDir, path, 'writing')).full, text);
+}
+
+export async function createNote(vaultDir: string, path: string): Promise<void> {
+  const { full } = await notePath(vaultDir, path, 'creating');
+  try {
+    await writeFile(full, '', { flag: 'wx' });
+  } catch (err) {
+    if (isTaken(err)) {
+      throw new Error('creating note: a note with that name already exists');
+    }
+    throw err;
+  }
+}
+
+export async function createFolder(vaultDir: string, path: string): Promise<void> {
+  const { full } = await vaultPath(vaultDir, path, 'creating folder');
+  try {
+    await mkdir(full);
+  } catch (err) {
+    if (isTaken(err)) {
+      throw new Error('creating folder: a folder with that name already exists');
+    }
+    throw err;
+  }
+}
+
+export async function trashNote(vaultDir: string, path: string, trash: (full: string) => Promise<void>): Promise<void> {
+  await trash((await notePath(vaultDir, path, 'trashing')).link);
 }
