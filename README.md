@@ -103,7 +103,7 @@ Maple saves open tabs in `state.json` in `MAPLE_CONFIG_DIR`. At each launch, if 
 }
 ```
 
-With `remote` set, `worktreesDir` and every `plannerDir` are paths inside the VM and must be absolute, because `~` would expand to the desktop home. `knownHostsPath` is the VM host key Xena pinned when it built the VM, and Maple refuses any other key. `vaultSocket` is the desktop vault gateway socket that Maple forwards into the VM; leave it out to skip the forward. Changing `remote` needs a Maple restart.
+With `remote` set, `worktreesDir` and every `plannerDir` are paths inside the VM and must be absolute, because `~` would expand to the desktop home. `knownHostsPath` is the VM host key Xena pinned when it built the VM, and Maple refuses any other key. `vaultSocket` is the desktop vault gateway socket that Maple forwards into the VM, and Maple accepts only `~/.local/state/xena/vault.sock`; leave it out to skip the forward. Changing `remote` needs a Maple restart.
 
 ## Status
 

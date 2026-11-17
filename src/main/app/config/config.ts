@@ -33,12 +33,21 @@ const repoSchema = z
   .regex(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*$/, 'must be owner/name')
   .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..'), 'must be owner/name');
 
+const VAULT_SOCKET = '~/.local/state/xena/vault.sock';
+
 const remoteSchema = z.object({
   host: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9.-]*$/),
   user: z.string().regex(/^[a-z_][a-z0-9_-]*$/),
   keyPath: z.string().min(1),
   knownHostsPath: z.string().min(1),
-  vaultSocket: z.string().min(1).nullable().default(null),
+  vaultSocket: z
+    .string()
+    .refine(
+      (path) => expandHome(path) === expandHome(VAULT_SOCKET),
+      `must be the Xena vault gateway at ${VAULT_SOCKET}`,
+    )
+    .nullable()
+    .default(null),
 });
 
 const VM_PATH_MESSAGE = 'must be an absolute VM path when remote is set';

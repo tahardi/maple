@@ -416,6 +416,11 @@ describe('loadConfig', () => {
     },
     { name: 'bad user', remote: { ...vmRemote, user: 'Dev!' }, want: { error: 'remote.user: ' } },
     {
+      name: 'vaultSocket other than the gateway',
+      remote: { ...vmRemote, vaultSocket: '/run/docker.sock' },
+      want: { error: 'remote.vaultSocket: must be the Xena vault gateway at ~/.local/state/xena/vault.sock' },
+    },
+    {
       name: 'relative worktreesDir',
       remote: vmRemote,
       worktreesDir: '~/wts',
