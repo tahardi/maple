@@ -6,6 +6,7 @@ import type { StatusEngine } from '@main/sessions/StatusEngine';
 import type { Terminals } from '@main/sessions/Terminals';
 import { registerVault } from './vault';
 import type { StartQueue } from '@main/sessions/StartQueue';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
@@ -88,6 +89,8 @@ function register(vaultDir: () => Promise<string | null>) {
       watchVault,
       findingsDir: '/tmp/maple/findings',
       decisionsDir: '/tmp/maple/decisions',
+      runner: fakeRunner(),
+      home: '/home/dev',
     },
     logger,
     vaultDir,

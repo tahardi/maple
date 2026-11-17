@@ -44,6 +44,7 @@ export function TraceView({ trace, step }: { trace: Trace; step: number | null }
 
   return (
     <div className={styles.trace}>
+      <p className={styles.provenance}>Teaching example, not code from your repository</p>
       <Editor
         value={trace.code}
         language={trace.lang}

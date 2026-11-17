@@ -233,6 +233,61 @@ describe('LessonPage', () => {
     expect(screen.queryByText('; rm -rf ~')).not.toBeInTheDocument();
   });
 
+  const BAD_LINK = 'See [docs](https://evil.example/x).';
+  const LEARNED = lesson('xss', { title: 'Command injection', hasLesson: true, status: 'learned' });
+
+  test.each([
+    { name: 'the explanation', fields: { explanation: BAD_LINK } },
+    { name: 'the attack', fields: { attack: BAD_LINK } },
+    {
+      name: 'a tie-in',
+      fields: {
+        findings: [
+          {
+            date: '2026-11-12',
+            card: 'MPL-340',
+            title: 'Branch name reaches the shell',
+            pr: 'https://github.com/example/repo/pull/1',
+            tieIn: BAD_LINK,
+            reach: null,
+          },
+        ],
+      },
+    },
+  ])('does not link out of $name to an unapproved site', async ({ fields }) => {
+    // given
+    const lessonFields = { summary: LEARNED, ...fields };
+    // when
+    await openLesson(lessonFields);
+    // then
+    expect(screen.getByText('docs', { exact: false })).toHaveTextContent('https://evil.example/x');
+    expect(screen.queryByRole('link', { name: 'docs' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'https://github.com/example/repo/pull/1' })).toBeInTheDocument();
+  });
+
+  test.each([
+    {
+      name: 'links an approved source',
+      source: { title: 'OWASP', url: 'https://owasp.org/x' },
+      link: true,
+      text: 'Source: OWASP',
+    },
+    {
+      name: 'shows any other source as text with its address',
+      source: { title: 'Docs', url: 'https://evil.example/x' },
+      link: false,
+      text: 'Source: Docs (https://evil.example/x)',
+    },
+  ])('$name', async ({ source, link, text }) => {
+    // given
+    const fields = { summary: LEARNED, source };
+    // when
+    await openLesson(fields);
+    // then
+    expect(screen.getByText('Source:', { exact: false })).toHaveTextContent(text);
+    expect(screen.queryByRole('link', { name: source.title }) !== null).toBe(link);
+  });
+
   test.each([
     {
       name: 'no explanation',

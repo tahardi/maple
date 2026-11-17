@@ -22,6 +22,8 @@ Maple is a desktop app that runs Jira cards with Claude sessions. Taylor is its 
 - `findings`: each card's security findings and Taylor's decisions. Forged entries hide real risks.
 - `logs`: the main log, the event log, and bug report log tails. They should hold nothing sensitive; a slip leaks into
   Jira.
+- `vm-ssh-key`: the YubiKey-backed SSH key and the pinned VM host key file. If misused, someone could run commands in
+  the VM, or Maple could trust a fake VM.
 
 ## Who Might Attack
 
@@ -29,8 +31,8 @@ The main threat is a well-meaning Claude session that does harm it does not reco
 
 - `misled-session`: a Claude session steered by text it reads, a malicious skill or plugin, or code it runs. It reaches
   the sessions, hook server, config dir, vault, Claude config, main process, shell terminals, Jira and GitHub, the
-  app window (through text Maple shows), CI (through workflow changes), and Obsidian (through the notes and link
-  handlers it can write).
+  app window (through text Maple shows), CI (through workflow changes), the Xena VM, and Obsidian (through the
+  notes and link handlers it can write).
 - `public-reader`: anyone who reads the public code and findings to plan an attack, opens fork PRs, or comments on
   Taylor's PRs. It reaches CI, the app window, and sessions; Maple ignores fork PRs but shows every author's review
   comments, and sessions read them.
@@ -38,7 +40,7 @@ The main threat is a well-meaning Claude session that does harm it does not reco
 
 ## Trust Boundaries
 
-Maple has eleven parts:
+Maple has thirteen parts:
 
 - `renderer`: the sandboxed app window.
 - `main-process`: the Node process that runs git, gh, the Jira client, the pollers, and IPC handlers.
@@ -50,6 +52,8 @@ Maple has eleven parts:
 - `claude-config`: the global `~/.claude`, symlinked to the dotclaude repo.
 - `outside-services`: Jira and GitHub, reached as Taylor.
 - `ci`: GitHub Actions on every PR and push to `main`.
+- `xena-vm`: the Xena VM, reached over one SSH master connection whose control socket is in Maple's config dir.
+- `vault-gateway`: the desktop vault gateway socket, forwarded into the VM at `~/.xena/vault.sock`.
 - `obsidian`: Obsidian, or whatever app is registered for `obsidian://` links, which Maple asks to open vault notes.
 
 The boundaries between them:
@@ -70,6 +74,11 @@ The boundaries between them:
   Taylor can except a short deny list, including the installed app, shell startup files, and Claude config.
 - `main-to-outside`: Jira and gh calls as Taylor, with timeouts, argument arrays, fork PRs ignored, and merges pinned to
   the head commit.
+- `vm-to-desktop`: command output, file reads, and log lines from the VM, and VM requests through the forwarded vault
+  socket. SSH pins the host key, ignores ssh config, turns off agent and X11 forwarding, quotes every argument, sends
+  environment values outside the command line, and limits output size and time. Maple treats VM output as untrusted,
+  and only the gateway checks vault requests. Any desktop process running as Taylor can reuse the open SSH connection
+  without a touch.
 - `main-to-obsidian`: Open in Obsidian hands one `obsidian://open` link to the desktop's link handler. Only Markdown
   notes inside the vault get through, with symlinks resolved and broken links refused, and the path is encoded.
   Whatever app is registered for those links runs, and Obsidian opens notes sessions wrote with its plugins active.

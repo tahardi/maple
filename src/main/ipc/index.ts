@@ -1,3 +1,4 @@
+import type { Runner } from '@main/remote/runner';
 import type { BrowserWindow } from 'electron';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { ProjectConfig } from '@shared/types/config/projectConfig';
@@ -46,6 +47,8 @@ export type IpcDeps = {
   watchVault: (dir: string) => void;
   findingsDir: string;
   decisionsDir: string;
+  runner: Runner;
+  home: string;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [

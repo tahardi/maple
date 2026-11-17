@@ -126,6 +126,11 @@
   font-size: var(--font-sm);
 }
 
+.provenance {
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

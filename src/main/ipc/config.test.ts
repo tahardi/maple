@@ -10,6 +10,7 @@ import type { ProjectConfig } from '@shared/types/config/projectConfig';
 import { registerConfig } from './config';
 import type { ZoomChange } from '@main/app/window/zoom/zoom';
 import type { StartQueue } from '@main/sessions/StartQueue';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent) => Promise<unknown>;
 
@@ -60,6 +61,7 @@ const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleC
     minFreeMegabytes: 2048,
     projects,
     actions: [],
+    remote: null,
   },
   error: null,
   fetchedAt: '2026-10-18T00:00:00.000Z',
@@ -97,6 +99,8 @@ function deps(window: () => BrowserWindow | null = () => null) {
     watchVault: () => undefined,
     findingsDir: '/tmp/maple/findings',
     decisionsDir: '/tmp/maple/decisions',
+    runner: fakeRunner(),
+    home: '/home/dev',
   };
 }
 

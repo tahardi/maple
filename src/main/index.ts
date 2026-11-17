@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { cpus, freemem, loadavg } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, Notification } from 'electron';
 import { spawn } from 'node-pty';
 import {
   configDir,
@@ -61,6 +61,10 @@ import { hasTranscript, transcriptOffset } from '@main/sessions/transcripts/tran
 import { windowTitle } from '@main/app/window/windowTitle';
 import { createZoom, type Zoom } from '@main/app/window/zoom/windowZoom';
 import { zoomKey } from '@main/app/window/zoom/zoomKey';
+import { LocalRunner } from '@main/remote/localRunner';
+import { vmHome, type Runner } from '@main/remote/runner';
+import { SshRunner } from '@main/remote/sshRunner';
+import { errorText } from '@shared/errors/errorText';
 
 let mainWindow: BrowserWindow | null = null;
 let quitting = false;
@@ -115,6 +119,32 @@ async function start(): Promise<Zoom> {
   const loaded = await loadConfig();
   const { state, warning, readOnly } = await loadState(configDir(), loaded.data?.stateBackups ?? STATE_BACKUPS);
   const warnings: string[] = warning === null ? [] : [warning];
+  const remote = loaded.data?.remote ?? null;
+  const ssh = remote ? new SshRunner(remote, configDir()) : null;
+  const runner: Runner = ssh ?? new LocalRunner();
+  const home = vmHome(remote);
+  let stopKeepAlive: () => void = () => undefined;
+  if (ssh) {
+    const touch = (): void => {
+      new Notification({ title: 'Maple', body: 'Touch your YubiKey to connect Maple to the VM' }).show();
+    };
+    try {
+      const started = await ssh.connect(touch);
+      appLogger.info('remote', 'connected', { operation: 'start', reused: !started });
+    } catch (err) {
+      warnings.push(`connecting to VM: ${errorText(err)}`);
+      appLogger.warn('remote', 'failed', { operation: 'start', error: errorText(err) });
+    }
+    stopKeepAlive = ssh.keepAlive({
+      touch,
+      restarted: () => {
+        appLogger.info('remote', 'connected', { operation: 'keepAlive', reused: false });
+      },
+      failed: (err) => {
+        appLogger.warn('remote', 'failed', { operation: 'keepAlive', error: errorText(err) });
+      },
+    });
+  }
   let stopQueue: () => void = () => undefined;
   const gate = createConfigGate(
     loaded.data,
@@ -175,6 +205,8 @@ async function start(): Promise<Zoom> {
     tmuxConf,
     endTmux,
     sessionEnv: jiraEnv,
+    runner,
+    home,
   });
   const terminals = new Terminals({ spawn });
   const jira = creds.then((c) => new JiraClient(c));
@@ -232,6 +264,7 @@ async function start(): Promise<Zoom> {
   app.on('will-quit', (event) => {
     event.preventDefault();
     stopQueue();
+    stopKeepAlive();
     stopAutoSync();
     stopPrPoller();
     sessions.killAll();
@@ -304,6 +337,8 @@ async function start(): Promise<Zoom> {
     setSeen: (seen) => store.patch({ seen }),
     seen: () => Promise.resolve(store.current().seen),
     setZoom: zoom.set,
+    runner,
+    home,
   });
   app.on('before-quit', (event) => {
     quitting = !event.defaultPrevented;

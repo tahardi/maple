@@ -17,7 +17,6 @@ const KINDS: readonly Kind[] = ['fix-now', 'fix-later', 'accept-risk', 'not-real
 type DecisionButtonsProps = {
   tabId: string;
   finding: Finding;
-  recommended: Kind | null;
   working: boolean;
   applying: boolean;
 };
@@ -32,7 +31,7 @@ function lockReason(finding: Finding, working: boolean, applying: boolean): stri
   return applying ? 'Claude is applying your decisions' : null;
 }
 
-export function DecisionButtons({ tabId, finding, recommended, working, applying }: DecisionButtonsProps) {
+export function DecisionButtons({ tabId, finding, working, applying }: DecisionButtonsProps) {
   const [pending, setPending] = useState<Kind | 'override' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
@@ -63,7 +62,6 @@ export function DecisionButtons({ tabId, finding, recommended, working, applying
           <Button
             key={kind}
             label={DECISION_LABELS[kind]}
-            variant={recommended === kind ? 'primary' : undefined}
             pressed={chosen === kind}
             disabled={locked !== null || pending !== null}
             busy={pending === kind}

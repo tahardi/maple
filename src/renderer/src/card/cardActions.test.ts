@@ -20,6 +20,7 @@ const config: MapleConfig = {
     { label: 'Address review', prompt: '/card {key}' },
     { label: 'Merge main', prompt: 'Run the "Sync with Main" steps from the /card skill for {key}.' },
   ],
+  remote: null,
 };
 
 const pr: PrInfo = {

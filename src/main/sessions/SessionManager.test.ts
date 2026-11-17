@@ -6,6 +6,7 @@ import { fakeSpawn, type FakePty } from '@main/testing/fakeSpawn';
 import { SessionManager } from './SessionManager';
 import { tmuxArgs } from './tmux';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 vi.mock('@main/git/findWorktrees', () => ({ findWorktrees: vi.fn() }));
 vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktrees: vi.fn() }));
@@ -35,6 +36,7 @@ const config: MapleConfig = {
     { name: 'Halo', jiraKey: 'HALO', jiraBoardId: 2, plannerDir: '/tmp/halo', repo: 'tahardi/halo', otherRepos: [] },
   ],
   actions: [],
+  remote: null,
 };
 
 const vaultConfig: MapleConfig = { ...config, vaultDir: '/tmp/vault' };
@@ -67,6 +69,8 @@ function setup(
     endTmux,
     sessionEnv: JIRA_ENV,
     logger,
+    runner: fakeRunner(),
+    home: '/home/dev',
   });
   return { manager, ptys, save, spawnFn, logger, endTmux };
 }

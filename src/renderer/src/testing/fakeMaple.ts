@@ -39,6 +39,7 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
       },
     ],
     actions: [],
+    remote: null,
   },
   error: null,
   fetchedAt: '2026-10-18T12:00:00.000Z',
