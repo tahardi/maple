@@ -119,6 +119,61 @@ describe('PlannerPane', () => {
     expect(onBatch).toHaveBeenCalledWith(['DIG-44', 'DIG-99']);
   });
 
+  test.each([
+    { name: 'a batch', keys: ['DIG-44', 'DIG-99'] },
+    { name: 'an empty batch', keys: [] },
+  ])('a redrawn planner repeating $name leaves the selection alone', async ({ keys }) => {
+    // given
+    const { onBatch, emit } = setup();
+    await screen.findByTestId('claude-pane');
+    emit(keys);
+    onBatch.mockClear();
+    // when
+    emit([...keys]);
+    // then
+    expect(onBatch).not.toHaveBeenCalled();
+  });
+
+  test('a redrawn planner repeating several earlier batches leaves the selection alone', async () => {
+    // given
+    const { onBatch, emit } = setup();
+    await screen.findByTestId('claude-pane');
+    emit(['DIG-44']);
+    emit(['DIG-99']);
+    onBatch.mockClear();
+    // when
+    emit(['DIG-44']);
+    emit(['DIG-99']);
+    // then
+    expect(onBatch).not.toHaveBeenCalled();
+  });
+
+  test('a new batch after a repeat reaches onBatch', async () => {
+    // given
+    const { onBatch, emit } = setup();
+    await screen.findByTestId('claude-pane');
+    emit(['DIG-44']);
+    emit(['DIG-44']);
+    onBatch.mockClear();
+    // when
+    emit(['DIG-99']);
+    // then
+    expect(onBatch).toHaveBeenCalledWith(['DIG-99']);
+  });
+
+  test('the same batch after Suggest next batch reaches onBatch', async () => {
+    // given
+    const { onBatch, emit } = setup();
+    await screen.findByTestId('claude-pane');
+    emit(['DIG-44']);
+    await userEvent.click(screen.getByRole('button', { name: 'Suggest next batch' }));
+    onBatch.mockClear();
+    // when
+    emit(['DIG-44']);
+    // then
+    expect(onBatch).toHaveBeenCalledWith(['DIG-44']);
+  });
+
   test('Refine (2) sends the refine command to the planner', async () => {
     // given
     const { sendPrompt, onBatch } = setup({ refineCount: 2 });
