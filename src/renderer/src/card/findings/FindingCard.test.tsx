@@ -67,18 +67,15 @@ describe('FindingCard', () => {
   });
 
   test.each([
-    { name: 'with a recommendation', given: finding(glance), primary: ['Fix now'], line: 'Recommended: Fix now.' },
-    { name: 'without one', given: finding(), primary: [], line: null },
-  ])('draws the recommended decision as primary and shows why $name', ({ given, primary, line }) => {
+    { name: 'with a recommendation', given: finding(glance), line: 'Recommended: Fix now.' },
+    { name: 'without one', given: finding(), line: null },
+  ])('shows why $name', ({ given, line }) => {
     // given
     // when
     show(given);
     // then
-    const drawn = screen
-      .getAllByRole('button')
-      .filter((b) => b.getAttribute('data-variant') === 'primary')
-      .map((b) => b.textContent);
-    expect(drawn).toEqual(primary);
+    const drawn = screen.getAllByRole('button').filter((b) => b.getAttribute('data-variant') === 'primary');
+    expect(drawn).toEqual([]);
     if (line === null) {
       expect(screen.queryByText(/Recommended:/)).not.toBeInTheDocument();
     } else {

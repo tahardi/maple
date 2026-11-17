@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { Finding } from '@shared/types/findings/finding';
 import type { FindingsFile } from '@shared/types/findings/findingsFile';
 import type { Severity } from '@shared/types/findings/severity';
-import { effectiveSeverity } from '@shared/findings/effectiveSeverity';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { useMaple } from '@renderer/store';
 import { useLessons } from '@renderer/learning/useLessons';
@@ -11,10 +10,6 @@ import { FindingRow } from './FindingRow';
 import styles from './FindingsView.module.css';
 
 const ORDER: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
-
-function rank(finding: Finding): number {
-  return (finding.decision === null ? 0 : 3) + ORDER[effectiveSeverity(finding)];
-}
 
 function addressed(finding: Finding): boolean {
   return finding.applied !== null && finding.decision !== null;
@@ -31,7 +26,7 @@ export function FindingsView({ tabId, file, error }: FindingsViewProps) {
   const { lessons } = useLessons();
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const applying = file !== null && file.resume?.round === file.round;
-  const findings = [...(file?.findings ?? [])].sort((a, b) => rank(a) - rank(b));
+  const findings = [...(file?.findings ?? [])].sort((a, b) => ORDER[a.severity] - ORDER[b.severity]);
   const isOpen = (finding: Finding): boolean => toggled[openKey(finding)] ?? !addressed(finding);
   const setOpen = (finding: Finding, open: boolean): void => {
     setToggled((current) => ({ ...current, [openKey(finding)]: open }));
