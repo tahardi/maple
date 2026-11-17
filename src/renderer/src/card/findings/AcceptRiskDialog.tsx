@@ -5,14 +5,15 @@ import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './FindingCard.module.css';
 
 type AcceptRiskDialogProps = {
+  initialReason: string;
   busy: boolean;
   error: string | null;
   onConfirm: (reason: string) => void;
   onClose: () => void;
 };
 
-export function AcceptRiskDialog({ busy, error, onConfirm, onClose }: AcceptRiskDialogProps) {
-  const [reason, setReason] = useState('');
+export function AcceptRiskDialog({ initialReason, busy, error, onConfirm, onClose }: AcceptRiskDialogProps) {
+  const [reason, setReason] = useState(initialReason);
   const blank = reason.trim() === '';
   return (
     <Dialog title="Accept risk" onClose={onClose}>

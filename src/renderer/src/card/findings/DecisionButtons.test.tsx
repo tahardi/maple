@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DecisionInput } from '@shared/types/findings/decisionInput';
+import type { Recommendation } from '@shared/types/findings/recommendation';
 import type { Severity } from '@shared/types/findings/severity';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { finding } from '@renderer/testing/findingsFixture';
@@ -38,6 +39,23 @@ describe('DecisionButtons', () => {
     }
     // then
     expect(decide).toHaveBeenCalledWith('t1', 'F1', decision);
+  });
+
+  test.each<{ decision: Recommendation['decision'] | null; want: string; value: string }>([
+    { decision: 'accept-risk', want: "Claude's reason", value: 'Only Taylor can reach this.' },
+    { decision: 'fix-now', want: 'an empty box', value: '' },
+    { decision: null, want: 'an empty box', value: '' },
+  ])('Accept risk opens with $want when Claude recommended $decision', async ({ decision, value }) => {
+    // given
+    fakeFindings();
+    const given =
+      decision === null ? finding() : finding({ recommend: { decision, why: 'Only Taylor can reach this.' } });
+    render(<DecisionButtons tabId="t1" finding={given} working={false} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Accept risk' }));
+    // then
+    const dialog = screen.getByRole('dialog', { name: 'Accept risk' });
+    expect(within(dialog).getByRole('textbox', { name: 'Reason' })).toHaveValue(value);
   });
 
   test('draws no decision as primary', () => {
