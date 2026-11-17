@@ -409,6 +409,19 @@ describe('registerFindings', () => {
     expect(saved.findings[0]).not.toHaveProperty('handedOver');
   });
 
+  test('findings:decide on a handed-over finding hands it back to Taylor', async () => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
+    const invoke = register(dir, decisions, [statusOf('idle')]);
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
+    await invoke('findings:apply', 'card');
+    // when
+    await invoke('findings:decide', 'card', 'F1', { kind: 'not-real', reason: null });
+    // then
+    const stored = JSON.parse(await readFile(join(decisions, 'MPL-1.json'), 'utf8')) as StoredDecision[];
+    expect(stored.map((r) => [r.decision?.kind, r.handedOver])).toEqual([['not-real', false]]);
+  });
+
   test('findings:apply hands over decided findings and sends the apply prompt', async () => {
     // given
     await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));

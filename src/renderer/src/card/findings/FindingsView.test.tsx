@@ -183,6 +183,11 @@ describe('FindingsView', () => {
       given: [finding({ decision: decided, handedOver: true }), finding({ id: 'F2' })],
       want: false,
     },
+    {
+      name: 'one finding is handed over and another is newly decided',
+      given: [finding({ decision: decided, handedOver: true }), finding({ id: 'F2', decision: decided })],
+      want: true,
+    },
     { name: 'only undecided findings', given: [finding()], want: false },
     { name: 'the decided finding is marked applied', given: [finding({ decision: decided, applied })], want: false },
   ])('shows Apply decisions: $want when $name', ({ given, want }) => {
