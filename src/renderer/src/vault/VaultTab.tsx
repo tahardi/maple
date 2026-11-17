@@ -1,7 +1,7 @@
 import { errorText } from '@shared/errors/errorText';
 import type { Draft } from '@shared/types/files/draft';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { useRef, useState } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { ClaudePane } from '@renderer/claude/ClaudePane';
 import { buildTree } from '@renderer/card/viewer/tree/buildTree';
 import { closeFiles } from '@renderer/card/viewer/tabs/closeFiles';
@@ -36,6 +36,7 @@ export function VaultTab({ tab }: { tab: TabState }) {
   const [madeFolders, setMadeFolders] = useState<readonly string[]>([]);
   const [editFile, setEditFile] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const left = useColumnDrag(body, {
@@ -114,6 +115,90 @@ export function VaultTab({ tab }: { tab: TabState }) {
     );
   };
 
+  const unsaved = (path: string) => Object.hasOwn(drafts, `${VAULT_PREFIX}${path}`);
+
+  const fail = (err: unknown) => {
+    setError(errorText(err));
+  };
+
+  const startRename = (path: string) => {
+    setMenu(null);
+    if (unsaved(path)) {
+      setError('renaming note: save or discard your edits first');
+      return;
+    }
+    setNaming(null);
+    setRenaming(path);
+  };
+
+  const rename = (from: string, name: string) => {
+    const to = inFolder(parentOf(from), name.endsWith('.md') ? name : `${name}.md`);
+    if (to === from) {
+      setRenaming(null);
+      return;
+    }
+    setBusy(true);
+    window.maple.vault.rename(from, to).then(
+      () => {
+        const old = `${VAULT_PREFIX}${from}`;
+        const next = `${VAULT_PREFIX}${to}`;
+        setBusy(false);
+        setRenaming(null);
+        setError(null);
+        setOpenFiles((files) => files.map((file) => (file === old ? next : file)));
+        setActiveFile((file) => (file === old ? next : file));
+        setEditFile((file) => (file === old ? next : file));
+        vault.refresh();
+      },
+      (err: unknown) => {
+        setBusy(false);
+        fail(err);
+      },
+    );
+  };
+
+  const duplicate = (path: string) => {
+    setMenu(null);
+    window.maple.vault.duplicate(path).then((copy) => {
+      setError(null);
+      vault.refresh();
+      openNote(copy);
+    }, fail);
+  };
+
+  const copyPath = (path: string) => {
+    setMenu(null);
+    navigator.clipboard.writeText(path).then(() => {
+      setError(null);
+    }, fail);
+  };
+
+  const openInObsidian = (path: string) => {
+    setMenu(null);
+    window.maple.vault.openInObsidian(path).then(() => {
+      setError(null);
+    }, fail);
+  };
+
+  const activeNote = activeFile?.startsWith(VAULT_PREFIX) ? activeFile.slice(VAULT_PREFIX.length) : null;
+
+  const onTreeKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget || activeNote === null) {
+      return;
+    }
+    if (e.key === 'F2') {
+      e.preventDefault();
+      startRename(activeNote);
+    } else if (e.key === 'Delete') {
+      e.preventDefault();
+      if (unsaved(activeNote)) {
+        setError('trashing note: save or discard your edits first');
+      } else {
+        trash(activeNote);
+      }
+    }
+  };
+
   const nameBox =
     naming === null
       ? undefined
@@ -135,7 +220,13 @@ export function VaultTab({ tab }: { tab: TabState }) {
 
   return (
     <div ref={body} className={styles.tab} data-testid="vault-tab">
-      <div className={styles.left} style={{ width: left.size }} data-testid="tree-slot">
+      <div
+        className={styles.left}
+        style={{ width: left.size }}
+        data-testid="tree-slot"
+        tabIndex={-1}
+        onKeyDown={onTreeKey}
+      >
         <div className={styles.heading}>
           {vaultDir !== null && (
             <h2 className={styles.vaultName} title={vaultDir}>
@@ -146,12 +237,14 @@ export function VaultTab({ tab }: { tab: TabState }) {
             <Button
               label="+ Note"
               onClick={() => {
+                setRenaming(null);
                 setNaming('note');
               }}
             />
             <Button
               label="+ Folder"
               onClick={() => {
+                setRenaming(null);
                 setNaming('folder');
               }}
             />
@@ -180,13 +273,34 @@ export function VaultTab({ tab }: { tab: TabState }) {
         )}
         <FileTree
           nodes={buildTree([...vault.notes.map((note) => note.path), ...madeFolders.map((f) => `${f}/`)], [], false)}
-          selected={activeFile?.startsWith(VAULT_PREFIX) ? activeFile.slice(VAULT_PREFIX.length) : null}
+          selected={activeNote}
           onSelect={selectNote}
           onSelectFolder={setFolder}
           onFileMenu={(path, x, y) => {
             setMenu({ path, x, y });
           }}
           nameBox={nameBox}
+          renaming={
+            renaming === null
+              ? undefined
+              : {
+                  path: renaming,
+                  box: (
+                    <NameBox
+                      label={`New name for ${renaming}`}
+                      placeholder="Note name"
+                      initial={renaming.slice(renaming.lastIndexOf('/') + 1).replace(/\.md$/, '')}
+                      busy={busy}
+                      onSubmit={(name) => {
+                        rename(renaming, name);
+                      }}
+                      onCancel={() => {
+                        setRenaming(null);
+                      }}
+                    />
+                  ),
+                }
+          }
           targetFolder={folder}
           collapsedByDefault
         />
@@ -194,7 +308,19 @@ export function VaultTab({ tab }: { tab: TabState }) {
           <NoteMenu
             x={menu.x}
             y={menu.y}
-            unsaved={Object.hasOwn(drafts, `${VAULT_PREFIX}${menu.path}`)}
+            unsaved={unsaved(menu.path)}
+            onRename={() => {
+              startRename(menu.path);
+            }}
+            onDuplicate={() => {
+              duplicate(menu.path);
+            }}
+            onCopyPath={() => {
+              copyPath(menu.path);
+            }}
+            onOpenInObsidian={() => {
+              openInObsidian(menu.path);
+            }}
             onTrash={() => {
               trash(menu.path);
             }}

@@ -11,6 +11,9 @@ export type VaultApi = {
   createNote(path: string): Promise<void>;
   createFolder(path: string): Promise<void>;
   trash(path: string): Promise<void>;
+  rename(from: string, to: string): Promise<void>;
+  duplicate(path: string): Promise<string>;
+  openInObsidian(path: string): Promise<void>;
   onChanged(cb: () => void): Unsubscribe;
 };
 
@@ -23,5 +26,8 @@ export const VAULT_CHANNELS = {
   createNote: 'invoke',
   createFolder: 'invoke',
   trash: 'invoke',
+  rename: 'invoke',
+  duplicate: 'invoke',
+  openInObsidian: 'invoke',
   onChanged: 'event',
 } as const satisfies { [M in keyof VaultApi]: ChannelKind };

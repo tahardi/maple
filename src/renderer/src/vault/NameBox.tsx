@@ -3,13 +3,14 @@ import { useState } from 'react';
 type Props = {
   label: string;
   placeholder: string;
+  initial?: string;
   busy: boolean;
   onSubmit: (name: string) => void;
   onCancel: () => void;
 };
 
-export function NameBox({ label, placeholder, busy, onSubmit, onCancel }: Props) {
-  const [name, setName] = useState('');
+export function NameBox({ label, placeholder, initial = '', busy, onSubmit, onCancel }: Props) {
+  const [name, setName] = useState(initial);
   return (
     <input
       aria-label={label}

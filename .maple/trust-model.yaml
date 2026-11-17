@@ -59,6 +59,8 @@ components:
     what: The Xena VM, reached over one SSH master connection whose control socket lives in Maple's config dir
   - id: vault-gateway
     what: The desktop vault gateway socket, forwarded into the VM at ~/.xena/vault.sock
+  - id: obsidian
+    what: Obsidian, or whatever desktop app is registered for obsidian:// links, which Maple asks to open vault notes
 attackers:
   - id: misled-session
     who: >-
@@ -76,6 +78,7 @@ attackers:
       - renderer
       - ci
       - xena-vm
+      - obsidian
   - id: public-reader
     who: >-
       Anyone on the internet, who can read all of Maple's and Xena's code, this model, and past findings, and can open
@@ -145,6 +148,13 @@ boundaries:
       environment values sent through SendEnv and never on a command line, output size and time limits; the main
       process treats VM output as untrusted; vault requests are checked only by the gateway. Gap: any desktop process
       running as Taylor can reuse the open SSH connection through the control socket without a touch
+  - id: main-to-obsidian
+    between: [main-process, obsidian]
+    crosses: obsidian://open links for one vault note, handed to the desktop's link handler
+    checks: >-
+      Only Markdown notes inside the vault, with symlinks resolved and broken links refused; the full path is
+      URI-encoded and the scheme is fixed to obsidian. Gap: whatever app is registered for obsidian:// links runs, and
+      Obsidian opens session-written notes with its plugins active
   - id: github-to-ci
     between: [outside-services, ci]
     crosses: PRs and fork PRs that trigger CI

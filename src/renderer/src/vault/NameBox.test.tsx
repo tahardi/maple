@@ -79,4 +79,15 @@ describe('NameBox', () => {
       'Note name in Projects',
     );
   });
+
+  test('starts with the given name', () => {
+    // given
+    const initial = 'Inbox';
+    // when
+    render(
+      <NameBox label="New name" placeholder="" initial={initial} busy={false} onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+    // then
+    expect(screen.getByRole('textbox', { name: 'New name' })).toHaveValue('Inbox');
+  });
 });

@@ -17,6 +17,7 @@ type Props = {
   onSelectFolder?: (path: string) => void;
   onFileMenu?: (path: string, x: number, y: number) => void;
   nameBox?: { folder: string; box: ReactNode };
+  renaming?: { path: string; box: ReactNode };
   targetFolder?: string;
 };
 
@@ -35,6 +36,7 @@ export function FileTree({
   onSelectFolder,
   onFileMenu,
   nameBox,
+  renaming,
   targetFolder,
 }: Props) {
   const [flipped, setFlipped] = useState<ReadonlySet<string>>(new Set());
@@ -94,7 +96,11 @@ export function FileTree({
           }
         }}
       >
-        <span className={node.dir ? styles.dir : undefined}>{node.name}</span>
+        {!node.dir && renaming?.path === node.path ? (
+          renaming.box
+        ) : (
+          <span className={node.dir ? styles.dir : undefined}>{node.name}</span>
+        )}
         {commented?.has(node.path) && (
           <span className={styles.commented} role="img" aria-label="Has review comments" title="Has review comments">
             💬

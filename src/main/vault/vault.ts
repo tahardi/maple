@@ -1,6 +1,8 @@
-import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { constants } from 'node:fs';
+import { copyFile, lstat, mkdir, readdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import type { VaultNote } from '@shared/types/files/vaultNote';
+import { isMissing } from '@main/util/isMissing';
 import { isInside, MAX_BYTES, realOrSelf } from '@main/util/paths';
 
 async function walk(vaultDir: string, dir: string): Promise<VaultNote[]> {
@@ -25,7 +27,31 @@ export async function listNotes(vaultDir: string): Promise<VaultNote[]> {
   return (await walk(vaultDir, '')).sort((a, b) => a.path.localeCompare(b.path));
 }
 
-type Verb = 'reading' | 'writing' | 'creating' | 'trashing';
+type Verb = 'reading' | 'writing' | 'creating' | 'trashing' | 'renaming' | 'duplicating' | 'opening';
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch (err) {
+    if (isMissing(err)) {
+      return false;
+    }
+    throw err;
+  }
+}
+
+async function isBrokenLink(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return false;
+  } catch (err) {
+    if (isMissing(err)) {
+      return exists(path);
+    }
+    throw err;
+  }
+}
 
 async function vaultPath(vaultDir: string, path: string, action: string): Promise<{ link: string; full: string }> {
   const root = await realpath(vaultDir);
@@ -33,6 +59,9 @@ async function vaultPath(vaultDir: string, path: string, action: string): Promis
   const full = await realOrSelf(link);
   if (!isInside(root, link) || !isInside(root, full)) {
     throw new Error(`${action}: path is outside the vault`);
+  }
+  if (await isBrokenLink(link)) {
+    throw new Error(`${action}: path is a broken link`);
   }
   return { link, full };
 }
@@ -88,4 +117,44 @@ export async function createFolder(vaultDir: string, path: string): Promise<void
 
 export async function trashNote(vaultDir: string, path: string, trash: (full: string) => Promise<void>): Promise<void> {
   await trash((await notePath(vaultDir, path, 'trashing')).link);
+}
+
+export async function renameNote(vaultDir: string, from: string, to: string): Promise<void> {
+  const source = await notePath(vaultDir, from, 'renaming');
+  const target = await notePath(vaultDir, to, 'renaming');
+  if (await exists(target.link)) {
+    throw new Error('renaming note: a note with that name already exists');
+  }
+  if (!(await exists(dirname(target.link)))) {
+    throw new Error('renaming note: that folder does not exist');
+  }
+  await rename(source.link, target.link);
+}
+
+export async function duplicateNote(vaultDir: string, path: string): Promise<string> {
+  const source = await notePath(vaultDir, path, 'duplicating');
+  const stem = path.replace(/\.md$/, '');
+  for (let n = 1; ; n++) {
+    const copy = `${stem} ${String(n)}.md`;
+    try {
+      await copyFile(source.link, (await notePath(vaultDir, copy, 'duplicating')).link, constants.COPYFILE_EXCL);
+      return copy;
+    } catch (err) {
+      if (!isTaken(err)) {
+        throw err;
+      }
+    }
+  }
+}
+
+export function obsidianUri(fullPath: string): string {
+  return `obsidian://open?path=${encodeURIComponent(fullPath)}`;
+}
+
+export async function openInObsidian(
+  vaultDir: string,
+  path: string,
+  open: (uri: string) => Promise<void>,
+): Promise<void> {
+  await open(obsidianUri((await notePath(vaultDir, path, 'opening')).full));
 }

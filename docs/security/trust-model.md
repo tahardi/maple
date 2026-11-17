@@ -31,7 +31,8 @@ The main threat is a well-meaning Claude session that does harm it does not reco
 
 - `misled-session`: a Claude session steered by text it reads, a malicious skill or plugin, or code it runs. It reaches
   the sessions, hook server, config dir, vault, Claude config, main process, shell terminals, Jira and GitHub, the
-  app window (through text Maple shows), CI (through workflow changes), and the Xena VM.
+  app window (through text Maple shows), CI (through workflow changes), the Xena VM, and Obsidian (through the
+  notes and link handlers it can write).
 - `public-reader`: anyone who reads the public code and findings to plan an attack, opens fork PRs, or comments on
   Taylor's PRs. It reaches CI, the app window, and sessions; Maple ignores fork PRs but shows every author's review
   comments, and sessions read them.
@@ -39,7 +40,7 @@ The main threat is a well-meaning Claude session that does harm it does not reco
 
 ## Trust Boundaries
 
-Maple has twelve parts:
+Maple has thirteen parts:
 
 - `renderer`: the sandboxed app window.
 - `main-process`: the Node process that runs git, gh, the Jira client, the pollers, and IPC handlers.
@@ -53,6 +54,7 @@ Maple has twelve parts:
 - `ci`: GitHub Actions on every PR and push to `main`.
 - `xena-vm`: the Xena VM, reached over one SSH master connection whose control socket is in Maple's config dir.
 - `vault-gateway`: the desktop vault gateway socket, forwarded into the VM at `~/.xena/vault.sock`.
+- `obsidian`: Obsidian, or whatever app is registered for `obsidian://` links, which Maple asks to open vault notes.
 
 The boundaries between them:
 
@@ -77,6 +79,9 @@ The boundaries between them:
   environment values outside the command line, and limits output size and time. Maple treats VM output as untrusted,
   and only the gateway checks vault requests. Any desktop process running as Taylor can reuse the open SSH connection
   without a touch.
+- `main-to-obsidian`: Open in Obsidian hands one `obsidian://open` link to the desktop's link handler. Only Markdown
+  notes inside the vault get through, with symlinks resolved and broken links refused, and the path is encoded.
+  Whatever app is registered for those links runs, and Obsidian opens notes sessions wrote with its plugins active.
 - `github-to-ci`: PRs trigger CI with a read-only token, and every action is pinned to a commit that Dependabot keeps
   current. `main` needs a PR and passing checks but no approval; audit and package are not required.
 

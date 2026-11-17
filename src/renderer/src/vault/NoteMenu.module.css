@@ -37,3 +37,22 @@
 .reason {
   font-size: var(--font-xs);
 }
+
+.label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.label kbd {
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--font-xs);
+}
+
+.divider {
+  width: 100%;
+  margin: var(--space-1) 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
