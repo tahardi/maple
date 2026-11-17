@@ -81,6 +81,16 @@ describe('TraceView', () => {
     expect(screen.queryByText(/Code step/)).not.toBeInTheDocument();
   });
 
+  test('says the code is a teaching example', () => {
+    // given
+    const trace = TRACE;
+    // when
+    render(<TraceView trace={trace} step={0} />);
+    // then
+    expect(screen.getByText('Teaching example, not code from your repository')).toBeInTheDocument();
+    expect(screen.getByTestId('editor')).toHaveAttribute('data-readonly', 'true');
+  });
+
   test('shows step text with Markdown and HTML as plain text', () => {
     // given
     const trace = TRACE;
