@@ -134,6 +134,20 @@ describe('PlannerPane', () => {
     expect(onBatch).not.toHaveBeenCalled();
   });
 
+  test('a redrawn planner repeating several earlier batches leaves the selection alone', async () => {
+    // given
+    const { onBatch, emit } = setup();
+    await screen.findByTestId('claude-pane');
+    emit(['DIG-44']);
+    emit(['DIG-99']);
+    onBatch.mockClear();
+    // when
+    emit(['DIG-44']);
+    emit(['DIG-99']);
+    // then
+    expect(onBatch).not.toHaveBeenCalled();
+  });
+
   test('a new batch after a repeat reaches onBatch', async () => {
     // given
     const { onBatch, emit } = setup();

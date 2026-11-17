@@ -41,7 +41,7 @@ export function PlannerPane({
 }: Props) {
   const [tabId, setTabId] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
-  const lastBatch = useRef<string | null>(null);
+  const seenBatches = useRef(new Set<string>());
 
   useEffect(() => {
     let disposed = false;
@@ -59,10 +59,10 @@ export function PlannerPane({
     () =>
       window.maple.session.onBatch(projectKey, (keys) => {
         const batch = keys.join(',');
-        if (batch === lastBatch.current) {
+        if (seenBatches.current.has(batch)) {
           return;
         }
-        lastBatch.current = batch;
+        seenBatches.current.add(batch);
         setAnswered(true);
         onBatch(keys);
       }),
@@ -74,7 +74,7 @@ export function PlannerPane({
       return;
     }
     setAnswered(false);
-    lastBatch.current = null;
+    seenBatches.current.clear();
     onBatch([]);
     window.maple.session.sendPrompt(tabId, suggestPrompt(projectKey));
   };
