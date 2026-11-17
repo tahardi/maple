@@ -38,11 +38,12 @@ components:
   - id: renderer
     what: The sandboxed app window that draws the board, tabs, terminals, and outside text
     trusted_with: >-
-      Drawing cards, PR comments, files, notes, and terminal output as text, and passing Taylor's clicks and keystrokes
-      to the main process
+      Drawing cards, PR comments, files, notes, and terminal output as text or Markdown with no raw HTML, and passing
+      Taylor's clicks and keystrokes to the main process
     limited_by: >-
       The window sandbox, context isolation, and strict CSP with no navigation; the schema check on every IPC argument;
-      and file access only inside the tab's worktree or the vault
+      and file access only inside the tab's worktree or the vault. Gap: the main process does not check which frame
+      sent an IPC call
   - id: main-process
     what: The Node process that runs git, gh, the Jira client, the pollers, and IPC handlers
     trusted_with: >-
@@ -62,8 +63,8 @@ components:
       report on its own work, so tests, CI, the Security Pass, and Taylor's review check it
     limited_by: >-
       The Bash sandbox Maple forces on with no escape hatch, and the folders it may write: its worktree, the findings
-      dir, and the paths in the sandbox write list. Gap, accepted until Xena: the Write and Edit tools and its
-      credentials reach far wider than its card needs
+      dir, and the paths in the sandbox write list. Gaps, accepted until Xena: a worktree's own Claude settings can
+      widen the sandbox, and the Write and Edit tools and its credentials reach far wider than its card needs
   - id: shell-terminals
     what: Plain shells in a card tab that Taylor drives, with no sandbox
     trusted_with: Running whatever Taylor types, with Taylor's full access
@@ -73,26 +74,27 @@ components:
     trusted_with: >-
       Holding Maple's settings, board state, scrubbed logs, findings and Taylor's decisions, and the SSH control socket
     limited_by: >-
-      File permissions only; the main process schema-checks and size-limits what it reads back. Gap, accepted until
-      Xena: any session can write it
+      File permissions only; the main process schema-checks what it reads back, and caps findings files at 2 MB. Gap,
+      accepted until Xena: any session can write it
   - id: vault
     what: The Obsidian vault folder
     trusted_with: Holding Taylor's notes, which sessions read and write and Maple shows
     limited_by: >-
-      Notes shown as plain text, and file access only inside the vault with symlinks resolved. Gap, accepted until
-      Xena: any session can change any note
+      Notes drawn as Markdown with no raw HTML, and file access only inside the vault with symlinks resolved. Gap,
+      accepted until Xena: any session can change any note
   - id: claude-config
     what: The global ~/.claude skills, hooks, settings, memory, and plugins, symlinked to the dotclaude repo
     trusted_with: The skills, hooks, settings, and memory every session follows
     limited_by: >-
-      Maple's own settings file, which outranks a worktree's and forces the sandbox on, and changes to the dotclaude
-      repo going through a reviewed PR. Gap, accepted until Xena: sessions can edit it directly
+      Maple's own settings file, which forces the sandbox on whatever the global settings say. Gaps, accepted until
+      Xena: sessions can edit it directly, and it is the dotclaude working copy, so edits apply with no PR or review
   - id: outside-services
     what: Jira and GitHub, reached as Taylor
     trusted_with: Storing cards, code, PRs, and review comments, and running the checks that guard main
     limited_by: >-
-      Branch rules that need a PR and passing checks on main; Maple ignores fork PRs and shows all outside text as
-      text. Gap, accepted until Xena: no approval is required to merge
+      On Maple's own repo, branch rules that need a PR and passing checks on main; Maple ignores fork PRs and draws
+      outside text with no raw HTML. Unknown for Jira and Taylor's other repos. Gap, accepted until Xena: no approval
+      is required to merge
   - id: ci
     what: GitHub Actions jobs that run on every PR, fork PRs included, and on pushes to main
     trusted_with: Running format, lint, typecheck, tests, audit, package, and e2e on every PR
