@@ -98,6 +98,7 @@ export function DecisionButtons({ tabId, finding, working }: DecisionButtonsProp
       {error !== null && !accepting && <Notice tone="danger">{error}</Notice>}
       {accepting && (
         <AcceptRiskDialog
+          initialReason={finding.recommend?.decision === 'accept-risk' ? finding.recommend.why : ''}
           busy={pending === 'accept-risk'}
           error={error}
           onConfirm={(reason) => {
