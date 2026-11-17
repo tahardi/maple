@@ -1,5 +1,6 @@
 import type { ProjectConfig } from './projectConfig';
 import type { ActionConfig } from './actionConfig';
+import type { RemoteConfig } from './remoteConfig';
 
 export type MapleConfig = {
   worktreesDir: string;
@@ -16,4 +17,5 @@ export type MapleConfig = {
   minFreeMegabytes: number;
   projects: ProjectConfig[];
   actions: ActionConfig[];
+  remote: RemoteConfig | null;
 };

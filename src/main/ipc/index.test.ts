@@ -7,6 +7,7 @@ import { StatusEngine } from '@main/sessions/StatusEngine';
 import { Terminals } from '@main/sessions/Terminals';
 import type { StartQueue } from '@main/sessions/StartQueue';
 import { registerIpc } from './index';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
@@ -47,6 +48,8 @@ describe('registerIpc', () => {
     tmuxConf: '',
     endTmux: vi.fn(),
     sessionEnv: {},
+    runner: fakeRunner(),
+    home: '/home/dev',
   });
   const status = new StatusEngine({
     sessions,
@@ -77,6 +80,8 @@ describe('registerIpc', () => {
     watchVault: () => undefined,
     findingsDir: '/tmp/maple/findings',
     decisionsDir: '/tmp/maple/decisions',
+    runner: fakeRunner(),
+    home: '/home/dev',
   };
 
   sessions.setMaxListeners(0);

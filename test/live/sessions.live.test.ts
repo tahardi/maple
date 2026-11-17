@@ -13,6 +13,7 @@ import { createLogger } from '../../src/main/app/log/log';
 import { SessionManager } from '../../src/main/sessions/SessionManager';
 import { endTmux, writeTmuxConf } from '../../src/main/sessions/tmux';
 import { hasTranscript } from '../../src/main/sessions/transcripts/transcripts';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 const silent = createLogger(() => undefined);
 
@@ -66,6 +67,7 @@ describe('SessionManager with a real claude', () => {
       maxLoadPerCore: 0.8,
       minFreeMegabytes: 2048,
       actions: [],
+      remote: null,
       projects: [
         {
           name: 'Maple',
@@ -96,6 +98,8 @@ describe('SessionManager with a real claude', () => {
       tmuxConf: await writeTmuxConf(dir),
       endTmux,
       sessionEnv: {},
+      runner: fakeRunner(),
+      home: '/home/dev',
       logger: silent,
     });
     sessions = manager;

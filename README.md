@@ -89,6 +89,22 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
 
 Maple saves open tabs in `state.json` in `MAPLE_CONFIG_DIR`. At each launch, if `state.json` changed since the last backup, Maple copies it to `state.json.1` and moves older copies up, keeping `stateBackups` copies (default 3) with the newest in `state.json.1`. A `state.json` Maple cannot read moves to `state.json.corrupt`, and the banner names the newest backup. To restore, quit Maple, copy a backup over `state.json`, and start Maple again.
 
+`remote` is optional. When set, Maple connects to the Xena VM over one SSH master connection when it starts, and asks you to touch your YubiKey once:
+
+```json
+{
+  "remote": {
+    "host": "192.168.150.10",
+    "user": "dev",
+    "keyPath": "~/.ssh/id_ed25519_sk",
+    "knownHostsPath": "~/.config/xena/known_hosts",
+    "vaultSocket": "~/.local/state/xena/vault.sock"
+  }
+}
+```
+
+With `remote` set, `worktreesDir` and every `plannerDir` are paths inside the VM and must be absolute, because `~` would expand to the desktop home. `knownHostsPath` is the VM host key Xena pinned when it built the VM, at `~/.config/xena/known_hosts`; Maple accepts no other file and refuses any other key. `vaultSocket` is the desktop vault gateway socket that Maple forwards into the VM, and Maple accepts only `~/.local/state/xena/vault.sock`; leave it out to skip the forward. Changing `remote` needs a Maple restart.
+
 ## Status
 
 Maple is a personal proof of concept and is under active development. Expect breaking changes between versions.

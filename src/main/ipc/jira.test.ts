@@ -14,6 +14,7 @@ import type { JiraCreds } from '@main/jira/readCreds';
 import { registerJira } from './jira';
 import type { StartQueue } from '@main/sessions/StartQueue';
 import { errorText } from '@shared/errors/errorText';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
 
@@ -59,6 +60,8 @@ const base = {
   prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
   findingsDir: '/tmp/maple/findings',
   decisionsDir: '/tmp/maple/decisions',
+  runner: fakeRunner(),
+  home: '/home/dev',
 };
 
 function fixture(name: string): string {

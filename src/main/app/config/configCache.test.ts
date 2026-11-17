@@ -41,6 +41,7 @@ const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleC
     minFreeMegabytes: 2048,
     projects,
     actions: [],
+    remote: null,
   },
   error: null,
   fetchedAt: '2026-10-18T00:00:00.000Z',
