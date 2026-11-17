@@ -85,6 +85,42 @@ The boundaries between them:
 - `github-to-ci`: PRs trigger CI with a read-only token, and every action is pinned to a commit that Dependabot keeps
   current. `main` needs a PR and passing checks but no approval; audit and package are not required.
 
+## What We Trust
+
+Any part that runs Claude can be misled, so its trust is a best effort and its limits carry the weight.
+
+- `renderer`: trusted with drawing outside text and Markdown, with no raw HTML, and passing Taylor's clicks and
+  keystrokes on. Limited by the window sandbox, a strict CSP, the schema check on every IPC call, and file access only
+  inside the worktree or the vault. The main process does not check which frame sent a call.
+- `main-process`: trusted with Taylor's gh login and Jira token, merging PRs, starting sessions, findings and
+  decisions, and the VM's SSH connection. Nothing limits it; it is the trusted base.
+- `hook-server`: trusted with passing session events to the main process. Limited by a private socket, validation of
+  every line, and events that carry no commands.
+- `sessions`: trusted with a best-effort try at the card's task, and not with an honest report on its own work. Limited
+  by the Bash sandbox Maple forces on and the folders it may write. A worktree's own settings or an edit to Maple's
+  shared hooks file can widen the sandbox, and its Write and Edit tools and its credentials reach further, accepted
+  until Xena.
+- `shell-terminals`: trusted with whatever Taylor types. Nothing limits it; it is the trusted base.
+- `config-dir`: trusted with Maple's settings, state, logs, findings, decisions, and the SSH control socket. Limited
+  only by file permissions, the schema checks the main process runs on what it reads back, and a size cap on findings
+  files; any session can write it.
+- `vault`: trusted with Taylor's notes. Limited by notes drawn as Markdown with no raw HTML, and access only inside
+  the vault; any session can change any note.
+- `claude-config`: trusted with the skills, hooks, settings, and memory every session follows. Limited by Maple's
+  settings file forcing the sandbox on. Sessions can edit it and Maple's settings file directly, and since it is the
+  dotclaude working copy, edits apply with no review.
+- `outside-services`: trusted with cards, code, PRs, and the checks that guard `main`. On Maple's repo, limited by
+  branch rules that need a PR and passing checks, but no approval. Limits on Jira and Taylor's other repos are
+  unknown.
+- `ci`: trusted with running the checks on every PR. Limited by a read-only token, no `pull_request_target`, and
+  actions pinned to commits.
+- `xena-vm`: trusted with running Xena's work and sending back output. Limited by a pinned host key, no forwarding of
+  the agent or X11, size and time limits, and Maple treating its output as untrusted.
+- `vault-gateway`: trusted with deciding which vault requests from the VM to allow. Its limits are unknown; they live
+  in Xena.
+- `obsidian`: trusted with opening one vault note when Taylor asks. Limited to Markdown notes inside the vault, but
+  whatever app owns `obsidian://` links runs with its plugins.
+
 ## Users and Access
 
 - `taylor`: the owner, who can do everything. Access is the desktop login, gh as repo owner, the Jira user token, and

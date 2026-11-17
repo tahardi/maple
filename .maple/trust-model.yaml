@@ -37,30 +37,87 @@ assets:
 components:
   - id: renderer
     what: The sandboxed app window that draws the board, tabs, terminals, and outside text
+    trusted_with: >-
+      Drawing cards, PR comments, files, notes, and terminal output as text or Markdown with no raw HTML, and passing
+      Taylor's clicks and keystrokes to the main process
+    limited_by: >-
+      The window sandbox, context isolation, and strict CSP with no navigation; the schema check on every IPC argument;
+      and file access only inside the tab's worktree or the vault. Gap: the main process does not check which frame
+      sent an IPC call
   - id: main-process
     what: The Node process that runs git, gh, the Jira client, the pollers, and IPC handlers
+    trusted_with: >-
+      Taylor's gh login and Jira token, approving and merging PRs, starting sessions with their settings, reading and
+      writing findings and decisions, and the SSH connection to the Xena VM
+    limited_by: Nothing; it is the trusted base
   - id: hook-server
     what: The hook script Claude runs and the Unix socket that takes its events
+    trusted_with: Passing session status and permission events from Claude sessions to the main process
+    limited_by: >-
+      A socket private to the user, oversized lines dropped, every line validated, and events that carry no commands,
+      so the worst case is a wrong status dot or a queued sync prompt
   - id: sessions
     what: Claude sessions in tmux, run with permissions skipped and Claude's Bash sandbox forced on by Maple
+    trusted_with: >-
+      A best-effort try at the card's task, and the Jira and GitHub credentials in its environment; not an honest
+      report on its own work, so tests, CI, the Security Pass, and Taylor's review check it
+    limited_by: >-
+      The Bash sandbox Maple forces on with no escape hatch, and the folders it may write: its worktree, the findings
+      dir, and the paths in the sandbox write list. Gaps, accepted until Xena: a worktree's own Claude settings, or an
+      edit to Maple's shared hooks file, can widen the sandbox, and the Write and Edit tools and its credentials reach
+      far wider than its card needs
   - id: shell-terminals
     what: Plain shells in a card tab that Taylor drives, with no sandbox
+    trusted_with: Running whatever Taylor types, with Taylor's full access
+    limited_by: Nothing; it is the trusted base
   - id: config-dir
     what: Maple's config, state, logs, events, findings, and snapshots
+    trusted_with: >-
+      Holding Maple's settings, board state, scrubbed logs, findings and Taylor's decisions, and the SSH control socket
+    limited_by: >-
+      File permissions only; the main process schema-checks what it reads back, and caps findings files at 2 MB. Gap,
+      accepted until Xena: any session can write it
   - id: vault
     what: The Obsidian vault folder
+    trusted_with: Holding Taylor's notes, which sessions read and write and Maple shows
+    limited_by: >-
+      Notes drawn as Markdown with no raw HTML, and file access only inside the vault with symlinks resolved. Gap,
+      accepted until Xena: any session can change any note
   - id: claude-config
     what: The global ~/.claude skills, hooks, settings, memory, and plugins, symlinked to the dotclaude repo
+    trusted_with: The skills, hooks, settings, and memory every session follows
+    limited_by: >-
+      Maple's own settings file, which forces the sandbox on whatever the global settings say. Gaps, accepted until
+      Xena: sessions can edit it directly, and Maple's settings file too, and it is the dotclaude working copy, so
+      edits apply with no PR or review
   - id: outside-services
     what: Jira and GitHub, reached as Taylor
+    trusted_with: Storing cards, code, PRs, and review comments, and running the checks that guard main
+    limited_by: >-
+      On Maple's own repo, branch rules that need a PR and passing checks on main; Maple ignores fork PRs and draws
+      outside text with no raw HTML. Unknown for Jira and Taylor's other repos. Gap, accepted until Xena: no approval
+      is required to merge
   - id: ci
     what: GitHub Actions jobs that run on every PR, fork PRs included, and on pushes to main
+    trusted_with: Running format, lint, typecheck, tests, audit, package, and e2e on every PR
+    limited_by: >-
+      A read-only contents token, no pull_request_target, and every action pinned to a full commit SHA
   - id: xena-vm
     what: The Xena VM, reached over one SSH master connection whose control socket lives in Maple's config dir
+    trusted_with: Running Xena's work and sending back command output, file reads, and log lines
+    limited_by: >-
+      A pinned host key with strict checking, no agent or X11 forwarding, quoted arguments, output size and time
+      limits, and the main process treating all VM output as untrusted
   - id: vault-gateway
     what: The desktop vault gateway socket, forwarded into the VM at ~/.xena/vault.sock
+    trusted_with: Deciding which vault requests from the VM to allow
+    limited_by: unknown; Maple only forwards the socket, and the gateway's own checks live in Xena
   - id: obsidian
     what: Obsidian, or whatever desktop app is registered for obsidian:// links, which Maple asks to open vault notes
+    trusted_with: Opening one vault note when Taylor asks
+    limited_by: >-
+      Only Markdown notes inside the vault get a link, with symlinks resolved, broken links refused, and the path
+      encoded. Gap: whatever app is registered for those links runs, with its plugins active
 attackers:
   - id: misled-session
     who: >-
