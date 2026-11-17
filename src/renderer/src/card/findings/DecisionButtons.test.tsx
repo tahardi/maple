@@ -66,15 +66,7 @@ describe('DecisionButtons', () => {
     fakeFindings();
     const decision = { kind: 'accept-risk' as const, reason: 'Only Taylor runs it', decidedAt: '2026-11-12T12:00:00Z' };
     // when
-    render(
-      <DecisionButtons
-        tabId="t1"
-
-        finding={finding({ decision })}
-        working={false}
-        applying={false}
-      />,
-    );
+    render(<DecisionButtons tabId="t1" finding={finding({ decision })} working={false} applying={false} />);
     // then
     expect(screen.getByRole('button', { name: 'Accept risk' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Fix now' })).toHaveAttribute('aria-pressed', 'false');
@@ -110,13 +102,7 @@ describe('DecisionButtons', () => {
     // given
     const { override } = fakeFindings();
     render(
-      <DecisionButtons
-        tabId="t1"
-
-        finding={finding({ severityOverride: 'medium' })}
-        working={false}
-        applying={false}
-      />,
+      <DecisionButtons tabId="t1" finding={finding({ severityOverride: 'medium' })} working={false} applying={false} />,
     );
     // when
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Severity' }), option);
@@ -168,15 +154,7 @@ describe('DecisionButtons', () => {
     // given
     const { decide } = fakeFindings();
     const decision = { kind: 'accept-risk' as const, reason: 'Local only', decidedAt: '2026-11-12T12:00:00Z' };
-    render(
-      <DecisionButtons
-        tabId="t1"
-
-        finding={finding({ decision })}
-        working={false}
-        applying={false}
-      />,
-    );
+    render(<DecisionButtons tabId="t1" finding={finding({ decision })} working={false} applying={false} />);
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Accept risk' }));
     // then

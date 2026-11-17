@@ -160,6 +160,22 @@ describe('FindingsView', () => {
     });
   });
 
+  test.each([
+    { name: 'decided', change: { decision: decided } },
+    { name: 'overridden to low', change: { severityOverride: 'low' as const } },
+  ])('keeps the top finding on top after it is $name', ({ change }) => {
+    // given
+    const top = finding({ id: 'F1', title: 'high one' });
+    const below = finding({ id: 'F2', title: 'medium one', severity: 'medium' });
+    const { rerender } = render(<FindingsView tabId="t1" file={findingsFile([top, below])} error={null} />);
+    // when
+    rerender(<FindingsView tabId="t1" file={findingsFile([{ ...top, ...change }, below])} error={null} />);
+    // then
+    const texts = Array.from(screen.getByRole('list', { name: 'Findings' }).children).map((item) => item.textContent);
+    expect(texts[0]).toContain('high one');
+    expect(texts[1]).toContain('medium one');
+  });
+
   test('shows the read error in a notice', () => {
     // given
     const error = 'reading findings: MPL-20.json is from a newer Maple';
