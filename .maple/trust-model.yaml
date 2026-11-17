@@ -31,6 +31,9 @@ assets:
   - id: logs
     what: The main log, the event log, and the log tail attached to bug reports
     loss: A secret or private text that slipped past scrubbing leaks, including into Jira through bug reports
+  - id: vm-ssh-key
+    what: The YubiKey-backed SSH key and the pinned VM host key file Maple uses to reach the Xena VM
+    loss: Someone could run commands in the VM as the dev user, or Maple could trust a fake VM
 components:
   - id: renderer
     what: The sandboxed app window that draws the board, tabs, terminals, and outside text
@@ -52,6 +55,10 @@ components:
     what: Jira and GitHub, reached as Taylor
   - id: ci
     what: GitHub Actions jobs that run on every PR, fork PRs included, and on pushes to main
+  - id: xena-vm
+    what: The Xena VM, reached over one SSH master connection whose control socket lives in Maple's config dir
+  - id: vault-gateway
+    what: The desktop vault gateway socket, forwarded into the VM at ~/.xena/vault.sock
 attackers:
   - id: misled-session
     who: >-
@@ -68,6 +75,7 @@ attackers:
       - outside-services
       - renderer
       - ci
+      - xena-vm
   - id: public-reader
     who: >-
       Anyone on the internet, who can read all of Maple's and Xena's code, this model, and past findings, and can open
@@ -127,6 +135,16 @@ boundaries:
     checks: >-
       Timeouts on every call, argument arrays, card keys checked by pattern, fork PRs ignored, merges pinned to the
       head commit and base branch, token never logged, logs scrubbed
+  - id: vm-to-desktop
+    between: [xena-vm, main-process, vault-gateway]
+    crosses: >-
+      Command output, file reads, and followed log lines from the VM, and VM requests through the forwarded vault
+      socket
+    checks: >-
+      Pinned host key with strict checking, ssh config ignored, no agent or X11 forwarding, arguments shell-quoted,
+      environment values sent through SendEnv and never on a command line, output size and time limits; the main
+      process treats VM output as untrusted; vault requests are checked only by the gateway. Gap: any desktop process
+      running as Taylor can reuse the open SSH connection through the control socket without a touch
   - id: github-to-ci
     between: [outside-services, ci]
     crosses: PRs and fork PRs that trigger CI
