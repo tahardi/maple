@@ -1,6 +1,6 @@
 import { refinePrompt } from '@shared/prompts/refinePrompt';
 import { suggestPrompt } from '@shared/prompts/suggestPrompt';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
@@ -41,6 +41,7 @@ export function PlannerPane({
 }: Props) {
   const [tabId, setTabId] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
+  const lastBatch = useRef<string | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -57,6 +58,11 @@ export function PlannerPane({
   useEffect(
     () =>
       window.maple.session.onBatch(projectKey, (keys) => {
+        const batch = keys.join(',');
+        if (batch === lastBatch.current) {
+          return;
+        }
+        lastBatch.current = batch;
         setAnswered(true);
         onBatch(keys);
       }),
@@ -68,6 +74,7 @@ export function PlannerPane({
       return;
     }
     setAnswered(false);
+    lastBatch.current = null;
     onBatch([]);
     window.maple.session.sendPrompt(tabId, suggestPrompt(projectKey));
   };
