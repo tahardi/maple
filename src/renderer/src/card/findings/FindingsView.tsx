@@ -2,9 +2,11 @@ import { useState } from 'react';
 import type { Finding } from '@shared/types/findings/finding';
 import type { FindingsFile } from '@shared/types/findings/findingsFile';
 import type { Severity } from '@shared/types/findings/severity';
+import { awaitingHandover } from '@shared/findings/awaitingHandover';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { useMaple } from '@renderer/store';
 import { useLessons } from '@renderer/learning/useLessons';
+import { ApplyDecisionsButton } from './ApplyDecisionsButton';
 import { FindingCard } from './FindingCard';
 import { FindingRow } from './FindingRow';
 import styles from './FindingsView.module.css';
@@ -25,7 +27,6 @@ export function FindingsView({ tabId, file, error }: FindingsViewProps) {
   const working = useMaple((s) => tabId in s.statuses && s.statuses[tabId].dot === 'working');
   const { lessons } = useLessons();
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
-  const applying = file !== null && file.resume?.round === file.round;
   const findings = [...(file?.findings ?? [])].sort((a, b) => ORDER[a.severity] - ORDER[b.severity]);
   const isOpen = (finding: Finding): boolean => toggled[openKey(finding)] ?? !addressed(finding);
   const setOpen = (finding: Finding, open: boolean): void => {
@@ -40,6 +41,7 @@ export function FindingsView({ tabId, file, error }: FindingsViewProps) {
   }
   return (
     <div className={styles.view}>
+      {findings.some(awaitingHandover) && <ApplyDecisionsButton tabId={tabId} />}
       {findings.length === 0 ? (
         <p className={styles.empty}>No findings</p>
       ) : (
@@ -51,7 +53,6 @@ export function FindingsView({ tabId, file, error }: FindingsViewProps) {
                   tabId={tabId}
                   finding={finding}
                   working={working}
-                  applying={applying}
                   lessons={lessons}
                   onCollapse={() => {
                     setOpen(finding, false);

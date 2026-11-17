@@ -8,4 +8,5 @@ export type StoredDecision = {
   decision: FindingDecision | null;
   severityOverride: Severity | null;
   fingerprint: string | null;
+  handedOver: boolean;
 };

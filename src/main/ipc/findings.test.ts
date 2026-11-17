@@ -14,7 +14,9 @@ import type { EventRefs } from '@shared/types/events/eventRecord';
 import type { UiActionData } from '@shared/types/events/eventSchemas';
 import type { Finding } from '@shared/types/findings/finding';
 import { findingFingerprint } from '@main/findings/decisions/findingFingerprint';
+import { applyDecisionsPrompt } from '@shared/prompts/applyDecisionsPrompt';
 import { uiActionRecorder } from '@main/events/uiActions';
+import type { StoredDecision } from '@main/findings/decisions/storedDecision';
 import { recordActions } from './recordActions';
 import { registerFindings } from './findings';
 import { fakeRunner } from '@main/testing/fakeRunner';
@@ -42,6 +44,8 @@ vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktrees: watch.watchWorktre
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 const sendToWindow = vi.fn();
+const sendPrompt = vi.fn<(tabId: string, text: string) => void>();
+const session = { alive: true };
 const win = { isDestroyed: () => false, webContents: { send: sendToWindow } } as unknown as BrowserWindow;
 
 const tabs: Record<string, Pick<TabState, 'cardKey'>> = { card: { cardKey: 'MPL-1' }, planner: { cardKey: null } };
@@ -76,7 +80,11 @@ function register(findingsDir: string, decisionsDir: string, statuses: TabStatus
       window: () => win,
       worktreeFor: () => null,
       project: () => Promise.resolve(null),
-      sessions: { get: (tabId: string) => (tabId in tabs ? tabs[tabId] : null) } as SessionManager,
+      sessions: {
+        get: (tabId: string) => (tabId in tabs ? tabs[tabId] : null),
+        isAlive: () => session.alive,
+        sendPrompt,
+      } as unknown as SessionManager,
       terminals: {} as Terminals,
       status: { statuses: () => statuses } as unknown as StatusEngine,
       setActiveTab: () => undefined,
@@ -125,6 +133,7 @@ describe('registerFindings', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    session.alive = true;
     dir = await mkdtemp(join(tmpdir(), 'maple-findings-'));
     decisions = await mkdtemp(join(tmpdir(), 'maple-decisions-'));
   });
@@ -345,13 +354,6 @@ describe('registerFindings', () => {
       id: 'F1',
       error: 'deciding finding: MPL-1.json is for MPL-2',
     },
-    {
-      name: 'a round Claude is applying',
-      tabId: 'card',
-      saved: { ...file, resume: { round: 1, sentAt: '2026-11-12T12:10:00.000Z' }, findings: [finding({ id: 'F1' })] },
-      id: 'F1',
-      error: 'deciding finding: Claude is applying your decisions',
-    },
   ])('findings:decide refuses $name and logs it', async ({ tabId, saved, id, error }) => {
     // given
     if (saved !== null) {
@@ -363,6 +365,148 @@ describe('registerFindings', () => {
     // then
     await expect(run).rejects.toThrow(error);
     expect(logger.warn).toHaveBeenCalledWith('findings', 'failed', { operation: 'findings:decide', tabId, error });
+  });
+
+  test('findings:decide ignores the resume stamp in the findings file', async () => {
+    // given
+    const resume = { round: 1, sentAt: '2026-11-12T12:10:00.000Z' };
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, resume, findings: [finding({ id: 'F1' })] }));
+    const invoke = register(dir, decisions);
+    // when
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
+    // then
+    const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as { findings: Finding[] };
+    expect(saved.findings[0].decision?.kind).toBe('fix-now');
+  });
+
+  test('findings:decide keeps the handover on findings Taylor did not change', async () => {
+    // given
+    const findings = [finding({ id: 'F1' }), finding({ id: 'F2', title: 'Token printed to the log' })];
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings }));
+    const invoke = register(dir, decisions, [statusOf('idle')]);
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
+    await invoke('findings:apply', 'card');
+    // when
+    await invoke('findings:decide', 'card', 'F2', { kind: 'not-real', reason: null });
+    // then
+    const stored = JSON.parse(await readFile(join(decisions, 'MPL-1.json'), 'utf8')) as StoredDecision[];
+    expect(stored.map((r) => [r.id, r.handedOver])).toEqual([
+      ['F1', true],
+      ['F2', false],
+    ]);
+  });
+
+  test('findings:decide writes no handedOver into the findings file', async () => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
+    const invoke = register(dir, decisions, [statusOf('idle')]);
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
+    await invoke('findings:apply', 'card');
+    // when
+    await invoke('findings:override', 'card', 'F1', 'medium');
+    // then
+    const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as { findings: object[] };
+    expect(saved.findings[0]).not.toHaveProperty('handedOver');
+  });
+
+  test('findings:decide on a handed-over finding hands it back to Taylor', async () => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
+    const invoke = register(dir, decisions, [statusOf('idle')]);
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
+    await invoke('findings:apply', 'card');
+    // when
+    await invoke('findings:decide', 'card', 'F1', { kind: 'not-real', reason: null });
+    // then
+    const stored = JSON.parse(await readFile(join(decisions, 'MPL-1.json'), 'utf8')) as StoredDecision[];
+    expect(stored.map((r) => [r.decision?.kind, r.handedOver])).toEqual([['not-real', false]]);
+  });
+
+  test('findings:apply hands over decided findings and sends the apply prompt', async () => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
+    const invoke = register(dir, decisions, [statusOf('idle')]);
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
+    // when
+    await invoke('findings:apply', 'card');
+    // then
+    const stored = JSON.parse(await readFile(join(decisions, 'MPL-1.json'), 'utf8')) as StoredDecision[];
+    expect(stored.map((r) => r.handedOver)).toEqual([true]);
+    expect(sendPrompt.mock.calls).toEqual([['card', applyDecisionsPrompt('MPL-1')]]);
+  });
+
+  test('findings:apply skips undecided findings and findings the file marks applied', async () => {
+    // given
+    const applied = { at: '2026-11-12T12:30:00.000Z', commit: 'abc1234', cardKey: null };
+    const findings = [finding({ id: 'F1' }), finding({ id: 'F2' }), finding({ id: 'F3' })];
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings }));
+    const invoke = register(dir, decisions, [statusOf('idle')]);
+    await invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
+    await invoke('findings:decide', 'card', 'F3', { kind: 'not-real', reason: null });
+    const saved = JSON.parse(await readFile(join(dir, 'MPL-1.json'), 'utf8')) as { findings: Finding[] };
+    const marked = saved.findings.map((f) => (f.id === 'F3' ? { ...f, applied } : f));
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: marked }));
+    // when
+    await invoke('findings:apply', 'card');
+    // then
+    const stored = JSON.parse(await readFile(join(decisions, 'MPL-1.json'), 'utf8')) as StoredDecision[];
+    expect(stored.map((r) => [r.id, r.handedOver])).toEqual([
+      ['F1', true],
+      ['F3', false],
+    ]);
+  });
+
+  test.each([
+    {
+      name: 'a working tab',
+      tabId: 'card',
+      dot: 'working' as const,
+      alive: true,
+      decided: true,
+      error: 'applying decisions: Claude is working',
+    },
+    {
+      name: 'a tab whose session is not alive',
+      tabId: 'card',
+      dot: 'idle' as const,
+      alive: false,
+      decided: true,
+      error: 'applying decisions: the session is not running',
+    },
+    {
+      name: 'no awaiting finding',
+      tabId: 'card',
+      dot: 'idle' as const,
+      alive: true,
+      decided: false,
+      error: 'applying decisions: nothing to hand over',
+    },
+    {
+      name: 'the planner tab',
+      tabId: 'planner',
+      dot: 'idle' as const,
+      alive: true,
+      decided: true,
+      error: 'applying decisions: tab has no card',
+    },
+  ])('findings:apply refuses $name and logs it', async ({ tabId, dot, alive, decided, error }) => {
+    // given
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify({ ...file, findings: [finding({ id: 'F1' })] }));
+    const statuses = [statusOf('idle')];
+    const invoke = register(dir, decisions, statuses);
+    if (decided) {
+      await invoke('findings:decide', 'card', 'F1', { kind: 'fix-now', reason: null });
+    }
+    const before = await readFile(join(decisions, 'MPL-1.json'), 'utf8').catch(() => null);
+    statuses[0] = statusOf(dot);
+    session.alive = alive;
+    // when
+    const run = invoke('findings:apply', tabId);
+    // then
+    await expect(run).rejects.toThrow(error);
+    expect(logger.warn).toHaveBeenCalledWith('findings', 'failed', { operation: 'findings:apply', tabId, error });
+    expect(sendPrompt).not.toHaveBeenCalled();
+    expect(await readFile(join(decisions, 'MPL-1.json'), 'utf8').catch(() => null)).toBe(before);
   });
 
   test('findings:decide with null clears the decision', async () => {

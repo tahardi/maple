@@ -34,12 +34,11 @@ type FindingCardProps = {
   tabId: string;
   finding: Finding;
   working: boolean;
-  applying: boolean;
   lessons: readonly LessonSummary[];
   onCollapse: () => void;
 };
 
-export function FindingCard({ tabId, finding, working, applying, lessons, onCollapse }: FindingCardProps) {
+export function FindingCard({ tabId, finding, working, lessons, onCollapse }: FindingCardProps) {
   const severity = effectiveSeverity(finding);
   const facts = [
     ['Who can do it', finding.attacker],
@@ -92,7 +91,7 @@ export function FindingCard({ tabId, finding, working, applying, lessons, onColl
             <strong>{`Recommended: ${DECISION_LABELS[recommend.decision]}.`}</strong> <span>{recommend.why}</span>
           </p>
         )}
-        <DecisionButtons tabId={tabId} finding={finding} working={working} applying={applying} />
+        <DecisionButtons tabId={tabId} finding={finding} working={working} />
         <LearnButtons tabId={tabId} finding={finding} working={working} lessons={lessons} />
       </div>
       <details className={styles.part}>

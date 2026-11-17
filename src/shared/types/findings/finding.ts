@@ -31,5 +31,6 @@ export type Finding = {
   applied: FindingApplied | null;
   decision: FindingDecision | null;
   severityOverride: Severity | null;
+  handedOver?: boolean;
   lesson?: FindingLesson;
 };

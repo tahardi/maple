@@ -21,6 +21,7 @@ const RECORDED_CHANNELS: ReadonlySet<string> = new Set([
   'jira:report',
   'findings:decide',
   'findings:override',
+  'findings:apply',
   'learning:grade',
   'learning:fromFinding',
   'learning:teach',

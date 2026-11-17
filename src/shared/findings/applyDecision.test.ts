@@ -64,6 +64,26 @@ describe('applyDecision', () => {
     expect(got.findings[0].decision).toBeNull();
   });
 
+  test('a new decision clears the handover', () => {
+    // given
+    const decision = { kind: 'fix-now' as const, reason: null, decidedAt: NOW };
+    const given = file([finding('F1', { decision, handedOver: true })]);
+    // when
+    const got = applyDecision(given, 'F1', { kind: 'not-real', reason: null }, NOW);
+    // then
+    expect(got.findings[0].handedOver).toBe(false);
+  });
+
+  test('clearing a decision clears the handover', () => {
+    // given
+    const decision = { kind: 'fix-now' as const, reason: null, decidedAt: NOW };
+    const given = file([finding('F1', { decision, handedOver: true })]);
+    // when
+    const got = applyDecision(given, 'F1', null, NOW);
+    // then
+    expect(got.findings[0].handedOver).toBe(false);
+  });
+
   test('changes only the target finding', () => {
     // given
     const given = file([finding('F1'), finding('F2'), finding('F3')]);
@@ -74,7 +94,7 @@ describe('applyDecision', () => {
       ...given,
       findings: [
         given.findings[0],
-        { ...given.findings[1], decision: { kind: 'not-real', reason: null, decidedAt: NOW } },
+        { ...given.findings[1], decision: { kind: 'not-real', reason: null, decidedAt: NOW }, handedOver: false },
         given.findings[2],
       ],
     });
@@ -130,6 +150,16 @@ describe('applyOverride', () => {
       expect(got.findings).toEqual([{ ...given.findings[0], severityOverride: severity }, given.findings[1]]);
     },
   );
+
+  test('a severity change keeps the handover', () => {
+    // given
+    const decision = { kind: 'fix-now' as const, reason: null, decidedAt: NOW };
+    const given = file([finding('F1', { decision, handedOver: true })]);
+    // when
+    const got = applyOverride(given, 'F1', 'low');
+    // then
+    expect(got.findings[0].handedOver).toBe(true);
+  });
 
   test.each([
     { name: 'an unknown id', given: file([finding('F1')]), error: 'overriding severity: no finding F2 on MPL-1' },

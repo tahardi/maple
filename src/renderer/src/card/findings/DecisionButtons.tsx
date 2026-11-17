@@ -18,24 +18,20 @@ type DecisionButtonsProps = {
   tabId: string;
   finding: Finding;
   working: boolean;
-  applying: boolean;
 };
 
-function lockReason(finding: Finding, working: boolean, applying: boolean): string | null {
+function lockReason(finding: Finding, working: boolean): string | null {
   if (finding.applied !== null) {
     return 'Applied';
   }
-  if (working) {
-    return 'Claude is working';
-  }
-  return applying ? 'Claude is applying your decisions' : null;
+  return working ? 'Claude is working' : null;
 }
 
-export function DecisionButtons({ tabId, finding, working, applying }: DecisionButtonsProps) {
+export function DecisionButtons({ tabId, finding, working }: DecisionButtonsProps) {
   const [pending, setPending] = useState<Kind | 'override' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
-  const locked = lockReason(finding, working, applying);
+  const locked = lockReason(finding, working);
   const chosen = finding.decision?.kind ?? null;
 
   const run = async (what: Kind | 'override', call: () => Promise<void>): Promise<boolean> => {

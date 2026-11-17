@@ -11,7 +11,12 @@ export function trustDecisions(file: FindingsFile, stored: readonly StoredDecisi
       const record = stored.find(
         (r) => r.id === finding.id && isDeepStrictEqual(r.identity, finding.identity) && r.fingerprint === fingerprint,
       );
-      return { ...finding, decision: record?.decision ?? null, severityOverride: record?.severityOverride ?? null };
+      return {
+        ...finding,
+        decision: record?.decision ?? null,
+        severityOverride: record?.severityOverride ?? null,
+        handedOver: record?.handedOver ?? false,
+      };
     }),
   };
 }

@@ -47,6 +47,7 @@ describe('uiActionRecorder', () => {
     { channel: 'tabs:openLearning', args: ['MPL'], refs: projectRefs },
     { channel: 'learning:teach', args: ['MPL', 'Learning/Security/xss.md'], refs: projectRefs },
     { channel: 'learning:fromFinding', args: ['t1', 'F1', 'now'], refs: tabRefs },
+    { channel: 'findings:apply', args: ['t1'], refs: tabRefs },
     { channel: 'tabs:close', args: ['t1', false], refs: tabRefs },
     { channel: 'tabs:resume', args: ['t1'], refs: tabRefs },
     { channel: 'app:discardKept', args: ['t1'], refs: tabRefs },

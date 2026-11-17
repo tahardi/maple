@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { Fetched } from '@shared/types/app/fetched';
 import type { FindingsFile } from '@shared/types/findings/findingsFile';
 import { applyDecision, applyOverride } from '@shared/findings/applyDecision';
+import { awaitingHandover } from '@shared/findings/awaitingHandover';
+import { applyDecisionsPrompt } from '@shared/prompts/applyDecisionsPrompt';
 import { errorText } from '@shared/errors/errorText';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { readFindings, readFindingsWithJson } from '@main/findings/readFindings';
@@ -9,7 +11,7 @@ import { queueFindings } from '@main/findings/queueFindings';
 import { saveFindings } from '@main/findings/saveFindings';
 import { readDecisions } from '@main/findings/decisions/readDecisions';
 import { saveDecisions } from '@main/findings/decisions/saveDecisions';
-import { findingFingerprint } from '@main/findings/decisions/findingFingerprint';
+import { recordsOf } from '@main/findings/decisions/recordsOf';
 import { trustDecisions } from '@main/findings/decisions/trustDecisions';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
 import type { IpcDeps } from './index';
@@ -38,6 +40,7 @@ export function registerFindings(
     operation: string,
     doing: string,
     edit: (file: FindingsFile) => FindingsFile,
+    after: (key: string) => void = () => undefined,
   ): Promise<void> => {
     try {
       const key = sessions.get(tabId)?.cardKey ?? null;
@@ -56,24 +59,11 @@ export function registerFindings(
         if (file.card !== key) {
           throw new Error(`${doing}: ${key}.json is for ${file.card}`);
         }
-        if (file.resume?.round === file.round) {
-          throw new Error(`${doing}: Claude is applying your decisions`);
-        }
         const edited = edit(await trusted(file, key));
-        await saveFindings(findingsDir, edited, json);
-        await saveDecisions(
-          decisionsDir,
-          key,
-          edited.findings
-            .filter((f) => f.decision !== null || f.severityOverride !== null)
-            .map((f) => ({
-              id: f.id,
-              identity: f.identity,
-              decision: f.decision,
-              severityOverride: f.severityOverride,
-              fingerprint: findingFingerprint(f),
-            })),
-        );
+        const findings = edited.findings.map((f) => ({ ...f, handedOver: undefined }));
+        await saveFindings(findingsDir, { ...edited, findings }, json);
+        await saveDecisions(decisionsDir, key, recordsOf(edited));
+        after(key);
       });
     } catch (err) {
       logger.warn('findings', 'failed', { operation, tabId, error: errorText(err) });
@@ -108,6 +98,26 @@ export function registerFindings(
   handle('findings', 'decide', z.tuple([tabIdArg, findingIdArg, decisionArg]), (tabId, id, decision) =>
     change(tabId, 'findings:decide', 'deciding finding', (file) =>
       applyDecision(file, id, decision, new Date().toISOString()),
+    ),
+  );
+
+  handle('findings', 'apply', z.tuple([tabIdArg]), (tabId) =>
+    change(
+      tabId,
+      'findings:apply',
+      'applying decisions',
+      (file) => {
+        if (!sessions.isAlive(tabId)) {
+          throw new Error('applying decisions: the session is not running');
+        }
+        if (!file.findings.some(awaitingHandover)) {
+          throw new Error('applying decisions: nothing to hand over');
+        }
+        return { ...file, findings: file.findings.map((f) => (awaitingHandover(f) ? { ...f, handedOver: true } : f)) };
+      },
+      (key) => {
+        sessions.sendPrompt(tabId, applyDecisionsPrompt(key));
+      },
     ),
   );
 
