@@ -92,13 +92,7 @@ export function FindingCard({ tabId, finding, working, applying, lessons, onColl
             <strong>{`Recommended: ${DECISION_LABELS[recommend.decision]}.`}</strong> <span>{recommend.why}</span>
           </p>
         )}
-        <DecisionButtons
-          tabId={tabId}
-          finding={finding}
-          recommended={recommend?.decision ?? null}
-          working={working}
-          applying={applying}
-        />
+        <DecisionButtons tabId={tabId} finding={finding} working={working} applying={applying} />
         <LearnButtons tabId={tabId} finding={finding} working={working} lessons={lessons} />
       </div>
       <details className={styles.part}>
