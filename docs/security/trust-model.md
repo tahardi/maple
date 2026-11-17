@@ -101,6 +101,7 @@ Risks accepted from findings:
 
 - Forced sandbox can still be widened by a worktree's own Claude settings or by editing the shared hooks file (MPL-392 F1): We only have to live with this shortcoming until we have Xena in-place to sandbox Claude
 - A decided finding's likelihood, attacker, or recommendation can change while Taylor's decision stays (MPL-419 F1): Those fields are known to not be trusted. We fingerprint what we can control
+- Sessions can write Maple's decisions record directly and give it a matching fingerprint (MPL-419 F3): This is the known gap, accepted until Xena, that lets sessions write anywhere Taylor can. The fingerprint method is public and has no secret, so only moving sessions into the VM closes it.
 
 ## Severity Overrides
 
