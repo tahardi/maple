@@ -26,6 +26,7 @@ export function applyDecision(
   return update(file, id, 'deciding finding', (f) => ({
     ...f,
     decision: decision === null ? null : { ...decision, decidedAt: now },
+    handedOver: false,
   }));
 }
 

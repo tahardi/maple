@@ -220,7 +220,9 @@ user switches away while it is still `queued`.
   folder that sessions can write (`src/main/findings/decisions/`). Maple shows a decision or override only when this
   record holds it for the same finding id and identity and the same fingerprint: a sha256 of the canonical JSON of the
   fields Taylor judged (severity, title, headline, what, how, impact, defense, chips, visual). One a session writes
-  into a findings file is ignored, and a decided finding whose judged text changes shows as undecided again.
+  into a findings file is ignored, and a decided finding whose judged text changes shows as undecided again. Each
+  record also holds `handedOver`, set only by Apply decisions and cleared when Taylor changes or clears that decision;
+  Maple never reads or writes `handedOver` in the findings file.
 - `electron/`: Electron's own data, only when `MAPLE_CONFIG_DIR` is set.
 
 `config.json` and `state.json` each carry a format `version`; a file without one counts as version 1. `state.json` is
@@ -236,6 +238,10 @@ Outside it: the Jira credentials file at `MAPLE_JIRA_ENV` (default `~/.config/ji
 
 Terms are sorted A to Z. Dot states use the code's names, with the on-screen label beside them.
 
+- **Apply decisions**: the button at the top of a card's Findings tab, shown while any decided finding is not yet
+  handed over and not marked applied. It marks those findings handed over in Maple's decisions record and sends the
+  card's session `Run the "Apply Finding Decisions" steps from the /card skill for <KEY>.`, the only way Maple asks
+  Claude to act on decisions. It is disabled while Claude is working or the session is not running.
 - **Auto-sync**: Maple's check that the active card tab's open PR conflicts with main, after which it asks Claude to
   merge main. See sync state.
 - **Card**: a Jira issue, such as `MPL-277`. A card tab runs one Claude session for one card.

@@ -6,7 +6,7 @@ import { finding, glance } from '@renderer/testing/findingsFixture';
 import { FindingCard } from './FindingCard';
 
 function show(given: Finding) {
-  render(<FindingCard tabId="t1" finding={given} working={false} applying={false} lessons={[]} onCollapse={vi.fn()} />);
+  render(<FindingCard tabId="t1" finding={given} working={false} lessons={[]} onCollapse={vi.fn()} />);
 }
 
 function fact(term: string): string | null {
@@ -88,7 +88,7 @@ describe('FindingCard', () => {
     // given
     // when
     const { container } = render(
-      <FindingCard tabId="t1" finding={finding()} working={false} applying={false} lessons={[]} onCollapse={vi.fn()} />,
+      <FindingCard tabId="t1" finding={finding()} working={false} lessons={[]} onCollapse={vi.fn()} />,
     );
     // then
     const details = container.querySelector('details');

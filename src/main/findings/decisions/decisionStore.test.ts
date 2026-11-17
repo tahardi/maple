@@ -12,6 +12,7 @@ const record: StoredDecision = {
   decision: { kind: 'fix-later', reason: null, decidedAt: '2026-11-13T12:00:00.000Z' },
   severityOverride: 'medium',
   fingerprint: 'a'.repeat(64),
+  handedOver: true,
 };
 
 describe('decision store', () => {
@@ -49,7 +50,18 @@ describe('decision store', () => {
     // when
     const got = await readDecisions(dir, 'MPL-1');
     // then
-    expect(got).toEqual([{ ...record, fingerprint: null }]);
+    expect(got).toEqual([{ ...record, fingerprint: null, handedOver: false }]);
+  });
+
+  test('reads a record saved before handovers as not handed over', async () => {
+    // given
+    const { id, identity, decision, severityOverride, fingerprint } = record;
+    const old = { id, identity, decision, severityOverride, fingerprint };
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify([old]));
+    // when
+    const got = await readDecisions(dir, 'MPL-1');
+    // then
+    expect(got).toEqual([{ ...record, handedOver: false }]);
   });
 
   test('replaces the saved decisions', async () => {

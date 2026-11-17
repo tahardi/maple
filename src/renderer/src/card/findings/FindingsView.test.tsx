@@ -176,6 +176,24 @@ describe('FindingsView', () => {
     expect(texts[1]).toContain('medium one');
   });
 
+  test.each([
+    { name: 'a decided finding is not handed over', given: [finding({ decision: decided })], want: true },
+    {
+      name: 'only handed-over findings are decided',
+      given: [finding({ decision: decided, handedOver: true }), finding({ id: 'F2' })],
+      want: false,
+    },
+    { name: 'only undecided findings', given: [finding()], want: false },
+    { name: 'the decided finding is marked applied', given: [finding({ decision: decided, applied })], want: false },
+  ])('shows Apply decisions: $want when $name', ({ given, want }) => {
+    // given
+    const file = findingsFile(given);
+    // when
+    render(<FindingsView tabId="t1" file={file} error={null} />);
+    // then
+    expect(screen.queryByRole('button', { name: 'Apply decisions' }) !== null).toBe(want);
+  });
+
   test('shows the read error in a notice', () => {
     // given
     const error = 'reading findings: MPL-20.json is from a newer Maple';
@@ -196,10 +214,10 @@ describe('FindingsView', () => {
   test.each([
     { name: 'the tab is working', dot: 'working' as const, resume: null, reason: 'Claude is working' },
     {
-      name: 'Claude is applying this round',
+      name: 'a resume stamp for this round',
       dot: 'idle' as const,
       resume: { round: 1, sentAt: '2026-11-12T12:10:00.000Z' },
-      reason: 'Claude is applying your decisions',
+      reason: null,
     },
     { name: 'an older round was resumed', dot: 'idle' as const, resume: { round: 0, sentAt: '' }, reason: null },
   ])('locks the controls when $name', ({ dot, resume, reason }) => {

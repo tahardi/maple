@@ -9,6 +9,7 @@ export type FindingsApi = {
   get(tabId: string): Promise<Fetched<FindingsFile>>;
   decide(tabId: string, findingId: string, decision: DecisionInput | null): Promise<void>;
   override(tabId: string, findingId: string, severity: Severity | null): Promise<void>;
+  apply(tabId: string): Promise<void>;
   onChanged(cb: () => void): Unsubscribe;
 };
 
@@ -16,5 +17,6 @@ export const FINDINGS_CHANNELS = {
   get: 'invoke',
   decide: 'invoke',
   override: 'invoke',
+  apply: 'invoke',
   onChanged: 'event',
 } as const satisfies { [M in keyof FindingsApi]: ChannelKind };

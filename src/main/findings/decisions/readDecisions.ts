@@ -24,6 +24,7 @@ const decisionsSchema: z.ZodType<StoredDecision[]> = z
         .nullable(),
       severityOverride: z.enum(['high', 'medium', 'low']).nullable(),
       fingerprint: z.string().max(64).nullable().default(null),
+      handedOver: z.boolean().default(false),
     }),
   )
   .max(500);
