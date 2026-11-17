@@ -58,6 +58,19 @@ describe('DecisionButtons', () => {
     expect(within(dialog).getByRole('textbox', { name: 'Reason' })).toHaveValue(value);
   });
 
+  test("confirming the prefilled box saves Claude's reason", async () => {
+    // given
+    const { decide } = fakeFindings();
+    const given = finding({ recommend: { decision: 'accept-risk', why: 'Only Taylor can reach this.' } });
+    render(<DecisionButtons tabId="t1" finding={given} working={false} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Accept risk' }));
+    const dialog = screen.getByRole('dialog', { name: 'Accept risk' });
+    // when
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Accept risk' }));
+    // then
+    expect(decide).toHaveBeenCalledWith('t1', 'F1', { kind: 'accept-risk', reason: 'Only Taylor can reach this.' });
+  });
+
   test('draws no decision as primary', () => {
     // given
     fakeFindings();
