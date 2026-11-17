@@ -3,6 +3,7 @@ import { errorText } from '@shared/errors/errorText';
 import { Button } from '@renderer/shell/blocks/Button';
 import { Notice } from '@renderer/shell/blocks/Notice';
 import { useMaple } from '@renderer/store';
+import styles from './ApplyDecisionsButton.module.css';
 
 export function ApplyDecisionsButton({ tabId }: { tabId: string }) {
   const alive = useMaple((s) => tabId in s.statuses && s.statuses[tabId].sessionAlive);
@@ -24,7 +25,7 @@ export function ApplyDecisionsButton({ tabId }: { tabId: string }) {
   };
 
   return (
-    <div>
+    <div className={styles.apply}>
       <Button
         label="Apply decisions"
         variant="primary"
