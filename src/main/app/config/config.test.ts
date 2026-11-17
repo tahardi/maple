@@ -416,6 +416,11 @@ describe('loadConfig', () => {
     },
     { name: 'bad user', remote: { ...vmRemote, user: 'Dev!' }, want: { error: 'remote.user: ' } },
     {
+      name: 'knownHostsPath other than the Xena pin',
+      remote: { ...vmRemote, knownHostsPath: '/tmp/known_hosts' },
+      want: { error: 'remote.knownHostsPath: must be the Xena pinned host key file at ~/.config/xena/known_hosts' },
+    },
+    {
       name: 'vaultSocket other than the gateway',
       remote: { ...vmRemote, vaultSocket: '/run/docker.sock' },
       want: { error: 'remote.vaultSocket: must be the Xena vault gateway at ~/.local/state/xena/vault.sock' },

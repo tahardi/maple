@@ -34,12 +34,18 @@ const repoSchema = z
   .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..'), 'must be owner/name');
 
 const VAULT_SOCKET = '~/.local/state/xena/vault.sock';
+const KNOWN_HOSTS = '~/.config/xena/known_hosts';
 
 const remoteSchema = z.object({
   host: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9.-]*$/),
   user: z.string().regex(/^[a-z_][a-z0-9_-]*$/),
   keyPath: z.string().min(1),
-  knownHostsPath: z.string().min(1),
+  knownHostsPath: z
+    .string()
+    .refine(
+      (path) => expandHome(path) === expandHome(KNOWN_HOSTS),
+      `must be the Xena pinned host key file at ${KNOWN_HOSTS}`,
+    ),
   vaultSocket: z
     .string()
     .refine(
