@@ -30,10 +30,8 @@ export function shellQuote(arg: string): string {
   return `'${arg.replaceAll("'", "'\\''")}'`;
 }
 
-export function remoteCommand(cmd: string[], cwd?: string, env?: Record<string, string>): string {
-  const vars = Object.entries(env ?? {}).map(([key, value]) => shellQuote(`${key}=${value}`));
-  const words = [...(vars.length ? ['env', ...vars] : []), ...cmd.map(shellQuote)];
-  const run = `exec ${words.join(' ')}`;
+export function remoteCommand(cmd: string[], cwd?: string): string {
+  const run = `exec ${cmd.map(shellQuote).join(' ')}`;
   return cwd === undefined ? run : `cd ${shellQuote(cwd)} && ${run}`;
 }
 
@@ -50,15 +48,16 @@ export class SshRunner implements Runner {
   }
 
   spawnPty(cmd: string[], opts: PtyOptions): IPty {
+    const sendEnv = Object.keys(opts.env).flatMap((key) => ['-o', `SendEnv=${key}`]);
     return this.deps.spawnPty(
       'ssh',
-      [...this.base(), '-t', this.target, '--', remoteCommand(cmd, opts.cwd, opts.env)],
+      [...this.base(), ...sendEnv, '-t', this.target, '--', remoteCommand(cmd, opts.cwd)],
       {
         name: 'xterm-256color',
         cols: opts.cols,
         rows: opts.rows,
         cwd: homedir(),
-        env: { ...parentEnv(), TERM: 'xterm-256color' },
+        env: { ...parentEnv(), ...opts.env, TERM: 'xterm-256color' },
       },
     );
   }

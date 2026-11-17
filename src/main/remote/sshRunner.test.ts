@@ -101,19 +101,13 @@ describe('shellQuote', () => {
 
 describe('remoteCommand', () => {
   test.each([
-    { name: 'plain', cwd: undefined, env: undefined, want: "exec 'git' 'status'" },
-    { name: 'cwd', cwd: '/home/dev/x', env: undefined, want: "cd '/home/dev/x' && exec 'git' 'status'" },
-    {
-      name: 'cwd and env',
-      cwd: '/home/dev/x',
-      env: { MAPLE_TAB_ID: 't1' },
-      want: "cd '/home/dev/x' && exec env 'MAPLE_TAB_ID=t1' 'git' 'status'",
-    },
-  ])('builds the $name form', ({ cwd, env, want }) => {
+    { name: 'plain', cwd: undefined, want: "exec 'git' 'status'" },
+    { name: 'cwd', cwd: '/home/dev/x', want: "cd '/home/dev/x' && exec 'git' 'status'" },
+  ])('builds the $name form', ({ cwd, want }) => {
     // given
     const cmd = ['git', 'status'];
     // when
-    const text = remoteCommand(cmd, cwd, env);
+    const text = remoteCommand(cmd, cwd);
     // then
     expect(text).toBe(want);
   });
@@ -202,24 +196,36 @@ describe('SshRunner', () => {
     await expect(result).rejects.toThrow('reading /home/dev/f: cat: /home/dev/f: Permission denied');
   });
 
-  test('spawnPty opens a remote tty with the env in the command', () => {
+  test('spawnPty sends env values through the ssh environment, never the command line', () => {
     // given
     const spawnPty = vi.fn<typeof ptySpawn>(() => ({}) as IPty);
     const ssh = new SshRunner(remote, configDir, { spawn: fakeSpawn(), spawnPty });
+    const env = { MAPLE_TAB_ID: 't1', JIRA_API_TOKEN: 'secret-token' };
     // when
-    ssh.spawnPty(['tmux', 'new-session'], { cwd: '/home/dev/x', env: { MAPLE_TAB_ID: 't1' }, cols: 120, rows: 40 });
+    ssh.spawnPty(['tmux', 'new-session'], { cwd: '/home/dev/x', env, cols: 120, rows: 40 });
     // then
     expect(spawnPty).toHaveBeenCalledWith(
       'ssh',
-      [...BASE, '-t', TARGET, '--', "cd '/home/dev/x' && exec env 'MAPLE_TAB_ID=t1' 'tmux' 'new-session'"],
+      [
+        ...BASE,
+        '-o',
+        'SendEnv=MAPLE_TAB_ID',
+        '-o',
+        'SendEnv=JIRA_API_TOKEN',
+        '-t',
+        TARGET,
+        '--',
+        "cd '/home/dev/x' && exec 'tmux' 'new-session'",
+      ],
       {
         name: 'xterm-256color',
         cols: 120,
         rows: 40,
         cwd: homedir(),
-        env: expect.objectContaining({ TERM: 'xterm-256color' }) as unknown,
+        env: expect.objectContaining({ ...env, TERM: 'xterm-256color' }) as unknown,
       },
     );
+    expect(JSON.stringify(spawnPty.mock.calls[0][1])).not.toContain('secret-token');
   });
 
   test('follow tails the VM file from its end', async () => {
