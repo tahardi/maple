@@ -1,3 +1,5 @@
+import { scrubSecrets } from '@main/app/log/scrubSecrets';
+
 type AdfInline = { type: 'text'; text: string } | { type: 'hardBreak' };
 
 type AdfBlock =
@@ -7,18 +9,9 @@ type AdfBlock =
 
 export type AdfDoc = { version: 1; type: 'doc'; content: AdfBlock[] };
 
-const TOKEN_SHAPES = /\b(?:gh[po]_[A-Za-z0-9]+|github_pat_\w+|sk-ant-[\w-]+)/g;
-
 export function logTail(text: string, lines: number, secrets: readonly string[], maxChars = Infinity): string {
-  const given = secrets.filter((s) => s !== '');
-  const encoded = given.flatMap((a) =>
-    given.filter((b) => b !== a).map((b) => Buffer.from(`${a}:${b}`).toString('base64')),
-  );
-  let tail = text.replace(/\n$/, '').split('\n').slice(-lines).join('\n');
-  for (const secret of [...encoded, ...given]) {
-    tail = tail.replaceAll(secret, '[redacted]');
-  }
-  return capChars(tail.replace(TOKEN_SHAPES, '[redacted]'), maxChars);
+  const tail = text.replace(/\n$/, '').split('\n').slice(-lines).join('\n');
+  return capChars(scrubSecrets(tail, secrets), maxChars);
 }
 
 function capChars(text: string, maxChars: number): string {

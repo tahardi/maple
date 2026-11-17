@@ -1,4 +1,4 @@
-import type { VaultNote } from '@shared/types/files';
+import type { VaultNote } from '@shared/types/files/vaultNote';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
 import { useVault } from './useVault';

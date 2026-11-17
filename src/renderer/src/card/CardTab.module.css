@@ -35,14 +35,14 @@
 
 .terminalBar {
   display: flex;
+  gap: var(--space-1);
   justify-content: flex-end;
-  padding: 2px 8px;
+  padding: 2px var(--space-2);
   background: var(--bg-raised);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--divider);
 }
 
 .terminal {
-  height: 35%;
   flex-shrink: 0;
 }
 
@@ -53,19 +53,7 @@
   min-height: 0;
 }
 
-.divider {
-  width: 4px;
-  cursor: col-resize;
-  background: var(--border);
-}
-
 .waiting {
-  padding: 12px;
+  padding: var(--space-3);
   color: var(--text-muted);
-}
-
-.approveError {
-  padding: 8px 12px;
-  background: var(--bg-raised);
-  color: var(--danger);
 }

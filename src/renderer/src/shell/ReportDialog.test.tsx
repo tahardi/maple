@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
 import { ReportDialog } from './ReportDialog';
@@ -76,7 +76,9 @@ describe('ReportDialog', () => {
 
   test('shows the error and keeps what was typed when filing fails', async () => {
     // given
-    const report = vi.fn(() => Promise.reject(new Error('filing report: Jira returned 400')));
+    const report = vi.fn(() =>
+      Promise.reject(new Error("Error invoking remote method 'jira:report': Error: filing report: Jira returned 400")),
+    );
     fakeMaple({ jira: { report } });
     renderDialog();
     await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), 'Crash');
@@ -85,13 +87,17 @@ describe('ReportDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
     // then
     expect(await screen.findByRole('alert')).toHaveTextContent('filing report: Jira returned 400');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Error invoking remote method');
     expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Crash');
     expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('On start');
     expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
   });
 
   test.each([
-    { name: 'Escape', close: () => userEvent.keyboard('{Escape}') },
+    {
+      name: 'the cancel event (Escape)',
+      close: () => fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true })),
+    },
     { name: 'Cancel', close: () => userEvent.click(screen.getByRole('button', { name: 'Cancel' })) },
   ])('$name closes it', async ({ close }) => {
     // given
@@ -101,5 +107,39 @@ describe('ReportDialog', () => {
     await close();
     // then
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  test('focuses Title when it opens', () => {
+    // given
+    fakeMaple();
+    // when
+    renderDialog();
+    // then
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveFocus();
+  });
+
+  test('Submit reads Submitting… while filing', async () => {
+    // given
+    fakeMaple({ jira: { report: vi.fn(() => new Promise<never>(() => undefined)) } });
+    renderDialog();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), 'Crash');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    // then
+    const button = screen.getByRole('button', { name: 'Submitting…' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
+  });
+
+  test('a failed filing brings Submit back', async () => {
+    // given
+    fakeMaple({ jira: { report: vi.fn(() => Promise.reject(new Error('filing report: offline'))) } });
+    renderDialog();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), 'Crash');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent('filing report: offline');
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
   });
 });

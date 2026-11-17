@@ -1,13 +1,21 @@
+import type { Runner } from '@main/remote/runner';
 import type { BrowserWindow } from 'electron';
-import type { MapleConfig, ProjectConfig } from '@shared/types/config';
-import type { Dot } from '@shared/types/tabs';
-import type { SessionManager } from '@main/sessions/sessions';
-import type { StatusEngine } from '@main/sessions/status';
-import type { Terminals } from '@main/sessions/terminals';
-import type { ZoomChange } from '@main/app/zoom';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { PrPoller } from '@main/github/PrPoller';
+import type { SessionManager } from '@main/sessions/SessionManager';
+import type { StartQueue } from '@main/sessions/StartQueue';
+import type { StatusEngine } from '@main/sessions/StatusEngine';
+import type { Terminals } from '@main/sessions/Terminals';
+import type { JiraClient } from '@main/jira/JiraClient';
+import type { JiraCreds } from '@main/jira/readCreds';
+import type { ZoomChange } from '@main/app/window/zoom/zoom';
 import { registerApp } from './app';
 import { registerConfig } from './config';
+import { registerFindings } from './findings';
 import { registerJira } from './jira';
+import { registerLearning } from './learning';
 import { registerPr } from './pr';
 import { registerPreflight } from './preflight';
 import { registerRepo } from './repo';
@@ -32,6 +40,15 @@ export type IpcDeps = {
   lastProject: () => Promise<string | null>;
   setSeen: (seen: Record<string, Dot>) => Promise<void>;
   seen: () => Promise<Record<string, Dot>>;
+  startQueue: StartQueue;
+  prs: Pick<PrPoller, 'latest' | 'refresh'>;
+  jira: Promise<JiraClient>;
+  jiraCreds: Promise<JiraCreds>;
+  watchVault: (dir: string) => void;
+  findingsDir: string;
+  decisionsDir: string;
+  runner: Runner;
+  home: string;
 };
 
 const registrars: readonly ((deps: IpcDeps) => void)[] = [
@@ -43,18 +60,14 @@ const registrars: readonly ((deps: IpcDeps) => void)[] = [
   registerTerminal,
   registerRepo,
   registerVault,
+  registerLearning,
   registerPr,
+  registerFindings,
   registerApp,
 ];
 
 export function registerIpc(deps: IpcDeps): void {
   for (const register of registrars) {
     register(deps);
-  }
-}
-
-export function send(win: BrowserWindow | null, channel: string, payload: unknown): void {
-  if (win && !win.isDestroyed()) {
-    win.webContents.send(channel, payload);
   }
 }

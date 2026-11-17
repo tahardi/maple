@@ -1,0 +1,67 @@
+.worktree {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.button,
+.row {
+  color: var(--text);
+  cursor: pointer;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  background: var(--bg-raised);
+  border: none;
+  font: inherit;
+  text-align: left;
+}
+
+.button:hover {
+  background: var(--surface-hover);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arrow {
+  flex: none;
+  padding: 0 var(--space-2);
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: var(--z-menu);
+  min-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}
+
+.row {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.row:hover,
+.row[aria-checked='true'] {
+  background: var(--surface-hover);
+}

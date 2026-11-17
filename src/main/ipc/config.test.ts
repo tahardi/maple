@@ -1,12 +1,16 @@
+import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SessionManager } from '@main/sessions/sessions';
-import type { StatusEngine } from '@main/sessions/status';
-import type { Terminals } from '@main/sessions/terminals';
-import type { Fetched } from '@shared/types/app';
-import type { MapleConfig, ProjectConfig } from '@shared/types/config';
-import { notificationsDefault, projectByKey, registerConfig } from './config';
-import type { ZoomChange } from '@main/app/zoom';
+import type { SessionManager } from '@main/sessions/SessionManager';
+import type { StatusEngine } from '@main/sessions/StatusEngine';
+import type { Terminals } from '@main/sessions/Terminals';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import { registerConfig } from './config';
+import type { ZoomChange } from '@main/app/window/zoom/zoom';
+import type { StartQueue } from '@main/sessions/StartQueue';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent) => Promise<unknown>;
 
@@ -19,13 +23,15 @@ const { handle, loadConfig, setAppMenu } = vi.hoisted(() => ({
         reload: () => Promise<unknown>,
         setNotifications: (on: boolean) => Promise<void>,
         setZoom: (change: ZoomChange) => Promise<void>,
+        reportBug: () => void,
+        showShortcuts: () => void,
       ) => void
     >(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('@main/app/config', () => ({ loadConfig }));
-vi.mock('@main/app/menu', () => ({ setAppMenu }));
+vi.mock('@main/app/config/config', () => ({ loadConfig }));
+vi.mock('@main/app/window/menu', () => ({ setAppMenu }));
 
 const event = {} as IpcMainInvokeEvent;
 const sessions = {} as SessionManager;
@@ -39,14 +45,6 @@ const halo: ProjectConfig = {
   repo: 'tahardi/halo',
   otherRepos: [],
 };
-const dig: ProjectConfig = {
-  name: 'Dig Days',
-  jiraKey: 'DIG',
-  jiraBoardId: 8,
-  plannerDir: '/tmp/dig',
-  repo: 'tahardi/dig-days',
-  otherRepos: [],
-};
 const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleConfig> => ({
   data: {
     worktreesDir: '/tmp/wts',
@@ -55,8 +53,15 @@ const loaded = (projects: ProjectConfig[], notifications = true): Fetched<MapleC
     backgroundWaitMinutes: 15,
     eventKeepDays: 365,
     eventMaxMegabytes: 200,
+    stateBackups: 3,
+    startAtOnce: 4,
+    startGapSeconds: 90,
+    maxWorking: 8,
+    maxLoadPerCore: 0.8,
+    minFreeMegabytes: 2048,
     projects,
     actions: [],
+    remote: null,
   },
   error: null,
   fetchedAt: '2026-10-18T00:00:00.000Z',
@@ -87,6 +92,15 @@ function deps(window: () => BrowserWindow | null = () => null) {
     lastProject: () => Promise.resolve(null),
     setSeen: () => Promise.resolve(),
     seen: () => Promise.resolve({}),
+    startQueue: new EventEmitter() as StartQueue,
+    prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
+    jira: new Promise<never>(() => undefined),
+    jiraCreds: new Promise<never>(() => undefined),
+    watchVault: () => undefined,
+    findingsDir: '/tmp/maple/findings',
+    decisionsDir: '/tmp/maple/decisions',
+    runner: fakeRunner(),
+    home: '/home/dev',
   };
 }
 
@@ -168,82 +182,6 @@ describe('registerConfig', () => {
   });
 });
 
-describe('projectByKey', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  test.each([
-    { name: 'a known key', loads: [loaded([halo])], reload: false, key: 'HALO', want: halo },
-    { name: 'an unknown key', loads: [loaded([halo])], reload: false, key: 'NOPE', want: null },
-    { name: 'a failed load', loads: [first], reload: false, key: 'HALO', want: null },
-    { name: 'a reloaded config', loads: [loaded([halo]), loaded([dig])], reload: true, key: 'DIG', want: dig },
-  ])('returns the project for $name', async ({ loads, reload, key, want }) => {
-    // given
-    loadConfig.mockReset();
-    loads.forEach((result) => loadConfig.mockResolvedValueOnce(result));
-    registerConfig(deps());
-    if (reload) {
-      await handler('config:reload')(event);
-    }
-    // when
-    const got = await projectByKey(key);
-    // then
-    expect(got).toEqual(want);
-  });
-
-  test('returns null before the config is registered', async () => {
-    // given
-    vi.resetModules();
-    const fresh = await import('./config');
-    // when
-    const got = await fresh.projectByKey('HALO');
-    // then
-    expect(got).toBeNull();
-    expect(loadConfig).not.toHaveBeenCalled();
-  });
-});
-
-describe('notificationsDefault', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  test.each([
-    { name: 'a config with notifications on', loads: [loaded([halo], true)], reload: false, want: true },
-    { name: 'a config with notifications off', loads: [loaded([halo], false)], reload: false, want: false },
-    { name: 'a failed load', loads: [first], reload: false, want: true },
-    {
-      name: 'a reload that turns them off',
-      loads: [loaded([halo], true), loaded([halo], false)],
-      reload: true,
-      want: false,
-    },
-  ])('follows $name', async ({ loads, reload, want }) => {
-    // given
-    loadConfig.mockReset();
-    loads.forEach((result) => loadConfig.mockResolvedValueOnce(result));
-    registerConfig(deps());
-    if (reload) {
-      await handler('config:reload')(event);
-    }
-    // when
-    const got = await notificationsDefault();
-    // then
-    expect(got).toBe(want);
-  });
-
-  test('defaults to on before the config is registered', async () => {
-    // given
-    vi.resetModules();
-    const fresh = await import('./config');
-    // when
-    const got = await fresh.notificationsDefault();
-    // then
-    expect(got).toBe(true);
-  });
-});
-
 describe('registerConfig menu', () => {
   test('passes the notifications setter to the menu', async () => {
     // given
@@ -269,5 +207,31 @@ describe('registerConfig menu', () => {
     await setZoom('in');
     // then
     expect(d.setZoom).toHaveBeenCalledWith('in');
+  });
+
+  test('the menu report trigger tells the window', () => {
+    // given
+    vi.clearAllMocks();
+    loadConfig.mockResolvedValue(first);
+    const { win, sendToWindow } = fakeWindow(false);
+    registerConfig(deps(() => win));
+    const [[, , , reportBug]] = setAppMenu.mock.calls;
+    // when
+    reportBug();
+    // then
+    expect(sendToWindow).toHaveBeenCalledWith('app:reportRequested');
+  });
+
+  test('the menu shortcuts trigger tells the window', () => {
+    // given
+    vi.clearAllMocks();
+    loadConfig.mockResolvedValue(first);
+    const { win, sendToWindow } = fakeWindow(false);
+    registerConfig(deps(() => win));
+    const [[, , , , showShortcuts]] = setAppMenu.mock.calls;
+    // when
+    showShortcuts();
+    // then
+    expect(sendToWindow).toHaveBeenCalledWith('app:shortcutsRequested');
   });
 });

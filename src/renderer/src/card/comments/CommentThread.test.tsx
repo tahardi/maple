@@ -1,4 +1,4 @@
-import type { ReviewComment } from '@shared/types/github';
+import type { ReviewComment } from '@shared/types/github/reviewComment';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '@renderer/testing/fakeMaple';
@@ -108,15 +108,27 @@ describe('CommentThread', () => {
     expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled();
   });
 
-  test('disables Post while a post is in flight', async () => {
+  test.each([
+    { label: 'Post', busyLabel: 'Posting…', resolved: false, others: ['Resolve'] },
+    { label: 'Resolve', busyLabel: 'Resolving…', resolved: false, others: ['Post'] },
+    { label: 'Unresolve', busyLabel: 'Unresolving…', resolved: true, others: [] },
+  ])('$label reads $busyLabel while it runs', async ({ label, busyLabel, resolved, others }) => {
     // given
-    fakeMaple({ pr: { reply: vi.fn(() => new Promise<void>(() => undefined)) } });
-    render(<CommentThread tabId="t1" thread={thread} onPosted={vi.fn()} />);
+    const never = vi.fn(() => new Promise<void>(() => undefined));
+    fakeMaple({ pr: { reply: never, resolve: never } });
+    render(<CommentThread tabId="t1" thread={{ ...thread, resolved }} onPosted={vi.fn()} />);
+    if (resolved) {
+      await userEvent.click(screen.getByRole('button', { name: 'Show' }));
+    } else {
+      await userEvent.type(screen.getByRole('textbox', { name: 'Reply' }), 'thanks');
+    }
     // when
-    await userEvent.type(screen.getByRole('textbox', { name: 'Reply' }), 'thanks');
-    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    await userEvent.click(screen.getByRole('button', { name: label }));
     // then
-    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: busyLabel })).toBeDisabled();
+    for (const other of others) {
+      expect(screen.getByRole('button', { name: other })).toBeDisabled();
+    }
   });
 
   test('shows the error and keeps the text when posting fails', async () => {
@@ -183,16 +195,6 @@ describe('CommentThread', () => {
     expect(onPosted).not.toHaveBeenCalled();
   });
 
-  test('disables Resolve while resolving', async () => {
-    // given
-    fakeMaple({ pr: { resolve: vi.fn(() => new Promise<void>(() => undefined)) } });
-    render(<CommentThread tabId="t1" thread={thread} onPosted={vi.fn()} />);
-    // when
-    await userEvent.click(screen.getByRole('button', { name: 'Resolve' }));
-    // then
-    expect(screen.getByRole('button', { name: 'Resolve' })).toBeDisabled();
-  });
-
   test('offers no Resolve without a GitHub thread', () => {
     // given
     fakeMaple();
@@ -200,6 +202,15 @@ describe('CommentThread', () => {
     render(<CommentThread tabId="t1" thread={{ ...thread, threadId: null }} onPosted={vi.fn()} />);
     // then
     expect(screen.queryByRole('button', { name: 'Resolve' })).not.toBeInTheDocument();
+  });
+
+  test('a resolved thread shows a success Resolved badge', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<CommentThread tabId="t1" thread={{ ...thread, resolved: true }} onPosted={vi.fn()} />);
+    // then
+    expect(screen.getByText('Resolved')).toHaveAttribute('data-tone', 'success');
   });
 
   test('collapses a resolved thread until shown', async () => {

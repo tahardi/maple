@@ -122,6 +122,6 @@ describe('LineComment', () => {
     await userEvent.type(screen.getByRole('textbox'), 'why?');
     await userEvent.click(screen.getByRole('button', { name: 'Post' }));
     // then
-    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Posting…' })).toBeDisabled();
   });
 });

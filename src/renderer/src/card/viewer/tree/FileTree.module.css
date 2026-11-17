@@ -1,0 +1,89 @@
+.tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.toggle {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  font-size: var(--font-md);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px var(--space-2);
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}
+
+.selected {
+  background: var(--accent);
+}
+
+.target {
+  box-shadow: inset 3px 0 0 var(--accent-strong);
+  background: var(--surface-hover);
+}
+
+.dir {
+  font-weight: 600;
+}
+
+.dir::before {
+  content: '▾ ';
+}
+
+.row[aria-expanded='false'] .dir::before {
+  content: '▸ ';
+}
+
+.marks {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.marks input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.badge {
+  font-weight: 700;
+  padding: 0 var(--space-1);
+}
+
+.A {
+  color: var(--success);
+}
+
+.M {
+  color: var(--accent-strong);
+}
+
+.D {
+  color: var(--danger);
+}
+
+.R {
+  color: var(--link);
+}
+
+.commented {
+  margin-left: auto;
+  font-size: var(--font-xs);
+}

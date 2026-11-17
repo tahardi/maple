@@ -1,16 +1,23 @@
-import type { Card } from '@shared/types/jira';
-import type { TabState } from '@shared/types/tabs';
-import { useCallback, useState } from 'react';
+import type { Card } from '@shared/types/jira/card';
+import type { TabState } from '@shared/types/tabs/tabState';
+import { useCallback, useRef, useState } from 'react';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
-import { Backlog } from './Backlog';
+import { Backlog } from '@renderer/home/backlog/Backlog';
 import { Board } from './Board';
 import { CardDetail } from './CardDetail';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './HomeTab.module.css';
 import { PlannerPane } from './PlannerPane';
-import { readyToStart } from './readyToStart';
-import { useBacklog } from './useBacklog';
+import { readyToStart } from '@renderer/home/startQueue/readyToStart';
+import { StartQueue } from '@renderer/home/startQueue/StartQueue';
+import { useBacklog } from '@renderer/home/backlog/useBacklog';
 import { useSprint } from './useSprint';
+import { useStartQueue } from '@renderer/home/startQueue/useStartQueue';
+import { errorText } from '@shared/errors/errorText';
+import { SplitHandle } from '@renderer/shell/split/SplitHandle';
+import { splitSize } from '@renderer/shell/split/splitSize';
+import { useColumnDrag } from '@renderer/shell/split/useColumnDrag';
 
 type Props = { projectKey: string };
 
@@ -23,11 +30,6 @@ function staleMessage(fetchedAt: string | null): string {
   return `Jira unreachable, last updated ${pad(at.getHours())}:${pad(at.getMinutes())}`;
 }
 
-function failureMessage(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  return message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
-}
-
 function addBody(card: Card, sprintName: string): string {
   const blockers = card.blockedBy.filter((b) => b.status !== 'Done').map((b) => b.key);
   const blocked = blockers.length > 0 ? ` Blocked by ${blockers.join(', ')}.` : '';
@@ -38,15 +40,34 @@ export function HomeTab({ projectKey }: Props) {
   const { sprint, refresh: refreshSprint } = useSprint(projectKey);
   const { backlog, refresh: refreshBacklog } = useBacklog(projectKey);
   const tabs = useMaple((s) => s.tabs);
+  const queue = useStartQueue();
   const activate = useMaple((s) => s.activate);
+  const home = useRef<HTMLDivElement>(null);
+  const main = useRef<HTMLDivElement>(null);
+  const planner = useColumnDrag(home, {
+    storageKey: 'maple.split.homePlanner',
+    initial: 40,
+    min: 20,
+    max: 70,
+    toSize: (rect, p) =>
+      splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'x', edge: 'end', unit: '%', min: 20, max: 70 }),
+  });
+  const backlogDrag = useColumnDrag(main, {
+    storageKey: 'maple.split.homeBacklog',
+    initial: 40,
+    min: 10,
+    max: 80,
+    toSize: (rect, p) =>
+      splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'y', edge: 'end', unit: '%', min: 10, max: 80 }),
+  });
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [picked, setPicked] = useState<readonly string[]>([]);
-  const [startFailure, setStartFailure] = useState<string | null>(null);
   const [suggested, setSuggested] = useState<readonly string[]>([]);
   const [confirming, setConfirming] = useState<'accept' | 'acceptAndStart' | null>(null);
-  const [moveFailure, setMoveFailure] = useState<string | null>(null);
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
+  const [busyKeys, setBusyKeys] = useState<ReadonlySet<string>>(new Set());
+  const [batch, setBatch] = useState<'start' | 'accept' | 'acceptAndStart' | null>(null);
   const backlogCards = backlog?.data?.flatMap((g) => g.cards) ?? [];
   const backlogToDo = backlogCards.filter((c) => c.status === 'To Do');
   const accepting = backlogToDo.filter((c) => suggested.includes(c.key));
@@ -55,8 +76,13 @@ export function HomeTab({ projectKey }: Props) {
     (c) => c.status !== 'Done' && c.labels.includes('needs-refinement'),
   ).length;
   const toDo = sprint?.data?.cards.filter((c) => c.status === 'To Do') ?? [];
-  const selected = toDo.map((c) => c.key).filter((key) => picked.includes(key));
-  const openKeys = new Set(tabs.filter((t) => t.projectKey === projectKey).flatMap((t) => t.cardKey ?? []));
+  const queuedKeys = queue.cards.map((c) => c.cardKey);
+  const titles = new Map([...(sprint?.data?.cards ?? []), ...backlogCards].map((c) => [c.key, c.summary]));
+  const selected = toDo.map((c) => c.key).filter((key) => picked.includes(key) && !queuedKeys.includes(key));
+  const openKeys = new Set([
+    ...tabs.filter((t) => t.projectKey === projectKey).flatMap((t) => t.cardKey ?? []),
+    ...queuedKeys,
+  ]);
   const ready = readyToStart(toDo, openKeys);
   const sprintCard = sprint?.data?.cards.find((c) => c.key === detailKey) ?? null;
   const backlogCard = sprintCard ? null : (backlogCards.find((c) => c.key === detailKey) ?? null);
@@ -70,37 +96,70 @@ export function HomeTab({ projectKey }: Props) {
   };
   const select = (key: string) => {
     setDetailKey(key);
-    setFailure(null);
   };
-  const run = (action: Promise<TabState>) => {
+  const closeDetail = () => {
+    if (confirmKey === null && confirming === null) {
+      setDetailKey(null);
+    }
+  };
+  const markBusy = (keys: readonly string[], busy: boolean) => {
+    setBusyKeys((now) => {
+      const next = new Set(now);
+      for (const key of keys) {
+        if (busy) {
+          next.add(key);
+        } else {
+          next.delete(key);
+        }
+      }
+      return next;
+    });
+  };
+  const run = (key: string, action: Promise<TabState | null>) => {
+    markBusy([key], true);
     action
       .then((tab) => {
         setFailure(null);
-        activateTab(tab);
+        if (tab) {
+          activateTab(tab);
+        }
       })
       .catch((err: unknown) => {
-        setFailure(failureMessage(err));
+        setFailure(errorText(err));
+      })
+      .finally(() => {
+        markBusy([key], false);
       });
   };
   const toggle = (key: string) => {
     setPicked(selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key]);
   };
-  const start = async (keys: readonly string[]) => {
-    setStartFailure(null);
+  const start = async (keys: readonly string[]): Promise<readonly string[]> => {
+    setFailure(null);
+    markBusy(keys, true);
     const started: TabState[] = [];
-    for (const [i, key] of keys.entries()) {
-      try {
-        started.push(await window.maple.tabs.startCard(projectKey, key));
-      } catch (err: unknown) {
-        setStartFailure(`starting ${key}: ${failureMessage(err)}`);
-        setPicked(keys.slice(i));
-        return;
+    try {
+      for (const [i, key] of keys.entries()) {
+        try {
+          const tab = await window.maple.tabs.startCard(projectKey, key);
+          if (tab) {
+            started.push(tab);
+          }
+        } catch (err: unknown) {
+          setFailure(`starting ${key}: ${errorText(err)}`);
+          return keys.slice(i);
+        }
       }
+    } finally {
+      markBusy(keys, false);
     }
-    setPicked([]);
     if (started[0]) {
       activateTab(started[0]);
     }
+    return [];
+  };
+  const startSelected = async (keys: readonly string[]) => {
+    setPicked(await start(keys));
   };
 
   const onBatch = useCallback((keys: string[]) => {
@@ -109,23 +168,23 @@ export function HomeTab({ projectKey }: Props) {
   }, []);
   const accept = async (andStart: boolean) => {
     setConfirming(null);
-    setMoveFailure(null);
+    setFailure(null);
     const sprintId = sprint?.data?.id;
     if (sprintId === undefined) {
-      setMoveFailure('moving cards to sprint: no active sprint');
+      setFailure('moving cards to sprint: no active sprint');
       return;
     }
     const startKeys = [...selected, ...toAccept];
     try {
       await window.maple.jira.moveToSprint(sprintId, toAccept);
     } catch (err: unknown) {
-      setMoveFailure(failureMessage(err));
+      setFailure(errorText(err));
       return;
     }
     refreshSprint();
     refreshBacklog();
     if (andStart) {
-      await start(startKeys);
+      await startSelected(startKeys);
     }
   };
   const addToSprint = async (key: string, sprintId: number) => {
@@ -134,7 +193,7 @@ export function HomeTab({ projectKey }: Props) {
     try {
       await window.maple.jira.moveToSprint(sprintId, [key]);
     } catch (err: unknown) {
-      setFailure(failureMessage(err));
+      setFailure(errorText(err));
       return;
     }
     refreshSprint();
@@ -147,45 +206,68 @@ export function HomeTab({ projectKey }: Props) {
     : null;
 
   return (
-    <div className={styles.home} data-testid="home">
-      <div className={styles.main}>
-        {sprint && sprint.error !== null && (
-          <div role="status" className={styles.stale}>
-            {staleMessage(sprint.fetchedAt)}
-          </div>
+    <div ref={home} className={styles.home} data-testid="home">
+      <div ref={main} className={styles.main} data-testid="board-area" onPointerDown={closeDetail}>
+        {sprint === null && (
+          <p role="status" className={styles.empty}>
+            Loading sprint…
+          </p>
         )}
+        {sprint && sprint.error !== null && <Notice tone="warning">{staleMessage(sprint.fetchedAt)}</Notice>}
         {sprint?.data ? (
-          <Board sprint={sprint.data} selected={new Set(selected)} onSelect={select} onToggle={toggle} />
+          <Board
+            projectKey={projectKey}
+            sprint={sprint.data}
+            selected={new Set(selected)}
+            onSelect={select}
+            onToggle={toggle}
+            openKeys={openKeys}
+            starting={busyKeys}
+            onStart={(key) => {
+              void start([key]);
+            }}
+            queued={queuedKeys}
+            status={<StartQueue queue={queue} titles={titles} />}
+          />
         ) : (
           sprint?.error === null && <p className={styles.empty}>No active sprint</p>
         )}
-        {backlog?.data && <Backlog groups={backlog.data} highlighted={toAccept} onSelect={select} />}
+        {backlog?.data && (
+          <Backlog
+            groups={backlog.data}
+            highlighted={toAccept}
+            queued={queuedKeys}
+            onSelect={select}
+            drag={backlogDrag}
+          />
+        )}
+        {card && (
+          <CardDetail
+            card={card}
+            tab={tabFor(card.key)}
+            busy={busyKeys.has(card.key)}
+            onStart={() => {
+              void start([card.key]);
+            }}
+            onOpen={() => {
+              run(card.key, window.maple.tabs.openCard(projectKey, card.key));
+            }}
+            onGoTo={() => {
+              const tab = tabFor(card.key);
+              if (tab) {
+                activateTab(tab);
+              }
+            }}
+            onClose={closeDetail}
+            onAddToSprint={backlogCard ? onAddToSprint : undefined}
+            queuePlace={queuedKeys.includes(card.key) ? queuedKeys.indexOf(card.key) + 1 : undefined}
+          />
+        )}
       </div>
-      {card && (
-        <CardDetail
-          card={card}
-          tab={tabFor(card.key)}
-          failure={failure}
-          onStart={() => {
-            run(window.maple.tabs.startCard(projectKey, card.key));
-          }}
-          onOpen={() => {
-            run(window.maple.tabs.openCard(projectKey, card.key));
-          }}
-          onGoTo={() => {
-            const tab = tabFor(card.key);
-            if (tab) {
-              activateTab(tab);
-            }
-          }}
-          onClose={() => {
-            setDetailKey(null);
-          }}
-          onAddToSprint={backlogCard ? onAddToSprint : undefined}
-        />
-      )}
+      <SplitHandle drag={planner} axis="x" label="Resize planner" />
       <PlannerPane
         projectKey={projectKey}
+        width={planner.size}
         onBatch={onBatch}
         selected={selected}
         readyCount={ready.length}
@@ -193,11 +275,15 @@ export function HomeTab({ projectKey }: Props) {
         onSelectReady={() => {
           setPicked(ready.every((key) => selected.includes(key)) ? [] : [...new Set([...selected, ...ready])]);
         }}
-        onStart={() => void start(selected)}
+        onStart={() => {
+          setBatch('start');
+          void startSelected(selected).finally(() => {
+            setBatch(null);
+          });
+        }}
         onClear={() => {
           setPicked([]);
-          setStartFailure(null);
-          setMoveFailure(null);
+          setFailure(null);
         }}
         toAccept={toAccept}
         onAccept={() => {
@@ -206,14 +292,20 @@ export function HomeTab({ projectKey }: Props) {
         onAcceptAndStart={() => {
           setConfirming('acceptAndStart');
         }}
-        failure={moveFailure ?? startFailure}
+        failure={failure ?? queue.failure}
+        busy={batch}
       />
       {confirming && (
         <ConfirmDialog
           title={confirming === 'accept' ? 'Accept cards' : 'Accept and start cards'}
           body={`Move into ${sprint?.data?.name ?? 'the sprint'}: ${accepting.map((c) => `${c.key} ${c.summary}`).join('; ')}`}
           confirmLabel={confirming === 'accept' ? 'Move to sprint' : 'Move and start'}
-          onConfirm={() => void accept(confirming === 'acceptAndStart')}
+          onConfirm={() => {
+            setBatch(confirming);
+            void accept(confirming === 'acceptAndStart').finally(() => {
+              setBatch(null);
+            });
+          }}
           onCancel={() => {
             setConfirming(null);
           }}
@@ -224,7 +316,13 @@ export function HomeTab({ projectKey }: Props) {
           title="Add to sprint"
           body={addBody(confirmCard, activeSprint.name)}
           confirmLabel="Move to sprint"
-          onConfirm={() => void addToSprint(confirmCard.key, activeSprint.id)}
+          onConfirm={() => {
+            const key = confirmCard.key;
+            markBusy([key], true);
+            void addToSprint(key, activeSprint.id).finally(() => {
+              markBusy([key], false);
+            });
+          }}
           onCancel={() => {
             setConfirmKey(null);
           }}

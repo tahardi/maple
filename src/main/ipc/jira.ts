@@ -1,16 +1,20 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
-import type { BacklogGroup, Filed, Report, Sprint } from '@shared/types/jira';
-import type { Fetched } from '@shared/types/app';
-import type { ProjectConfig } from '@shared/types/config';
-import { JiraClient, jiraEnvPath, readCreds, type JiraCreds } from '@main/jira/jira';
-import { appLogger, logsDir, type Logger } from '@main/app/log';
+import type { BacklogGroup } from '@shared/types/jira/backlogGroup';
+import type { Filed } from '@shared/types/jira/filed';
+import type { Report } from '@shared/types/jira/report';
+import type { Sprint } from '@shared/types/jira/sprint';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import type { JiraCreds } from '@main/jira/readCreds';
+import { appLogger, logFailure, logsDir, type Logger } from '@main/app/log/log';
 import { logTail, reportDescription } from '@main/jira/report';
-import { SprintCache } from '@main/jira/sprintCache';
-import { removeSnapshots } from '@main/vault/snapshots';
+import { SprintCache } from '@main/jira/SprintCache';
 import type { IpcDeps } from './index';
-import { cardKeyArg, handle, projectKeyArg } from './validated';
+import { cardKeyArg, projectKeyArg } from './args';
+import { handle } from './handle';
+import { errorText } from '@shared/errors/errorText';
 
 type Caches = { sprint: SprintCache<Sprint>; backlog: SprintCache<BacklogGroup[]> };
 
@@ -21,19 +25,18 @@ const reportArg = z.object({
 });
 
 export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
-  const ready = readCreds(jiraEnvPath()).then(
-    (creds) => {
-      const client = new JiraClient(creds, fetch, logger);
+  const ready = deps.jira.then(
+    (client) => {
       const caches: Caches = {
         sprint: new SprintCache((p: ProjectConfig) => client.activeSprint(p.jiraBoardId)),
         backlog: new SprintCache((p: ProjectConfig) => client.backlog(p.jiraKey, p.jiraBoardId)),
       };
-      return { caches, client, creds, error: null };
+      return { caches, client, error: null };
     },
     (err: unknown) => {
-      const error = err instanceof Error ? err.message : String(err);
+      const error = errorText(err);
       logger.warn('jira', 'failed', { operation: 'readCreds', error });
-      return { caches: null, client: null, creds: null, error };
+      return { caches: null, client: null, error };
     },
   );
   const serve = async <T>(
@@ -56,59 +59,39 @@ export function registerJira(deps: IpcDeps, logger: Logger = appLogger): void {
     }
     return got;
   };
-  const removeDoneSnapshots = (sprint: Sprint) => {
-    for (const card of sprint.cards) {
-      const sessionId = card.status === 'Done' ? deps.sessions.sessionOf(card.key) : null;
-      if (sessionId !== null) {
-        removeSnapshots(sessionId).catch((err: unknown) => {
-          const error = err instanceof Error ? err.message : String(err);
-          logger.warn('vault', 'failed', { operation: 'removeSnapshots', args: [sessionId], error });
-        });
-      }
-    }
-  };
-  handle('jira:sprint', z.tuple([projectKeyArg]), async (projectKey) => {
-    const got = await serve(projectKey, 'sprint', 'activeSprint', (c) => c.sprint);
-    if (got.data !== null) {
-      removeDoneSnapshots(got.data);
-    }
-    return got;
-  });
-  handle('jira:backlog', z.tuple([projectKeyArg]), (projectKey) =>
+  handle('jira', 'sprint', z.tuple([projectKeyArg]), (projectKey) =>
+    serve(projectKey, 'sprint', 'activeSprint', (c) => c.sprint),
+  );
+  handle('jira', 'backlog', z.tuple([projectKeyArg]), (projectKey) =>
     serve(projectKey, 'backlog', 'backlog', (c) => c.backlog),
   );
   handle(
-    'jira:moveToSprint',
+    'jira',
+    'moveToSprint',
     z.tuple([z.number().int().positive(), z.array(cardKeyArg).min(1).max(50)]),
-    async (sprintId, keys) => {
-      const { client, error } = await ready;
-      if (!client) {
-        throw new Error(error);
-      }
-      try {
+    (sprintId, keys) =>
+      logFailure(logger, 'jira', { operation: 'jira:moveToSprint' }, async () => {
+        const { caches, client, error } = await ready;
+        if (!client) {
+          throw new Error(error);
+        }
         await client.moveToSprint(sprintId, keys);
-      } catch (err) {
-        logger.warn('jira', 'failed', {
-          operation: 'moveToSprint',
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw err;
-      }
-    },
+        caches.sprint.clear();
+        caches.backlog.clear();
+      }),
   );
-  handle('jira:report', z.tuple([reportArg]), async (report): Promise<Filed> => {
-    const jira = await ready;
-    try {
-      if (jira.client === null) {
-        throw new Error(jira.error);
+  handle('jira', 'report', z.tuple([reportArg]), (report) =>
+    logFailure(logger, 'jira', { operation: 'jira:report', kind: report.kind }, async (): Promise<Filed> => {
+      try {
+        const client = await deps.jira;
+        const filed = await client.createIssue(await reportIssue(report, await deps.jiraCreds));
+        logger.info('jira', 'filed', { key: filed.key, kind: report.kind });
+        return filed;
+      } catch (err) {
+        throw new Error(`filing report: ${errorText(err)}`, { cause: err });
       }
-      const filed = await jira.client.createIssue(await reportIssue(report, jira.creds));
-      logger.info('jira', 'filed', { key: filed.key, kind: report.kind });
-      return filed;
-    } catch (err) {
-      throw new Error(`filing report: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
-    }
-  });
+    }),
+  );
 }
 
 async function reportIssue(report: Report, creds: JiraCreds) {

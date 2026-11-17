@@ -1,10 +1,16 @@
+import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { Dot, TabState, TabStatus } from '@shared/types/tabs';
-import type { SessionManager } from '@main/sessions/sessions';
-import type { StatusEngine } from '@main/sessions/status';
-import type { Terminals } from '@main/sessions/terminals';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { KeptTab } from '@shared/types/tabs/keptTab';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
+import type { SessionManager } from '@main/sessions/SessionManager';
+import type { StatusEngine } from '@main/sessions/StatusEngine';
+import type { Terminals } from '@main/sessions/Terminals';
 import { registerApp } from './app';
+import type { StartQueue } from '@main/sessions/StartQueue';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
 type QuitEvent = { preventDefault: () => void };
@@ -19,10 +25,42 @@ const { handle, on, appOn, quit } = vi.hoisted(() => ({
 vi.mock('electron', () => ({ ipcMain: { handle, on }, app: { on: appOn, quit } }));
 
 const tabs: Record<string, TabState> = {
-  t1: { id: 't1', projectKey: 'DIG', kind: 'card', cardKey: 'DIG-44', sessionId: 's1', worktreePath: null },
-  t2: { id: 't2', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-12', sessionId: 's2', worktreePath: null },
-  t3: { id: 't3', projectKey: 'DIG', kind: 'card', cardKey: 'DIG-45', sessionId: 's3', worktreePath: null },
-  t4: { id: 't4', projectKey: 'DIG', kind: 'planner', cardKey: null, sessionId: 's4', worktreePath: null },
+  t1: {
+    id: 't1',
+    projectKey: 'DIG',
+    kind: 'card',
+    cardKey: 'DIG-44',
+    sessionId: 's1',
+    worktreePath: null,
+    worktreePaths: [],
+  },
+  t2: {
+    id: 't2',
+    projectKey: 'BEAR',
+    kind: 'card',
+    cardKey: 'BEAR-12',
+    sessionId: 's2',
+    worktreePath: null,
+    worktreePaths: [],
+  },
+  t3: {
+    id: 't3',
+    projectKey: 'DIG',
+    kind: 'card',
+    cardKey: 'DIG-45',
+    sessionId: 's3',
+    worktreePath: null,
+    worktreePaths: [],
+  },
+  t4: {
+    id: 't4',
+    projectKey: 'DIG',
+    kind: 'planner',
+    cardKey: null,
+    sessionId: 's4',
+    worktreePath: null,
+    worktreePaths: [],
+  },
 };
 
 function setup(
@@ -30,8 +68,10 @@ function setup(
   warnings: string[] = [],
   lastProject: string | null = 'MPL',
   seen: Record<string, Dot> = {},
+  kept: KeptTab[] = [],
 ) {
   const sendToWindow = vi.fn();
+  const discardKept = vi.fn();
   const setNotifications = vi.fn(() => Promise.resolve());
   const setLastProject = vi.fn(() => Promise.resolve());
   const setSeen = vi.fn(() => Promise.resolve());
@@ -47,7 +87,11 @@ function setup(
     window: () => ({ isDestroyed: () => false, webContents: { send: sendToWindow } }) as unknown as BrowserWindow,
     worktreeFor: () => null,
     project: () => Promise.resolve(null),
-    sessions: { get: (id: string) => tabs[id] ?? null } as unknown as SessionManager,
+    sessions: {
+      get: (id: string) => tabs[id] ?? null,
+      keptTabs: () => kept,
+      discardKept,
+    } as unknown as SessionManager,
     terminals: {} as Terminals,
     status: { statuses: () => statuses } as unknown as StatusEngine,
     setActiveTab: () => undefined,
@@ -59,6 +103,15 @@ function setup(
     lastProject: () => Promise.resolve(lastProject),
     setSeen,
     seen: () => Promise.resolve(seen),
+    startQueue: new EventEmitter() as StartQueue,
+    prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
+    jira: new Promise<never>(() => undefined),
+    jiraCreds: new Promise<never>(() => undefined),
+    watchVault: () => undefined,
+    findingsDir: '/tmp/maple/findings',
+    decisionsDir: '/tmp/maple/decisions',
+    runner: fakeRunner(),
+    home: '/home/dev',
   });
   const beforeQuit = appOn.mock.calls.find(([name]) => name === 'before-quit')?.[1];
   const confirmQuit = on.mock.calls.find(([name]) => name === 'app:confirmQuit')?.[1];
@@ -70,7 +123,7 @@ function setup(
     beforeQuit(event);
     return event;
   };
-  return { sendToWindow, setNotifications, setLastProject, setSeen, requestQuit, confirmQuit };
+  return { sendToWindow, setNotifications, setLastProject, setSeen, requestQuit, confirmQuit, discardKept };
 }
 
 describe('registerApp', () => {
@@ -86,6 +139,27 @@ describe('registerApp', () => {
     await call?.[1]({} as IpcMainInvokeEvent, on);
     // then
     expect(setNotifications).toHaveBeenCalledWith(on);
+  });
+
+  test('app:kept returns the kept tabs', async () => {
+    // given
+    const kept: KeptTab[] = [{ tab: tabs.t4, reason: 'project DIG is not in config' }];
+    setup({}, [], 'MPL', {}, kept);
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:kept');
+    // when
+    const got = await call?.[1]({} as IpcMainInvokeEvent);
+    // then
+    expect(got).toEqual(kept);
+  });
+
+  test('app:discardKept passes the tab id to the session manager', async () => {
+    // given
+    const { discardKept } = setup();
+    const call = handle.mock.calls.find(([channel]) => channel === 'app:discardKept');
+    // when
+    await call?.[1]({} as IpcMainInvokeEvent, 'old-1');
+    // then
+    expect(discardKept).toHaveBeenCalledWith('old-1');
   });
 
   test('app:setLastProject passes the key to the setter', async () => {

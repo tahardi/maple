@@ -1,39 +1,66 @@
-import type { Card } from '@shared/types/jira';
-import type { TabState } from '@shared/types/tabs';
-import { MarkdownText } from '../shell/MarkdownText';
+import type { Card } from '@shared/types/jira/card';
+import type { TabState } from '@shared/types/tabs/tabState';
+import { useEffect, useRef } from 'react';
+import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
 import { EpicLozenge } from './EpicLozenge';
+import { Badge } from '@renderer/shell/blocks/Badge';
+import { Button } from '@renderer/shell/blocks/Button';
 import styles from './CardDetail.module.css';
 
 type Props = {
   card: Card;
   tab: TabState | null;
-  failure: string | null;
+  busy: boolean;
   onStart: () => void;
   onOpen: () => void;
   onGoTo: () => void;
   onClose: () => void;
   onAddToSprint?: (() => void) | null;
+  queuePlace?: number;
 };
 
-function action(card: Card, tab: TabState | null, props: Props): { label: string; run: () => void } | null {
+type Action = { label: string; busyLabel?: string; run: () => void };
+
+function action(card: Card, tab: TabState | null, props: Props): Action | null {
   if (tab) {
     return { label: 'Go to tab', run: props.onGoTo };
   }
   if (card.status === 'To Do') {
-    return { label: 'Start', run: props.onStart };
+    return { label: 'Start', busyLabel: 'Starting…', run: props.onStart };
   }
   if (card.status === 'In Progress' || card.status === 'In Review') {
-    return { label: 'Open', run: props.onOpen };
+    return { label: 'Open', busyLabel: 'Opening…', run: props.onOpen };
   }
   return null;
 }
 
 export function CardDetail(props: Props) {
-  const { card, tab, failure, onClose, onAddToSprint } = props;
+  const { card, tab, busy, onClose, onAddToSprint, queuePlace } = props;
   const next = action(card, tab, props);
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const visible = ref.current?.closest('[hidden]') === null;
+      const dialogOpen = document.querySelector('dialog[open]') !== null;
+      if (e.key === 'Escape' && !e.defaultPrevented && visible && !dialogOpen) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
 
   return (
-    <aside className={styles.detail}>
+    <aside
+      ref={ref}
+      className={styles.detail}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+      }}
+    >
       <div className={styles.top}>
         <h3>{`${card.key} ${card.summary}`}</h3>
         <button className={styles.close} aria-label="Close details" title="Close details" onClick={onClose}>
@@ -42,12 +69,10 @@ export function CardDetail(props: Props) {
       </div>
       <div className={styles.meta}>
         {card.epic && <EpicLozenge epic={card.epic} />}
-        <span className={styles.chip}>{card.status}</span>
+        <Badge>{card.status}</Badge>
         {card.points !== null && <span>{`${String(card.points)} pts`}</span>}
         {card.labels.map((label) => (
-          <span key={label} className={styles.chip}>
-            {label}
-          </span>
+          <Badge key={label}>{label}</Badge>
         ))}
       </div>
       {card.blockedBy.some((b) => b.status !== 'Done') && (
@@ -62,25 +87,26 @@ export function CardDetail(props: Props) {
       )}
       <div className={styles.actions}>
         {onAddToSprint !== undefined ? (
-          <button data-variant="primary" onClick={onAddToSprint ?? undefined} disabled={onAddToSprint === null}>
-            Add to sprint
-          </button>
+          <Button
+            label="Add to sprint"
+            variant="primary"
+            onClick={onAddToSprint ?? undefined}
+            disabled={onAddToSprint === null}
+            reason={onAddToSprint === null ? 'No active sprint' : null}
+            busy={busy}
+            busyLabel="Moving…"
+          />
+        ) : queuePlace !== undefined && tab === null ? (
+          <Badge tone="info">{`Queued #${String(queuePlace)}`}</Badge>
         ) : (
           next && (
-            <button data-variant="primary" onClick={next.run}>
-              {next.label}
-            </button>
+            <Button label={next.label} variant="primary" onClick={next.run} busy={busy} busyLabel={next.busyLabel} />
           )
         )}
         <a href={card.url} target="_blank" rel="noreferrer">
           Open in Jira
         </a>
       </div>
-      {failure !== null && (
-        <p role="alert" className={styles.failure}>
-          {failure}
-        </p>
-      )}
       <MarkdownText text={card.descriptionMd} />
     </aside>
   );

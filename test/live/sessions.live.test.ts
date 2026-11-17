@@ -3,16 +3,17 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node-pty';
-import type { HookEvent } from '@shared/types/tabs';
-import type { MapleConfig } from '@shared/types/config';
+import type { HookEvent } from '@shared/types/tabs/hookEvent';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { expandHome } from '../../src/main/app/config';
-import { startHookServer } from '../../src/main/sessions/hookServer';
-import { writeHooksFile } from '../../src/main/sessions/hooksFile';
-import { createLogger } from '../../src/main/app/log';
-import { SessionManager } from '../../src/main/sessions/sessions';
+import { expandHome } from '../../src/main/app/config/config';
+import { startHookServer } from '../../src/main/sessions/hooks/hookServer';
+import { writeHooksFile } from '../../src/main/sessions/hooks/hooksFile';
+import { createLogger } from '../../src/main/app/log/log';
+import { SessionManager } from '../../src/main/sessions/SessionManager';
 import { endTmux, writeTmuxConf } from '../../src/main/sessions/tmux';
-import { hasTranscript } from '../../src/main/sessions/transcripts';
+import { hasTranscript } from '../../src/main/sessions/transcripts/transcripts';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 const silent = createLogger(() => undefined);
 
@@ -59,7 +60,14 @@ describe('SessionManager with a real claude', () => {
       backgroundWaitMinutes: 15,
       eventKeepDays: 365,
       eventMaxMegabytes: 200,
+      stateBackups: 3,
+      startAtOnce: 4,
+      startGapSeconds: 90,
+      maxWorking: 8,
+      maxLoadPerCore: 0.8,
+      minFreeMegabytes: 2048,
       actions: [],
+      remote: null,
       projects: [
         {
           name: 'Maple',
@@ -74,9 +82,15 @@ describe('SessionManager with a real claude', () => {
     const manager = new SessionManager({
       spawn,
       config: () => config,
-      hooksFile: await writeHooksFile(dir, process.execPath, resolve('resources/maple-hook.mjs')),
+      hooksFile: await writeHooksFile(
+        dir,
+        process.execPath,
+        resolve('resources/maple-hook.mjs'),
+        join(dir, 'findings'),
+      ),
       socketPath: join(dir, 'maple.sock'),
       snapshotRoot: join(dir, 'snapshots'),
+      findingsDir: join(dir, 'findings'),
       save: () => Promise.resolve(),
       closedSessions: {},
       uuid: randomUUID,
@@ -84,6 +98,8 @@ describe('SessionManager with a real claude', () => {
       tmuxConf: await writeTmuxConf(dir),
       endTmux,
       sessionEnv: {},
+      runner: fakeRunner(),
+      home: '/home/dev',
       logger: silent,
     });
     sessions = manager;

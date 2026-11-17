@@ -1,10 +1,13 @@
+import { EventEmitter } from 'node:events';
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { IPC_CHANNELS, type ChannelKind } from '@shared/ipc';
-import { SessionManager } from '@main/sessions/sessions';
-import { StatusEngine } from '@main/sessions/status';
-import { Terminals } from '@main/sessions/terminals';
+import { IPC_CHANNELS, type ChannelKind } from '@shared/api/mapleApi';
+import { SessionManager } from '@main/sessions/SessionManager';
+import { StatusEngine } from '@main/sessions/StatusEngine';
+import { Terminals } from '@main/sessions/Terminals';
+import type { StartQueue } from '@main/sessions/StartQueue';
 import { registerIpc } from './index';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
@@ -18,7 +21,7 @@ vi.mock('electron', () => ({
   app: { on: vi.fn(), quit: vi.fn() },
   Menu: { setApplicationMenu: vi.fn(), buildFromTemplate: vi.fn() },
 }));
-vi.mock('@main/app/config', () => ({
+vi.mock('@main/app/config/config', () => ({
   loadConfig: () => Promise.resolve({ data: null, error: null, fetchedAt: null }),
 }));
 
@@ -37,6 +40,7 @@ describe('registerIpc', () => {
     hooksFile: '',
     socketPath: '',
     snapshotRoot: '/tmp/maple/snapshots',
+    findingsDir: '/tmp/maple/findings',
     save: vi.fn(),
     closedSessions: {},
     uuid: vi.fn(),
@@ -44,6 +48,8 @@ describe('registerIpc', () => {
     tmuxConf: '',
     endTmux: vi.fn(),
     sessionEnv: {},
+    runner: fakeRunner(),
+    home: '/home/dev',
   });
   const status = new StatusEngine({
     sessions,
@@ -67,6 +73,15 @@ describe('registerIpc', () => {
     lastProject: () => Promise.resolve(null),
     setSeen: () => Promise.resolve(),
     seen: () => Promise.resolve({}),
+    startQueue: new EventEmitter() as StartQueue,
+    prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
+    jira: new Promise<never>(() => undefined),
+    jiraCreds: new Promise<never>(() => undefined),
+    watchVault: () => undefined,
+    findingsDir: '/tmp/maple/findings',
+    decisionsDir: '/tmp/maple/decisions',
+    runner: fakeRunner(),
+    home: '/home/dev',
   };
 
   sessions.setMaxListeners(0);
@@ -134,6 +149,9 @@ describe('registerIpc', () => {
     { channel: 'pr:resolve', args: ['t1', 'PRRT_1'] },
     { channel: 'pr:resolve', args: ['t1', 'PRRT_1', 'yes'] },
     { channel: 'pr:comments', args: [1] },
+    { channel: 'pr:commentOnPr', args: ['t1', ''] },
+    { channel: 'pr:commentOnPr', args: ['t1', 'x'.repeat(65_537)] },
+    { channel: 'pr:conversation', args: [1] },
     { channel: 'pr:diffLines', args: [1] },
     { channel: 'app:setNotifications', args: ['yes'] },
   ])('$channel rejects invalid arguments $args', async ({ channel, args }) => {

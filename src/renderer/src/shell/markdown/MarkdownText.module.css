@@ -1,0 +1,28 @@
+.markdown {
+  font-size: var(--font-md);
+  line-height: 1.45;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  font-size: var(--font-lg);
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol {
+  margin: var(--space-1) 0;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: var(--space-4);
+}
+
+.markdown pre {
+  background: var(--bg-sunken);
+  padding: var(--space-2);
+  overflow: auto;
+}

@@ -1,4 +1,5 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import { useMaple } from './store';
 import { fakeMaple } from './testing/fakeMaple';
@@ -7,9 +8,37 @@ vi.mock('./claude/ClaudePane', () => ({
   ClaudePane: () => <div data-testid="claude-pane" />,
 }));
 
+vi.mock('./card/CardTab', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./card/CardTab')>();
+  return {
+    CardTab: (props: Parameters<typeof actual.CardTab>[0]) => {
+      if (props.tab.cardKey === 'BEAR-9') {
+        throw new Error('rendering card: boom');
+      }
+      return <actual.CardTab {...props} />;
+    },
+  };
+});
+
+vi.mock('./vault/VaultTab', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./vault/VaultTab')>();
+  return {
+    VaultTab: (props: Parameters<typeof actual.VaultTab>[0]) => {
+      if (props.tab.id === 'v9') {
+        throw new Error('rendering vault: boom');
+      }
+      return <actual.VaultTab {...props} />;
+    },
+  };
+});
+
 describe('App', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   test('shows the Home tab of the first project', async () => {
@@ -96,9 +125,46 @@ describe('App', () => {
     // when
     render(<App />);
     // then
-    const banner = await screen.findByRole('alert');
-    expect(banner).toHaveTextContent('reading state: state.json is unreadable');
-    expect(banner).toHaveTextContent('dropped DIG-44: project DIG is not in config');
+    const notice = await screen.findByRole('status');
+    expect(notice).toHaveAttribute('data-tone', 'warning');
+    expect(notice).toHaveTextContent('reading state: state.json is unreadable');
+    expect(notice).toHaveTextContent('dropped DIG-44: project DIG is not in config');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('shows warnings and a config error as two notices', async () => {
+    // given
+    fakeMaple({
+      app: { warnings: () => Promise.resolve(['reading state: state.json is unreadable']) },
+      config: { get: () => Promise.resolve({ data: null, error: 'reading config: bad json', fetchedAt: null }) },
+    });
+    // when
+    render(<App />);
+    // then
+    const warning = await screen.findByRole('status');
+    const danger = await screen.findByRole('alert');
+    expect(warning).toHaveAttribute('data-tone', 'warning');
+    expect(warning).toHaveTextContent('reading state: state.json is unreadable');
+    expect(danger).toHaveAttribute('data-tone', 'danger');
+    expect(danger).toHaveTextContent('reading config: bad json');
+    expect(warning.compareDocumentPosition(danger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test('Dismiss hides the warnings and keeps the config error', async () => {
+    // given
+    fakeMaple({
+      app: { warnings: () => Promise.resolve(['reading state: state.json is unreadable']) },
+      config: { get: () => Promise.resolve({ data: null, error: 'reading config: bad json', fetchedAt: null }) },
+    });
+    render(<App />);
+    const warning = await screen.findByRole('status');
+    // when
+    await userEvent.click(within(warning).getByRole('button', { name: 'Dismiss' }));
+    // then
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    const danger = screen.getByRole('alert');
+    expect(danger).toHaveTextContent('reading config: bad json');
+    expect(within(danger).queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument();
   });
 
   test('shows Home when warnings fail to load', async () => {
@@ -122,6 +188,7 @@ describe('App', () => {
     // then
     const banner = await screen.findByRole('alert');
     expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(banner).toHaveAttribute('data-tone', 'danger');
     expect(banner).toHaveTextContent('gh is not installed');
     expect(banner).toHaveTextContent('reading config: bad json');
   });
@@ -132,7 +199,15 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -149,8 +224,24 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
-            { id: 't2', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-2', sessionId: 's2', worktreePath: null },
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
+            {
+              id: 't2',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-2',
+              sessionId: 's2',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -175,7 +266,15 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -191,13 +290,57 @@ describe('App', () => {
     expect(screen.getByTestId('home')).not.toBeVisible();
   });
 
+  test.each([
+    { kind: 'card' as const, healthyId: 't1', brokenId: 't9', healthyCard: 'BEAR-1', brokenCard: 'BEAR-9' },
+    { kind: 'vault' as const, healthyId: 'v1', brokenId: 'v9', healthyCard: null, brokenCard: null },
+  ])('a $kind tab that throws shows Reload tab while Home keeps working', async (row) => {
+    // given
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const tab = (id: string, cardKey: string | null) => ({
+      id,
+      projectKey: 'BEAR',
+      kind: row.kind,
+      cardKey,
+      sessionId: `s-${id}`,
+      worktreePath: null,
+      worktreePaths: [],
+    });
+    fakeMaple({
+      tabs: {
+        list: () => Promise.resolve([tab(row.healthyId, row.healthyCard), tab(row.brokenId, row.brokenCard)]),
+      },
+    });
+    render(<App />);
+    await screen.findByTestId('home');
+    // when
+    act(() => {
+      useMaple.getState().activate(row.brokenId);
+    });
+    // then
+    expect(await screen.findByRole('button', { name: 'Reload tab' })).toBeVisible();
+    act(() => {
+      useMaple.getState().activate(row.healthyId);
+    });
+    expect(await screen.findByTestId(`${row.kind}-tab`)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Reload tab', hidden: true })).not.toBeVisible();
+    expect(screen.getByTestId('home')).toBeInTheDocument();
+  });
+
   test('shows the active vault tab', async () => {
     // given
     fakeMaple({
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 'v1', projectKey: 'BEAR', kind: 'vault', cardKey: null, sessionId: 's1', worktreePath: null },
+            {
+              id: 'v1',
+              projectKey: 'BEAR',
+              kind: 'vault',
+              cardKey: null,
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -218,7 +361,15 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 'v1', projectKey: 'BEAR', kind: 'vault', cardKey: null, sessionId: 's1', worktreePath: null },
+            {
+              id: 'v1',
+              projectKey: 'BEAR',
+              kind: 'vault',
+              cardKey: null,
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -251,8 +402,24 @@ describe('App', () => {
       tabs: {
         list: () =>
           Promise.resolve([
-            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
-            { id: 't2', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-2', sessionId: 's2', worktreePath: null },
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
+            {
+              id: 't2',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-2',
+              sessionId: 's2',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -286,6 +453,7 @@ describe('App', () => {
         cardKey: null,
         sessionId: `s-planner-${projectKey}`,
         worktreePath: null,
+        worktreePaths: [],
       }),
     );
     fakeMaple({
@@ -293,7 +461,15 @@ describe('App', () => {
         openPlanner,
         list: () =>
           Promise.resolve([
-            { id: 't1', projectKey: 'BEAR', kind: 'card', cardKey: 'BEAR-1', sessionId: 's1', worktreePath: null },
+            {
+              id: 't1',
+              projectKey: 'BEAR',
+              kind: 'card',
+              cardKey: 'BEAR-1',
+              sessionId: 's1',
+              worktreePath: null,
+              worktreePaths: [],
+            },
           ]),
       },
     });
@@ -322,6 +498,7 @@ describe('App', () => {
         cardKey: null,
         sessionId: `s-planner-${projectKey}`,
         worktreePath: null,
+        worktreePaths: [],
       }),
     );
     fakeMaple({ tabs: { openPlanner } });

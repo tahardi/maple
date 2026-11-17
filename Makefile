@@ -28,6 +28,10 @@ lint: node_modules/.package-lock.json
 typecheck: node_modules/.package-lock.json
 	@npm run typecheck
 
+.PHONY: audit
+audit:
+	@npm audit --audit-level=high
+
 .PHONY: run
 run: node_modules/.package-lock.json
 	@npm run dev -- -- --ozone-platform=x11

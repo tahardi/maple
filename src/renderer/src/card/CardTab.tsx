@@ -1,72 +1,111 @@
-import { closePrompt } from '@shared/prompts';
-import type { ReviewComment } from '@shared/types/github';
-import type { TabState } from '@shared/types/tabs';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReviewComment } from '@shared/types/github/reviewComment';
+import type { TabState } from '@shared/types/tabs/tabState';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
 import { ConfirmDialog } from '../shell/ConfirmDialog';
 import { useMaple } from '../store';
-import { buildTree } from '@renderer/card/viewer/buildTree';
-import { closeFiles } from '@renderer/card/viewer/closeFiles';
-import { close, openPreview, pin, type OpenFileList } from '@renderer/card/viewer/openFileList';
-import { cardActions } from './CardActions';
+import { buildTree } from '@renderer/card/viewer/tree/buildTree';
+import { cardActions } from './cardActions';
 import { CardHeader } from './CardHeader';
 import styles from './CardTab.module.css';
-import { FileTree } from '@renderer/card/viewer/FileTree';
+import { FileTree } from '@renderer/card/viewer/tree/FileTree';
 import { FileViewer } from '@renderer/card/viewer/FileViewer';
-import { MergedNotice } from './MergedNotice';
-import { PrSummary } from './PrSummary';
-import { RepoBranch } from '@renderer/card/viewer/RepoBranch';
-import { QuickOpen } from '@renderer/card/viewer/QuickOpen';
-import { PR_DESCRIPTION } from './prDescription';
-import { CARD_DESCRIPTION } from './cardDescription';
+import { Notice } from '../shell/blocks/Notice';
+import { CiBadge } from './CiBadge';
+import { WorktreeMenu } from '@renderer/card/viewer/tree/WorktreeMenu';
+import { folderName } from '@renderer/card/viewer/tree/folderName';
+import { QuickOpen } from '@renderer/card/viewer/quickOpen/QuickOpen';
+import { PR_DESCRIPTION } from '@renderer/card/viewer/tabs/prDescription';
+import { CARD_DESCRIPTION } from '@renderer/card/viewer/tabs/cardDescription';
+import { FINDINGS } from '@renderer/card/viewer/tabs/findingsTab';
+import { COMMENTS_TAB } from '@renderer/card/viewer/tabs/commentsTab';
+import { usePrConversation } from '@renderer/card/conversation/usePrConversation';
+import { CommentsView } from '@renderer/card/conversation/CommentsView';
+import { threadsByFile } from '@renderer/card/conversation/threadsByFile';
+import { threadCount } from '@renderer/card/conversation/threadCount';
+import { useFindings } from '@renderer/card/findings/useFindings';
+import { findingsLabel } from '@renderer/card/findings/findingsLabel';
+import { undecided } from '@shared/findings/undecided';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 import { useCardData } from './useCardData';
-import { useColumns } from './useColumns';
-import { useQuickOpenKeys, type QuickOpenMode } from '@renderer/card/viewer/useQuickOpenKeys';
+import { useApproveFlow } from './approve/useApproveFlow';
+import { approveBlocker } from './approve/approveBlocker';
+import { ApproveButton } from './approve/ApproveButton';
+import { useWorktreeState } from './useWorktreeState';
+import { useColumnDrag } from '@renderer/shell/split/useColumnDrag';
+import { SplitHandle } from '@renderer/shell/split/SplitHandle';
+import { splitSize } from '@renderer/shell/split/splitSize';
+import { useOpenFiles } from '@renderer/card/viewer/tabs/useOpenFiles';
+import { useQuickOpenKeys, type QuickOpenMode } from '@renderer/card/viewer/quickOpen/useQuickOpenKeys';
 import { namedNotes } from '@renderer/card/vault/namedNotes';
 import { useVault } from '@renderer/card/vault/useVault';
 import { writtenNotes } from '@renderer/card/vault/writtenNotes';
-import { useViewed } from '@renderer/card/viewer/useViewed';
+import { useViewed } from '@renderer/card/viewer/tree/useViewed';
 import { VAULT_PREFIX, VaultSwitch, type TreeView } from '@renderer/card/vault/VaultSwitch';
 
 const WAITING = 'Waiting for worktree…';
 const MERGED = 'Merged, worktree removed';
 const CLOSED = 'Closed, worktree removed';
-const CLOSE_WARNING =
-  'Claude closes the PR without merging, deletes the branch and worktree, and moves the card to Done with the ' +
-  'wont-do label. This cannot be undone.';
+const NO_LINE_COMMENTS: readonly ReviewComment[] = [];
 
 export function CardTab({ tab }: { tab: TabState }) {
-  const { changes, files, repo, pr, review, reloadReview, card, cost, outsideSprint } = useCardData(tab);
+  const { changes, files, repo, pr, review, reviewUpdated, reloadReview, card, cost, outsideSprint } = useCardData(tab);
   const config = useMaple((s) => s.config?.data ?? null);
   const dot = useMaple((s) => (tab.id in s.statuses ? s.statuses[tab.id].dot : 'idle'));
   const closeTab = useMaple((s) => s.closeTab);
   const active = useMaple((s) => s.activeTabId === tab.id);
-  const [columns, setColumns] = useColumns();
-  const [changedOverride, setChangedOverride] = useState<boolean | null>(null);
-  const [list, setList] = useState<OpenFileList>({ files: [], preview: null });
-  const [activeFile, setActiveFile] = useState<string | null>(null);
-  const [line, setLine] = useState<number | null>(null);
+  const findings = useFindings(tab.id);
+  const conversation = usePrConversation(tab.id, Boolean(pr?.data), pr?.fetchedAt ?? null);
+  const body = useRef<HTMLDivElement>(null);
+  const middle = useRef<HTMLDivElement>(null);
+  const left = useColumnDrag(body, {
+    storageKey: 'maple.columns.left',
+    initial: 240,
+    min: 120,
+    max: 480,
+    toSize: (rect, p) =>
+      splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'x', edge: 'start', unit: 'px', min: 120, max: 480 }),
+  });
+  const right = useColumnDrag(body, {
+    storageKey: 'maple.columns.right',
+    initial: 32,
+    min: 10,
+    max: 80,
+    toSize: (rect, p) =>
+      splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'x', edge: 'end', unit: '%', min: 10, max: 80 }),
+  });
+  const terminalDrag = useColumnDrag(middle, {
+    storageKey: 'maple.split.cardTerminal',
+    initial: 35,
+    min: 10,
+    max: 80,
+    toSize: (rect, p) =>
+      splitSize(rect, { x: p.clientX, y: p.clientY }, { axis: 'y', edge: 'end', unit: '%', min: 10, max: 80 }),
+  });
+  const [changedOverride, setChangedOverride] = useWorktreeState<boolean | null>(tab.worktreePath, null);
+  const openFiles = useOpenFiles(tab.worktreePath, {
+    pr: Boolean(pr?.data),
+    card: card !== null && pr !== null && pr.data === null,
+  });
+  const { activeFile, open: openFile, pin: pinFile } = openFiles;
   const [quickOpen, setQuickOpen] = useState<QuickOpenMode | null>(null);
-  const [approveError, setApproveError] = useState<string | null>(null);
-  const [confirmApprove, setConfirmApprove] = useState(false);
-  const [confirmFindings, setConfirmFindings] = useState(false);
-  const [confirmClose, setConfirmClose] = useState(false);
-  const [descriptionOpened, setDescriptionOpened] = useState(false);
-  const [cardOpened, setCardOpened] = useState(false);
   const [terminal, setTerminal] = useState<'closed' | 'shown' | 'hidden'>('closed');
+  const [tryRuns, setTryRuns] = useState(0);
   const [viewOverride, setViewOverride] = useState<TreeView | null>(null);
   const [vaultChangedOnly, setVaultChangedOnly] = useState(true);
-  const body = useRef<HTMLDivElement>(null);
   const cardKey = tab.cardKey ?? '';
   const changedOnly = changedOverride ?? Boolean(pr?.data);
   const pinned = review?.data ?? null;
   const changed = pinned?.files ?? changes?.files ?? [];
-  const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed);
-  const [commented, setCommented] = useState<ReadonlySet<string>>(new Set());
-  const showComments = useCallback((comments: readonly ReviewComment[]) => {
-    setCommented(new Set(comments.map((c) => c.path)));
-  }, []);
+  const viewedScope =
+    tab.worktreePaths.length > 1 && tab.worktreePath !== null ? `${folderName(tab.worktreePath)}:` : '';
+  const { viewed, toggle: toggleViewed } = useViewed(cardKey, changed, viewedScope);
+  const [lineComments, setLineComments] = useState<readonly ReviewComment[]>([]);
+  const prOpen = pr?.data?.state === 'OPEN';
+  const shownComments = prOpen ? lineComments : NO_LINE_COMMENTS;
+  const commented = useMemo(() => new Set(shownComments.map((c) => c.path)), [shownComments]);
+  const lineThreads = useMemo(() => threadsByFile(shownComments), [shownComments]);
+  const lineThreadCount = threadCount(lineThreads.open) + threadCount(lineThreads.resolved);
   const unviewed = changed.length - viewed.size;
   const worktreeExists = tab.worktreePath !== null;
   useQuickOpenKeys(active && worktreeExists ? setQuickOpen : null);
@@ -86,25 +125,18 @@ export function CardTab({ tab }: { tab: TabState }) {
       vault.notes.map((note) => note.path),
     ),
   ]);
-  const highFindings = pinned?.findings.filter((f) => f.severity === 'high').length ?? 0;
-  const approvePr = () => {
-    if (pinned === null) {
-      return;
-    }
-    setApproveError(null);
-    window.maple.pr.approve(tab.id, pinned.headSha).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      setApproveError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
-    });
-  };
-  const findingNoun = highFindings === 1 ? 'finding' : 'findings';
-  const findingsWarning = `${String(highFindings)} open high-severity ${findingNoun}. Approve anyway?`;
-  const confirmViewed = () => {
-    if (unviewed > 0) {
-      setConfirmApprove(true);
-    } else {
-      approvePr();
-    }
+  const blocker = approveBlocker({ dot, pr: pr?.data ?? null, review: pinned, worktreeExists });
+  const approval = useApproveFlow(
+    tab.id,
+    tab.worktreePath,
+    pinned,
+    unviewed,
+    undecided(findings.data),
+    blocker !== null,
+  );
+  const reloadPinnedReview = () => {
+    approval.clearError();
+    reloadReview();
   };
   const actions =
     config === null
@@ -113,21 +145,9 @@ export function CardTab({ tab }: { tab: TabState }) {
           config,
           cardKey,
           pr: pr?.data ?? null,
-          review: pinned,
-          dot,
           worktreeExists,
           send: (text) => {
             window.maple.session.sendPrompt(tab.id, text);
-          },
-          approve: () => {
-            if (highFindings > 0) {
-              setConfirmFindings(true);
-            } else {
-              confirmViewed();
-            }
-          },
-          close: () => {
-            setConfirmClose(true);
           },
         });
 
@@ -151,80 +171,45 @@ export function CardTab({ tab }: { tab: TabState }) {
     };
   }, [active]);
 
-  const openFile = (path: string, at: number | null = null, keep = false) => {
-    setList((now) => (keep ? pin(now, path) : openPreview(now, path)));
-    setActiveFile(path);
-    setLine(at);
-  };
-
-  const pinFile = (path: string) => {
-    setList((now) => pin(now, path));
-  };
-
-  const activateFile = (path: string | null) => {
-    setActiveFile(path);
-    setLine(null);
-  };
-
-  if (!descriptionOpened && pr?.data) {
-    setDescriptionOpened(true);
-    setList((now) => ({ ...now, files: [PR_DESCRIPTION, ...now.files] }));
-    setActiveFile((active) => active ?? PR_DESCRIPTION);
-  }
-
-  if (!cardOpened && card !== null && pr !== null && pr.data === null) {
-    setCardOpened(true);
-    setList((now) => ({ ...now, files: [CARD_DESCRIPTION, ...now.files] }));
-    setActiveFile((active) => active ?? CARD_DESCRIPTION);
-  }
-
-  const closeTabs = (paths: readonly string[]) => {
-    const next = closeFiles(list.files, activeFile, paths);
-    setList((now) => close(now, paths));
-    if (next.activeFile !== activeFile) {
-      activateFile(next.activeFile);
-    }
-  };
-
-  const drag = (side: 'left' | 'right') => (e: React.PointerEvent) => {
-    const rect = body.current?.getBoundingClientRect();
-    if (!rect) {
-      return;
-    }
-    e.preventDefault();
-    let next = columns;
-    const move = (ev: PointerEvent) => {
-      next =
-        side === 'left'
-          ? { ...columns, left: Math.max(120, ev.clientX - rect.left) }
-          : { ...columns, right: Math.min(80, Math.max(10, ((rect.right - ev.clientX) / rect.width) * 100)) };
-      setColumns(next);
-    };
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
-
   return (
     <div className={styles.tab} data-testid="card-tab">
       <CardHeader
         cardKey={cardKey}
         card={card}
-        pr={pr?.data ?? null}
+        pr={pr}
+        searchedRepos={searchedRepos}
+        ci={pr?.data && <CiBadge pr={pr.data} reviewError={review?.error ?? null} />}
+        reviewedSha={pinned?.headSha ?? null}
+        reviewUpdated={reviewUpdated}
         branch={repo?.branch ?? null}
         changes={pinned ?? changes}
         cost={cost}
         onOpenCard={() => {
           openFile(CARD_DESCRIPTION, null, true);
         }}
+        onOpenPr={() => {
+          openFile(PR_DESCRIPTION, null, true);
+        }}
+        findingsLabel={findingsLabel(dot, findings)}
+        onOpenFindings={() => {
+          openFile(FINDINGS, null, true);
+        }}
+        commentCount={conversation.comments.length + lineThreadCount}
+        onOpenComments={() => {
+          openFile(COMMENTS_TAB, null, true);
+        }}
       />
       <div ref={body} className={styles.body}>
-        <div className={styles.left} style={{ width: columns.left }} data-testid="tree-slot">
+        <div className={styles.left} style={{ width: left.size }} data-testid="tree-slot">
           {hasVault && <VaultSwitch view={view} onChange={setViewOverride} onRefresh={vault.refresh} />}
-          {!showsVault && worktreeExists && repo !== null && <RepoBranch repo={repo} />}
+          {!showsVault && tab.worktreePath !== null && tab.worktreePaths.length > 1 && (
+            <WorktreeMenu
+              label={repo?.name ?? folderName(tab.worktreePath)}
+              paths={tab.worktreePaths}
+              selected={tab.worktreePath}
+              onSelect={(path) => void window.maple.tabs.selectWorktree(tab.id, path)}
+            />
+          )}
           {showsVault ? (
             <FileTree
               key="vault"
@@ -254,120 +239,120 @@ export function CardTab({ tab }: { tab: TabState }) {
               onSelect={openFile}
               onPin={pinFile}
               changedOnly={changedOnly}
-              onToggle={setChangedOverride}
+              onToggle={(on) => {
+                setChangedOverride(() => on);
+              }}
               changedCount={changed.length}
               viewed={viewed}
               onToggleViewed={toggleViewed}
               commented={commented}
             />
           )}
-          {pr && (
-            <PrSummary
-              pr={pr}
-              onReloadReview={reloadReview}
-              reviewError={review?.error ?? null}
-              findings={pinned?.findings ?? []}
-              projectRepo={project?.repo ?? null}
-              headSha={pinned?.headSha ?? null}
-              searchedRepos={searchedRepos}
-              onOpenDescription={() => {
-                openFile(PR_DESCRIPTION, null, true);
-              }}
-            />
-          )}
         </div>
-        <div className={styles.divider} onPointerDown={drag('left')} />
-        <div className={styles.middle} data-testid="viewer-slot">
+        <SplitHandle drag={left} axis="x" label="Resize file tree" />
+        <div ref={middle} className={styles.middle} data-testid="viewer-slot">
           <div className={styles.viewer}>
             {tab.worktreePath === null && !showsVault ? (
               <div className={styles.waiting}>{placeholder}</div>
             ) : (
               <FileViewer
                 tabId={tab.id}
-                openFiles={list.files}
-                preview={list.preview}
+                openFiles={openFiles.files}
+                preview={openFiles.preview}
                 onPin={pinFile}
                 activeFile={activeFile}
-                onActivate={activateFile}
-                onCloseFiles={closeTabs}
+                onActivate={openFiles.activate}
+                onCloseFiles={openFiles.close}
                 prBody={pr?.data?.body ?? null}
                 cardBody={card?.descriptionMd}
-                canComment={pr?.data?.state === 'OPEN'}
+                canComment={prOpen}
                 prFetchedAt={pr?.fetchedAt ?? null}
-                onComments={showComments}
-                line={line}
+                onComments={setLineComments}
+                line={openFiles.line}
                 review={pinned}
+                onReloadReview={reloadPinnedReview}
+                findings={findings}
+                commentsView={
+                  <CommentsView
+                    tabId={tab.id}
+                    comments={conversation.comments}
+                    canPost={prOpen}
+                    onPosted={conversation.reload}
+                    lineThreads={lineThreads}
+                    onOpenLine={(path, line) => {
+                      openFile(path, line);
+                    }}
+                  />
+                }
                 noteChanges
               />
             )}
           </div>
           <div className={styles.terminalBar}>
-            <button aria-pressed={terminal === 'shown'} onClick={toggleTerminal}>
+            {repo?.hasTry === true && (
+              <button
+                aria-label="Run make try"
+                onClick={() => {
+                  setTerminal('shown');
+                  setTryRuns((n) => n + 1);
+                }}
+              >
+                Make try
+              </button>
+            )}
+            <button
+              aria-pressed={terminal === 'shown'}
+              title="Show or hide the terminal (Ctrl+`)"
+              aria-keyshortcuts="Control+`"
+              onClick={toggleTerminal}
+            >
               Terminal
             </button>
           </div>
+          {terminal === 'shown' && <SplitHandle drag={terminalDrag} axis="y" label="Resize terminal" />}
           {terminal !== 'closed' && (
-            <div className={styles.terminal} hidden={terminal === 'hidden'}>
-              <TerminalPane tabId={tab.id} />
+            <div
+              className={styles.terminal}
+              style={{ height: `${String(terminalDrag.size)}%` }}
+              hidden={terminal === 'hidden'}
+            >
+              <TerminalPane tabId={tab.id} worktreePath={tab.worktreePath} tryRuns={tryRuns} />
             </div>
           )}
         </div>
-        <div className={styles.divider} onPointerDown={drag('right')} />
-        <div className={styles.right} style={{ width: `${String(columns.right)}%` }} data-testid="claude-slot">
+        <SplitHandle drag={right} axis="x" label="Resize Claude pane" />
+        <div className={styles.right} style={{ width: `${String(right.size)}%` }} data-testid="claude-slot">
           {card?.status === 'Done' && !worktreeExists && (
-            <MergedNotice label={wontDo ? 'Closed' : 'Merged'} onClose={() => void closeTab(tab.id, false)} />
+            <Notice tone="success">
+              <span>{wontDo ? 'Closed' : 'Merged'}</span>
+              <button onClick={() => void closeTab(tab.id, false)}>Close tab</button>
+            </Notice>
           )}
-          {approveError !== null && (
-            <div className={styles.approveError} role="alert">
-              {approveError}
-            </div>
-          )}
-          <ClaudePane tabId={tab.id} actions={actions} />
+          <ClaudePane
+            tabId={tab.id}
+            actions={actions}
+            approve={
+              <>
+                <ApproveButton
+                  blocker={blocker}
+                  busy={approval.approving}
+                  onClick={approval.approve}
+                  onReloadReview={reloadPinnedReview}
+                />
+                {approval.error !== null && <Notice tone="danger">{approval.error}</Notice>}
+              </>
+            }
+          />
         </div>
       </div>
-      {confirmFindings && (
+      {approval.dialog !== null && (
         <ConfirmDialog
-          title="Open security findings"
-          body={findingsWarning}
-          confirmLabel="Approve anyway"
-          danger
-          onConfirm={() => {
-            setConfirmFindings(false);
-            confirmViewed();
-          }}
-          onCancel={() => {
-            setConfirmFindings(false);
-          }}
-        />
-      )}
-      {confirmApprove && (
-        <ConfirmDialog
-          title="Unviewed files"
-          body={`${String(unviewed)} changed ${unviewed === 1 ? 'file' : 'files'} not viewed. Approve anyway?`}
-          confirmLabel="Approve anyway"
-          danger
-          onConfirm={() => {
-            setConfirmApprove(false);
-            approvePr();
-          }}
-          onCancel={() => {
-            setConfirmApprove(false);
-          }}
-        />
-      )}
-      {confirmClose && (
-        <ConfirmDialog
-          title={`Close ${cardKey}?`}
-          body={CLOSE_WARNING}
-          confirmLabel="Close card"
-          danger
-          onConfirm={() => {
-            setConfirmClose(false);
-            window.maple.session.sendPrompt(tab.id, closePrompt(cardKey));
-          }}
-          onCancel={() => {
-            setConfirmClose(false);
-          }}
+          title={approval.dialog.title}
+          body={approval.dialog.body}
+          confirmLabel="Approve & merge"
+          danger={approval.dialog.danger}
+          onConfirm={approval.confirm}
+          onCancel={approval.cancel}
         />
       )}
       {quickOpen !== null && (

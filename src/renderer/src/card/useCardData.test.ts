@@ -1,8 +1,10 @@
-import type { Fetched } from '@shared/types/app';
-import type { PrInfo, Review } from '@shared/types/github';
-import type { RepoInfo } from '@shared/types/files';
-import type { SessionCost, TabState } from '@shared/types/tabs';
-import type { Sprint } from '@shared/types/jira';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { Review } from '@shared/types/github/review';
+import type { RepoInfo } from '@shared/types/files/repoInfo';
+import type { SessionCost } from '@shared/types/tabs/sessionCost';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { Sprint } from '@shared/types/jira/sprint';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';
@@ -25,6 +27,7 @@ const tab: TabState = {
   cardKey: 'BEAR-1',
   sessionId: 's1',
   worktreePath: '/tmp/wts/bearclave-bear-1-thing',
+  worktreePaths: [],
 };
 
 const openPr: PrInfo = {
@@ -36,6 +39,8 @@ const openPr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
+  headSha: 'a'.repeat(40),
+  mergeable: 'MERGEABLE',
   checks: { passed: 1, failed: 0, pending: 0, total: 1, runs: [] },
 };
 
@@ -46,10 +51,13 @@ const reviewData: Review = {
   added: 0,
   removed: 0,
   files: [],
-  findings: [],
 };
 
 const fetchedReview: Fetched<Review> = { data: reviewData, error: null, fetchedAt: '2026-10-28T12:00:00.000Z' };
+
+const moved = 'd'.repeat(40);
+
+const atMoved: Fetched<Review> = { ...fetchedReview, data: { ...reviewData, headSha: moved } };
 
 function watchRejections(): RejectionListener {
   const rejected = vi.fn();
@@ -68,6 +76,7 @@ function watchRejections(): RejectionListener {
 describe('useCardData', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
+    useMaple.setState({ activeTabId: 't1' });
   });
 
   test('loads the session cost for the tab', async () => {
@@ -92,7 +101,7 @@ describe('useCardData', () => {
 
   test('loads the repo name and branch for a tab with a worktree', async () => {
     // given
-    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing' };
+    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing', hasTry: false };
     const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(() => Promise.resolve(want));
     fakeMaple({ repo: { info } });
     // when
@@ -127,7 +136,7 @@ describe('useCardData', () => {
 
   test('loads the repo info and files when the changes fail', async () => {
     // given
-    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing' };
+    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing', hasTry: false };
     const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(() => Promise.resolve(want));
     const changes = vi.fn(() => Promise.reject(new Error('running git merge-base: no origin/main')));
     const listFiles = vi.fn(() => Promise.resolve(['a.go']));
@@ -156,7 +165,7 @@ describe('useCardData', () => {
       name: 'the file list',
       fail: 'listFiles' as const,
       check: (current: ReturnType<typeof useCardData>) => {
-        expect(current.repo).toEqual({ name: 'bearclave', branch: 'bear-1-thing' });
+        expect(current.repo).toEqual({ name: 'bearclave', branch: 'bear-1-thing', hasTry: false });
       },
     },
   ])('loads the changes when $name fails', async ({ fail, check }) => {
@@ -165,7 +174,7 @@ describe('useCardData', () => {
     fakeMaple({
       repo: {
         changes: () => Promise.resolve(want),
-        info: () => Promise.resolve({ name: 'bearclave', branch: 'bear-1-thing' }),
+        info: () => Promise.resolve({ name: 'bearclave', branch: 'bear-1-thing', hasTry: false }),
         listFiles: () => Promise.resolve(['a.go']),
         [fail]: () => Promise.reject(new Error('running git: not a repo')),
       },
@@ -187,7 +196,7 @@ describe('useCardData', () => {
     { name: 'the cost', fail: { tabs: { cost: () => Promise.reject(new Error('reading transcript: gone')) } } },
   ])('loads the repo info when $name fails', async ({ fail }) => {
     // given
-    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing' };
+    const want: RepoInfo = { name: 'bearclave', branch: 'bear-1-thing', hasTry: false };
     fakeMaple({ ...fail, repo: { info: () => Promise.resolve(want) } });
     const rejected = watchRejections();
     // when
@@ -204,8 +213,8 @@ describe('useCardData', () => {
     let changed: () => void = vi.fn();
     const info = vi
       .fn<(tabId: string) => Promise<RepoInfo | null>>()
-      .mockResolvedValueOnce({ name: 'bearclave', branch: 'old' })
-      .mockResolvedValue({ name: 'bearclave', branch: 'new' });
+      .mockResolvedValueOnce({ name: 'bearclave', branch: 'old', hasTry: false })
+      .mockResolvedValue({ name: 'bearclave', branch: 'new', hasTry: false });
     fakeMaple({
       repo: {
         info,
@@ -308,6 +317,74 @@ describe('useCardData', () => {
     // then
     expect(changes).toHaveBeenCalledTimes(2);
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  test('a hidden tab skips the timer and repo changes', () => {
+    // given
+    vi.useFakeTimers();
+    useMaple.setState({ activeTabId: 'other' });
+    let changed: () => void = () => undefined;
+    const changes = vi.fn(() => Promise.resolve(null));
+    const sprint = vi.fn(() => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }));
+    fakeMaple({
+      repo: {
+        changes,
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+      jira: { sprint },
+    });
+    renderHook(() => useCardData(tab));
+    // when
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+      changed();
+    });
+    vi.useRealTimers();
+    // then
+    expect(changes).not.toHaveBeenCalled();
+    expect(sprint).not.toHaveBeenCalled();
+  });
+
+  test('a tab that is hidden stops its timer and repo changes', async () => {
+    // given
+    const unsubscribe = vi.fn();
+    const changes = vi.fn(() => Promise.resolve(null));
+    fakeMaple({ repo: { changes, onChanged: vi.fn(() => unsubscribe) } });
+    renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(changes).toHaveBeenCalledTimes(1);
+    });
+    vi.useFakeTimers();
+    // when
+    act(() => {
+      useMaple.setState({ activeTabId: 'other' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    vi.useRealTimers();
+    // then
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(changes).toHaveBeenCalledTimes(1);
+  });
+
+  test('a hidden tab loads as soon as it is shown', async () => {
+    // given
+    useMaple.setState({ activeTabId: 'other' });
+    const changes = vi.fn(() => Promise.resolve(null));
+    fakeMaple({ repo: { changes } });
+    renderHook(() => useCardData(tab));
+    // when
+    act(() => {
+      useMaple.setState({ activeTabId: 't1' });
+    });
+    // then
+    await waitFor(() => {
+      expect(changes).toHaveBeenCalledTimes(1);
+    });
   });
 
   test('finds the card in the sprint and skips the repo without a worktree', async () => {
@@ -433,6 +510,145 @@ describe('useCardData', () => {
     expect(review).toHaveBeenCalledWith('t1');
   });
 
+  test.each<{ name: string; second: Fetched<Review> }>([
+    { name: 'reloads the review once when the open PR gets a new head commit', second: atMoved },
+    {
+      name: 'does not retry a failed review load while the head stays the same',
+      second: { data: null, error: 'fetching review: the PR head moved, try again', fetchedAt: null },
+    },
+  ])('$name', async ({ second }) => {
+    // given
+    let changed: () => void = vi.fn();
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: openPr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...openPr, headSha: moved }, error: null, fetchedAt: null });
+    const review = vi
+      .fn<(tabId: string) => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(fetchedReview)
+      .mockResolvedValue(second);
+    fakeMaple({
+      pr: { get, review },
+      repo: {
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+    });
+    const { result } = renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(result.current.review).toEqual(fetchedReview);
+    });
+    // when
+    act(() => {
+      changed();
+    });
+    await waitFor(() => {
+      expect(result.current.review).toEqual(second);
+    });
+    act(() => {
+      changed();
+    });
+    // then
+    await waitFor(() => {
+      expect(get).toHaveBeenCalledTimes(3);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(review).toHaveBeenCalledTimes(2);
+    expect(result.current.review).toEqual(second);
+  });
+
+  test.each<{
+    name: string;
+    first: Fetched<Review>;
+    next: PrInfo;
+    second: Fetched<Review>;
+    trigger: 'none' | 'changed' | 'reload';
+    want: boolean;
+  }>([
+    {
+      name: 'the first review loads',
+      first: fetchedReview,
+      next: openPr,
+      second: fetchedReview,
+      trigger: 'none',
+      want: false,
+    },
+    {
+      name: 'the review reloads at a new commit',
+      first: fetchedReview,
+      next: { ...openPr, headSha: moved },
+      second: atMoved,
+      trigger: 'changed',
+      want: true,
+    },
+    {
+      name: 'the review reloads at the same commit',
+      first: fetchedReview,
+      next: openPr,
+      second: { ...fetchedReview, fetchedAt: '2026-10-28T12:01:00.000Z' },
+      trigger: 'reload',
+      want: false,
+    },
+    {
+      name: 'a new PR opens on the same worktree',
+      first: fetchedReview,
+      next: { ...openPr, number: 8, headSha: moved },
+      second: { ...fetchedReview, data: { ...reviewData, number: 8, headSha: moved } },
+      trigger: 'changed',
+      want: false,
+    },
+    {
+      name: 'the first load failed and a later one loads',
+      first: { data: null, error: 'fetching review: offline', fetchedAt: null },
+      next: { ...openPr, headSha: moved },
+      second: atMoved,
+      trigger: 'changed',
+      want: false,
+    },
+  ])('reviewUpdated is $want when $name', async ({ first, next, second, trigger, want }) => {
+    // given
+    let changed: () => void = vi.fn();
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: openPr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: next, error: null, fetchedAt: null });
+    const review = vi
+      .fn<(tabId: string) => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValue(second);
+    fakeMaple({
+      pr: { get, review },
+      repo: {
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+    });
+    const { result } = renderHook(() => useCardData(tab));
+    await waitFor(() => {
+      expect(result.current.review).toEqual(first);
+    });
+    // when
+    if (trigger === 'changed') {
+      act(() => {
+        changed();
+      });
+    }
+    if (trigger === 'reload') {
+      act(() => {
+        result.current.reloadReview();
+      });
+    }
+    // then
+    await waitFor(() => {
+      expect(result.current.review).toEqual(trigger === 'none' ? first : second);
+    });
+    expect(result.current.reviewUpdated).toBe(want);
+  });
+
   test.each([
     { name: 'there is no PR', found: null },
     { name: 'the PR is merged', found: { ...openPr, state: 'MERGED' as const } },
@@ -449,6 +665,82 @@ describe('useCardData', () => {
     });
     expect(review).not.toHaveBeenCalled();
     expect(result.current.review).toBeNull();
+  });
+
+  test('hides the old worktree repo, files, changes and PR until the new worktree loads', async () => {
+    // given
+    let finish: () => void = () => undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    let calls = 0;
+    const info = vi.fn<(tabId: string) => Promise<RepoInfo | null>>(async () => {
+      calls += 1;
+      if (calls > 1) {
+        await pending;
+        return { name: 'b', branch: 'b-1', hasTry: false };
+      }
+      return { name: 'a', branch: 'a-1', hasTry: false };
+    });
+    fakeMaple({
+      repo: { info, listFiles: () => Promise.resolve(['README.md']) },
+      pr: { get: () => Promise.resolve({ data: openPr, error: null, fetchedAt: null }) },
+    });
+    const { result, rerender } = renderHook(({ t }) => useCardData(t), {
+      initialProps: { t: { ...tab, worktreePath: '/wts/a' } },
+    });
+    await waitFor(() => {
+      expect(result.current.repo?.name).toBe('a');
+    });
+    // when
+    rerender({ t: { ...tab, worktreePath: '/wts/b' } });
+    // then
+    expect(result.current.repo).toBeNull();
+    expect(result.current.pr).toBeNull();
+    expect(result.current.files).toEqual([]);
+    expect(result.current.changes).toBeNull();
+    // when
+    finish();
+    // then
+    await waitFor(() => {
+      expect(result.current.repo?.name).toBe('b');
+    });
+    expect(result.current.pr?.data).toEqual(openPr);
+  });
+
+  test('drops the loaded review when the worktree changes to a PR with the same number', async () => {
+    // given
+    const reviewA: Fetched<Review> = { ...fetchedReview, data: { ...reviewData, number: 12 } };
+    const reviewB: Fetched<Review> = { ...reviewA, data: { ...reviewData, number: 12, headSha: 'd'.repeat(40) } };
+    let finishB: (review: Fetched<Review>) => void = () => undefined;
+    const review = vi
+      .fn<(tabId: string) => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(reviewA)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishB = resolve;
+        }),
+      );
+    const pr12 = { ...openPr, number: 12 };
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr12, error: null, fetchedAt: null }), review } });
+    const { result, rerender } = renderHook(({ t }) => useCardData(t), {
+      initialProps: { t: { ...tab, worktreePath: '/wts/a' } },
+    });
+    await waitFor(() => {
+      expect(result.current.review).toEqual(reviewA);
+    });
+    // when
+    rerender({ t: { ...tab, worktreePath: '/wts/b' } });
+    // then
+    expect(result.current.review).toBeNull();
+    // when
+    act(() => {
+      finishB(reviewB);
+    });
+    // then
+    await waitFor(() => {
+      expect(result.current.review).toEqual(reviewB);
+    });
   });
 
   test('reloadReview loads the review again', async () => {

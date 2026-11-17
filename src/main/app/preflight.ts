@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
-import type { PreflightProblem } from '@shared/types/app';
-import { appLogger, type Logger } from './log';
+import type { PreflightProblem } from '@shared/types/app/preflightProblem';
+import { appLogger, type Logger } from '@main/app/log/log';
+import { COMMAND_TIMEOUT_MS } from '@main/util/commandTimeout';
 
 export type Runner = (
   cmd: string,
@@ -10,11 +11,11 @@ export type Runner = (
   timeoutMs?: number,
 ) => Promise<{ code: number; stdout: string; stderr: string }>;
 
-export const defaultRunner: Runner = (cmd, args, cwd, timeoutMs) =>
+export const defaultRunner: Runner = (cmd, args, cwd, timeoutMs = COMMAND_TIMEOUT_MS) =>
   new Promise((resolve) => {
     execFile(cmd, args, { cwd, timeout: timeoutMs }, (error, stdout, stderr) => {
       const code = !error ? 0 : error.code === 'ENOENT' ? 127 : typeof error.code === 'number' ? error.code : 1;
-      const timedOut = error?.killed === true && timeoutMs !== undefined;
+      const timedOut = error?.killed === true;
       resolve({ code, stdout, stderr: timedOut ? `timing out after ${String(timeoutMs)}ms` : stderr });
     });
   });
@@ -63,11 +64,13 @@ export async function runPreflight(
 
 async function sandboxProblems(run: Runner, claudeSettingsPath: string): Promise<PreflightProblem[]> {
   const sandbox = await sandboxSettings(claudeSettingsPath);
-  if (sandbox?.enabled !== true) {
-    return [];
-  }
   const problems: PreflightProblem[] = [];
-  if (sandbox.allowUnsandboxedCommands !== false) {
+  if (sandbox?.enabled !== true) {
+    problems.push({
+      tool: 'claude-sandbox',
+      message: `sandbox is off: set sandbox.enabled to true in ${claudeSettingsPath}`,
+    });
+  } else if (sandbox.allowUnsandboxedCommands !== false) {
     problems.push({
       tool: 'claude-sandbox',
       message: `sandbox escape hatch is on: set sandbox.allowUnsandboxedCommands to false in ${claudeSettingsPath}`,

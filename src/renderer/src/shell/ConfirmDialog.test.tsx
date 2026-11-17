@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -53,27 +53,14 @@ describe('ConfirmDialog', () => {
     expect(screen.getByRole('button', { name: confirmLabel })).toHaveAttribute('data-variant', variant);
   });
 
-  test('Escape cancels', async () => {
+  test('the cancel event (Escape) cancels', () => {
     // given
     const { onConfirm, onCancel } = renderDialog();
     // when
-    await userEvent.keyboard('{Escape}');
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
     // then
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onConfirm).not.toHaveBeenCalled();
-  });
-
-  test('Escape after closing does nothing', async () => {
-    // given
-    const onCancel = vi.fn();
-    const { unmount } = render(
-      <ConfirmDialog title="t" body="b" confirmLabel="OK" onConfirm={vi.fn()} onCancel={onCancel} />,
-    );
-    unmount();
-    // when
-    await userEvent.keyboard('{Escape}');
-    // then
-    expect(onCancel).not.toHaveBeenCalled();
   });
 
   test('shows the title and body', () => {

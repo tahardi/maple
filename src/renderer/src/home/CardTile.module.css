@@ -1,23 +1,19 @@
 .tile {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   width: 100%;
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px;
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
   cursor: pointer;
 }
 
-.tile[data-blocked='true'] {
-  opacity: 0.5;
-}
-
 .tile[data-highlighted='true'] {
-  border-color: var(--warning);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 40%, transparent);
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-strong) 40%, transparent);
 }
 
 .key {
@@ -27,15 +23,9 @@
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
   font-size: var(--font-sm);
   color: var(--text-muted);
-}
-
-.label {
-  background: var(--bg-sunken);
-  border-radius: 8px;
-  padding: 0 6px;
 }
 
 .blocked {
@@ -48,13 +38,48 @@
 }
 
 .selectable .tile {
-  padding-right: 28px;
+  padding-right: calc(var(--space-4) + var(--space-3));
 }
 
 .check {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: var(--space-2);
+  right: var(--space-2);
   margin: 0;
   cursor: pointer;
+}
+
+.start {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  opacity: 0;
+}
+
+.selectable[data-queued='true'] .tile {
+  padding-right: var(--space-2);
+  padding-bottom: calc(var(--space-2) + 2em);
+}
+
+.queue {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.queueControls {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+}
+
+.selectable:hover .start,
+.selectable:focus-within .start,
+.selectable:hover .queueControls,
+.selectable:focus-within .queueControls,
+.start:has([aria-busy='true']) {
+  opacity: 1;
 }

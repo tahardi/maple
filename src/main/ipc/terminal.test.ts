@@ -1,12 +1,14 @@
 import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { ProjectConfig } from '@shared/types/config';
-import type { TabState } from '@shared/types/tabs';
-import type { SessionManager } from '@main/sessions/sessions';
-import type { StatusEngine } from '@main/sessions/status';
-import type { Terminals } from '@main/sessions/terminals';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { SessionManager } from '@main/sessions/SessionManager';
+import type { StatusEngine } from '@main/sessions/StatusEngine';
+import type { Terminals } from '@main/sessions/Terminals';
 import { registerTerminal } from './terminal';
+import type { StartQueue } from '@main/sessions/StartQueue';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 type Listener = (event: IpcMainEvent, ...args: unknown[]) => void;
@@ -25,6 +27,7 @@ const tab: TabState = {
   cardKey: 'DIG-44',
   sessionId: 's1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 const project: ProjectConfig = {
@@ -35,6 +38,8 @@ const project: ProjectConfig = {
   repo: 'tahardi/dig-days',
   otherRepos: [],
 };
+
+const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 function setup(tabs: TabState[] = [tab]) {
   const sessions = { get: vi.fn((tabId: string) => tabs.find((t) => t.id === tabId) ?? null) };
@@ -47,23 +52,35 @@ function setup(tabs: TabState[] = [tab]) {
   });
   const sendToWindow = vi.fn();
   const win = { isDestroyed: () => false, webContents: { send: sendToWindow } } as unknown as BrowserWindow;
-  registerTerminal({
-    window: () => win,
-    worktreeFor: () => null,
-    project: (key) => Promise.resolve(key === 'DIG' ? project : null),
-    sessions: sessions as unknown as SessionManager,
-    terminals: terminals as unknown as Terminals,
-    status: {} as StatusEngine,
-    setActiveTab: () => undefined,
-    warnings: () => [],
-    setNotifications: () => Promise.resolve(),
-    setZoom: () => Promise.resolve(),
-    configLoaded: () => Promise.resolve(),
-    setLastProject: () => Promise.resolve(),
-    lastProject: () => Promise.resolve(null),
-    setSeen: () => Promise.resolve(),
-    seen: () => Promise.resolve({}),
-  });
+  registerTerminal(
+    {
+      window: () => win,
+      worktreeFor: () => null,
+      project: (key) => Promise.resolve(key === 'DIG' ? project : null),
+      sessions: sessions as unknown as SessionManager,
+      terminals: terminals as unknown as Terminals,
+      status: {} as StatusEngine,
+      setActiveTab: () => undefined,
+      warnings: () => [],
+      setNotifications: () => Promise.resolve(),
+      setZoom: () => Promise.resolve(),
+      configLoaded: () => Promise.resolve(),
+      setLastProject: () => Promise.resolve(),
+      lastProject: () => Promise.resolve(null),
+      setSeen: () => Promise.resolve(),
+      seen: () => Promise.resolve({}),
+      startQueue: new EventEmitter() as StartQueue,
+      prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
+      jira: new Promise<never>(() => undefined),
+      jiraCreds: new Promise<never>(() => undefined),
+      watchVault: () => undefined,
+      findingsDir: '/tmp/maple/findings',
+      decisionsDir: '/tmp/maple/decisions',
+      runner: fakeRunner(),
+      home: '/home/dev',
+    },
+    logger,
+  );
   return { terminals, sendToWindow };
 }
 
@@ -136,6 +153,33 @@ describe('registerTerminal', () => {
     // then
     expect(got).toThrow('handling terminal:close: arguments are invalid');
     expect(terminals.close).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'an unknown tab', tabs: [], spawn: null, error: 'opening terminal: unknown tab t1' },
+    {
+      name: 'a shell that fails to start',
+      tabs: [tab],
+      spawn: 'spawning shell: no pty',
+      error: 'spawning shell: no pty',
+    },
+  ])('terminal:open logs $name at warn and rethrows', async ({ tabs, spawn, error }) => {
+    // given
+    const { terminals } = setup(tabs);
+    if (spawn !== null) {
+      terminals.open.mockImplementation(() => {
+        throw new Error(spawn);
+      });
+    }
+    // when
+    const got = invoke('terminal:open', 't1', 't1:2');
+    // then
+    await expect(got).rejects.toThrow(error);
+    expect(logger.warn).toHaveBeenCalledWith('terminal', 'failed', {
+      operation: 'terminal:open',
+      args: ['t1', 't1:2'],
+      error,
+    });
   });
 
   test('terminal:open rejects an unknown tab', async () => {

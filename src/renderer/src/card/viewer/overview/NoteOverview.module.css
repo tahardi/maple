@@ -12,7 +12,7 @@
   top: 0;
   left: 0;
   box-sizing: border-box;
-  padding: 12px;
+  padding: var(--space-3);
   transform-origin: top left;
   pointer-events: none;
 }

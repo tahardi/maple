@@ -1,0 +1,9 @@
+.reason {
+  color: var(--text);
+  font-size: var(--font-sm);
+}
+
+.reason[data-kind='hint'] {
+  color: var(--text-muted);
+  font-style: italic;
+}

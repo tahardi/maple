@@ -1,68 +1,71 @@
+import { EventEmitter } from 'node:events';
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { ProjectConfig } from '@shared/types/config';
-import type { PrInfo } from '@shared/types/github';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import type { PrInfo } from '@shared/types/github/prInfo';
 import type { Runner as CommandRunner } from '@main/app/preflight';
-import type { SessionManager } from '@main/sessions/sessions';
-import type { StatusEngine } from '@main/sessions/status';
-import type { Terminals } from '@main/sessions/terminals';
+import type { PrEvents } from '@main/events/PrEvents';
+import type { SessionManager } from '@main/sessions/SessionManager';
+import type { StatusEngine } from '@main/sessions/StatusEngine';
+import type { Terminals } from '@main/sessions/Terminals';
 import { registerPr } from './pr';
+import type { StartQueue } from '@main/sessions/StartQueue';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>;
 
 const {
   handle,
-  prForBranch,
   commentOnLine,
+  commentOnPr,
+  prConversation,
   replyToComment,
   resolveThread,
   reviewComments,
   diffLines,
   gh,
-  projectRunner,
   reviewFiles,
   reviewFilePair,
-  openFindings,
-  ghLogin,
-  currentBranch,
+  latestPr,
+  refreshPrs,
+  ghRunner,
 } = vi.hoisted(() => ({
   handle: vi.fn<(channel: string, handler: Handler) => void>(),
-  prForBranch: vi.fn(),
   commentOnLine: vi.fn(),
+  commentOnPr: vi.fn(),
+  prConversation: vi.fn(),
   replyToComment: vi.fn(),
   resolveThread: vi.fn(),
   reviewComments: vi.fn(),
   diffLines: vi.fn(),
   gh: vi.fn<CommandRunner>(),
-  projectRunner:
-    vi.fn<
-      (
-        byKey: (key: string) => Promise<ProjectConfig | null>,
-        key: string | null,
-        branch: string | null,
-      ) => Promise<CommandRunner>
-    >(),
   reviewFiles: vi.fn(),
   reviewFilePair: vi.fn(),
-  openFindings: vi.fn(),
-  ghLogin: vi.fn(),
-  currentBranch: vi.fn(),
+  latestPr: vi.fn(),
+  refreshPrs: vi.fn(),
+  ghRunner: vi.fn(),
 }));
 
 vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('@main/git/git', () => ({ currentBranch }));
 vi.mock('@main/github/pr', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@main/github/pr')>()),
-  prForBranch,
   diffLines,
 }));
-vi.mock('@main/github/comments', () => ({ commentOnLine, replyToComment, resolveThread, reviewComments }));
-vi.mock('@main/github/ghRunner', () => ({ projectRunner }));
+vi.mock('@main/github/comments', () => ({
+  commentOnLine,
+  commentOnPr,
+  prConversation,
+  replyToComment,
+  resolveThread,
+  reviewComments,
+}));
+vi.mock('@main/github/ghRunner', () => ({ ghRunner }));
 vi.mock('@main/github/reviewDiff', () => ({ reviewFiles, reviewFilePair }));
-vi.mock('@main/github/securityFindings', () => ({ openFindings, ghLogin }));
 
 const event = {} as IpcMainInvokeEvent;
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+const events = { approved: vi.fn(), commented: vi.fn(), replied: vi.fn(), resolved: vi.fn() };
+const eventTab = { projectKey: 'DIG', cardKey: 'DIG-44', worktreePath: '/wt', worktreePaths: ['/wt'] };
 const pr: PrInfo = {
   number: 33,
   url: 'https://github.com/tahardi/maple/pull/33',
@@ -72,8 +75,12 @@ const pr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
+  headSha: 'a'.repeat(40),
+  mergeable: 'MERGEABLE',
   checks: { passed: 1, failed: 0, pending: 0, total: 1, runs: [] },
 };
+
+const polled = (found: PrInfo | null) => ({ data: found, error: null, fetchedAt: '2026-11-12T00:00:00.000Z' });
 
 const project: ProjectConfig = {
   name: 'Dig Days',
@@ -86,19 +93,27 @@ const project: ProjectConfig = {
 const head = 'a'.repeat(40);
 const base = 'c'.repeat(40);
 
-function tabSessions(cardKey: string | null = 'DIG-44', projectKey = 'DIG', sendPrompt = vi.fn()) {
-  return { get: () => ({ projectKey, cardKey }), sendPrompt } as unknown as SessionManager;
+function tabSessions(
+  cardKey: string | null = 'DIG-44',
+  projectKey = 'DIG',
+  sendPrompt = vi.fn(),
+  worktreePaths: readonly string[] = ['/wt'],
+) {
+  return {
+    get: () => ({ projectKey, cardKey, worktreePath: '/wt', worktreePaths }),
+    sendPrompt,
+  } as unknown as SessionManager;
 }
 
 function register(
   channel: string,
-  worktree: string | null,
+  worktree: string | null | (() => string | null),
   sessions: SessionManager = tabSessions(),
 ): (...args: unknown[]) => Promise<unknown> {
   registerPr(
     {
       window: () => null,
-      worktreeFor: () => worktree,
+      worktreeFor: typeof worktree === 'function' ? worktree : () => worktree,
       project: (key) => Promise.resolve(key === project.jiraKey ? project : null),
       sessions,
       terminals: {} as Terminals,
@@ -112,8 +127,18 @@ function register(
       lastProject: () => Promise.resolve(null),
       setSeen: () => Promise.resolve(),
       seen: () => Promise.resolve({}),
+      startQueue: new EventEmitter() as StartQueue,
+      prs: { latest: latestPr, refresh: refreshPrs },
+      jira: new Promise<never>(() => undefined),
+      jiraCreds: new Promise<never>(() => undefined),
+      watchVault: () => undefined,
+      findingsDir: '/tmp/maple/findings',
+      decisionsDir: '/tmp/maple/decisions',
+      runner: fakeRunner(),
+      home: '/home/dev',
     },
     logger,
+    events as unknown as PrEvents,
   );
   const call = handle.mock.calls.find(([name]) => name === channel);
   if (!call) {
@@ -134,6 +159,7 @@ function approver(
   answers: Record<string, Reply> = {},
   worktree: string | null = '/wt',
   cardKey: string | null = 'DIG-44',
+  worktreePaths: readonly string[] = ['/wt'],
 ) {
   const calls: string[] = [];
   gh.mockImplementation((_cmd, args) => {
@@ -144,137 +170,85 @@ function approver(
   const sendPrompt = vi.fn(() => {
     calls.push('prompt');
   });
-  const sessions = tabSessions(cardKey, 'DIG', sendPrompt);
+  const sessions = tabSessions(cardKey, 'DIG', sendPrompt, worktreePaths);
   return { approve: register('pr:approve', worktree, sessions), sendPrompt, calls };
 }
 
-const viewPin = 'pr view 33 --json headRefOid,headRefName,baseRefName';
+const viewPin = 'pr view 33 --json headRefOid,headRefName,baseRefName,isCrossRepository';
 const viewRepo = 'api repos/{owner}/{repo} --jq .default_branch';
 const pinned = (sha: string) =>
-  ok(JSON.stringify({ headRefOid: sha, headRefName: 'dig-44-trail', baseRefName: 'main' }));
+  ok(JSON.stringify({ headRefOid: sha, headRefName: 'dig-44-trail', baseRefName: 'main', isCrossRepository: false }));
 const postReview = `api --method POST repos/{owner}/{repo}/pulls/33/reviews -f event=APPROVE -f commit_id=${head}`;
 const merge = `pr merge 33 --squash --match-head-commit ${head}`;
 
 describe('registerPr', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    prForBranch.mockReset();
-    currentBranch.mockReset().mockResolvedValue('mpl-13-github-client');
-    projectRunner.mockReset().mockImplementation(async (byKey, key) => {
-      if ((key === null ? null : await byKey(key)) === null) {
-        throw new Error(`finding project repo: unknown project ${String(key)}`);
-      }
-      return gh;
-    });
+    ghRunner.mockReset().mockReturnValue(gh);
+    latestPr.mockReset().mockResolvedValue(polled(pr));
   });
 
-  test('get looks up the PR for the tab worktree branch', async () => {
+  test('get serves the poller latest result and runs no gh command', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    const fetched = { data: pr, error: null, fetchedAt: '2026-11-11T12:00:00.000Z' };
+    latestPr.mockResolvedValue(fetched);
     const prGet = get('/wt');
     // when
     const result = await prGet('t1');
     // then
-    expect(result).toEqual({ data: pr, error: null, fetchedAt: expect.any(String) as string });
-    expect(currentBranch).toHaveBeenCalledWith('/wt');
-    expect(prForBranch).toHaveBeenCalledWith(gh, '/wt', 'mpl-13-github-client');
+    expect(result).toEqual(fetched);
+    expect(latestPr).toHaveBeenCalledWith('t1', '/wt');
+    expect(gh).not.toHaveBeenCalled();
   });
 
-  test('get finds the runner with the tab worktree branch', async () => {
+  test('get returns the last good PR with the error when the poll failed', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    const fetched = { data: pr, error: 'listing PRs: offline', fetchedAt: '2026-11-11T12:00:00.000Z' };
+    latestPr.mockResolvedValue(fetched);
     const prGet = get('/wt');
     // when
-    await prGet('t1');
+    const result = await prGet('t1');
     // then
-    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', 'mpl-13-github-client');
+    expect(result).toEqual(fetched);
   });
 
   test.each([
-    { channel: 'pr:get', args: ['t1'] },
-    { channel: 'pr:review', args: ['t1'] },
     { channel: 'pr:comment', args: ['t1', 'src/a.ts', null, 3, 'hi', head] },
     { channel: 'pr:reply', args: ['t1', 5, 'hi'] },
-    { channel: 'pr:comments', args: ['t1'] },
+    { channel: 'pr:commentOnPr', args: ['t1', 'hi'] },
     { channel: 'pr:diffLines', args: ['t1', base, head] },
-  ])('$channel finds the runner once', async ({ channel, args }) => {
+    { channel: 'pr:readFile', args: ['t1', 'src/a.ts', null, base, head] },
+    { channel: 'pr:resolve', args: ['t1', 'thread-1', true] },
+  ])('$channel runs in the repo of the tab PR', async ({ channel, args }) => {
     // given
-    prForBranch.mockResolvedValue(pr);
-    ghLogin.mockResolvedValue('me');
-    openFindings.mockResolvedValue([]);
-    reviewFiles.mockResolvedValue({ files: [] });
     const call = register(channel, '/wt');
     // when
     await call(...args);
     // then
-    expect(projectRunner).toHaveBeenCalledTimes(1);
+    expect(latestPr).toHaveBeenCalledWith('t1', '/wt');
+    expect(ghRunner).toHaveBeenCalledTimes(1);
+    expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
   });
 
   test.each([
     {
       channel: 'pr:readFile',
       args: ['t1', 'src/a.ts', null, base, head],
-      want: 'listing branch: git down',
+      want: /^reading PR file: listing PRs: offline$/,
     },
     {
       channel: 'pr:resolve',
       args: ['t1', 'thread-1', true],
-      want: 'resolving thread: listing branch: git down',
+      want: /^resolving thread: listing PRs: offline$/,
     },
-  ])('$channel rejects when the branch lookup fails', async ({ channel, args, want }) => {
+  ])('$channel rejects with the poll error when the poller has no PR', async ({ channel, args, want }) => {
     // given
-    currentBranch.mockRejectedValue(new Error('listing branch: git down'));
+    latestPr.mockResolvedValue({ data: null, error: 'listing PRs: offline', fetchedAt: null });
     const call = register(channel, '/wt');
     // when
     const result = call(...args);
     // then
     await expect(result).rejects.toThrow(want);
-  });
-
-  test('get keeps the last good PR and its fetchedAt when a later lookup fails', async () => {
-    // given
-    prForBranch.mockResolvedValueOnce(pr).mockRejectedValueOnce(new Error('listing PRs: offline'));
-    const prGet = get('/wt');
-    const first = (await prGet('t1')) as { fetchedAt: string };
-    // when
-    const result = await prGet('t1');
-    // then
-    expect(result).toEqual({ data: pr, error: 'listing PRs: offline', fetchedAt: first.fetchedAt });
-  });
-
-  test.each([
-    { name: 'the PR lookup', fail: () => prForBranch.mockRejectedValue(new Error('listing PRs: offline')) },
-    { name: 'the branch lookup', fail: () => currentBranch.mockRejectedValue(new Error('listing PRs: offline')) },
-  ])('get returns the error with no data when $name fails with nothing cached', async ({ fail }) => {
-    // given
-    fail();
-    const prGet = get('/wt');
-    // when
-    const result = await prGet('t1');
-    // then
-    expect(result).toEqual({ data: null, error: 'listing PRs: offline', fetchedAt: null });
-  });
-
-  test('get never serves one tab the cached PR of another tab', async () => {
-    // given
-    prForBranch.mockResolvedValueOnce(pr).mockRejectedValueOnce(new Error('listing PRs: offline'));
-    const prGet = get('/wt');
-    await prGet('t1');
-    // when
-    const result = await prGet('t2');
-    // then
-    expect(result).toEqual({ data: null, error: 'listing PRs: offline', fetchedAt: null });
-  });
-
-  test('get clears the error once a lookup succeeds again', async () => {
-    // given
-    prForBranch.mockRejectedValueOnce(new Error('listing PRs: offline')).mockResolvedValueOnce(pr);
-    const prGet = get('/wt');
-    await prGet('t1');
-    // when
-    const result = await prGet('t1');
-    // then
-    expect(result).toEqual({ data: pr, error: null, fetchedAt: expect.any(String) as string });
   });
 
   test('get returns no PR when the tab has no worktree', async () => {
@@ -284,21 +258,21 @@ describe('registerPr', () => {
     const result = await prGet('t1');
     // then
     expect(result).toEqual({ data: null, error: null, fetchedAt: null });
-    expect(prForBranch).not.toHaveBeenCalled();
+    expect(latestPr).not.toHaveBeenCalled();
   });
 
   test('pr:approve approves and merges the pinned commit, then prompts /card', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue(polled(pr));
     const { approve, sendPrompt, calls } = approver({ [viewPin]: pinned(head) });
     // when
     await approve('t1', head);
     // then
     expect(calls).toEqual([viewPin, viewRepo, postReview, merge, 'prompt']);
     expect(sendPrompt).toHaveBeenCalledWith('t1', '/card DIG-44');
-    expect(projectRunner.mock.calls.every(([, key]) => key === 'DIG')).toBe(true);
-    expect(projectRunner).toHaveBeenCalledTimes(1);
-    expect(prForBranch).toHaveBeenCalledWith(gh, '/wt', 'mpl-13-github-client');
+    expect(refreshPrs).toHaveBeenCalledTimes(1);
+    expect(latestPr).toHaveBeenCalledWith('t1', '/wt');
+    expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
     expect(logger.info).toHaveBeenCalledWith('gh', 'merged', {
       tabId: 't1',
       repo: 'tahardi/maple',
@@ -307,21 +281,143 @@ describe('registerPr', () => {
     });
   });
 
+  test('pr:approve merges the selected PR but holds /card while another worktree has an open PR', async () => {
+    // given
+    latestPr.mockImplementation((_tabId: string, worktree: string) =>
+      Promise.resolve(polled(worktree === '/wt2' ? { ...pr, number: 34 } : pr)),
+    );
+    const { approve, sendPrompt, calls } = approver({ [viewPin]: pinned(head) }, '/wt', 'DIG-44', ['/wt', '/wt2']);
+    // when
+    await approve('t1', head);
+    // then
+    expect(calls).toContain(merge);
+    expect(sendPrompt).not.toHaveBeenCalled();
+    expect(latestPr).toHaveBeenCalledWith('t1', '/wt2');
+    expect(logger.info).toHaveBeenCalledWith('gh', 'waiting for other PRs', { tabId: 't1', open: [34] });
+  });
+
+  test('pr:approve prompts /card once every other worktree PR is merged', async () => {
+    // given
+    latestPr.mockImplementation((_tabId: string, worktree: string) =>
+      Promise.resolve(polled(worktree === '/wt2' ? { ...pr, state: 'MERGED' } : pr)),
+    );
+    const { approve, sendPrompt } = approver({ [viewPin]: pinned(head) }, '/wt', 'DIG-44', ['/wt', '/wt2']);
+    // when
+    await approve('t1', head);
+    // then
+    expect(sendPrompt).toHaveBeenCalledWith('t1', '/card DIG-44');
+    const otherRead = latestPr.mock.calls.findIndex(([, worktree]) => worktree === '/wt2');
+    expect(refreshPrs.mock.invocationCallOrder[0]).toBeLessThan(latestPr.mock.invocationCallOrder[otherRead]);
+  });
+
+  test.each([
+    { name: 'another worktree has no PR', worktreePaths: ['/wt', '/wt2'] },
+    { name: 'the tab lists no worktrees', worktreePaths: [] },
+  ])('pr:approve prompts /card when $name', async ({ worktreePaths }) => {
+    // given
+    latestPr.mockImplementation((_tabId: string, worktree: string) =>
+      Promise.resolve(polled(worktree === '/wt2' ? null : pr)),
+    );
+    const { approve, sendPrompt } = approver({ [viewPin]: pinned(head) }, '/wt', 'DIG-44', worktreePaths);
+    // when
+    await approve('t1', head);
+    // then
+    expect(sendPrompt).toHaveBeenCalledWith('t1', '/card DIG-44');
+  });
+
+  test("pr:approve holds /card when another worktree's PR lookup fails", async () => {
+    // given
+    latestPr.mockImplementation((_tabId: string, worktree: string) =>
+      Promise.resolve(
+        worktree === '/wt2' ? { data: null, error: 'listing PRs: offline', fetchedAt: null } : polled(pr),
+      ),
+    );
+    const { approve, sendPrompt, calls } = approver({ [viewPin]: pinned(head) }, '/wt', 'DIG-44', ['/wt', '/wt2']);
+    // when
+    const result = approve('t1', head);
+    // then
+    await expect(result).resolves.toBeUndefined();
+    expect(calls).toContain(merge);
+    expect(sendPrompt).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
+      operation: 'pr:approve',
+      tabId: 't1',
+      error: 'listing PRs: offline',
+    });
+  });
+
+  test.each([
+    {
+      name: 'pr:approve',
+      args: ['t1', head],
+      posted: () => gh.mock.calls.map(([, args]) => args.join(' ')).filter((c) => c === postReview || c === merge),
+      want: [postReview, merge],
+    },
+    {
+      name: 'pr:comment',
+      args: ['t1', 'src/a.ts', null, 3, 'why?', head],
+      posted: () => commentOnLine.mock.calls.map(([, , number]) => number as number),
+      want: [33],
+    },
+    {
+      name: 'pr:reply',
+      args: ['t1', 101, 'thanks'],
+      posted: () => replyToComment.mock.calls.map(([, , number]) => number as number),
+      want: [33],
+    },
+  ])('$name acts on the last good PR when the latest poll failed', async ({ name, args, posted, want }) => {
+    // given
+    latestPr.mockResolvedValue({ data: pr, error: 'listing PRs: offline', fetchedAt: '2026-11-11T12:00:00.000Z' });
+    const call = name === 'pr:approve' ? approver({ [viewPin]: pinned(head) }).approve : register(name, '/wt');
+    // when
+    const result = call(...args);
+    // then
+    await expect(result).resolves.toBeUndefined();
+    expect(posted()).toEqual(want);
+    expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
+  });
+
+  test('pr:approve records the approval after it merges', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(pr));
+    const { approve } = approver({ [viewPin]: pinned(head) });
+    // when
+    await approve('t1', head);
+    // then
+    expect(events.approved).toHaveBeenCalledWith(eventTab, pr);
+  });
+
+  test('pr:approve records nothing when the merge fails', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(pr));
+    const { approve } = approver({
+      [viewPin]: pinned(head),
+      [merge]: { code: 1, stdout: '', stderr: 'Head branch was modified' },
+    });
+    // when
+    const result = approve('t1', head);
+    // then
+    await expect(result).rejects.toThrow('merging');
+    expect(events.approved).not.toHaveBeenCalled();
+  });
+
   test('pr:approve refuses when the head moved', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue(polled(pr));
     const { approve, sendPrompt, calls } = approver({ [viewPin]: pinned('d'.repeat(40)) });
     // when
     const result = approve('t1', head);
     // then
-    await expect(result).rejects.toThrow(/^approving PR: the PR changed after the diff loaded; review it again$/);
+    await expect(result).rejects.toThrow(
+      /^approving PR: the PR has new commits since the review loaded; Approve again once the review updates$/,
+    );
     expect(calls).toEqual([viewPin, viewRepo]);
     expect(sendPrompt).not.toHaveBeenCalled();
   });
 
   test('pr:approve reports a failed review', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue(polled(pr));
     const { approve, sendPrompt, calls } = approver({
       [viewPin]: pinned(head),
       [postReview]: { code: 1, stdout: '', stderr: 'HTTP 422' },
@@ -336,7 +432,7 @@ describe('registerPr', () => {
 
   test('pr:approve reports a failed merge', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue(polled(pr));
     const { approve, sendPrompt } = approver({
       [viewPin]: pinned(head),
       [merge]: { code: 1, stdout: '', stderr: 'Head branch was modified' },
@@ -346,6 +442,7 @@ describe('registerPr', () => {
     // then
     await expect(result).rejects.toThrow(/^approving PR: merging: Head branch was modified$/);
     expect(sendPrompt).not.toHaveBeenCalled();
+    expect(refreshPrs).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
       operation: 'pr:approve',
       tabId: 't1',
@@ -372,13 +469,13 @@ describe('registerPr', () => {
     { name: 'the tab has no card', worktree: '/wt', cardKey: null, want: 'tab has no card worktree' },
   ])('pr:approve rejects and calls nothing when $name', async ({ worktree, cardKey, want }) => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue(polled(pr));
     const { approve, sendPrompt, calls } = approver({}, worktree, cardKey);
     // when
     const result = approve('t1', head);
     // then
     await expect(result).rejects.toThrow(`approving PR: ${want}`);
-    expect(prForBranch).not.toHaveBeenCalled();
+    expect(latestPr).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
     expect(sendPrompt).not.toHaveBeenCalled();
   });
@@ -389,7 +486,7 @@ describe('registerPr', () => {
     { name: 'the PR is closed', found: { ...pr, state: 'CLOSED' as const } },
   ])('pr:approve rejects and calls nothing when $name', async ({ found }) => {
     // given
-    prForBranch.mockResolvedValue(found);
+    latestPr.mockResolvedValue(polled(found));
     const { approve, sendPrompt, calls } = approver();
     // when
     const result = approve('t1', head);
@@ -399,9 +496,9 @@ describe('registerPr', () => {
     expect(sendPrompt).not.toHaveBeenCalled();
   });
 
-  test('pr:approve rejects with the cause when the PR lookup fails', async () => {
+  test('pr:approve rejects with the poll error when the poller has no PR', async () => {
     // given
-    prForBranch.mockRejectedValue(new Error('listing PRs: offline'));
+    latestPr.mockResolvedValue({ data: null, error: 'listing PRs: offline', fetchedAt: null });
     const { approve, sendPrompt } = approver();
     // when
     const result = approve('t1', head);
@@ -410,38 +507,23 @@ describe('registerPr', () => {
     expect(sendPrompt).not.toHaveBeenCalled();
   });
 
-  test('pr:approve rejects when the tab project has no repo', async () => {
+  test('pr:review returns the files for the open PR', async () => {
     // given
-    const sessions = tabSessions('DIG-44', 'HALO');
-    const approve = register('pr:approve', '/wt', sessions);
-    // when
-    const result = approve('t1', head);
-    // then
-    await expect(result).rejects.toThrow(/^approving PR: finding project repo: unknown project HALO$/);
-    expect(gh).not.toHaveBeenCalled();
-  });
-
-  test('pr:review returns files and open findings for the open PR', async () => {
-    // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: null });
     const files = [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: 'f'.repeat(40) }];
     reviewFiles.mockResolvedValue({ number: 33, headSha: head, baseSha: base, files });
-    const findings = [{ id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://github.com/x' }];
-    openFindings.mockResolvedValue(findings);
-    ghLogin.mockResolvedValue('tahardi');
     const review = register('pr:review', '/wt');
     // when
     const result = await review('t1');
-    await review('t1');
     // then
     expect(result).toEqual({
-      data: { number: 33, headSha: head, baseSha: base, files, findings },
+      data: { number: 33, headSha: head, baseSha: base, files },
       error: null,
       fetchedAt: expect.any(String) as string,
     });
     expect(reviewFiles).toHaveBeenCalledWith(gh, 33);
-    expect(openFindings).toHaveBeenCalledWith(gh, 33, 'tahardi');
-    expect(ghLogin).toHaveBeenCalledTimes(1);
+    expect(latestPr).toHaveBeenCalledWith('t1', '/wt');
+    expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
   });
 
   test.each([
@@ -450,7 +532,7 @@ describe('registerPr', () => {
     { name: 'the PR is merged', worktree: '/wt', found: { ...pr, state: 'MERGED' as const } },
   ])('pr:review returns no review when $name', async ({ worktree, found }) => {
     // given
-    prForBranch.mockResolvedValue(found);
+    latestPr.mockResolvedValue({ data: found, error: null, fetchedAt: null });
     const review = register('pr:review', worktree);
     // when
     const result = await review('t1');
@@ -459,12 +541,21 @@ describe('registerPr', () => {
     expect(reviewFiles).not.toHaveBeenCalled();
   });
 
+  test('pr:review returns the poll error when the poller has no PR', async () => {
+    // given
+    latestPr.mockResolvedValue({ data: null, error: 'listing PRs: offline', fetchedAt: null });
+    const review = register('pr:review', '/wt');
+    // when
+    const result = await review('t1');
+    // then
+    expect(result).toEqual({ data: null, error: 'listing PRs: offline', fetchedAt: null });
+    expect(reviewFiles).not.toHaveBeenCalled();
+  });
+
   test('pr:review returns and logs the error when the fetch fails', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: null });
     reviewFiles.mockRejectedValue(new Error('fetching review: the PR head moved, try again'));
-    openFindings.mockResolvedValue([]);
-    ghLogin.mockResolvedValue('tahardi');
     const review = register('pr:review', '/wt');
     // when
     const result = await review('t1');
@@ -472,34 +563,6 @@ describe('registerPr', () => {
     const error = 'fetching review: the PR head moved, try again';
     expect(result).toEqual({ data: null, error, fetchedAt: null });
     expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', { operation: 'pr:review', tabId: 't1', error });
-  });
-
-  test('pr:review asks for the gh login again after a failed lookup', async () => {
-    // given
-    prForBranch.mockResolvedValue(pr);
-    reviewFiles.mockResolvedValue({ number: 33, headSha: head, baseSha: base, files: [] });
-    openFindings.mockResolvedValue([]);
-    ghLogin.mockRejectedValueOnce(new Error('reading gh login: offline')).mockResolvedValue('tahardi');
-    const review = register('pr:review', '/wt');
-    const first = await review('t1');
-    // when
-    const second = await review('t1');
-    // then
-    expect(first).toEqual({ data: null, error: 'reading gh login: offline', fetchedAt: null });
-    expect(second).toMatchObject({ data: { headSha: head, findings: [] }, error: null });
-  });
-
-  test('pr:review returns no review when the findings cannot be listed', async () => {
-    // given
-    prForBranch.mockResolvedValue(pr);
-    reviewFiles.mockResolvedValue({ number: 33, headSha: head, baseSha: base, files: [] });
-    openFindings.mockRejectedValue(new Error('listing findings: offline'));
-    ghLogin.mockResolvedValue('tahardi');
-    const review = register('pr:review', '/wt');
-    // when
-    const result = await review('t1');
-    // then
-    expect(result).toEqual({ data: null, error: 'listing findings: offline', fetchedAt: null });
   });
 
   test('pr:readFile logs and rethrows a failed read', async () => {
@@ -528,17 +591,30 @@ describe('registerPr', () => {
     // then
     expect(result).toEqual(pair);
     expect(reviewFilePair).toHaveBeenCalledWith(gh, 'src/a.ts', 'src/old.ts', base, head);
-    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', 'mpl-13-github-client');
+    expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
   });
 
-  test('readFile finds the runner with a null branch when the tab has no worktree', async () => {
+  test('readFile rejects and reads nothing when the tab has no worktree', async () => {
     // given
-    reviewFilePair.mockResolvedValue({ kind: 'text', path: 'src/a.ts', base: '', current: '' });
     const readFile = register('pr:readFile', null);
     // when
-    await readFile('t1', 'src/a.ts', null, base, head);
+    const result = readFile('t1', 'src/a.ts', null, base, head);
     // then
-    expect(projectRunner).toHaveBeenCalledWith(expect.any(Function), 'DIG', null);
+    await expect(result).rejects.toThrow(/^reading PR file: tab has no PR$/);
+    expect(latestPr).not.toHaveBeenCalled();
+    expect(ghRunner).not.toHaveBeenCalled();
+    expect(reviewFilePair).not.toHaveBeenCalled();
+  });
+
+  test('readFile rejects when the tab has no PR', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(null));
+    const readFile = register('pr:readFile', '/wt');
+    // when
+    const result = readFile('t1', 'src/a.ts', null, base, head);
+    // then
+    await expect(result).rejects.toThrow(/^reading PR file: tab has no PR$/);
+    expect(reviewFilePair).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -558,7 +634,7 @@ describe('registerPr', () => {
 
   test('comment posts the line comment pinned to the given commit', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue(polled(pr));
     const comment = register('pr:comment', '/wt');
     // when
     await comment('t1', 'src/a.ts', null, 3, 'why?', head);
@@ -569,6 +645,28 @@ describe('registerPr', () => {
       line: 3,
       body: 'why?',
     });
+  });
+
+  test('comment records the comment length after it posts', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(pr));
+    const comment = register('pr:comment', '/wt');
+    // when
+    await comment('t1', 'src/a.ts', null, 3, 'why?', head);
+    // then
+    expect(events.commented).toHaveBeenCalledWith(eventTab, pr, 4);
+  });
+
+  test('comment records nothing when the post fails', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(pr));
+    commentOnLine.mockRejectedValueOnce(new Error('commenting on line: line must be part of the diff'));
+    const comment = register('pr:comment', '/wt');
+    // when
+    const result = comment('t1', 'src/a.ts', null, 3, 'why?', head);
+    // then
+    await expect(result).rejects.toThrow('line must be part of the diff');
+    expect(events.commented).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -582,7 +680,7 @@ describe('registerPr', () => {
     { name: 'the tab has no worktree', worktree: null, found: pr, want: 'tab has no card worktree' },
   ])('comment rejects and posts nothing when $name', async ({ worktree, found, want }) => {
     // given
-    prForBranch.mockResolvedValue(found);
+    latestPr.mockResolvedValue(polled(found));
     const comment = register('pr:comment', worktree);
     // when
     const result = comment('t1', 'src/a.ts', null, 3, 'why?', head);
@@ -593,7 +691,7 @@ describe('registerPr', () => {
 
   test('comment rejects with the one prefix and logs the path and line when the post fails', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue(polled(pr));
     commentOnLine.mockRejectedValueOnce(new Error('commenting on line: line must be part of the diff'));
     const comment = register('pr:comment', '/wt');
     // when
@@ -612,7 +710,7 @@ describe('registerPr', () => {
 
   test('comment posts on a range of lines', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue(polled(pr));
     const comment = register('pr:comment', '/wt');
     // when
     await comment('t1', 'src/a.ts', 1, 3, 'why?', head);
@@ -625,14 +723,53 @@ describe('registerPr', () => {
     });
   });
 
-  test('reply posts on the open PR of the worktree branch', async () => {
+  test('reply posts on the open PR the poller holds', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue(polled(pr));
     const reply = register('pr:reply', '/wt');
     // when
     await reply('t1', 101, 'thanks');
     // then
     expect(replyToComment).toHaveBeenCalledWith(gh, '/wt', 33, 101, 'thanks');
+  });
+
+  test('reply records the reply length after it posts', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(pr));
+    const reply = register('pr:reply', '/wt');
+    // when
+    await reply('t1', 101, 'thanks');
+    // then
+    expect(events.replied).toHaveBeenCalledWith(eventTab, pr, 101, 6);
+  });
+
+  test('reply succeeds and records nothing when the tab closes during the post', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(pr));
+    let open = true;
+    const sessions = { get: vi.fn(() => (open ? eventTab : null)) } as unknown as SessionManager;
+    replyToComment.mockImplementationOnce(() => {
+      open = false;
+      return Promise.resolve();
+    });
+    const reply = register('pr:reply', '/wt', sessions);
+    // when
+    const result = reply('t1', 101, 'thanks');
+    // then
+    await expect(result).resolves.toBeUndefined();
+    expect(events.replied).not.toHaveBeenCalled();
+  });
+
+  test('reply records nothing when the post fails', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(pr));
+    replyToComment.mockRejectedValueOnce(new Error('replying to comment: not found'));
+    const reply = register('pr:reply', '/wt');
+    // when
+    const result = reply('t1', 101, 'thanks');
+    // then
+    await expect(result).rejects.toThrow('not found');
+    expect(events.replied).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -646,7 +783,7 @@ describe('registerPr', () => {
     { name: 'the tab has no worktree', worktree: null, found: pr, want: 'tab has no card worktree' },
   ])('reply rejects and posts nothing when $name', async ({ worktree, found, want }) => {
     // given
-    prForBranch.mockResolvedValue(found);
+    latestPr.mockResolvedValue(polled(found));
     const reply = register('pr:reply', worktree);
     // when
     const result = reply('t1', 101, 'thanks');
@@ -657,7 +794,7 @@ describe('registerPr', () => {
 
   test('reply rejects with the one prefix when the PR lookup fails', async () => {
     // given
-    prForBranch.mockRejectedValueOnce(new Error('listing PRs: offline'));
+    latestPr.mockResolvedValueOnce({ data: null, error: 'listing PRs: offline', fetchedAt: null });
     const reply = register('pr:reply', '/wt');
     // when
     const result = reply('t1', 101, 'thanks');
@@ -668,7 +805,7 @@ describe('registerPr', () => {
 
   test('reply logs the comment id when the post fails', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue(polled(pr));
     replyToComment.mockRejectedValueOnce(new Error('replying to comment: not found'));
     const reply = register('pr:reply', '/wt');
     // when
@@ -692,6 +829,26 @@ describe('registerPr', () => {
     expect(resolveThread).toHaveBeenCalledWith(gh, '/wt', 'PRRT_101', true);
   });
 
+  test('resolve records the thread after it resolves', async () => {
+    // given
+    const resolve = register('pr:resolve', '/wt');
+    // when
+    await resolve('t1', 'PRRT_101', true);
+    // then
+    expect(events.resolved).toHaveBeenCalledWith(eventTab, 'PRRT_101', true);
+  });
+
+  test('resolve records nothing when it fails', async () => {
+    // given
+    resolveThread.mockRejectedValueOnce(new Error('resolving thread: not found'));
+    const resolve = register('pr:resolve', '/wt');
+    // when
+    const result = resolve('t1', 'PRRT_101', true);
+    // then
+    await expect(result).rejects.toThrow('not found');
+    expect(events.resolved).not.toHaveBeenCalled();
+  });
+
   test('resolve unresolves the thread from the tab worktree', async () => {
     // given
     const resolve = register('pr:resolve', '/wt');
@@ -699,6 +856,7 @@ describe('registerPr', () => {
     await resolve('t1', 'PRRT_101', false);
     // then
     expect(resolveThread).toHaveBeenCalledWith(gh, '/wt', 'PRRT_101', false);
+    expect(events.resolved).toHaveBeenCalledWith(eventTab, 'PRRT_101', false);
   });
 
   test('resolve rejects and resolves nothing when the tab has no worktree', async () => {
@@ -737,7 +895,28 @@ describe('registerPr', () => {
     // then
     expect(result).toEqual({ ranges: { 'src/a.ts': [[1, 4]] } });
     expect(diffLines).toHaveBeenCalledWith(gh, '/wt', base, head);
-    expect(prForBranch).not.toHaveBeenCalled();
+  });
+
+  test('diffLines rejects when the tab has no PR', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(null));
+    const lines = register('pr:diffLines', '/wt');
+    // when
+    const result = lines('t1', base, head);
+    // then
+    await expect(result).rejects.toThrow(/^listing PR files: tab has no PR$/);
+    expect(diffLines).not.toHaveBeenCalled();
+  });
+
+  test('resolve runs in the repo of the tab PR', async () => {
+    // given
+    latestPr.mockResolvedValue(polled({ ...pr, url: 'https://github.com/tahardi/xena/pull/9' }));
+    const resolve = register('pr:resolve', '/wt');
+    // when
+    await resolve('t1', 'PRRT_101', true);
+    // then
+    expect(ghRunner).toHaveBeenCalledWith('tahardi/xena');
+    expect(resolveThread).toHaveBeenCalledWith(gh, '/wt', 'PRRT_101', true);
   });
 
   test.each([{ name: 'the tab has no worktree', worktree: null }])(
@@ -781,7 +960,7 @@ describe('registerPr', () => {
 
   test('comment rejects with the one prefix when the PR lookup fails', async () => {
     // given
-    prForBranch.mockRejectedValueOnce(new Error('listing PRs: offline'));
+    latestPr.mockResolvedValueOnce({ data: null, error: 'listing PRs: offline', fetchedAt: null });
     const comment = register('pr:comment', '/wt');
     // when
     const result = comment('t1', 'src/a.ts', null, 3, 'why?', head);
@@ -805,9 +984,9 @@ describe('registerPr', () => {
     });
   });
 
-  test('comments lists the review comments on the PR', async () => {
+  test('comments lists the review comments on the poller PR in its repo', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: '2026-11-11T12:00:00.000Z' });
     const found = [{ path: 'src/a.ts', line: 3, author: 'tahardi', body: 'why?' }];
     reviewComments.mockResolvedValue(found);
     const comments = register('pr:comments', '/wt');
@@ -815,6 +994,8 @@ describe('registerPr', () => {
     const result = await comments('t1');
     // then
     expect(result).toEqual(found);
+    expect(latestPr).toHaveBeenCalledWith('t1', '/wt');
+    expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
     expect(reviewComments).toHaveBeenCalledWith(gh, '/wt', 33);
   });
 
@@ -823,7 +1004,7 @@ describe('registerPr', () => {
     { name: 'the branch has no PR', worktree: '/wt', found: null },
   ])('comments returns none when $name', async ({ worktree, found }) => {
     // given
-    prForBranch.mockResolvedValue(found);
+    latestPr.mockResolvedValue({ data: found, error: null, fetchedAt: null });
     const comments = register('pr:comments', worktree);
     // when
     const result = await comments('t1');
@@ -832,9 +1013,32 @@ describe('registerPr', () => {
     expect(reviewComments).not.toHaveBeenCalled();
   });
 
+  test('comments lists the comments on the last good PR when the latest poll failed', async () => {
+    // given
+    latestPr.mockResolvedValue({ data: pr, error: 'listing PRs: offline', fetchedAt: '2026-11-11T12:00:00.000Z' });
+    reviewComments.mockResolvedValue([]);
+    const comments = register('pr:comments', '/wt');
+    // when
+    const result = await comments('t1');
+    // then
+    expect(result).toEqual([]);
+    expect(reviewComments).toHaveBeenCalledWith(gh, '/wt', 33);
+  });
+
+  test('comments rejects with the poll error when the poller has no PR', async () => {
+    // given
+    latestPr.mockResolvedValue({ data: null, error: 'listing PRs: offline', fetchedAt: null });
+    const comments = register('pr:comments', '/wt');
+    // when
+    const result = comments('t1');
+    // then
+    await expect(result).rejects.toThrow('listing PRs: offline');
+    expect(reviewComments).not.toHaveBeenCalled();
+  });
+
   test('logs a failed comments lookup at warn and rejects', async () => {
     // given
-    prForBranch.mockResolvedValue(pr);
+    latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: '2026-11-11T12:00:00.000Z' });
     reviewComments.mockRejectedValue(new Error('listing review comments: offline'));
     const comments = register('pr:comments', '/wt');
     // when
@@ -848,17 +1052,133 @@ describe('registerPr', () => {
     });
   });
 
-  test('logs a failed PR lookup at warn', async () => {
+  test('commentOnPr posts on the open PR the poller holds', async () => {
     // given
-    prForBranch.mockRejectedValue(new Error('listing PRs: offline'));
-    const prGet = get('/wt');
+    latestPr.mockResolvedValue(polled(pr));
+    const post = register('pr:commentOnPr', '/wt');
     // when
-    await prGet('t1');
+    await post('t1', 'hi');
     // then
+    expect(commentOnPr).toHaveBeenCalledWith(gh, '/wt', 33, 'hi');
+  });
+
+  test('commentOnPr records the comment length after it posts', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(pr));
+    const post = register('pr:commentOnPr', '/wt');
+    // when
+    await post('t1', 'hi');
+    // then
+    expect(events.commented).toHaveBeenCalledWith(eventTab, pr, 2);
+  });
+
+  test('commentOnPr records nothing when the post fails', async () => {
+    // given
+    latestPr.mockResolvedValue(polled(pr));
+    commentOnPr.mockRejectedValueOnce(new Error('commenting on PR: Not Found'));
+    const post = register('pr:commentOnPr', '/wt');
+    // when
+    const result = post('t1', 'hi');
+    // then
+    await expect(result).rejects.toThrow('Not Found');
+    expect(events.commented).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    {
+      name: 'the PR is merged',
+      worktree: '/wt',
+      found: { ...pr, state: 'MERGED' as const },
+      want: 'branch has no open PR',
+    },
+    { name: 'there is no PR', worktree: '/wt', found: null, want: 'branch has no open PR' },
+    { name: 'the tab has no worktree', worktree: null, found: pr, want: 'tab has no card worktree' },
+  ])('commentOnPr rejects and posts nothing when $name', async ({ worktree, found, want }) => {
+    // given
+    latestPr.mockResolvedValue(polled(found));
+    const post = register('pr:commentOnPr', worktree);
+    // when
+    const result = post('t1', 'hi');
+    // then
+    await expect(result).rejects.toThrow(`commenting on PR: ${want}`);
+    expect(commentOnPr).not.toHaveBeenCalled();
+  });
+
+  test('commentOnPr rejects with the one prefix when the PR lookup fails', async () => {
+    // given
+    latestPr.mockResolvedValueOnce({ data: null, error: 'listing PRs: offline', fetchedAt: null });
+    const post = register('pr:commentOnPr', '/wt');
+    // when
+    const result = post('t1', 'hi');
+    // then
+    await expect(result).rejects.toThrow(/^commenting on PR: listing PRs: offline$/);
+    expect(commentOnPr).not.toHaveBeenCalled();
+  });
+
+  test('conversation lists the PR conversation on the poller PR in its repo', async () => {
+    // given
+    latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: '2026-11-11T12:00:00.000Z' });
+    const found = [{ url: 'u', author: 'tahardi', at: '2026-10-25T10:00:00Z', body: 'hi' }];
+    prConversation.mockResolvedValue(found);
+    const conversation = register('pr:conversation', '/wt');
+    // when
+    const result = await conversation('t1');
+    // then
+    expect(result).toEqual(found);
+    expect(ghRunner).toHaveBeenCalledWith('tahardi/maple');
+    expect(prConversation).toHaveBeenCalledWith(gh, '/wt', 33);
+  });
+
+  test.each([
+    { name: 'the tab has no worktree', worktree: null, found: pr },
+    { name: 'the branch has no PR', worktree: '/wt', found: null },
+  ])('conversation returns none when $name', async ({ worktree, found }) => {
+    // given
+    latestPr.mockResolvedValue({ data: found, error: null, fetchedAt: null });
+    const conversation = register('pr:conversation', worktree);
+    // when
+    const result = await conversation('t1');
+    // then
+    expect(result).toEqual([]);
+    expect(prConversation).not.toHaveBeenCalled();
+  });
+
+  test('conversation lists the comments on the last good PR when the latest poll failed', async () => {
+    // given
+    latestPr.mockResolvedValue({ data: pr, error: 'listing PRs: offline', fetchedAt: '2026-11-11T12:00:00.000Z' });
+    prConversation.mockResolvedValue([]);
+    const conversation = register('pr:conversation', '/wt');
+    // when
+    const result = await conversation('t1');
+    // then
+    expect(result).toEqual([]);
+    expect(prConversation).toHaveBeenCalledWith(gh, '/wt', 33);
+  });
+
+  test('conversation rejects with the poll error when the poller has no PR', async () => {
+    // given
+    latestPr.mockResolvedValue({ data: null, error: 'listing PRs: offline', fetchedAt: null });
+    const conversation = register('pr:conversation', '/wt');
+    // when
+    const result = conversation('t1');
+    // then
+    await expect(result).rejects.toThrow('listing PRs: offline');
+    expect(prConversation).not.toHaveBeenCalled();
+  });
+
+  test('logs a failed conversation lookup at warn and rejects', async () => {
+    // given
+    latestPr.mockResolvedValue({ data: pr, error: null, fetchedAt: '2026-11-11T12:00:00.000Z' });
+    prConversation.mockRejectedValue(new Error('listing PR comments: offline'));
+    const conversation = register('pr:conversation', '/wt');
+    // when
+    const result = conversation('t1');
+    // then
+    await expect(result).rejects.toThrow('listing PR comments: offline');
     expect(logger.warn).toHaveBeenCalledWith('gh', 'failed', {
-      operation: 'pr:get',
+      operation: 'pr:conversation',
       tabId: 't1',
-      error: 'listing PRs: offline',
+      error: 'listing PR comments: offline',
     });
   });
 });

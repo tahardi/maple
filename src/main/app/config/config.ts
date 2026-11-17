@@ -1,0 +1,196 @@
+import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import type { Fetched } from '@shared/types/app/fetched';
+import { syncPrompt } from '@shared/prompts/syncPrompt';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import { z } from 'zod';
+import { KEEP_DAYS, MAX_MEGABYTES } from '@main/events/pruneEvents';
+import { STATE_BACKUPS } from '@main/app/state/backupState';
+import { appLogger, type Logger } from '@main/app/log/log';
+import { errorText } from '@shared/errors/errorText';
+import { upgrade, type Upgraded, type UpgradeStep } from '@main/util/upgrade';
+import { isMissing } from '@main/util/isMissing';
+
+const defaultActions = [
+  { label: 'Address review', prompt: '/card {key}' },
+  { label: 'Merge main', prompt: syncPrompt('{key}') },
+];
+
+export const CONFIG_VERSION = 1;
+
+export const configUpgrades: Readonly<Record<number, UpgradeStep>> = {};
+
+export const DEFAULT_WAIT_MINUTES = 10;
+export const DEFAULT_START_AT_ONCE = 4;
+export const DEFAULT_MAX_WORKING = 8;
+export const DEFAULT_MAX_LOAD_PER_CORE = 0.8;
+export const DEFAULT_MIN_FREE_MEGABYTES = 2048;
+export const DEFAULT_START_GAP_SECONDS = 90;
+
+const repoSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*\/[A-Za-z0-9_.][A-Za-z0-9_.-]*$/, 'must be owner/name')
+  .refine((repo) => repo.split('/').every((part) => part !== '.' && part !== '..'), 'must be owner/name');
+
+const VAULT_SOCKET = '~/.local/state/xena/vault.sock';
+const KNOWN_HOSTS = '~/.config/xena/known_hosts';
+
+const remoteSchema = z.object({
+  host: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9.-]*$/),
+  user: z.string().regex(/^[a-z_][a-z0-9_-]*$/),
+  keyPath: z.string().min(1),
+  knownHostsPath: z
+    .string()
+    .refine(
+      (path) => expandHome(path) === expandHome(KNOWN_HOSTS),
+      `must be the Xena pinned host key file at ${KNOWN_HOSTS}`,
+    ),
+  vaultSocket: z
+    .string()
+    .refine(
+      (path) => expandHome(path) === expandHome(VAULT_SOCKET),
+      `must be the Xena vault gateway at ${VAULT_SOCKET}`,
+    )
+    .nullable()
+    .default(null),
+});
+
+const VM_PATH_MESSAGE = 'must be an absolute VM path when remote is set';
+
+const configSchema = z
+  .object({
+    worktreesDir: z.string(),
+    vaultDir: z.string().optional(),
+    notifications: z.boolean().default(true),
+    backgroundWaitMinutes: z.number().positive().default(DEFAULT_WAIT_MINUTES),
+    eventKeepDays: z.number().int().positive().default(KEEP_DAYS),
+    eventMaxMegabytes: z.number().positive().default(MAX_MEGABYTES),
+    stateBackups: z.number().int().positive().default(STATE_BACKUPS),
+    startAtOnce: z.number().int().positive().default(DEFAULT_START_AT_ONCE),
+    startGapSeconds: z.number().positive().default(DEFAULT_START_GAP_SECONDS),
+    maxWorking: z.number().int().positive().default(DEFAULT_MAX_WORKING),
+    maxLoadPerCore: z.number().positive().default(DEFAULT_MAX_LOAD_PER_CORE),
+    minFreeMegabytes: z.number().nonnegative().default(DEFAULT_MIN_FREE_MEGABYTES),
+    projects: z.array(
+      z.object({
+        name: z.string(),
+        jiraKey: z.string(),
+        jiraBoardId: z.number(),
+        plannerDir: z.string(),
+        repo: repoSchema,
+        otherRepos: z.array(repoSchema).default([]),
+      }),
+    ),
+    actions: z.array(z.object({ label: z.string(), prompt: z.string() })).default(defaultActions),
+    remote: remoteSchema.nullable().default(null),
+  })
+  .superRefine((config, ctx) => {
+    if (config.projects.length === 0) {
+      ctx.addIssue({ code: 'custom', message: 'projects must not be empty' });
+    }
+    const seen = new Set<string>();
+    for (const { jiraKey } of config.projects) {
+      if (seen.has(jiraKey)) {
+        ctx.addIssue({ code: 'custom', message: `duplicate jiraKey ${jiraKey}` });
+      }
+      seen.add(jiraKey);
+    }
+    if (config.remote === null) {
+      return;
+    }
+    if (!config.worktreesDir.startsWith('/')) {
+      ctx.addIssue({ code: 'custom', path: ['worktreesDir'], message: VM_PATH_MESSAGE });
+    }
+    config.projects.forEach((project, i) => {
+      if (!project.plannerDir.startsWith('/')) {
+        ctx.addIssue({ code: 'custom', path: ['projects', i, 'plannerDir'], message: VM_PATH_MESSAGE });
+      }
+    });
+  });
+
+export function configDir(): string {
+  return process.env.MAPLE_CONFIG_DIR ?? join(homedir(), '.config', 'maple');
+}
+
+export function expandHome(p: string): string {
+  if (p === '~') {
+    return homedir();
+  }
+  return p.startsWith('~/') ? join(homedir(), p.slice(2)) : p;
+}
+
+function failed(error: string): Fetched<MapleConfig> {
+  return { data: null, error, fetchedAt: null };
+}
+
+export async function loadConfig(dir: string = configDir(), logger: Logger = appLogger): Promise<Fetched<MapleConfig>> {
+  const result = await readConfig(dir);
+  if (result.data) {
+    logger.info('config', 'loaded', { projects: result.data.projects.length });
+  } else {
+    logger.error('config', 'failed', { error: result.error });
+  }
+  return result;
+}
+
+async function readConfig(dir: string): Promise<Fetched<MapleConfig>> {
+  const path = join(dir, 'config.json');
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (err) {
+    if (isMissing(err)) {
+      return failed(`reading config: ${path} does not exist`);
+    }
+    return failed(`reading config: ${errorText(err)}`);
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (err) {
+    return failed(`parsing config: ${errorText(err)}`);
+  }
+
+  let upgraded: Upgraded;
+  try {
+    upgraded = upgrade(raw, CONFIG_VERSION, configUpgrades);
+  } catch (err) {
+    return failed(`reading config: ${errorText(err)}`);
+  }
+  if (upgraded.newer) {
+    return failed(
+      `reading config: ${path} is from a newer Maple (version ${String(upgraded.version)}, ` +
+        `this build reads up to ${String(CONFIG_VERSION)})`,
+    );
+  }
+
+  const parsed = configSchema.safeParse(upgraded.raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const where = issue.path.length ? `${issue.path.join('.')}: ` : '';
+    return failed(`reading config: ${where}${issue.message}`);
+  }
+
+  const config = parsed.data;
+  return {
+    data: {
+      ...config,
+      worktreesDir: expandHome(config.worktreesDir),
+      vaultDir: config.vaultDir === undefined ? null : expandHome(config.vaultDir),
+      projects: config.projects.map((project) => ({ ...project, plannerDir: expandHome(project.plannerDir) })),
+      remote:
+        config.remote === null
+          ? null
+          : {
+              ...config.remote,
+              keyPath: expandHome(config.remote.keyPath),
+              knownHostsPath: expandHome(config.remote.knownHostsPath),
+              vaultSocket: config.remote.vaultSocket === null ? null : expandHome(config.remote.vaultSocket),
+            },
+    },
+    error: null,
+    fetchedAt: new Date().toISOString(),
+  };
+}

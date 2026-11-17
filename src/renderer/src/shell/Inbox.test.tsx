@@ -1,5 +1,8 @@
-import type { Card, Sprint } from '@shared/types/jira';
-import type { Dot, TabState, TabStatus } from '@shared/types/tabs';
+import type { Card } from '@shared/types/jira/card';
+import type { Sprint } from '@shared/types/jira/sprint';
+import type { Dot } from '@shared/types/tabs/dot';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
@@ -13,6 +16,7 @@ const tab = (id: string, projectKey: string, kind: TabState['kind'], cardKey: st
   cardKey,
   sessionId: `s-${id}`,
   worktreePath: null,
+  worktreePaths: [],
 });
 const status = (tabId: string, dot: Dot): TabStatus => ({
   tabId,
@@ -90,7 +94,11 @@ describe('Inbox', () => {
     // then
     expect(await screen.findByText('Ready: 3 pts')).toBeInTheDocument();
     const rows = screen.getAllByRole('listitem').map((r) => r.textContent);
-    expect(rows).toEqual(['DIG-1 · Dig Days · ready', 'BEAR-2 · Bearclave · waiting', 'DIG-9 · Dig Days · waiting']);
+    expect(rows).toEqual([
+      'DIG-1 · Dig Days · Ready for review',
+      'BEAR-2 · Bearclave · Needs you',
+      'DIG-9 · Dig Days · Needs you',
+    ]);
   });
 
   test('clicking a card row selects its project and activates the tab', async () => {

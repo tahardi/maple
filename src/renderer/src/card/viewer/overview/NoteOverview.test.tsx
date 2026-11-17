@@ -5,8 +5,8 @@ import { NoteOverview } from './NoteOverview';
 
 const copy = vi.hoisted(() => ({ rendered: vi.fn() }));
 
-vi.mock('@renderer/shell/MarkdownText', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/shell/MarkdownText')>();
+vi.mock('@renderer/shell/markdown/MarkdownText', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@renderer/shell/markdown/MarkdownText')>();
   return {
     MarkdownText: (props: { text: string }) => {
       copy.rendered();

@@ -1,11 +1,16 @@
 import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SessionCost, TabState, TabStatus } from '@shared/types/tabs';
-import type { SessionManager } from '@main/sessions/sessions';
-import type { StatusEngine } from '@main/sessions/status';
-import type { Terminals } from '@main/sessions/terminals';
+import type { SessionCost } from '@shared/types/tabs/sessionCost';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
+import type { QueueState } from '@shared/types/queue/queueState';
+import type { SessionManager } from '@main/sessions/SessionManager';
+import type { StartQueue } from '@main/sessions/StartQueue';
+import type { StatusEngine } from '@main/sessions/StatusEngine';
+import type { Terminals } from '@main/sessions/Terminals';
 import { registerTabs } from './tabs';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
@@ -23,6 +28,7 @@ const tab: TabState = {
   cardKey: 'DIG-44',
   sessionId: 's1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 function fakeSessions() {
@@ -32,9 +38,11 @@ function fakeSessions() {
     openCard: vi.fn(() => tab),
     openPlanner: vi.fn(() => tab),
     openVault: vi.fn(() => tab),
+    openLearning: vi.fn(() => tab),
     close: vi.fn(),
     resume: vi.fn(),
     startFresh: vi.fn(),
+    selectWorktree: vi.fn(),
     get: vi.fn((tabId: string) => (tabId === 't1' ? tab : null)),
   });
 }
@@ -59,8 +67,27 @@ const status: TabStatus = {
   sync: null,
 };
 
+const queueState: QueueState = {
+  cards: [{ projectKey: 'DIG', cardKey: 'DIG-45' }],
+  working: 4,
+  limit: 4,
+  waitingFor: 'room',
+  gapSeconds: 90,
+  failure: null,
+};
+
+function fakeQueue() {
+  return Object.assign(new EventEmitter(), {
+    add: vi.fn((): TabState | null => tab),
+    remove: vi.fn(),
+    move: vi.fn(),
+    state: vi.fn(() => queueState),
+  });
+}
+
 function setup() {
   const sessions = fakeSessions();
+  const startQueue = fakeQueue();
   const engine = Object.assign(new EventEmitter(), { statuses: vi.fn(() => [status]) });
   const terminals = { closeTab: vi.fn() };
   const setActiveTab = vi.fn();
@@ -82,12 +109,21 @@ function setup() {
       lastProject: () => Promise.resolve(null),
       setSeen: () => Promise.resolve(),
       seen: () => Promise.resolve({}),
+      startQueue: startQueue as unknown as StartQueue,
+      prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
+      jira: new Promise<never>(() => undefined),
+      jiraCreds: new Promise<never>(() => undefined),
+      watchVault: () => undefined,
+      findingsDir: '/tmp/maple/findings',
+      decisionsDir: '/tmp/maple/decisions',
+      runner: fakeRunner(),
+      home: '/home/dev',
       warnings: () => [],
     },
     logger,
     sessionCost,
   );
-  return { sessions, terminals, engine, setActiveTab, sendToWindow };
+  return { sessions, terminals, engine, setActiveTab, sendToWindow, startQueue };
 }
 
 function invoke(channel: string, ...args: unknown[]): unknown {
@@ -105,7 +141,6 @@ describe('registerTabs', () => {
 
   test.each([
     { channel: 'tabs:list', args: [], method: 'list', want: [], result: [tab] },
-    { channel: 'tabs:startCard', args: ['DIG', 'DIG-44'], method: 'startCard', want: ['DIG', 'DIG-44'], result: tab },
     {
       channel: 'tabs:openCard',
       args: ['DIG', 'DIG-44'],
@@ -115,8 +150,16 @@ describe('registerTabs', () => {
     },
     { channel: 'tabs:openPlanner', args: ['DIG'], method: 'openPlanner', want: ['DIG', null], result: tab },
     { channel: 'tabs:openVault', args: ['DIG'], method: 'openVault', want: ['DIG', null], result: tab },
+    { channel: 'tabs:openLearning', args: ['DIG'], method: 'openLearning', want: ['DIG', null], result: tab },
     { channel: 'tabs:resume', args: ['t1'], method: 'resume', want: ['t1'], result: undefined },
     { channel: 'tabs:startFresh', args: ['t1'], method: 'startFresh', want: ['t1'], result: undefined },
+    {
+      channel: 'tabs:selectWorktree',
+      args: ['t1', '/wts/a'],
+      method: 'selectWorktree',
+      want: ['t1', '/wts/a'],
+      result: undefined,
+    },
   ] as const)('$channel calls $method', ({ channel, args, method, want, result }) => {
     // given
     const { sessions } = setup();
@@ -125,6 +168,97 @@ describe('registerTabs', () => {
     // then
     expect(sessions[method]).toHaveBeenCalledWith(...want);
     expect(got).toEqual(result);
+  });
+
+  test.each([
+    { name: 'a tab', result: tab },
+    { name: 'null', result: null },
+  ])('tabs:startCard adds the card to the start queue and returns its result: $name', ({ result }) => {
+    // given
+    const { sessions, startQueue } = setup();
+    startQueue.add.mockReturnValue(result);
+    // when
+    const got = invoke('tabs:startCard', 'DIG', 'DIG-44');
+    // then
+    expect(startQueue.add).toHaveBeenCalledWith('DIG', 'DIG-44');
+    expect(sessions.startCard).not.toHaveBeenCalled();
+    expect(got).toEqual(result);
+  });
+
+  test('tabs:startCard logs a failed start at warn and rethrows', () => {
+    // given
+    const { startQueue } = setup();
+    startQueue.add.mockImplementation(() => {
+      throw new Error('finding project: NOPE');
+    });
+    // when
+    const run = () => invoke('tabs:startCard', 'NOPE', 'NOPE-1');
+    // then
+    expect(run).toThrow('finding project: NOPE');
+    expect(logger.warn).toHaveBeenCalledWith('session', 'failed', {
+      operation: 'tabs:startCard',
+      args: ['NOPE', 'NOPE-1'],
+      error: 'finding project: NOPE',
+    });
+  });
+
+  test('tabs:startQueue returns the queue state', () => {
+    // given
+    setup();
+    // when
+    const got = invoke('tabs:startQueue');
+    // then
+    expect(got).toEqual(queueState);
+  });
+
+  test('tabs:unqueue removes the card from the queue', () => {
+    // given
+    const { startQueue } = setup();
+    // when
+    invoke('tabs:unqueue', 'DIG-45');
+    // then
+    expect(startQueue.remove).toHaveBeenCalledWith('DIG-45');
+  });
+
+  test('tabs:moveQueued moves the card to the index', () => {
+    // given
+    const { startQueue } = setup();
+    // when
+    invoke('tabs:moveQueued', 'DIG-45', 2);
+    // then
+    expect(startQueue.move).toHaveBeenCalledWith('DIG-45', 2);
+  });
+
+  test.each([
+    { name: 'a negative index', index: -1 },
+    { name: 'a fraction', index: 1.5 },
+  ])('tabs:moveQueued rejects $name', ({ index }) => {
+    // given
+    const { startQueue } = setup();
+    // when
+    const run = () => invoke('tabs:moveQueued', 'DIG-45', index);
+    // then
+    expect(run).toThrow('handling tabs:moveQueued: arguments are invalid');
+    expect(startQueue.move).not.toHaveBeenCalled();
+  });
+
+  test('a queue change is sent to the window', () => {
+    // given
+    const { startQueue, sendToWindow } = setup();
+    // when
+    startQueue.emit('changed', queueState);
+    // then
+    expect(sendToWindow).toHaveBeenCalledWith('tabs:queue', queueState);
+  });
+
+  test('tabs:selectWorktree rejects an empty path', () => {
+    // given
+    const { sessions } = setup();
+    // when
+    const run = () => invoke('tabs:selectWorktree', 't1', '');
+    // then
+    expect(run).toThrow('handling tabs:selectWorktree: arguments are invalid');
+    expect(sessions.selectWorktree).not.toHaveBeenCalled();
   });
 
   test('tabs:close asks to confirm when the tab is working and not forced', () => {
@@ -258,10 +392,10 @@ describe('registerTabs', () => {
   });
 
   test.each([
-    { channel: 'tabs:startCard', args: ['NOPE', 'NOPE-1'], method: 'startCard' },
     { channel: 'tabs:openCard', args: ['NOPE', 'NOPE-1'], method: 'openCard' },
     { channel: 'tabs:openPlanner', args: ['NOPE'], method: 'openPlanner' },
     { channel: 'tabs:openVault', args: ['NOPE'], method: 'openVault' },
+    { channel: 'tabs:openLearning', args: ['NOPE'], method: 'openLearning' },
     { channel: 'tabs:resume', args: ['gone'], method: 'resume' },
     { channel: 'tabs:startFresh', args: ['gone'], method: 'startFresh' },
   ] as const)('$channel logs a failure at warn and rethrows', ({ channel, args, method }) => {

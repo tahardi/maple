@@ -1,43 +1,50 @@
+import { EventEmitter } from 'node:events';
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SessionManager } from '@main/sessions/sessions';
-import type { StatusEngine } from '@main/sessions/status';
-import type { Terminals } from '@main/sessions/terminals';
+import type { SessionManager } from '@main/sessions/SessionManager';
+import type { StatusEngine } from '@main/sessions/StatusEngine';
+import type { Terminals } from '@main/sessions/Terminals';
 import { registerVault } from './vault';
+import type { StartQueue } from '@main/sessions/StartQueue';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, listNotes, readNote, readSnapshot, writeNote, vaultWrites, watch } = vi.hoisted(() => {
-  const stop = vi.fn();
-  const state = { changed: (): void => undefined };
+const {
+  handle,
+  listNotes,
+  readNote,
+  readSnapshot,
+  writeNote,
+  vaultWrites,
+  createNote,
+  createFolder,
+  trashNote,
+  trashItem,
+} = vi.hoisted(() => {
   return {
     handle: vi.fn<(channel: string, handler: Handler) => void>(),
+    createNote: vi.fn(),
+    createFolder: vi.fn(),
+    trashNote: vi.fn(),
+    trashItem: vi.fn(),
     listNotes: vi.fn(),
     readNote: vi.fn(),
     readSnapshot: vi.fn(),
     writeNote: vi.fn(),
     vaultWrites: vi.fn(),
-    watch: {
-      stop,
-      state,
-      watchWorktree: vi.fn((_dir: string, cb: () => void) => {
-        state.changed = cb;
-        return stop;
-      }),
-    },
   };
 });
 
-vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('@main/vault/vault', () => ({ listNotes, readNote, writeNote }));
+vi.mock('electron', () => ({ ipcMain: { handle }, shell: { trashItem } }));
+vi.mock('@main/vault/vault', () => ({ listNotes, readNote, writeNote, createNote, createFolder, trashNote }));
 vi.mock('@main/vault/vaultWrites', () => ({ vaultWrites }));
 vi.mock('@main/vault/snapshots', () => ({ readSnapshot }));
-vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktree: watch.watchWorktree }));
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
-const sendToWindow = vi.fn();
-const win = { isDestroyed: () => false, webContents: { send: sendToWindow } } as unknown as BrowserWindow;
+const win = {} as BrowserWindow;
+const watchVault = vi.fn<(dir: string) => void>();
 
 function register(vaultDir: () => Promise<string | null>) {
   registerVault(
@@ -57,6 +64,15 @@ function register(vaultDir: () => Promise<string | null>) {
       lastProject: () => Promise.resolve(null),
       setSeen: () => Promise.resolve(),
       seen: () => Promise.resolve({}),
+      startQueue: new EventEmitter() as StartQueue,
+      prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
+      jira: new Promise<never>(() => undefined),
+      jiraCreds: new Promise<never>(() => undefined),
+      watchVault,
+      findingsDir: '/tmp/maple/findings',
+      decisionsDir: '/tmp/maple/decisions',
+      runner: fakeRunner(),
+      home: '/home/dev',
     },
     logger,
     vaultDir,
@@ -142,76 +158,13 @@ describe('registerVault', () => {
     });
   });
 
-  test('vault:list watches the vault and sends vault:changed on a change', async () => {
+  test('vault:list watches the vault dir', async () => {
     // given
     listNotes.mockResolvedValue([]);
+    // when
     await invoke('/vault', 'vault:list');
-    // when
-    watch.state.changed();
     // then
-    expect(watch.watchWorktree).toHaveBeenCalledWith('/vault', expect.any(Function));
-    expect(sendToWindow).toHaveBeenCalledWith('vault:changed', null);
-  });
-
-  test('listing the vault twice watches it once', async () => {
-    // given
-    listNotes.mockResolvedValue([]);
-    const call = register(() => Promise.resolve('/vault'));
-    // when
-    await call('vault:list');
-    await call('vault:list');
-    // then
-    expect(watch.watchWorktree).toHaveBeenCalledTimes(1);
-  });
-
-  test('a changed vaultDir stops the old watcher', async () => {
-    // given
-    listNotes.mockResolvedValue([]);
-    let dir = '/vault';
-    const call = register(() => Promise.resolve(dir));
-    await call('vault:list');
-    // when
-    dir = '/vault2';
-    await call('vault:list');
-    // then
-    expect(watch.stop).toHaveBeenCalledTimes(1);
-    expect(watch.watchWorktree).toHaveBeenLastCalledWith('/vault2', expect.any(Function));
-  });
-
-  test('vault:list still lists notes and logs at warn when watching fails', async () => {
-    // given
-    listNotes.mockResolvedValue([{ path: 'a.md', modifiedAt: '2026-10-19T12:00:00.000Z' }]);
-    watch.watchWorktree.mockImplementationOnce(() => {
-      throw new Error('ENOSPC: System limit for number of file watchers reached');
-    });
-    // when
-    const got = await invoke('/vault', 'vault:list');
-    // then
-    expect(got).toEqual([{ path: 'a.md', modifiedAt: '2026-10-19T12:00:00.000Z' }]);
-    expect(logger.warn).toHaveBeenCalledWith('vault', 'failed', {
-      operation: 'watchWorktree',
-      args: ['/vault'],
-      error: 'ENOSPC: System limit for number of file watchers reached',
-    });
-  });
-
-  test('a failed watcher swap watches the old dir again when it comes back', async () => {
-    // given
-    listNotes.mockResolvedValue([]);
-    let dir = '/vault';
-    const call = register(() => Promise.resolve(dir));
-    await call('vault:list');
-    dir = '/vault2';
-    watch.watchWorktree.mockImplementationOnce(() => {
-      throw new Error('ENOSPC: System limit for number of file watchers reached');
-    });
-    await call('vault:list');
-    // when
-    dir = '/vault';
-    await call('vault:list');
-    // then
-    expect(watch.watchWorktree).toHaveBeenCalledTimes(3);
-    expect(watch.watchWorktree).toHaveBeenLastCalledWith('/vault', expect.any(Function));
+    expect(watchVault).toHaveBeenCalledWith('/vault');
   });
 
   test('vault:before returns the copy saved before the tab session first wrote the note', async () => {
@@ -254,6 +207,9 @@ describe('registerVault', () => {
     { channel: 'vault:written', args: ['t1'], logged: ['t1'] },
     { channel: 'vault:before', args: ['t1', 'a.md'], logged: ['t1', 'a.md'] },
     { channel: 'vault:write', args: ['a.md', 'x'], logged: ['a.md'] },
+    { channel: 'vault:createNote', args: ['a.md'], logged: ['a.md'] },
+    { channel: 'vault:createFolder', args: ['a'], logged: ['a'] },
+    { channel: 'vault:trash', args: ['a.md'], logged: ['a.md'] },
   ])('$channel rejects and logs without a vaultDir', async ({ channel, args, logged }) => {
     // given
     const vaultDir = null;
@@ -266,6 +222,37 @@ describe('registerVault', () => {
       args: logged,
       error: 'reading vault: no vaultDir in config',
     });
+  });
+
+  test('vault:createNote creates the note in the configured dir', async () => {
+    // given
+    createNote.mockResolvedValue(undefined);
+    // when
+    await invoke('/vault', 'vault:createNote', 'Projects/Plan.md');
+    // then
+    expect(createNote).toHaveBeenCalledWith('/vault', 'Projects/Plan.md');
+  });
+
+  test('vault:createFolder creates the folder in the configured dir', async () => {
+    // given
+    createFolder.mockResolvedValue(undefined);
+    // when
+    await invoke('/vault', 'vault:createFolder', 'Projects/Ideas');
+    // then
+    expect(createFolder).toHaveBeenCalledWith('/vault', 'Projects/Ideas');
+  });
+
+  test('vault:trash moves the note to the system trash', async () => {
+    // given
+    trashItem.mockResolvedValue(undefined);
+    trashNote.mockImplementation((_dir: string, path: string, trash: (full: string) => Promise<void>) =>
+      trash(`/vault/${path}`),
+    );
+    // when
+    await invoke('/vault', 'vault:trash', 'Inbox.md');
+    // then
+    expect(trashNote).toHaveBeenCalledWith('/vault', 'Inbox.md', expect.any(Function));
+    expect(trashItem).toHaveBeenCalledWith('/vault/Inbox.md');
   });
 
   test('vault:read rejects a path longer than 4096', () => {

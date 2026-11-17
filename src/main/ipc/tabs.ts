@@ -1,64 +1,84 @@
-import { ipcMain } from 'electron';
 import { z } from 'zod';
-import type { CloseResult } from '@shared/types/tabs';
-import { appLogger, logFailure, type Logger } from '@main/app/log';
-import { sessionCost } from '@main/sessions/sessionCost';
-import { send, type IpcDeps } from './index';
-import { cardKeyArg, handle, on, projectKeyArg, tabIdArg } from './validated';
+import type { CloseResult } from '@shared/types/tabs/closeResult';
+import { appLogger, logFailure, type Logger } from '@main/app/log/log';
+import { sessionCost } from '@main/sessions/transcripts/sessionCost';
+import type { IpcDeps } from './index';
+import { emit } from './emit';
+import { closeNeedsConfirm } from '@main/sessions/closeNeedsConfirm';
+import { cardKeyArg, projectKeyArg, tabIdArg } from './args';
+import { handle } from './handle';
+import { on } from './on';
 
 export function registerTabs(
-  { sessions, terminals, status, window, setActiveTab }: IpcDeps,
+  { sessions, terminals, status, window, setActiveTab, startQueue }: IpcDeps,
   logger: Logger = appLogger,
   costOf: typeof sessionCost = sessionCost,
 ): void {
   const logged = <T>(operation: string, args: string[], run: () => T): T =>
     logFailure(logger, 'session', { operation, args }, run);
-  ipcMain.handle('tabs:list', () => sessions.list());
-  handle('tabs:startCard', z.tuple([projectKeyArg, cardKeyArg]), (projectKey, cardKey) =>
-    logged('tabs:startCard', [projectKey, cardKey], () => sessions.startCard(projectKey, cardKey)),
+  handle('tabs', 'list', z.tuple([]), () => sessions.list());
+  handle('tabs', 'startCard', z.tuple([projectKeyArg, cardKeyArg]), (projectKey, cardKey) =>
+    logged('tabs:startCard', [projectKey, cardKey], () => startQueue.add(projectKey, cardKey)),
   );
-  handle('tabs:openCard', z.tuple([projectKeyArg, cardKeyArg]), (projectKey, cardKey) =>
+  handle('tabs', 'openCard', z.tuple([projectKeyArg, cardKeyArg]), (projectKey, cardKey) =>
     logged('tabs:openCard', [projectKey, cardKey], () => sessions.openCard(projectKey, cardKey, null)),
   );
-  handle('tabs:openPlanner', z.tuple([projectKeyArg]), (projectKey) =>
+  handle('tabs', 'openPlanner', z.tuple([projectKeyArg]), (projectKey) =>
     logged('tabs:openPlanner', [projectKey], () => sessions.openPlanner(projectKey, null)),
   );
-  handle('tabs:openVault', z.tuple([projectKeyArg]), (projectKey) =>
+  handle('tabs', 'openVault', z.tuple([projectKeyArg]), (projectKey) =>
     logged('tabs:openVault', [projectKey], () => sessions.openVault(projectKey, null)),
   );
-  handle('tabs:close', z.tuple([tabIdArg, z.boolean()]), (tabId, force): CloseResult => {
-    const working = status.statuses().some((s) => s.tabId === tabId && s.dot === 'working');
-    if (working && !force) {
+  handle('tabs', 'openLearning', z.tuple([projectKeyArg]), (projectKey) =>
+    logged('tabs:openLearning', [projectKey], () => sessions.openLearning(projectKey, null)),
+  );
+  handle('tabs', 'close', z.tuple([tabIdArg, z.boolean()]), (tabId, force): CloseResult => {
+    if (closeNeedsConfirm(status.statuses(), tabId, force)) {
       return { closed: false, needsConfirm: true };
     }
     sessions.close(tabId);
     terminals.closeTab(tabId);
     return { closed: true, needsConfirm: false };
   });
-  handle('tabs:resume', z.tuple([tabIdArg]), (tabId) => {
+  handle('tabs', 'resume', z.tuple([tabIdArg]), (tabId) => {
     logged('tabs:resume', [tabId], () => {
       sessions.resume(tabId);
     });
   });
-  handle('tabs:startFresh', z.tuple([tabIdArg]), (tabId) => {
+  handle('tabs', 'startFresh', z.tuple([tabIdArg]), (tabId) => {
     logged('tabs:startFresh', [tabId], () => {
       sessions.startFresh(tabId);
     });
   });
-  on('tabs:setActive', z.tuple([tabIdArg.nullable()]), (tabId) => {
+  handle('tabs', 'selectWorktree', z.tuple([tabIdArg, z.string().min(1).max(4096)]), (tabId, path) => {
+    logged('tabs:selectWorktree', [tabId, path], () => {
+      sessions.selectWorktree(tabId, path);
+    });
+  });
+  on('tabs', 'setActive', z.tuple([tabIdArg.nullable()]), (tabId) => {
     setActiveTab(tabId);
   });
-  handle('tabs:cost', z.tuple([tabIdArg]), (tabId) =>
+  handle('tabs', 'cost', z.tuple([tabIdArg]), (tabId) =>
     logged('tabs:cost', [tabId], () => {
       const tab = sessions.get(tabId);
       return tab ? costOf(tab.sessionId) : null;
     }),
   );
-  ipcMain.handle('tabs:statuses', () => status.statuses());
+  handle('tabs', 'startQueue', z.tuple([]), () => startQueue.state());
+  handle('tabs', 'unqueue', z.tuple([cardKeyArg]), (cardKey) => {
+    startQueue.remove(cardKey);
+  });
+  handle('tabs', 'moveQueued', z.tuple([cardKeyArg, z.number().int().nonnegative()]), (cardKey, index) => {
+    startQueue.move(cardKey, index);
+  });
+  handle('tabs', 'statuses', z.tuple([]), () => status.statuses());
   status.on('status', (s) => {
-    send(window(), 'tabs:status', s);
+    emit(window(), 'tabs', 'onStatus', s);
   });
   sessions.on('changed', (tabs) => {
-    send(window(), 'tabs:changed', tabs);
+    emit(window(), 'tabs', 'onChanged', tabs);
+  });
+  startQueue.on('changed', (state) => {
+    emit(window(), 'tabs', 'onQueue', state);
   });
 }

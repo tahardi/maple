@@ -1,7 +1,7 @@
-import type { MapleApi } from '@shared/ipc';
-import type { Fetched } from '@shared/types/app';
-import type { MapleConfig } from '@shared/types/config';
-import type { SessionCost } from '@shared/types/tabs';
+import type { MapleApi } from '@shared/api/mapleApi';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { SessionCost } from '@shared/types/tabs/sessionCost';
 import { vi } from 'vitest';
 
 type FakeOverrides = { [A in keyof MapleApi]?: Partial<MapleApi[A]> };
@@ -14,6 +14,12 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
     backgroundWaitMinutes: 15,
     eventKeepDays: 365,
     eventMaxMegabytes: 200,
+    stateBackups: 3,
+    startAtOnce: 4,
+    startGapSeconds: 90,
+    maxWorking: 8,
+    maxLoadPerCore: 0.8,
+    minFreeMegabytes: 2048,
     projects: [
       {
         name: 'Bearclave',
@@ -33,6 +39,7 @@ export const FAKE_CONFIG: Fetched<MapleConfig> = {
       },
     ],
     actions: [],
+    remote: null,
   },
   error: null,
   fetchedAt: '2026-10-18T12:00:00.000Z',
@@ -71,6 +78,7 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
           cardKey: null,
           sessionId: `s-planner-${projectKey}`,
           worktreePath: null,
+          worktreePaths: [],
         }),
       ),
       openVault: vi.fn((projectKey: string) =>
@@ -81,17 +89,36 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
           cardKey: null,
           sessionId: `s-vault-${projectKey}`,
           worktreePath: null,
+          worktreePaths: [],
+        }),
+      ),
+      openLearning: vi.fn((projectKey: string) =>
+        Promise.resolve({
+          id: `learning-${projectKey}`,
+          projectKey,
+          kind: 'learning' as const,
+          cardKey: null,
+          sessionId: `s-learning-${projectKey}`,
+          worktreePath: null,
+          worktreePaths: [],
         }),
       ),
       close: vi.fn(() => Promise.resolve({ closed: true, needsConfirm: false })),
       resume: vi.fn(() => Promise.resolve()),
       startFresh: vi.fn(() => Promise.resolve()),
+      selectWorktree: vi.fn(() => Promise.resolve()),
       setActive: vi.fn(),
       statuses: vi.fn(() => Promise.resolve([])),
       cost: vi.fn<(tabId: string) => Promise<SessionCost | null>>(() => Promise.resolve(null)),
       onStatus: vi.fn(unsubscribe),
       onChanged: vi.fn(unsubscribe),
       onActivate: vi.fn(unsubscribe),
+      startQueue: vi.fn(() =>
+        Promise.resolve({ cards: [], working: 0, limit: 4, waitingFor: null, gapSeconds: 90, failure: null }),
+      ),
+      unqueue: vi.fn(() => Promise.resolve()),
+      moveQueued: vi.fn(() => Promise.resolve()),
+      onQueue: vi.fn(unsubscribe),
       ...overrides.tabs,
     },
     session: {
@@ -129,8 +156,22 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       written: vi.fn(() => Promise.resolve([])),
       before: vi.fn(() => Promise.resolve(null)),
       write: vi.fn(() => Promise.resolve()),
+      createNote: vi.fn(() => Promise.resolve()),
+      createFolder: vi.fn(() => Promise.resolve()),
+      trash: vi.fn(() => Promise.resolve()),
       onChanged: vi.fn(unsubscribe),
       ...overrides.vault,
+    },
+    learning: {
+      list: vi.fn(() => Promise.resolve([])),
+      setComfortable: vi.fn(() => Promise.resolve()),
+      read: vi.fn(() => Promise.reject(new Error('reading lesson: no fake lesson'))),
+      grade: vi.fn(() => Promise.resolve({ score: 0, total: 0, results: [] })),
+      review: vi.fn(() => Promise.resolve([])),
+      gradeReview: vi.fn(() => Promise.reject(new Error('grading review: not faked'))),
+      fromFinding: vi.fn(() => Promise.reject(new Error('starting lesson: not faked'))),
+      teach: vi.fn(() => Promise.reject(new Error('starting lesson: not faked'))),
+      ...overrides.learning,
     },
     pr: {
       get: vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null })),
@@ -141,8 +182,17 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       reply: vi.fn(() => Promise.resolve()),
       resolve: vi.fn(() => Promise.resolve()),
       comments: vi.fn(() => Promise.resolve([])),
+      conversation: vi.fn(() => Promise.resolve([])),
+      commentOnPr: vi.fn(() => Promise.resolve()),
       diffLines: vi.fn(() => Promise.resolve({ ranges: {} })),
       ...overrides.pr,
+    },
+    findings: {
+      get: vi.fn(() => Promise.resolve({ data: null, error: null, fetchedAt: null })),
+      decide: vi.fn(() => Promise.resolve()),
+      override: vi.fn(() => Promise.resolve()),
+      onChanged: vi.fn(unsubscribe),
+      ...overrides.findings,
     },
     app: {
       setNotifications: vi.fn(() => Promise.resolve()),
@@ -151,8 +201,12 @@ export function fakeMaple(overrides: FakeOverrides = {}): MapleApi {
       lastProject: vi.fn(() => Promise.resolve(null)),
       setSeen: vi.fn(() => Promise.resolve()),
       seen: vi.fn(() => Promise.resolve({})),
+      kept: vi.fn(() => Promise.resolve([])),
+      discardKept: vi.fn(() => Promise.resolve()),
       onQuitRequested: vi.fn(unsubscribe),
       confirmQuit: vi.fn(),
+      onReportRequested: vi.fn(unsubscribe),
+      onShortcutsRequested: vi.fn(unsubscribe),
       ...overrides.app,
     },
   };

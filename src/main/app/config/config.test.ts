@@ -1,0 +1,474 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { configDir, expandHome, loadConfig } from './config';
+
+const validConfig = {
+  worktreesDir: '~/Documents/code/wts',
+  notifications: true,
+  projects: [
+    {
+      name: 'Dig Days',
+      jiraKey: 'DIG',
+      jiraBoardId: 2,
+      plannerDir: '~/Documents/code/dig-days',
+      repo: 'tahardi/dig-days',
+    },
+    { name: 'Bearclave', jiraKey: 'BEAR', jiraBoardId: 5, plannerDir: '~/Documents/code', repo: 'tahardi/bearclave' },
+  ],
+  actions: [
+    { label: 'Address review', prompt: '/card {key}' },
+    { label: 'Merge main', prompt: 'Run the "Sync with Main" steps from the /card skill for {key}.' },
+  ],
+};
+
+const vmConfig = {
+  ...validConfig,
+  worktreesDir: '/home/dev/Documents/code/wts',
+  projects: [
+    { ...validConfig.projects[0], plannerDir: '/home/dev/Documents/code/dig-days' },
+    { ...validConfig.projects[1], plannerDir: '/home/dev/Documents/code/bearclave' },
+  ],
+};
+
+const vmRemote = {
+  host: '192.168.150.10',
+  user: 'dev',
+  keyPath: '~/.ssh/id_ed25519_sk',
+  knownHostsPath: '~/.config/xena/known_hosts',
+  vaultSocket: '~/.local/state/xena/vault.sock',
+};
+
+const withoutActions = { ...validConfig, actions: undefined };
+const withoutNotifications = { ...validConfig, notifications: undefined };
+const duplicateKey = { ...validConfig, projects: [validConfig.projects[0], validConfig.projects[0]] };
+const stringBoardId = { ...validConfig, projects: [{ ...validConfig.projects[0], jiraBoardId: '2' }] };
+
+describe('configDir', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  test.each([
+    { name: 'MAPLE_CONFIG_DIR when set', env: '/tmp/maple', expected: '/tmp/maple' },
+    { name: '~/.config/maple by default', env: undefined, expected: join(homedir(), '.config', 'maple') },
+  ])('returns $name', ({ env, expected }) => {
+    // given
+    vi.stubEnv('MAPLE_CONFIG_DIR', env);
+    // when
+    const dir = configDir();
+    // then
+    expect(dir).toBe(expected);
+  });
+});
+
+describe('expandHome', () => {
+  test.each([
+    { input: '~', expected: homedir() },
+    { input: '~/code', expected: join(homedir(), 'code') },
+    { input: '/abs/path', expected: '/abs/path' },
+    { input: '~other/code', expected: '~other/code' },
+    { input: 'a/~/b', expected: 'a/~/b' },
+  ])('expands $input', ({ input, expected }) => {
+    // given
+    const path = input;
+    // when
+    const expanded = expandHome(path);
+    // then
+    expect(expanded).toBe(expected);
+  });
+});
+
+describe('loadConfig', () => {
+  let dir = '';
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'maple-config-'));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('loads a valid config with expanded paths', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify(validConfig));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBeNull();
+    expect(result.data?.projects[0]?.plannerDir).toBe(join(homedir(), 'Documents/code/dig-days'));
+    expect(result.data?.worktreesDir).toBe(join(homedir(), 'Documents/code/wts'));
+    expect(result.fetchedAt).not.toBeNull();
+  });
+
+  test.each([
+    { name: 'no version', version: undefined },
+    { name: 'version 1', version: 1 },
+  ])('loads a config with $name', async ({ version }) => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify({ ...validConfig, version }));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBeNull();
+  });
+
+  test('refuses a config from a newer Maple', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify({ ...validConfig, version: 2 }));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBe(
+      `reading config: ${join(dir, 'config.json')} is from a newer Maple (version 2, this build reads up to 1)`,
+    );
+    expect(result.data).toBeNull();
+  });
+
+  test('reports a config version that is not a whole number', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify({ ...validConfig, version: 'x' }));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBe('reading config: upgrading: version must be a whole number of 1 or more');
+  });
+
+  test.each([
+    {
+      name: 'expanded when set',
+      vaultDir: '~/Documents/obsidian-vault',
+      expected: join(homedir(), 'Documents/obsidian-vault'),
+    },
+    { name: 'null when missing', vaultDir: undefined, expected: null },
+  ])('vaultDir is $name', async ({ vaultDir, expected }) => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify({ ...validConfig, vaultDir }));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBeNull();
+    expect(result.data?.vaultDir).toBe(expected);
+  });
+
+  test.each([
+    { name: 'actions missing', config: withoutActions, check: { actions: validConfig.actions } },
+    { name: 'notifications missing', config: withoutNotifications, check: { notifications: true } },
+    { name: 'backgroundWaitMinutes missing', config: validConfig, check: { backgroundWaitMinutes: 10 } },
+    { name: 'eventKeepDays missing', config: validConfig, check: { eventKeepDays: 365 } },
+    { name: 'eventMaxMegabytes missing', config: validConfig, check: { eventMaxMegabytes: 200 } },
+    { name: 'stateBackups missing', config: validConfig, check: { stateBackups: 3 } },
+    { name: 'maxWorking missing', config: validConfig, check: { maxWorking: 8 } },
+    { name: 'maxLoadPerCore missing', config: validConfig, check: { maxLoadPerCore: 0.8 } },
+    { name: 'minFreeMegabytes missing', config: validConfig, check: { minFreeMegabytes: 2048 } },
+    { name: 'startAtOnce missing', config: validConfig, check: { startAtOnce: 4 } },
+    { name: 'startGapSeconds missing', config: validConfig, check: { startGapSeconds: 90 } },
+  ])('defaults when $name', async ({ config, check }) => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.error).toBeNull();
+    expect(result.data).toMatchObject(check);
+  });
+
+  test.each([
+    { name: 'invalid JSON', content: '{', error: /^parsing config:/ },
+    {
+      name: 'empty projects',
+      content: JSON.stringify({ ...validConfig, projects: [] }),
+      error: /^reading config: projects must not be empty$/,
+    },
+    {
+      name: 'duplicate jiraKey',
+      content: JSON.stringify(duplicateKey),
+      error: /^reading config: duplicate jiraKey DIG$/,
+    },
+    {
+      name: 'a non-string vaultDir',
+      content: JSON.stringify({ ...validConfig, vaultDir: 7 }),
+      error: /^reading config: vaultDir:/,
+    },
+    {
+      name: 'a backgroundWaitMinutes of zero',
+      content: JSON.stringify({ ...validConfig, backgroundWaitMinutes: 0 }),
+      error: /^reading config: backgroundWaitMinutes:/,
+    },
+    {
+      name: 'an eventKeepDays of zero',
+      content: JSON.stringify({ ...validConfig, eventKeepDays: 0 }),
+      error: /^reading config: eventKeepDays:/,
+    },
+    {
+      name: 'a fractional eventKeepDays',
+      content: JSON.stringify({ ...validConfig, eventKeepDays: 1.5 }),
+      error: /^reading config: eventKeepDays:/,
+    },
+    {
+      name: 'an eventMaxMegabytes of zero',
+      content: JSON.stringify({ ...validConfig, eventMaxMegabytes: 0 }),
+      error: /^reading config: eventMaxMegabytes:/,
+    },
+    {
+      name: 'a stateBackups of zero',
+      content: JSON.stringify({ ...validConfig, stateBackups: 0 }),
+      error: /^reading config: stateBackups:/,
+    },
+    {
+      name: 'a fractional stateBackups',
+      content: JSON.stringify({ ...validConfig, stateBackups: 1.5 }),
+      error: /^reading config: stateBackups:/,
+    },
+    {
+      name: 'a maxWorking of zero',
+      content: JSON.stringify({ ...validConfig, maxWorking: 0 }),
+      error: /^reading config: maxWorking: /,
+    },
+    {
+      name: 'a fractional maxWorking',
+      content: JSON.stringify({ ...validConfig, maxWorking: 1.5 }),
+      error: /^reading config: maxWorking: /,
+    },
+    {
+      name: 'a maxLoadPerCore of zero',
+      content: JSON.stringify({ ...validConfig, maxLoadPerCore: 0 }),
+      error: /^reading config: maxLoadPerCore: /,
+    },
+    {
+      name: 'a negative minFreeMegabytes',
+      content: JSON.stringify({ ...validConfig, minFreeMegabytes: -1 }),
+      error: /^reading config: minFreeMegabytes: /,
+    },
+    {
+      name: 'a startAtOnce of zero',
+      content: JSON.stringify({ ...validConfig, startAtOnce: 0 }),
+      error: /^reading config: startAtOnce: /,
+    },
+    {
+      name: 'a fractional startAtOnce',
+      content: JSON.stringify({ ...validConfig, startAtOnce: 1.5 }),
+      error: /^reading config: startAtOnce: /,
+    },
+    {
+      name: 'a startGapSeconds of zero',
+      content: JSON.stringify({ ...validConfig, startGapSeconds: 0 }),
+      error: /^reading config: startGapSeconds: /,
+    },
+    {
+      name: 'a negative startGapSeconds',
+      content: JSON.stringify({ ...validConfig, startGapSeconds: -5 }),
+      error: /^reading config: startGapSeconds: /,
+    },
+    {
+      name: 'string jiraBoardId',
+      content: JSON.stringify(stringBoardId),
+      error: /^reading config: projects\.0\.jiraBoardId/,
+    },
+  ])('reports $name', async ({ content, error }) => {
+    // given
+    await writeFile(join(dir, 'config.json'), content);
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data).toBeNull();
+    expect(result.error).toMatch(error);
+  });
+
+  test('accepts a repo with dots and underscores', async () => {
+    // given
+    const config = { ...validConfig, projects: [{ ...validConfig.projects[0], repo: 'my_org/site.github.io' }] };
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data?.projects[0]?.repo).toBe('my_org/site.github.io');
+  });
+
+  test.each([
+    { repo: 'dig-days', want: 'must be owner/name' },
+    { repo: '-x/y', want: 'must be owner/name' },
+    { repo: 'a/b/c', want: 'must be owner/name' },
+    { repo: '../..', want: 'must be owner/name' },
+    { repo: './x', want: 'must be owner/name' },
+    { repo: undefined, want: 'Invalid input: expected string, received undefined' },
+  ])('rejects repo $repo', async ({ repo, want }) => {
+    // given
+    const config = { ...validConfig, projects: [{ ...validConfig.projects[0], repo }] };
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data).toBeNull();
+    expect(result.error).toBe(`reading config: projects.0.repo: ${want}`);
+  });
+
+  test('defaults otherRepos to empty', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify(validConfig));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data?.projects[0]?.otherRepos).toEqual([]);
+  });
+
+  test('accepts otherRepos', async () => {
+    // given
+    const otherRepos = ['tahardi/dotclaude'];
+    const config = { ...validConfig, projects: [{ ...validConfig.projects[0], otherRepos }] };
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data?.projects[0]?.otherRepos).toEqual(otherRepos);
+  });
+
+  test.each([{ repo: 'dotclaude' }, { repo: '-x/y' }, { repo: 'a/b/c' }, { repo: '../x' }])(
+    'rejects other repo $repo',
+    async ({ repo }) => {
+      // given
+      const config = { ...validConfig, projects: [{ ...validConfig.projects[0], otherRepos: [repo] }] };
+      await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+      // when
+      const result = await loadConfig(dir);
+      // then
+      expect(result.data).toBeNull();
+      expect(result.error).toBe('reading config: projects.0.otherRepos.0: must be owner/name');
+    },
+  );
+
+  test.each([
+    {
+      name: 'a plain string',
+      otherRepos: 'tahardi/dotclaude',
+      want: 'projects.0.otherRepos: Invalid input: expected array, received string',
+    },
+    {
+      name: 'a bad later entry',
+      otherRepos: ['tahardi/dotclaude', 'bad'],
+      want: 'projects.0.otherRepos.1: must be owner/name',
+    },
+  ])('rejects otherRepos given $name', async ({ otherRepos, want }) => {
+    // given
+    const config = { ...validConfig, projects: [{ ...validConfig.projects[0], otherRepos }] };
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data).toBeNull();
+    expect(result.error).toBe(`reading config: ${want}`);
+  });
+
+  test('reports a missing file', async () => {
+    // given
+    const path = join(dir, 'config.json');
+    // when
+    const result = await loadConfig(dir);
+    // then
+    expect(result.data).toBeNull();
+    expect(result.error).toBe(`reading config: ${path} does not exist`);
+  });
+
+  test('logs the project count on load', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), JSON.stringify(validConfig));
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    // when
+    await loadConfig(dir, logger);
+    // then
+    expect(logger.info).toHaveBeenCalledWith('config', 'loaded', { projects: 2 });
+  });
+
+  test.each([
+    { name: 'remote absent', remote: undefined, want: { data: null } },
+    {
+      name: 'remote set',
+      remote: vmRemote,
+      want: {
+        data: {
+          host: '192.168.150.10',
+          user: 'dev',
+          keyPath: join(homedir(), '.ssh/id_ed25519_sk'),
+          knownHostsPath: join(homedir(), '.config/xena/known_hosts'),
+          vaultSocket: join(homedir(), '.local/state/xena/vault.sock'),
+        },
+      },
+    },
+    {
+      name: 'vaultSocket omitted',
+      remote: { ...vmRemote, vaultSocket: undefined },
+      want: {
+        data: {
+          host: '192.168.150.10',
+          user: 'dev',
+          keyPath: join(homedir(), '.ssh/id_ed25519_sk'),
+          knownHostsPath: join(homedir(), '.config/xena/known_hosts'),
+          vaultSocket: null,
+        },
+      },
+    },
+    {
+      name: 'host starting with a dash',
+      remote: { ...vmRemote, host: '-oProxyCommand=x' },
+      want: { error: 'remote.host: ' },
+    },
+    { name: 'bad user', remote: { ...vmRemote, user: 'Dev!' }, want: { error: 'remote.user: ' } },
+    {
+      name: 'knownHostsPath other than the Xena pin',
+      remote: { ...vmRemote, knownHostsPath: '/tmp/known_hosts' },
+      want: { error: 'remote.knownHostsPath: must be the Xena pinned host key file at ~/.config/xena/known_hosts' },
+    },
+    {
+      name: 'vaultSocket other than the gateway',
+      remote: { ...vmRemote, vaultSocket: '/run/docker.sock' },
+      want: { error: 'remote.vaultSocket: must be the Xena vault gateway at ~/.local/state/xena/vault.sock' },
+    },
+    {
+      name: 'relative worktreesDir',
+      remote: vmRemote,
+      worktreesDir: '~/wts',
+      want: { error: 'worktreesDir: must be an absolute VM path when remote is set' },
+    },
+    {
+      name: 'relative plannerDir',
+      remote: vmRemote,
+      plannerDir: 'code',
+      want: { error: 'projects.1.plannerDir: must be an absolute VM path when remote is set' },
+    },
+  ])('parses remote: $name', async ({ remote, worktreesDir, plannerDir, want }) => {
+    // given
+    const config = {
+      ...vmConfig,
+      remote,
+      worktreesDir: worktreesDir ?? vmConfig.worktreesDir,
+      projects: [
+        vmConfig.projects[0],
+        { ...vmConfig.projects[1], plannerDir: plannerDir ?? vmConfig.projects[1].plannerDir },
+      ],
+    };
+    await writeFile(join(dir, 'config.json'), JSON.stringify(config));
+    // when
+    const result = await loadConfig(dir);
+    // then
+    if ('error' in want) {
+      expect(result.data).toBeNull();
+      expect(result.error?.startsWith(`reading config: ${want.error ?? ''}`)).toBe(true);
+    } else {
+      expect(result.error).toBeNull();
+      expect(result.data?.remote).toEqual(want.data);
+    }
+  });
+
+  test('logs the error when loading fails', async () => {
+    // given
+    await writeFile(join(dir, 'config.json'), '{');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    // when
+    const result = await loadConfig(dir, logger);
+    // then
+    expect(logger.error).toHaveBeenCalledWith('config', 'failed', { error: result.error });
+    expect(logger.info).not.toHaveBeenCalled();
+  });
+});

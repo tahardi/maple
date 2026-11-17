@@ -1,9 +1,10 @@
-import { inboxItems, type InboxItem } from '@shared/inbox';
+import { inboxItems, type InboxItem } from '@shared/status/inbox';
 import { useCallback, useRef, useState } from 'react';
 import { useMaple } from '../store';
 import styles from './Inbox.module.css';
-import { tabLabel } from './tabLabel';
-import { useDismiss } from './useDismiss';
+import { tabLabel } from '@renderer/shell/tabs/tabLabel';
+import { useDismiss } from '@renderer/shell/menu/useDismiss';
+import { DOT_LABELS } from '@shared/status/dots';
 
 function pointsLabel(points: number | null): string {
   return points === null ? '–' : `${String(points)} pts`;
@@ -77,7 +78,7 @@ export function Inbox() {
                         go(item);
                       }}
                     >
-                      {[tabLabel(item), projectName(item.projectKey), item.dot].join(' · ')}
+                      {[tabLabel(item), projectName(item.projectKey), DOT_LABELS[item.dot]].join(' · ')}
                     </button>
                   </li>
                 ))}

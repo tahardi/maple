@@ -1,6 +1,9 @@
-import { refinePrompt, suggestPrompt } from '@shared/prompts';
+import { refinePrompt } from '@shared/prompts/refinePrompt';
+import { suggestPrompt } from '@shared/prompts/suggestPrompt';
 import { useEffect, useState } from 'react';
 import { ClaudePane } from '../claude/ClaudePane';
+import { Button } from '@renderer/shell/blocks/Button';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import styles from './PlannerPane.module.css';
 
 type Props = {
@@ -16,6 +19,8 @@ type Props = {
   onAccept: () => void;
   onAcceptAndStart: () => void;
   failure: string | null;
+  busy: 'start' | 'accept' | 'acceptAndStart' | null;
+  width: number;
 };
 
 export function PlannerPane({
@@ -31,6 +36,8 @@ export function PlannerPane({
   onAccept,
   onAcceptAndStart,
   failure,
+  busy,
+  width,
 }: Props) {
   const [tabId, setTabId] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
@@ -72,10 +79,11 @@ export function PlannerPane({
     window.maple.session.sendPrompt(tabId, refinePrompt(projectKey));
   };
 
+  const running = busy !== null;
   const nothingToStart = answered && selected.length === 0 && toAccept.length === 0;
 
   return (
-    <div className={styles.planner}>
+    <div className={styles.planner} style={{ width: `${String(width)}%` }} data-testid="planner">
       <div className={styles.bar}>
         <div role="group" aria-label="Plan" className={styles.group}>
           <button onClick={suggest} disabled={tabId === null}>
@@ -86,19 +94,41 @@ export function PlannerPane({
           </button>
         </div>
         <div role="group" aria-label="Batch" className={styles.group}>
-          <button onClick={onSelectReady} disabled={readyCount === 0}>{`Select ready (${String(readyCount)})`}</button>
+          <button onClick={onSelectReady} disabled={readyCount === 0 || running}>
+            {`Select ready (${String(readyCount)})`}
+          </button>
           {selected.length > 0 && (
             <>
-              <button data-variant="primary" onClick={onStart}>{`Start (${String(selected.length)})`}</button>
-              <button onClick={onClear}>Clear</button>
+              <Button
+                label={`Start ${String(selected.length)} selected`}
+                variant="primary"
+                onClick={onStart}
+                disabled={running}
+                busy={busy === 'start'}
+                busyLabel="Starting…"
+              />
+              <button onClick={onClear} disabled={running}>
+                Clear
+              </button>
             </>
           )}
           {toAccept.length > 0 && (
             <>
-              <button onClick={onAccept}>{`Accept ${String(toAccept.length)}`}</button>
-              <button data-variant="primary" onClick={onAcceptAndStart}>
-                {`Accept ${String(toAccept.length)} and start all`}
-              </button>
+              <Button
+                label={`Accept ${String(toAccept.length)}`}
+                onClick={onAccept}
+                disabled={running}
+                busy={busy === 'accept'}
+                busyLabel="Moving…"
+              />
+              <Button
+                label={`Accept ${String(toAccept.length)} and start all`}
+                variant="primary"
+                onClick={onAcceptAndStart}
+                disabled={running}
+                busy={busy === 'acceptAndStart'}
+                busyLabel="Starting…"
+              />
             </>
           )}
         </div>
@@ -106,11 +136,7 @@ export function PlannerPane({
       {(nothingToStart || failure !== null) && (
         <div className={styles.status}>
           {nothingToStart && <span className={styles.nothing}>Nothing to start right now</span>}
-          {failure !== null && (
-            <span role="alert" className={styles.failure}>
-              {failure}
-            </span>
-          )}
+          {failure !== null && <Notice tone="danger">{failure}</Notice>}
         </div>
       )}
       {tabId !== null && <ClaudePane tabId={tabId} actions={[]} />}

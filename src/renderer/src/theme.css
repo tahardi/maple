@@ -6,13 +6,16 @@
   --surface: #2d2d2d;
   --surface-hover: #37373d;
   --bar: #2b2b2b;
-  --border: #3c3c3c;
+  --border: #767676;
+  --divider: #3c3c3c;
   --text: #d4d4d4;
   --text-muted: #9d9d9d;
   --text-strong: #ffffff;
   --link: #4fa3e0;
   --accent: #0e639c;
-  --danger: #e5534b;
+  --accent-strong: #4fa3e0;
+  --focus-ring: var(--accent-strong);
+  --danger: #ff7b72;
   --danger-bg: #5a1d1d;
   --warning: #d4b106;
   --warning-bg: #4d3f00;
@@ -21,7 +24,7 @@
   --idle: #8b949e;
   --merged: #8957e5;
   --diff-add-bg: rgba(87, 171, 90, 0.15);
-  --diff-chg-bg: rgba(212, 177, 6, 0.15);
+  --diff-chg-bg: rgba(79, 163, 224, 0.15);
   --diff-del: #e5534b;
   --overlay: rgb(0 0 0 / 60%);
   --minimap-slider: rgba(121, 121, 121, 0.2);
@@ -41,6 +44,16 @@
   --font-md: 13px;
   --font-lg: 14px;
   --font-xl: 16px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-full: 999px;
+  --z-sticky: 1;
+  --z-menu: 100;
+  --z-dialog: 200;
 }
 
 html,
@@ -57,9 +70,17 @@ body {
   background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
   cursor: pointer;
+}
+
+:where(kbd) {
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
 }
 
 :where(button:hover:enabled) {
@@ -93,6 +114,10 @@ body {
   cursor: default;
 }
 
+:where(button[aria-busy='true']) {
+  cursor: progress;
+}
+
 :where([data-variant='segmented']) {
   display: flex;
 }
@@ -106,11 +131,16 @@ body {
 }
 
 :where([data-variant='segmented'] button:first-child) {
-  border-radius: 4px 0 0 4px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
 }
 
 :where([data-variant='segmented'] button:last-child) {
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+:where(:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 :where(input, textarea) {

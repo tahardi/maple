@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
 import { SessionEnded } from './SessionEnded';
@@ -40,5 +40,87 @@ describe('SessionEnded', () => {
     // then
     expect(calls[called]).toHaveBeenCalledWith('t1');
     expect(calls[called === 'resume' ? 'startFresh' : 'resume']).not.toHaveBeenCalled();
+  });
+
+  test('Resume is the primary button', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<SessionEnded tabId="t1" exitCode={0} resumeFailed={false} />);
+    // then
+    expect(screen.getByRole('button', { name: 'Resume' })).toHaveAttribute('data-variant', 'primary');
+    expect(screen.getByRole('button', { name: 'Start fresh' })).not.toHaveAttribute('data-variant');
+  });
+
+  test.each([
+    { label: 'Resume', busyLabel: 'Resuming…', other: 'Start fresh' },
+    { label: 'Start fresh', busyLabel: 'Starting…', other: 'Resume' },
+  ] as const)('$label reads $busyLabel and disables both buttons until it settles', async (row) => {
+    // given
+    let finish: () => void = () => undefined;
+    const pending = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fakeMaple({ tabs: { resume: pending, startFresh: pending } });
+    render(<SessionEnded tabId="t1" exitCode={0} resumeFailed={false} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: row.label }));
+    // then
+    expect(screen.getByRole('button', { name: row.busyLabel })).toBeDisabled();
+    expect(screen.getByRole('button', { name: row.other })).toBeDisabled();
+    // when
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    // then
+    expect(screen.getByRole('button', { name: row.label })).toBeEnabled();
+    expect(screen.getByRole('button', { name: row.other })).toBeEnabled();
+  });
+
+  test.each(['Resume', 'Start fresh'])('a failed %s enables both buttons again', async (label) => {
+    // given
+    const failing = vi.fn(() => Promise.reject(new Error('resuming session: no transcript')));
+    fakeMaple({ tabs: { resume: failing, startFresh: failing } });
+    render(<SessionEnded tabId="t1" exitCode={0} resumeFailed={false} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: label }));
+    // then
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    });
+    expect(screen.getByRole('button', { name: 'Start fresh' })).toBeEnabled();
+  });
+
+  test.each([
+    { label: 'Resume', next: 'Resume' },
+    { label: 'Start fresh', next: 'Start fresh' },
+    { label: 'Resume', next: 'Start fresh' },
+    { label: 'Start fresh', next: 'Resume' },
+  ])('a failed $label shows its error until $next is clicked', async ({ label, next }) => {
+    // given
+    const request = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(
+        new Error("Error invoking remote method 'tabs:resume': Error: starting session: no vaultDir in config"),
+      )
+      .mockResolvedValue(undefined);
+    fakeMaple({ tabs: { resume: request, startFresh: request } });
+    render(<SessionEnded tabId="t1" exitCode={0} resumeFailed={false} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: label }));
+    // then
+    await vi.waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('starting session: no vaultDir in config');
+    });
+    // when
+    await userEvent.click(screen.getByRole('button', { name: next }));
+    // then
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
   });
 });

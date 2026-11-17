@@ -1,7 +1,9 @@
-import type { MapleApi } from '@shared/ipc';
-import type { Fetched } from '@shared/types/app';
-import type { MapleConfig } from '@shared/types/config';
-import type { TabState, TabStatus } from '@shared/types/tabs';
+import type { MapleApi } from '@shared/api/mapleApi';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { MapleConfig } from '@shared/types/config/mapleConfig';
+import type { KeptTab } from '@shared/types/tabs/keptTab';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { useMaple } from './store';
 import { FAKE_CONFIG, fakeMaple } from './testing/fakeMaple';
 
@@ -12,6 +14,7 @@ const tab = (id: string, projectKey: string): TabState => ({
   cardKey: id.toUpperCase(),
   sessionId: `s-${id}`,
   worktreePath: null,
+  worktreePaths: [],
 });
 
 const status = (tabId: string, dot: TabStatus['dot']): TabStatus => ({
@@ -22,6 +25,8 @@ const status = (tabId: string, dot: TabStatus['dot']): TabStatus => ({
   resumeFailed: false,
   sync: null,
 });
+
+const keptTab = (id: string, reason: string): KeptTab => ({ tab: tab(id, 'DIG'), reason });
 
 const MPL_CONFIG: Fetched<MapleConfig> = {
   ...FAKE_CONFIG,
@@ -214,6 +219,29 @@ describe('useMaple', () => {
     expect(setActive.mock.calls).toEqual(calls);
   });
 
+  test('showLesson activates the tab with the note selected', async () => {
+    // given
+    const { setActive } = setup();
+    await useMaple.getState().init();
+    // when
+    useMaple.getState().showLesson('bear-1', 'Learning/Security/xss.md');
+    // then
+    expect(useMaple.getState().activeTabId).toBe('bear-1');
+    expect(useMaple.getState().lessonNote).toBe('Learning/Security/xss.md');
+    expect(setActive).toHaveBeenCalledWith('bear-1');
+  });
+
+  test('selectLesson changes the note without activating a tab', async () => {
+    // given
+    const { setActive } = setup();
+    await useMaple.getState().init();
+    // when
+    useMaple.getState().selectLesson('Learning/Security/xss.md');
+    // then
+    expect(useMaple.getState().lessonNote).toBe('Learning/Security/xss.md');
+    expect(setActive).not.toHaveBeenCalled();
+  });
+
   test('tabs:changed replaces the tabs and returns to Home when the active tab closes', async () => {
     // given
     const { events } = setup();
@@ -272,6 +300,80 @@ describe('useMaple', () => {
     expect(sinceWaiting).toBe(loaded);
     expect(sinceRepeated).toBe(loaded);
     expect(useMaple.getState().since['bear-1']).toBe(loaded + 120_000);
+  });
+
+  test('init loads the kept tabs', async () => {
+    // given
+    const kept = [keptTab('old-1', 'project DIG is not in config')];
+    setup(undefined, { kept: () => Promise.resolve(kept) });
+    // when
+    await useMaple.getState().init();
+    // then
+    expect(useMaple.getState().keptTabs).toEqual(kept);
+  });
+
+  test('init starts with no kept tabs when reading them fails', async () => {
+    // given
+    setup(undefined, { kept: () => Promise.reject(new Error('reading kept tabs: gone')) });
+    // when
+    await useMaple.getState().init();
+    // then
+    expect(useMaple.getState().keptTabs).toEqual([]);
+  });
+
+  test.each([
+    {
+      event: 'configChanged',
+      fire: (events: ReturnType<typeof setup>['events']) => {
+        events.configChanged(FAKE_CONFIG);
+      },
+    },
+    {
+      event: 'tabsChanged',
+      fire: (events: ReturnType<typeof setup>['events']) => {
+        events.tabsChanged([]);
+      },
+    },
+  ])('$event reloads the kept tabs', async ({ fire }) => {
+    // given
+    const kept = vi.fn(() => Promise.resolve<KeptTab[]>([]));
+    const { events } = setup(undefined, { kept });
+    await useMaple.getState().init();
+    const next = [keptTab('old-1', 'project DIG is not in config')];
+    kept.mockResolvedValue(next);
+    // when
+    fire(events);
+    // then
+    await vi.waitFor(() => {
+      expect(useMaple.getState().keptTabs).toEqual(next);
+    });
+  });
+
+  test('discardKept asks the main process and drops that kept tab', async () => {
+    // given
+    const old1 = keptTab('old-1', 'a');
+    const old2 = keptTab('old-2', 'b');
+    const discardKept = vi.fn(() => Promise.resolve());
+    setup(undefined, { kept: () => Promise.resolve([old1, old2]), discardKept });
+    await useMaple.getState().init();
+    // when
+    await useMaple.getState().discardKept('old-1');
+    // then
+    expect(discardKept).toHaveBeenCalledWith('old-1');
+    expect(useMaple.getState().keptTabs).toEqual([old2]);
+  });
+
+  test('discardKept keeps the tab when the main process fails', async () => {
+    // given
+    const old1 = keptTab('old-1', 'a');
+    const discardKept = vi.fn(() => Promise.reject(new Error('discarding kept tab: gone')));
+    setup(undefined, { kept: () => Promise.resolve([old1]), discardKept });
+    await useMaple.getState().init();
+    // when
+    const got = useMaple.getState().discardKept('old-1');
+    // then
+    await expect(got).rejects.toThrow('discarding kept tab: gone');
+    expect(useMaple.getState().keptTabs).toEqual([old1]);
   });
 
   test('init loads the saved seen map', async () => {

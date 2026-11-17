@@ -1,5 +1,6 @@
-import type { TabState } from '@shared/types/tabs';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import type { QueueState } from '@shared/types/queue/queueState';
+import type { TabState } from '@shared/types/tabs/tabState';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { fakeMaple } from '../testing/fakeMaple';
@@ -17,6 +18,7 @@ const tab = (id: string, cardKey: string): TabState => ({
   cardKey,
   sessionId: `s-${id}`,
   worktreePath: null,
+  worktreePaths: [],
 });
 
 const WITH_DIG_46 = { ...SPRINT, cards: [...SPRINT.cards, card('DIG-46', 'To Do')] };
@@ -78,6 +80,7 @@ function batchEvents() {
 
 describe('HomeTab', () => {
   beforeEach(() => {
+    localStorage.clear();
     useMaple.setState(useMaple.getInitialState(), true);
     useMaple.setState({ projectKey: 'DIG' });
   });
@@ -93,8 +96,33 @@ describe('HomeTab', () => {
     // when
     render(<HomeTab projectKey="DIG" />);
     // then
-    expect(await screen.findByRole('status')).toHaveTextContent(new RegExp(`^${want}$`));
+    const notice = await screen.findByText(want);
+    expect(notice).toHaveAttribute('role', 'status');
+    expect(notice).toHaveAttribute('data-tone', 'warning');
     expect(screen.getByRole('button', { name: /^DIG-44/ })).toBeInTheDocument();
+  });
+
+  test('shows Loading sprint… until the sprint arrives', async () => {
+    // given
+    let resolve: (value: Awaited<ReturnType<Window['maple']['jira']['sprint']>>) => void = () => undefined;
+    fakeMaple({
+      jira: {
+        sprint: () =>
+          new Promise((r) => {
+            resolve = r;
+          }),
+      },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    expect(screen.getByRole('status')).toHaveTextContent('Loading sprint…');
+    // when
+    act(() => {
+      resolve({ data: SPRINT, error: null, fetchedAt: null });
+    });
+    // then
+    expect(await screen.findByRole('button', { name: /^DIG-41/ })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   test('shows the backlog under the board', async () => {
@@ -110,6 +138,38 @@ describe('HomeTab', () => {
     render(<HomeTab projectKey="DIG" />);
     // then
     expect(await screen.findByText('Backlog (1)')).toBeInTheDocument();
+  });
+
+  test('uses the saved planner width', async () => {
+    // given
+    fakeMaple();
+    localStorage.setItem('maple.split.homePlanner', '55');
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    expect(await screen.findByTestId('planner')).toHaveStyle({ width: '55%' });
+  });
+
+  test('uses the saved backlog height', async () => {
+    // given
+    fakeMaple({
+      jira: { backlog: () => Promise.resolve({ data: BACKLOG, error: null, fetchedAt: null }) },
+    });
+    localStorage.setItem('maple.split.homeBacklog', '25');
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    expect((await screen.findByText('Backlog (2)')).parentElement).toHaveStyle({ maxHeight: '25%' });
+  });
+
+  test('shows a resize handle between the board and the planner', async () => {
+    // given
+    fakeMaple();
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    const planner = await screen.findByTestId('planner');
+    expect(planner.previousElementSibling).toBe(screen.getByRole('separator', { name: 'Resize planner' }));
   });
 
   test('Refine counts open needs-refinement cards in the sprint and backlog', async () => {
@@ -175,8 +235,9 @@ describe('HomeTab', () => {
     // when
     render(<HomeTab projectKey="DIG" />);
     // then
-    expect(await screen.findByRole('status')).toHaveTextContent('Jira unreachable');
+    expect(await screen.findByText('Jira unreachable')).toHaveAttribute('role', 'status');
     expect(screen.queryByText('No active sprint')).not.toBeInTheDocument();
+    expect(screen.queryByText('Loading sprint…')).not.toBeInTheDocument();
   });
 
   test('Start starts the card and activates its new tab', async () => {
@@ -199,6 +260,176 @@ describe('HomeTab', () => {
     });
   });
 
+  test('Start reads Starting… until the card starts', async () => {
+    // given
+    let finish: (t: TabState) => void = () => undefined;
+    const startCard = vi.fn(
+      () =>
+        new Promise<TabState>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    // then
+    expect(screen.getByRole('button', { name: 'Starting…' })).toBeDisabled();
+    // when
+    await act(async () => {
+      finish(tab('t9', 'DIG-41'));
+      await Promise.resolve();
+    });
+    // then
+    expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
+  });
+
+  test('a card keeps its busy label when another card finishes first', async () => {
+    // given
+    const pending = new Map<string, (t: TabState) => void>();
+    const startCard = vi.fn(
+      (_projectKey: string, cardKey: string) =>
+        new Promise<TabState>((resolve) => {
+          pending.set(cardKey, resolve);
+        }),
+    );
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: WITH_DIG_46, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    await userEvent.click(screen.getByRole('button', { name: /^DIG-46/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    // when
+    await act(async () => {
+      pending.get('DIG-41')?.(tab('t-DIG-41', 'DIG-41'));
+      await Promise.resolve();
+    });
+    // then
+    expect(screen.getByRole('button', { name: 'Starting…' })).toBeDisabled();
+  });
+
+  test('a failed Start brings back Start', async () => {
+    // given
+    const startCard = vi.fn(() => Promise.reject(new Error('creating worktree: exists')));
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    // then
+    await screen.findByRole('alert');
+    expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
+  });
+
+  test('Start N selected reads Starting… until every card has started', async () => {
+    // given
+    const { onBatch, emit } = batchEvents();
+    const pending: ((t: TabState) => void)[] = [];
+    const startCard = vi.fn(
+      (_projectKey: string, cardKey: string) =>
+        new Promise<TabState>((resolve) => {
+          pending.push(() => {
+            resolve(tab(`t-${cardKey}`, cardKey));
+          });
+        }),
+    );
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: WITH_DIG_46, error: null, fetchedAt: null }) },
+      session: { onBatch },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByTestId('claude-pane');
+    emit(['DIG-41', 'DIG-46']);
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: 'Start 2 selected' }));
+    await act(async () => {
+      pending[0](tab('t-DIG-41', 'DIG-41'));
+      await Promise.resolve();
+    });
+    // then
+    await waitFor(() => {
+      expect(startCard).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByRole('button', { name: 'Starting…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Start DIG-46' })).toHaveTextContent(/^Starting…$/);
+    expect(screen.getByRole('button', { name: 'Start DIG-46' })).toBeDisabled();
+    // when
+    await act(async () => {
+      pending[1](tab('t-DIG-46', 'DIG-46'));
+      await Promise.resolve();
+    });
+    // then
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Starting…' })).not.toBeInTheDocument();
+    });
+  });
+
+  test('a tile Start starts the card and activates its new tab', async () => {
+    // given
+    const startCard = vi.fn(() => Promise.resolve(tab('t9', 'DIG-41')));
+    const activate = vi.fn();
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    useMaple.setState({ activate });
+    render(<HomeTab projectKey="DIG" />);
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: 'Start DIG-41' }));
+    // then
+    expect(startCard).toHaveBeenCalledWith('DIG', 'DIG-41');
+    await waitFor(() => {
+      expect(activate).toHaveBeenCalledWith('t9');
+    });
+  });
+
+  test('a failed tile Start shows the error under the planner and leaves the selection alone', async () => {
+    // given
+    const startCard = vi.fn(() => Promise.reject(new Error('creating worktree: exists')));
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: WITH_DIG_46, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Select DIG-46' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start DIG-41' }));
+    // then
+    const alerts = await screen.findAllByRole('alert');
+    expect(alerts.map((a) => a.textContent)).toEqual(['starting DIG-41: creating worktree: exists']);
+    expect(within(screen.getByTestId('planner')).getByRole('alert')).toBe(alerts[0]);
+    expect(screen.getByRole('button', { name: 'Start 1 selected' })).toBeInTheDocument();
+  });
+
+  test('a failed details Start shows the error in the same place', async () => {
+    // given
+    const startCard = vi.fn(() => Promise.reject(new Error('creating worktree: exists')));
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    // then
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/^starting DIG-41: creating worktree: exists$/);
+    expect(within(screen.getByTestId('planner')).getByRole('alert')).toBe(alert);
+    expect(within(screen.getByRole('complementary')).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   test('Open opens the card and activates its tab', async () => {
     // given
     const openCard = vi.fn(() => Promise.resolve(tab('t8', 'DIG-44')));
@@ -219,23 +450,31 @@ describe('HomeTab', () => {
     });
   });
 
-  test('a failed Start shows the error until another card is selected', async () => {
+  test('a failed Start shows the error until the next start', async () => {
     // given
-    const startCard = vi.fn(() =>
-      Promise.reject(new Error("Error invoking remote method 'tabs:startCard': Error: creating worktree: exists")),
-    );
+    const startCard = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("Error invoking remote method 'tabs:startCard': Error: creating worktree: exists"),
+      )
+      .mockResolvedValue(tab('t9', 'DIG-41'));
     fakeMaple({
       tabs: { startCard },
       jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
     });
+    useMaple.setState({ activate: vi.fn() });
     render(<HomeTab projectKey="DIG" />);
     await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
-    // when
     await userEvent.click(screen.getByRole('button', { name: 'Start' }));
-    // then
-    expect(await screen.findByRole('alert')).toHaveTextContent(/^creating worktree: exists$/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^starting DIG-41: creating worktree: exists$/);
     await userEvent.click(screen.getByRole('button', { name: /^DIG-44/ }));
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start DIG-41' }));
+    // then
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
   });
 
   test.each([
@@ -257,7 +496,7 @@ describe('HomeTab', () => {
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Start' }));
     // then
-    expect(await screen.findByRole('alert')).toHaveTextContent(new RegExp(`^${want}$`));
+    expect(await screen.findByRole('alert')).toHaveTextContent(new RegExp(`^starting DIG-41: ${want}$`));
   });
 
   test('a successful Open clears an earlier error', async () => {
@@ -274,7 +513,9 @@ describe('HomeTab', () => {
     render(<HomeTab projectKey="DIG" />);
     await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('opening card: no worktree');
+    const alert = await within(screen.getByTestId('planner')).findByRole('alert');
+    expect(alert).toHaveTextContent('opening card: no worktree');
+    expect(within(screen.getByRole('complementary')).queryByRole('alert')).not.toBeInTheDocument();
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     // then
@@ -292,6 +533,102 @@ describe('HomeTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close details' }));
     // then
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  test('opens card details over the board area', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // then
+    expect(within(screen.getByTestId('board-area')).getByRole('complementary')).toBeInTheDocument();
+  });
+
+  test('Escape closes the card details', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  test('a click on the board outside the details closes them', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.click(screen.getByRole('heading', { name: 'DIG Sprint 3' }));
+    // then
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  test('a click inside the details keeps them open', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.click(screen.getByRole('heading', { name: 'DIG-44 Summary of DIG-44' }));
+    // then
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
+
+  test('clicking another tile swaps the details to that card', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /^DIG-45/ }));
+    // then
+    expect(screen.getAllByRole('complementary')).toHaveLength(1);
+    expect(within(screen.getByRole('complementary')).getByRole('heading', { level: 3 })).toHaveTextContent(
+      'DIG-45 Summary of DIG-45',
+    );
+  });
+
+  test('Escape with the Add to sprint confirm open closes only the confirm', async () => {
+    // given
+    acceptSetup();
+    await openBacklogCard('DIG-50');
+    await userEvent.click(screen.getByRole('button', { name: 'Add to sprint' }));
+    // when
+    await userEvent.keyboard('{Escape}');
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
+
+  test('a click in the planner keeps the details open', async () => {
+    // given
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) } });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-44/ }));
+    // when
+    await userEvent.click(screen.getByTestId('planner'));
+    // then
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
+
+  test('Escape with the Accept confirm open closes only the confirm', async () => {
+    // given
+    const { emit } = acceptSetup();
+    await screen.findByText('Backlog (2)');
+    await userEvent.click(screen.getByRole('button', { name: /^DIG-44/ }));
+    emit(['DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept 1' }));
+    // when
+    await userEvent.keyboard('{Escape}');
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
   });
 
   test('the card detail follows a refreshed sprint', async () => {
@@ -350,7 +687,7 @@ describe('HomeTab', () => {
       emit(['DIG-46', 'DIG-44', 'DIG-99', 'DIG-41']);
     });
     // then
-    expect(await screen.findByRole('button', { name: 'Start (2)' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Start 2 selected' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^DIG-46/ })).toHaveAttribute('data-highlighted', 'true');
     expect(screen.getByRole('button', { name: /^DIG-41/ })).toHaveAttribute('data-highlighted', 'true');
     expect(screen.getByRole('button', { name: /^DIG-44/ })).not.toHaveAttribute('data-highlighted', 'true');
@@ -383,7 +720,7 @@ describe('HomeTab', () => {
       emit(['DIG-46', 'DIG-41']);
     });
     // when
-    await userEvent.click(await screen.findByRole('button', { name: 'Start (2)' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Start 2 selected' }));
     // then
     await waitFor(() => {
       expect(activate).toHaveBeenCalledWith('t-DIG-41');
@@ -407,7 +744,7 @@ describe('HomeTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Suggest next batch' }));
     // then
     expect(screen.getByRole('button', { name: /^DIG-46/ })).not.toHaveAttribute('data-highlighted');
-    expect(screen.queryByRole('button', { name: /^Start/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Start \d+ selected$/ })).not.toBeInTheDocument();
   });
 
   test('a batch with no To Do keys shows Nothing to start', async () => {
@@ -423,7 +760,7 @@ describe('HomeTab', () => {
     emit(['DIG-44', 'DIG-99']);
     // then
     expect(await screen.findByText('Nothing to start right now')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Start/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Start \d+ selected$/ })).not.toBeInTheDocument();
   });
 
   test('Start waits for each card before starting the next', async () => {
@@ -449,7 +786,7 @@ describe('HomeTab', () => {
     await screen.findByTestId('claude-pane');
     emit(['DIG-46', 'DIG-41']);
     // when
-    await userEvent.click(await screen.findByRole('button', { name: 'Start (2)' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Start 2 selected' }));
     // then
     expect(startCard).toHaveBeenCalledTimes(1);
     act(() => {
@@ -476,12 +813,81 @@ describe('HomeTab', () => {
     render(<HomeTab projectKey="DIG" />);
     await screen.findByTestId('claude-pane');
     emit(['DIG-46', 'DIG-41']);
-    expect(await screen.findByRole('button', { name: 'Start (2)' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Start 2 selected' })).toBeInTheDocument();
     // when
     window.dispatchEvent(new Event('focus'));
     // then
-    expect(await screen.findByRole('button', { name: 'Start (1)' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Start 1 selected' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^DIG-46/ })).not.toHaveAttribute('data-highlighted');
+  });
+
+  test('a queued Start activates no tab', async () => {
+    // given
+    const startCard = vi.fn(() => Promise.resolve(null));
+    const activate = vi.fn();
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: SPRINT, error: null, fetchedAt: null }) },
+    });
+    useMaple.setState({ activate });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-41/ }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    // then
+    await waitFor(() => {
+      expect(startCard).toHaveBeenCalledWith('DIG', 'DIG-41');
+    });
+    expect(activate).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('a batch Start activates the first card that started and skips queued ones', async () => {
+    // given
+    const startCard = vi.fn<Window['maple']['tabs']['startCard']>((_projectKey, cardKey) =>
+      Promise.resolve(cardKey === 'DIG-41' ? null : tab(`t-${cardKey}`, cardKey)),
+    );
+    const activate = vi.fn();
+    fakeMaple({
+      tabs: { startCard },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    useMaple.setState({ activate });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Select ready (2)' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Start 2 selected' }));
+    // then
+    await waitFor(() => {
+      expect(startCard).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(activate).toHaveBeenCalledWith('t-DIG-42');
+    });
+    expect(activate).toHaveBeenCalledTimes(1);
+  });
+
+  test('Select ready skips queued cards', async () => {
+    // given
+    const queue = {
+      cards: [{ projectKey: 'DIG', cardKey: 'DIG-41' }],
+      working: 4,
+      limit: 4,
+      waitingFor: 'room' as const,
+      gapSeconds: 90,
+      failure: null,
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByText('Queued #1');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Select ready (1)' }));
+    // then
+    expect(screen.getByRole('button', { name: /^DIG-41/ })).not.toHaveAttribute('data-highlighted');
+    expect(screen.getByRole('button', { name: /^DIG-42/ })).toHaveAttribute('data-highlighted', 'true');
   });
 
   test('Select ready selects the ready cards', async () => {
@@ -495,7 +901,7 @@ describe('HomeTab', () => {
     expect(screen.getByRole('button', { name: /^DIG-42/ })).toHaveAttribute('data-highlighted', 'true');
     expect(screen.getByRole('button', { name: /^DIG-43/ })).not.toHaveAttribute('data-highlighted');
     expect(screen.getByRole('button', { name: /^DIG-44/ })).not.toHaveAttribute('data-highlighted');
-    expect(screen.getByRole('button', { name: 'Start (2)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start 2 selected' })).toBeInTheDocument();
   });
 
   test('Start starts the selected cards in board order and activates the first', async () => {
@@ -513,7 +919,7 @@ describe('HomeTab', () => {
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Select DIG-42' }));
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select DIG-41' }));
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Start (2)' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start 2 selected' }));
     // then
     await waitFor(() => {
       expect(activate).toHaveBeenCalledWith('t-DIG-41');
@@ -523,7 +929,7 @@ describe('HomeTab', () => {
       ['DIG', 'DIG-42'],
     ]);
     expect(activate).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('button', { name: /^Start \(/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Start \d+ selected$/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^DIG-41/ })).not.toHaveAttribute('data-highlighted');
   });
 
@@ -541,7 +947,7 @@ describe('HomeTab', () => {
     render(<HomeTab projectKey="DIG" />);
     await userEvent.click(await screen.findByRole('button', { name: 'Select ready (2)' }));
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Start (2)' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start 2 selected' }));
     // then
     expect(await screen.findByRole('alert')).toHaveTextContent(/^starting DIG-41: creating worktree: exists$/);
     expect(startCard).toHaveBeenCalledTimes(1);
@@ -564,7 +970,7 @@ describe('HomeTab', () => {
     // then
     expect(screen.getByRole('button', { name: /^DIG-41/ })).toHaveAttribute('data-highlighted', 'true');
     expect(screen.getByRole('button', { name: /^DIG-42/ })).not.toHaveAttribute('data-highlighted');
-    expect(screen.getByRole('button', { name: 'Start (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start 1 selected' })).toBeInTheDocument();
   });
 
   test('clicking Select ready again clears the selection', async () => {
@@ -573,11 +979,11 @@ describe('HomeTab', () => {
     render(<HomeTab projectKey="DIG" />);
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Select DIG-43' }));
     await userEvent.click(screen.getByRole('button', { name: 'Select ready (2)' }));
-    expect(screen.getByRole('button', { name: 'Start (3)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start 3 selected' })).toBeInTheDocument();
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Select ready (2)' }));
     // then
-    expect(screen.queryByRole('button', { name: /^Start \(/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Start \d+ selected$/ })).not.toBeInTheDocument();
     expect(screen.getAllByRole('checkbox').filter((c) => (c as HTMLInputElement).checked)).toEqual([]);
   });
 
@@ -590,7 +996,7 @@ describe('HomeTab', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select DIG-41' }));
     // then
     expect(screen.getByRole('button', { name: /^DIG-41/ })).not.toHaveAttribute('data-highlighted');
-    expect(screen.getByRole('button', { name: 'Start (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start 1 selected' })).toBeInTheDocument();
   });
 
   test('a failure after the first start keeps only the unstarted cards selected', async () => {
@@ -607,7 +1013,7 @@ describe('HomeTab', () => {
     render(<HomeTab projectKey="DIG" />);
     await userEvent.click(await screen.findByRole('button', { name: 'Select ready (2)' }));
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Start (2)' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start 2 selected' }));
     // then
     expect(await screen.findByRole('alert')).toHaveTextContent(/^starting DIG-42: starting card: boom$/);
     expect(screen.getByRole('button', { name: /^DIG-41/ })).not.toHaveAttribute('data-highlighted');
@@ -622,13 +1028,13 @@ describe('HomeTab', () => {
     });
     render(<HomeTab projectKey="DIG" />);
     await userEvent.click(await screen.findByRole('button', { name: 'Select ready (2)' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Start (2)' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start 2 selected' }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
     // then
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Start \(/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Start \d+ selected$/ })).not.toBeInTheDocument();
   });
 
   test('a batch highlights backlog keys and offers Accept 1', async () => {
@@ -639,7 +1045,7 @@ describe('HomeTab', () => {
     // when
     emit(['DIG-41', 'DIG-50', 'DIG-51', 'DIG-99']);
     // then
-    expect(await screen.findByRole('button', { name: 'Start (1)' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Start 1 selected' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Accept 1' })).toBeInTheDocument();
     expect(screen.getByText('DIG-50').closest('li')).toHaveAttribute('data-highlighted', 'true');
     expect(screen.getByText('DIG-51').closest('li')).not.toHaveAttribute('data-highlighted');
@@ -665,6 +1071,39 @@ describe('HomeTab', () => {
     });
     expect(backlog.mock.calls.length).toBeGreaterThan(backlogLoads);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  test.each([
+    { label: 'Accept 1', busyLabel: 'Moving…', confirm: 'Move to sprint' },
+    { label: 'Accept 1 and start all', busyLabel: 'Starting…', confirm: 'Move and start' },
+  ])('$label reads $busyLabel after confirming until it settles', async ({ label, busyLabel, confirm }) => {
+    // given
+    let finish: () => void = () => undefined;
+    const moveToSprint = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const startCard = vi.fn(() => Promise.resolve(null));
+    const { emit } = acceptSetup({ moveToSprint }, startCard);
+    await screen.findByTestId('claude-pane');
+    await screen.findByText('Backlog (2)');
+    emit(['DIG-50']);
+    await userEvent.click(await screen.findByRole('button', { name: label }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: confirm }));
+    // then
+    expect(screen.getByRole('button', { name: busyLabel })).toBeDisabled();
+    // when
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    // then
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: busyLabel })).not.toBeInTheDocument();
+    });
   });
 
   test('Cancel closes the dialog without touching Jira', async () => {
@@ -822,6 +1261,32 @@ describe('HomeTab', () => {
     expect(within(panel).getByRole('button', { name: 'Add to sprint' })).toBeEnabled();
   });
 
+  test('Add to sprint reads Moving… after confirming until the move settles', async () => {
+    // given
+    let finish: () => void = () => undefined;
+    const moveToSprint = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const backlog = vi.fn(() => Promise.resolve({ data: BLOCKED_BACKLOG, error: null, fetchedAt: null }));
+    acceptSetup({ backlog, moveToSprint });
+    await openBacklogCard('DIG-50');
+    await userEvent.click(screen.getByRole('button', { name: 'Add to sprint' }));
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Move to sprint' }));
+    // then
+    expect(screen.getByRole('button', { name: 'Moving…' })).toBeDisabled();
+    // when
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    // then
+    expect(screen.getByRole('button', { name: 'Add to sprint' })).toBeEnabled();
+  });
+
   test('Add to sprint moves the card only after confirming', async () => {
     // given
     const backlog = vi.fn(() => Promise.resolve({ data: BLOCKED_BACKLOG, error: null, fetchedAt: null }));
@@ -927,7 +1392,7 @@ describe('HomeTab', () => {
     expect(moveToSprint).not.toHaveBeenCalled();
   });
 
-  test('a failed move shows the error in the panel', async () => {
+  test('a failed Add to sprint shows the error under the planner', async () => {
     // given
     const moveToSprint = vi.fn(() =>
       Promise.reject(
@@ -943,8 +1408,9 @@ describe('HomeTab', () => {
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Move to sprint' }));
     // then
-    const panel = screen.getByRole('complementary');
-    expect(await within(panel).findByRole('alert')).toHaveTextContent(/^moving cards to sprint: Jira returned 400$/);
+    const alert = await within(screen.getByTestId('planner')).findByRole('alert');
+    expect(alert).toHaveTextContent(/^moving cards to sprint: Jira returned 400$/);
+    expect(within(screen.getByRole('complementary')).queryByRole('alert')).not.toBeInTheDocument();
   });
 
   test('Add to sprint is disabled with no active sprint', async () => {
@@ -958,5 +1424,145 @@ describe('HomeTab', () => {
     await openBacklogCard('DIG-50');
     // then
     expect(screen.getByRole('button', { name: 'Add to sprint' })).toBeDisabled();
+  });
+
+  test('the queue pill sits in the sprint header and lists backlog and other-project cards', async () => {
+    // given
+    const queue = {
+      cards: [
+        { projectKey: 'DIG', cardKey: 'DIG-41' },
+        { projectKey: 'DIG', cardKey: 'DIG-50' },
+        { projectKey: 'BEAR', cardKey: 'BEAR-7' },
+      ],
+      working: 4,
+      limit: 4,
+      waitingFor: 'room' as const,
+      gapSeconds: 90,
+      failure: null,
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: {
+        sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }),
+        backlog: () => Promise.resolve({ data: BACKLOG, error: null, fetchedAt: null }),
+      },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByText('Backlog (2)');
+    const pill = await within(screen.getByRole('banner')).findByRole('button', { name: /^3 queued/ });
+    // when
+    await userEvent.click(pill);
+    // then
+    const items = within(screen.getByRole('list', { name: 'Start queue' })).getAllByRole('listitem');
+    expect(items.map((item) => item.firstElementChild?.textContent)).toEqual([
+      '#1 DIG-41 Summary of DIG-41',
+      '#2 DIG-50 Summary of DIG-50',
+      '#3 BEAR-7',
+    ]);
+  });
+
+  test('a ticked card that gets queued drops out of the selection', async () => {
+    // given
+    let emit: (state: QueueState) => void = () => undefined;
+    fakeMaple({
+      tabs: {
+        onQueue: (cb: (state: QueueState) => void) => {
+          emit = cb;
+          return vi.fn();
+        },
+      },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Select DIG-41' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select DIG-42' }));
+    // when
+    act(() => {
+      emit({
+        cards: [{ projectKey: 'DIG', cardKey: 'DIG-41' }],
+        working: 4,
+        limit: 4,
+        waitingFor: 'room',
+        gapSeconds: 90,
+        failure: null,
+      });
+    });
+    // then
+    expect(screen.getByRole('button', { name: 'Start 1 selected' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Select DIG-41' })).not.toBeInTheDocument();
+  });
+
+  test('a failed queued start shows under the planner bar', async () => {
+    // given
+    const queue = {
+      cards: [],
+      working: 0,
+      limit: 4,
+      waitingFor: null,
+      gapSeconds: 90,
+      failure: 'starting DIG-41: no worktree',
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    // when
+    render(<HomeTab projectKey="DIG" />);
+    // then
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('starting DIG-41: no worktree');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getByRole('banner')).not.toContainElement(alert);
+    expect(screen.getByTestId('planner')).toContainElement(alert);
+  });
+
+  test('a queued card shows its place in the details instead of Start', async () => {
+    // given
+    const queue = {
+      cards: [{ projectKey: 'DIG', cardKey: 'DIG-41' }],
+      working: 4,
+      limit: 4,
+      waitingFor: 'room' as const,
+      gapSeconds: 90,
+      failure: null,
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await screen.findByText('Queued #1');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /^DIG-41/ }));
+    // then
+    const details = screen.getByRole('complementary');
+    expect(within(details).getByText('Queued #1')).toBeInTheDocument();
+    expect(within(details).queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+  });
+
+  test('Escape closes the queue list and leaves the details open', async () => {
+    // given
+    const queue = {
+      cards: [{ projectKey: 'DIG', cardKey: 'DIG-41' }],
+      working: 4,
+      limit: 4,
+      waitingFor: 'room' as const,
+      gapSeconds: 90,
+      failure: null,
+    };
+    fakeMaple({
+      tabs: { startQueue: () => Promise.resolve(queue) },
+      jira: { sprint: () => Promise.resolve({ data: READY, error: null, fetchedAt: null }) },
+    });
+    render(<HomeTab projectKey="DIG" />);
+    await userEvent.click(await screen.findByRole('button', { name: /^DIG-42/ }));
+    screen.getByRole('button', { name: /^1 queued/ }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('list', { name: 'Start queue' })).toBeInTheDocument();
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(screen.queryByRole('list', { name: 'Start queue' })).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
   });
 });

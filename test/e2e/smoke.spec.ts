@@ -116,7 +116,7 @@ test.describe('smoke', () => {
 
     try {
       for (const status of ['To Do', 'In Progress', 'In Review', 'Done']) {
-        await expect(page.getByRole('heading', { name: status, exact: true })).toBeVisible();
+        await expect(page.getByRole('region', { name: status, exact: true })).toBeVisible();
       }
 
       // when
@@ -153,7 +153,7 @@ test.describe('smoke', () => {
 
       // then
       await expect(page.getByText('Jira unreachable', { exact: true })).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'To Do', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('region', { name: 'To Do', exact: true })).toHaveCount(0);
     } finally {
       await cleanup(app);
     }
@@ -166,11 +166,14 @@ test.describe('smoke', () => {
     const page = await app.firstWindow();
 
     try {
-      await expect(page.getByRole('heading', { name: 'To Do', exact: true })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'To Do', exact: true })).toBeVisible();
       await expect(page.locator('.xterm-rows').first()).toBeVisible();
 
       // when
-      await page.getByRole('button', { name: 'Report', exact: true }).click();
+      await app.evaluate(({ Menu }) => {
+        const help = Menu.getApplicationMenu()?.items.find((item) => item.label === 'Help');
+        help?.submenu?.items.find((item) => item.label === 'Report a bug…')?.click();
+      });
       const dialog = page.getByRole('dialog', { name: 'Report a bug or feature' });
       await dialog.getByRole('textbox', { name: 'Title' }).fill('Crash');
 

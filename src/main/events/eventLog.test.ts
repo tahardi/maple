@@ -3,12 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
-import type { Logger } from '@main/app/log';
+import { setLogSecrets, type Logger } from '@main/app/log/log';
 import { createEventLog } from './eventLog';
+import { KEEP_DAYS } from './pruneEvents';
 
 const schemas = {
   'test.ping': z.object({ n: z.number() }),
   'test.secret': z.object({ n: z.number(), authorization: z.string().optional() }),
+  'test.text': z.object({ text: z.string() }),
 };
 
 const refs = { project: 'MPL', card: 'MPL-1', tab: 't-1', session: null };
@@ -43,11 +45,36 @@ async function lines(path: string): Promise<string[]> {
 }
 
 afterEach(async () => {
+  setLogSecrets([]);
   vi.unstubAllEnvs();
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
 describe('createEventLog', () => {
+  test('replaces a registered secret in a written record', async () => {
+    // given
+    const { dir, create } = await setup();
+    const log = create();
+    setLogSecrets(['tok-3f9a1c77e2']);
+    // when
+    await log.append('test.text', refs, { text: 'failed with tok-3f9a1c77e2' });
+    // then
+    const [line = ''] = await lines(join(dir, '2026-11-07.jsonl'));
+    expect(line).not.toContain('tok-3f9a1c77e2');
+    expect(JSON.parse(line)).toMatchObject({ data: { text: 'failed with [redacted]' } });
+  });
+
+  test('replaces a Bearer credential in a written record', async () => {
+    // given
+    const { dir, create } = await setup();
+    const log = create();
+    // when
+    await log.append('test.text', refs, { text: 'sent Bearer abc.def-123' });
+    // then
+    const [line = ''] = await lines(join(dir, '2026-11-07.jsonl'));
+    expect(JSON.parse(line)).toMatchObject({ data: { text: 'sent Bearer [redacted]' } });
+  });
+
   test('appends one JSON line per record to the day file', async () => {
     // given
     const { dir, create } = await setup();
@@ -274,6 +301,20 @@ describe('eventLog', () => {
 
     // then
     expect(eventLog()).toBe(started);
+  });
+
+  test.each([
+    { name: 'the default before the log is started', limits: null, want: KEEP_DAYS },
+    { name: 'the limit the log started with', limits: { keepDays: 30, maxBytes: 1 }, want: 30 },
+  ])('eventKeepDays returns $name', async ({ limits, want }) => {
+    // given
+    const { eventKeepDays, startEventLog } = await freshModule();
+    // when
+    if (limits) {
+      await startEventLog({ limits }).readEvents(range);
+    }
+    // then
+    expect(eventKeepDays()).toBe(want);
   });
 
   test('creates the log only once', async () => {

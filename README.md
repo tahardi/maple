@@ -15,6 +15,8 @@ make pre-pr  # install dependencies, then run format, lint, typecheck, and test-
 make format  # check formatting (npm run format fixes it)
 make lint
 make typecheck
+make audit  # fail on high or critical npm advisories
+make package  # build Maple and package it into dist/linux-unpacked
 make test-unit  # run the unit tests, except the socket tests
 make test-socket  # run the tests that open Unix sockets, which sandboxed runs cannot do
 make test-e2e  # build the app and run the Playwright smoke test (needs a display and tmux, so not in the sandbox)
@@ -46,16 +48,23 @@ CI runs unit, socket, and e2e on every PR. Live tests run only by hand. The Clau
 
 ## Config
 
-Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `~` expands to your home directory.
+Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `~` expands to your home directory. Maple refuses a config from a newer Maple.
 
 ```json
 {
+  "version": 1,
   "worktreesDir": "~/Documents/code/wts",
   "vaultDir": "~/Documents/obsidian-vault",
   "notifications": true,
   "backgroundWaitMinutes": 10,
   "eventKeepDays": 365,
   "eventMaxMegabytes": 200,
+  "stateBackups": 3,
+  "startAtOnce": 4,
+  "startGapSeconds": 90,
+  "maxWorking": 8,
+  "maxLoadPerCore": 0.8,
+  "minFreeMegabytes": 2048,
   "projects": [
     {
       "name": "Maple",
@@ -70,11 +79,31 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
 
 `eventKeepDays` and `eventMaxMegabytes` limit how much event history Maple keeps. On startup Maple deletes older days past these limits, and asks first if today's log would be deleted.
 
+`startAtOnce`, `startGapSeconds`, `maxWorking`, `maxLoadPerCore`, and `minFreeMegabytes` limit how many cards Maple runs. Every Start joins one start queue shared by all projects. Maple starts the next queued card only while fewer than `maxWorking` tabs are working, the 1-minute load average is under `maxLoadPerCore` times the number of CPU cores, and at least `minFreeMegabytes` of memory is free. When nothing is waiting and fewer than `startAtOnce` tabs are working, a Start begins right away. Past `startAtOnce`, and for every card that had to wait in the queue for any reason, Maple starts the next card no sooner than `startGapSeconds` seconds (default 90) after the last start, so each new session's load shows up before the next one. Maple still re-checks CPU and memory every 15 seconds. Queued tiles and backlog rows show their place, a pill in the sprint header lists the waiting cards, and the queue is saved in `state.json`.
+
 `repo` is the project's GitHub repository as `owner/name`. Maple runs each `gh` call for the project's PRs on the desktop, against `repo` or the `otherRepos` entry that has the card's PR. The review diff and the merge read from GitHub, and the worktree supplies only the branch name, so they never depend on the contents of a local checkout.
 
 `otherRepos` is optional and lists more `owner/name` repos the project's cards may open PRs in. Maple uses the first repo in `[repo, ...otherRepos]` that has a PR for the card's branch.
 
 `vaultDir` is optional. When set, every card tab can switch its file tree to the Markdown notes in that Obsidian vault and open them read-only next to the card's Claude session. Notes the card's Claude session wrote show as changed.
+
+Maple saves open tabs in `state.json` in `MAPLE_CONFIG_DIR`. At each launch, if `state.json` changed since the last backup, Maple copies it to `state.json.1` and moves older copies up, keeping `stateBackups` copies (default 3) with the newest in `state.json.1`. A `state.json` Maple cannot read moves to `state.json.corrupt`, and the banner names the newest backup. To restore, quit Maple, copy a backup over `state.json`, and start Maple again.
+
+`remote` is optional. When set, Maple connects to the Xena VM over one SSH master connection when it starts, and asks you to touch your YubiKey once:
+
+```json
+{
+  "remote": {
+    "host": "192.168.150.10",
+    "user": "dev",
+    "keyPath": "~/.ssh/id_ed25519_sk",
+    "knownHostsPath": "~/.config/xena/known_hosts",
+    "vaultSocket": "~/.local/state/xena/vault.sock"
+  }
+}
+```
+
+With `remote` set, `worktreesDir` and every `plannerDir` are paths inside the VM and must be absolute, because `~` would expand to the desktop home. `knownHostsPath` is the VM host key Xena pinned when it built the VM, at `~/.config/xena/known_hosts`; Maple accepts no other file and refuses any other key. `vaultSocket` is the desktop vault gateway socket that Maple forwards into the VM, and Maple accepts only `~/.local/state/xena/vault.sock`; leave it out to skip the forward. Changing `remote` needs a Maple restart.
 
 ## Status
 
@@ -86,7 +115,8 @@ Maple runs Claude sessions with permissions skipped and holds a Jira token, so i
 
 - The renderer is sandboxed and isolated, has a strict Content-Security-Policy, and may not navigate away from the app. Links open in the browser, and only `http` and `https` links.
 - The renderer gets clipboard access only. Every other permission, such as notifications, camera, or location, is denied.
-- Untrusted text renders as text. A lint rule rejects `innerHTML` and `dangerouslySetInnerHTML`.
+- Untrusted text renders as text. A lint rule rejects `innerHTML` and `dangerouslySetInnerHTML`. Security findings always show as plain text, never as Markdown.
+- Card sessions may write outside their worktree only to the findings folder in the config dir, which Maple adds to the Claude sandbox's write list.
 - The main process checks every IPC argument, reads files only inside a tab's worktree, and never returns the Jira token.
 - `git`, `gh`, and `claude` run with argument arrays, never through a shell.
 - The hook socket is private to the user and drops oversized lines.

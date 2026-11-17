@@ -1,24 +1,29 @@
-import type { Card } from '@shared/types/jira';
-import type { Fetched } from '@shared/types/app';
-import type { PrInfo, Review, SecurityFinding } from '@shared/types/github';
-import type { TabState } from '@shared/types/tabs';
-import type { VaultNote } from '@shared/types/files';
+import type { ReviewComment } from '@shared/types/github/reviewComment';
+import type { Card } from '@shared/types/jira/card';
+import type { Fetched } from '@shared/types/app/fetched';
+import type { PrInfo } from '@shared/types/github/prInfo';
+import type { Review } from '@shared/types/github/review';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { VaultNote } from '@shared/types/files/vaultNote';
 import type { PaneAction } from '../claude/ClaudePane';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { useEffect } from 'react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useEffect, type ReactNode } from 'react';
 import userEvent from '@testing-library/user-event';
 import { useMaple } from '../store';
 import { FAKE_CONFIG, fakeMaple } from '../testing/fakeMaple';
 import { card, SPRINT } from '../testing/sprintFixture';
+import { finding, findingsFile } from '../testing/findingsFixture';
 import { CardTab } from './CardTab';
 import { TerminalPane } from '@renderer/card/terminal/TerminalPane';
 
-vi.mock('@renderer/card/viewer/monacoSetup', () => ({}));
+vi.mock('@renderer/card/viewer/editor/monacoSetup', () => ({}));
 
 vi.mock('../claude/ClaudePane', async () => {
   const { ActionBar } = await import('../claude/ActionBar');
   return {
-    ClaudePane: ({ actions }: { actions: readonly PaneAction[] }) => <ActionBar actions={actions} />,
+    ClaudePane: ({ actions, approve }: { actions: readonly PaneAction[]; approve?: ReactNode }) => (
+      <ActionBar actions={actions}>{approve}</ActionBar>
+    ),
   };
 });
 
@@ -49,6 +54,7 @@ const tab: TabState = {
   cardKey: 'MPL-20',
   sessionId: 's1',
   worktreePath: '/home/me/wts/maple-mpl-20-file-tree/',
+  worktreePaths: [],
 };
 
 const pr: PrInfo = {
@@ -60,19 +66,48 @@ const pr: PrInfo = {
   needsTaylor: null,
   cardImpacts: null,
   body: '',
+  headSha: 'a'.repeat(40),
+  mergeable: 'MERGEABLE',
   checks: { passed: 4, failed: 0, pending: 0, total: 4, runs: [] },
 };
 
 const head = 'a'.repeat(40);
 
-function reviewOf(paths: readonly string[], findings: SecurityFinding[] = []): () => Promise<Fetched<Review>> {
+const lineComment: ReviewComment = {
+  id: 1,
+  replyTo: null,
+  startLine: null,
+  path: 'src/a.ts',
+  line: 1,
+  author: 'tahardi',
+  body: 'why?',
+  threadId: null,
+  resolved: false,
+};
+
+async function clickApprove() {
+  await userEvent.click(
+    await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' }),
+  );
+}
+
+async function confirmApprove() {
+  await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve & merge' }));
+}
+
+function reviewOf(paths: readonly string[]): () => Promise<Fetched<Review>> {
   const files = paths.map((path) => ({ path, status: 'M' as const, oldPath: null, stamp: 'f'.repeat(40) }));
   return () =>
     Promise.resolve({
-      data: { number: 13, headSha: head, baseSha: 'c'.repeat(40), added: 9, removed: 4, files, findings },
+      data: { number: 13, headSha: head, baseSha: 'c'.repeat(40), added: 9, removed: 4, files },
       error: null,
       fetchedAt: null,
     });
+}
+
+function undecidedFindings(count: number) {
+  const file = findingsFile(Array.from({ length: count }, (_, i) => finding({ id: `F${String(i + 1)}` })));
+  return vi.fn(() => Promise.resolve({ data: file, error: null, fetchedAt: null }));
 }
 
 function fakeRepo(withPr: boolean, cards: readonly Card[] = []) {
@@ -97,6 +132,20 @@ function fakeRepo(withPr: boolean, cards: readonly Card[] = []) {
         }),
     },
   });
+}
+
+function captureRepoChanged(overrides: Parameters<typeof fakeMaple>[0]): { value: () => void } {
+  const changed: { value: () => void } = { value: () => undefined };
+  fakeMaple({
+    ...overrides,
+    repo: {
+      onChanged: vi.fn((_tabId: string, cb: () => void) => {
+        changed.value = cb;
+        return vi.fn();
+      }),
+    },
+  });
+  return changed;
 }
 
 function fakeNoPr(status: Card['status']) {
@@ -137,7 +186,7 @@ function fakeVault(
 describe('CardTab', () => {
   beforeEach(() => {
     useMaple.setState(useMaple.getInitialState(), true);
-    useMaple.setState({ config: FAKE_CONFIG });
+    useMaple.setState({ config: FAKE_CONFIG, activeTabId: 't1' });
     localStorage.clear();
     vi.stubGlobal(
       'ResizeObserver',
@@ -321,7 +370,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-renamed' }),
+        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-renamed', hasTry: false }),
       },
     });
     // when
@@ -338,7 +387,7 @@ describe('CardTab', () => {
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch }),
+        info: () => Promise.resolve({ name: 'maple', branch, hasTry: false }),
         onChanged: (_tabId, callback) => {
           listeners.push(callback);
           return () => undefined;
@@ -359,20 +408,66 @@ describe('CardTab', () => {
     expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
   });
 
+  test('the Comments button opens the PR conversation', async () => {
+    // given
+    fakeRepo(true);
+    window.maple.pr.conversation = vi.fn(() =>
+      Promise.resolve([
+        {
+          url: 'https://github.com/tahardi/maple/pull/13#issuecomment-1',
+          author: 'tahardi',
+          at: '2026-10-25T10:00:00Z',
+          body: 'Looks good',
+        },
+      ]),
+    );
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (1)' }));
+    // then
+    expect(screen.getByRole('tab', { name: 'Comments', selected: true })).toBeInTheDocument();
+    expect(screen.getByText('Looks good')).toBeInTheDocument();
+  });
+
+  test('posting from the Comments tab raises the header count', async () => {
+    // given
+    fakeRepo(true);
+    const entry = (n: number) => ({
+      url: `https://github.com/tahardi/maple/pull/13#issuecomment-${String(n)}`,
+      author: 'tahardi',
+      at: `2026-10-25T1${String(n)}:00:00Z`,
+      body: `note ${String(n)}`,
+    });
+    let posted = false;
+    window.maple.pr.conversation = vi.fn(() => Promise.resolve(posted ? [entry(1), entry(2)] : [entry(1)]));
+    window.maple.pr.commentOnPr = vi.fn(() => {
+      posted = true;
+      return Promise.resolve();
+    });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (1)' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Comment on the PR' }), 'note 2');
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }));
+    // then
+    expect(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (2)' })).toBeInTheDocument();
+  });
+
   test('shows no branch in the header before the repo info loads', async () => {
     // given
     fakeRepo(true);
     // when
     render(<CardTab tab={tab} />);
     // then
-    await screen.findByRole('link', { name: '#13 ↗' });
+    await screen.findByRole('button', { name: 'maple PR #13' });
     expect(within(screen.getByRole('banner')).queryByText('mpl-20-file-tree')).toBeNull();
   });
 
   test('uses saved column widths', () => {
     // given
     fakeMaple();
-    localStorage.setItem('maple.columns', '{"left":300,"right":40}');
+    localStorage.setItem('maple.columns.left', '300');
+    localStorage.setItem('maple.columns.right', '40');
     // when
     render(<CardTab tab={tab} />);
     // then
@@ -380,6 +475,138 @@ describe('CardTab', () => {
     expect(screen.getByTestId('viewer-slot').previousElementSibling?.previousElementSibling).toHaveStyle({
       width: '300px',
     });
+  });
+
+  test('double-clicking the Claude handle restores its default width', () => {
+    // given
+    fakeMaple();
+    localStorage.setItem('maple.columns.right', '40');
+    render(<CardTab tab={tab} />);
+    // when
+    fireEvent.doubleClick(screen.getByRole('separator', { name: 'Resize Claude pane' }));
+    // then
+    expect(screen.getByTestId('claude-slot')).toHaveStyle({ width: '32%' });
+  });
+
+  test('uses the saved terminal height', async () => {
+    // given
+    fakeMaple();
+    localStorage.setItem('maple.split.cardTerminal', '50');
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    // then
+    expect(screen.getByTestId('terminal-pane').parentElement).toHaveStyle({ height: '50%' });
+  });
+
+  test('shows the terminal resize handle only while the terminal is shown', async () => {
+    // given
+    fakeMaple();
+    render(<CardTab tab={tab} />);
+    const handle = () => screen.queryByRole('separator', { name: 'Resize terminal' });
+    expect(handle()).not.toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    // then
+    expect(handle()).toBeInTheDocument();
+    // when
+    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }));
+    // then
+    expect(handle()).not.toBeInTheDocument();
+  });
+
+  test('dragging a column divider saves the width once on release', () => {
+    // given
+    fakeMaple();
+    render(<CardTab tab={tab} />);
+    const divider = screen.getByTestId('viewer-slot').previousElementSibling;
+    if (divider === null) {
+      throw new Error('finding the column divider: missing');
+    }
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    try {
+      // when
+      fireEvent.pointerDown(divider);
+      act(() => {
+        window.dispatchEvent(new PointerEvent('pointermove', { clientX: 300 }));
+        window.dispatchEvent(new PointerEvent('pointermove', { clientX: 320 }));
+        window.dispatchEvent(new PointerEvent('pointerup'));
+      });
+      // then
+      const leftWrites = setItem.mock.calls.filter(([key]) => key === 'maple.columns.left');
+      expect(leftWrites).toEqual([['maple.columns.left', '320']]);
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  test('counts top-level comments and line threads on the Comments button', async () => {
+    // given
+    fakeRepo(true);
+    window.maple.pr.conversation = vi.fn(() =>
+      Promise.resolve([
+        {
+          url: 'https://github.com/tahardi/maple/pull/13#issuecomment-1',
+          author: 'tahardi',
+          at: '2026-10-25T10:00:00Z',
+          body: 'Looks good',
+        },
+      ]),
+    );
+    window.maple.pr.comments = vi.fn(() => Promise.resolve([lineComment]));
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    expect(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (2)' })).toBeInTheDocument();
+  });
+
+  test('drops the line comments once the PR is no longer open', async () => {
+    // given
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, state: 'MERGED' }, error: null, fetchedAt: '2026-10-18T12:00:00.000Z' });
+    let changed: () => void = () => undefined;
+    fakeMaple({
+      pr: { get, comments: () => Promise.resolve([lineComment]) },
+      repo: {
+        changes: () =>
+          Promise.resolve({
+            base: 'abc',
+            files: [{ path: 'src/a.ts', status: 'M', oldPath: null, stamp: '1:1' }],
+            added: 1,
+            removed: 0,
+          }),
+        onChanged: vi.fn((_tabId: string, cb: () => void) => {
+          changed = cb;
+          return vi.fn();
+        }),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    const banner = within(screen.getByRole('banner'));
+    expect(await screen.findByRole('img', { name: 'Has review comments' })).toBeInTheDocument();
+    await userEvent.click(await banner.findByRole('button', { name: 'Comments (1)' }));
+    // when
+    act(() => {
+      changed();
+    });
+    // then
+    expect(await banner.findByRole('button', { name: 'Comments (0)' })).toBeInTheDocument();
+    expect(screen.getByText('No line comments')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Has review comments' })).not.toBeInTheDocument();
+  });
+
+  test('a line comment in the Comments tab opens its file at that line', async () => {
+    // given
+    fakeRepo(true);
+    window.maple.pr.comments = vi.fn(() => Promise.resolve([lineComment]));
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Comments (1)' }));
+    // when
+    await userEvent.click(await screen.findByRole('button', { name: /Line 1/ }));
+    // then
+    expect(await screen.findByRole('tab', { name: 'a.ts', selected: true })).toBeInTheDocument();
   });
 
   test('marks the files that have review comments in the tree', async () => {
@@ -483,7 +710,7 @@ describe('CardTab', () => {
       },
       steps: async () => {
         await screen.findByRole('tab', { name: 'PR description' });
-        await userEvent.click(await screen.findByTitle('Open card description'));
+        await userEvent.click(await screen.findByTitle(/Click to open the card description/));
         await userEvent.click(screen.getByRole('button', { name: 'All files' }));
         await userEvent.click(screen.getByText('README.md', { selector: 'li span' }));
         await userEvent.click(screen.getByText('a.ts'));
@@ -592,26 +819,6 @@ describe('CardTab', () => {
     expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
   });
 
-  test('names the repo of a PR outside the project repo', async () => {
-    // given
-    fakeRepo(true);
-    const project = {
-      name: 'Xena',
-      jiraKey: 'MPL',
-      jiraBoardId: 1,
-      plannerDir: '/tmp/planner/xena',
-      repo: 'tahardi/xena',
-      otherRepos: ['tahardi/maple'],
-    };
-    useMaple.setState({
-      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, projects: [project] } },
-    });
-    // when
-    render(<CardTab tab={tab} />);
-    // then
-    expect(await screen.findByRole('button', { name: 'tahardi/maple PR #13' })).toBeInTheDocument();
-  });
-
   test.each([
     { status: 'In Review' as const, name: 'shows', shown: true },
     { status: 'In Progress' as const, name: 'hides', shown: false },
@@ -624,7 +831,7 @@ describe('CardTab', () => {
     render(<CardTab tab={{ ...tab, projectKey: 'BEAR' }} />);
     await screen.findByRole('tab', { name: 'Card description', selected: true });
     // then
-    expect(screen.queryByText(/No PR found in tahardi\/bearclave\./) !== null).toBe(shown);
+    expect(screen.queryByText('No PR in tahardi/bearclave') !== null).toBe(shown);
   });
 
   test('lists the project repo first, then its other repos, when no PR is found', async () => {
@@ -645,7 +852,9 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByRole('tab', { name: 'Card description', selected: true });
     // then
-    expect(screen.getByText(/^No PR found in tahardi\/xena, tahardi\/dotclaude\./)).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('banner')).getByText('No PR in tahardi/xena, tahardi/dotclaude'),
+    ).toBeInTheDocument();
   });
 
   test('names the searched repos for a card outside the sprint with no PR', async () => {
@@ -657,7 +866,7 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={{ ...tab, projectKey: 'BEAR' }} />);
     // then
-    expect(await screen.findByText(/^No PR found in tahardi\/bearclave\./)).toBeInTheDocument();
+    expect(await screen.findByText('No PR in tahardi/bearclave')).toBeInTheDocument();
   });
 
   test('shows no searched repos for a project missing from config', async () => {
@@ -667,7 +876,7 @@ describe('CardTab', () => {
     render(<CardTab tab={{ ...tab, projectKey: 'NOPE' }} />);
     await screen.findByRole('tab', { name: 'Card description', selected: true });
     // then
-    expect(screen.queryByText(/No PR found/)).toBeNull();
+    expect(screen.queryByText(/No PR in/)).toBeNull();
   });
 
   test('keeps the PR description closed until the PR number opens it', async () => {
@@ -681,7 +890,7 @@ describe('CardTab', () => {
     // then
     expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['a.ts']);
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'PR #13' }));
+    await userEvent.click(screen.getByRole('button', { name: 'maple PR #13' }));
     // then
     expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
   });
@@ -701,7 +910,7 @@ describe('CardTab', () => {
     fakeRepo(true, [card('MPL-20', 'In Progress', { descriptionMd: '## Goal' })]);
     // when
     render(<CardTab tab={tab} />);
-    await screen.findByTitle('Open card description');
+    await screen.findByTitle(/Click to open the card description/);
     // then
     expect(screen.getByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
     expect(screen.getAllByRole('tab').map((t) => t.getAttribute('aria-label'))).toEqual(['PR description']);
@@ -713,12 +922,12 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByRole('tab', { name: 'PR description' });
     // when
-    await userEvent.click(await screen.findByTitle('Open card description'));
+    await userEvent.click(await screen.findByTitle(/Click to open the card description/));
     // then
     expect(screen.getByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
     // when
     await userEvent.click(screen.getByRole('button', { name: 'Close Card description' }));
-    await userEvent.click(screen.getByTitle('Open card description'));
+    await userEvent.click(screen.getByTitle(/Click to open the card description/));
     // then
     expect(screen.getByRole('tab', { name: 'Card description', selected: true })).toBeInTheDocument();
   });
@@ -752,7 +961,7 @@ describe('CardTab', () => {
       });
     });
     // then
-    expect(await screen.findByTitle('Open card description')).toBeInTheDocument();
+    expect(await screen.findByTitle(/Click to open the card description/)).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Card description' })).not.toBeInTheDocument();
   });
 
@@ -774,7 +983,7 @@ describe('CardTab', () => {
     render(<CardTab tab={tab} />);
     await screen.findByText('README.md');
     // then
-    expect(screen.queryByTitle('Open card description')).toBeNull();
+    expect(screen.queryByTitle(/Click to open the card description/)).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Card description' })).not.toBeInTheDocument();
   });
 
@@ -809,36 +1018,174 @@ describe('CardTab', () => {
     expect(screen.getByRole('tab', { name: 'README.md', selected: true }).className).toMatch(/preview/);
   });
 
-  test('shows the repo name and branch above the worktree file tree', async () => {
+  test('shows nothing but the view switch above a single-repo tree', async () => {
     // given
+    useMaple.setState({
+      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
+    });
     fakeMaple({
       repo: {
         listFiles: () => Promise.resolve(['README.md']),
-        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }),
+        info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree', hasTry: false }),
       },
     });
     // when
     render(<CardTab tab={tab} />);
     // then
     const slot = within(screen.getByTestId('tree-slot'));
-    expect((await slot.findAllByRole('term')).map((t) => t.textContent)).toEqual(['Repo', 'Branch']);
-    expect(slot.getByText('maple')).toBeInTheDocument();
-    expect(slot.getByText('mpl-20-file-tree')).toBeInTheDocument();
+    expect(await slot.findByText('README.md')).toBeInTheDocument();
+    expect(await within(screen.getByRole('banner')).findByText('mpl-20-file-tree')).toBeInTheDocument();
+    expect(slot.queryByText('maple')).toBeNull();
+    expect(slot.queryByText('mpl-20-file-tree')).toBeNull();
+    expect(slot.queryByRole('button', { name: /^Repo/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId('tree-slot').firstElementChild).toContainElement(
+      slot.getByRole('button', { name: 'Vault' }),
+    );
   });
 
-  test('hides the repo name and branch in the vault tree', async () => {
+  test('shows no PR panel under the tree', async () => {
     // given
-    useMaple.setState({
-      config: { ...FAKE_CONFIG, data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, vaultDir: '/vault' } },
-    });
-    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-20-file-tree' }) } });
-    render(<CardTab tab={tab} />);
-    await screen.findByTestId('repo-branch');
+    fakeRepo(true);
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Vault' }));
+    render(<CardTab tab={tab} />);
     // then
-    expect(screen.getByRole('button', { name: 'Vault', pressed: true })).toBeInTheDocument();
-    expect(screen.queryByTestId('repo-branch')).not.toBeInTheDocument();
+    await within(screen.getByRole('banner')).findByRole('button', { name: 'maple PR #13' });
+    const slot = within(screen.getByTestId('tree-slot'));
+    expect(slot.queryByRole('button', { name: 'maple PR #13' })).toBeNull();
+    expect(slot.queryByText(pr.title)).toBeNull();
+    expect(slot.queryByRole('heading', { name: 'Checks' })).toBeNull();
+  });
+
+  const twoRepos: TabState = {
+    ...tab,
+    worktreePath: '/wts/xena-xena-62-vm-net',
+    worktreePaths: ['/wts/halo-xena-62-config', '/wts/xena-xena-62-vm-net'],
+  };
+
+  const xena = { name: 'xena', branch: 'xena-62-vm-net', hasTry: false };
+
+  test('shows a repo dropdown above the tree when the card has more than one worktree', async () => {
+    // given
+    fakeMaple({ repo: { info: () => Promise.resolve(xena) } });
+    // when
+    render(<CardTab tab={twoRepos} />);
+    // then
+    const slot = within(screen.getByTestId('tree-slot'));
+    const button = await slot.findByRole('button', { name: 'Repo: xena' });
+    expect(within(button).queryByTestId('repo-branch')).toBeNull();
+    expect(button).not.toHaveTextContent('xena-62-vm-net');
+  });
+
+  test('names the selected folder on the repo dropdown before the repo info loads', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<CardTab tab={twoRepos} />);
+    // then
+    expect(screen.getByRole('button', { name: 'Repo: xena-xena-62-vm-net' })).toHaveTextContent('xena-xena-62-vm-net');
+  });
+
+  test('choosing another repo asks the main process to select it', async () => {
+    // given
+    const selectWorktree = vi.fn(() => Promise.resolve());
+    fakeMaple({ repo: { info: () => Promise.resolve(xena) }, tabs: { selectWorktree } });
+    render(<CardTab tab={twoRepos} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Repo: xena' }));
+    // when
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'halo-xena-62-config' }));
+    // then
+    expect(selectWorktree).toHaveBeenCalledWith('t1', '/wts/halo-xena-62-config');
+  });
+
+  test('switching repos closes the old repo files and opens the new PR description', async () => {
+    // given
+    let current: PrInfo | null = null;
+    fakeMaple({
+      repo: { listFiles: () => Promise.resolve(['README.md']), info: () => Promise.resolve(xena) },
+      pr: { get: () => Promise.resolve({ data: current, error: null, fetchedAt: null }) },
+    });
+    const { rerender } = render(<CardTab tab={twoRepos} />);
+    await userEvent.dblClick(await screen.findByText('README.md'));
+    expect(tabLabels()).toEqual(['README.md']);
+    // when
+    current = { ...pr, number: 12, body: '## Halo' };
+    rerender(<CardTab tab={{ ...twoRepos, worktreePath: '/wts/halo-xena-62-config' }} />);
+    // then
+    expect(await screen.findByRole('tab', { name: 'PR description', selected: true })).toBeInTheDocument();
+    expect(tabLabels()).toEqual(['PR description']);
+    expect(await screen.findByRole('heading', { name: 'Halo' })).toBeInTheDocument();
+  });
+
+  test('switching to a repo without a PR leaves the PR description closed', async () => {
+    // given
+    let current: PrInfo | null = { ...pr, body: '## Xena' };
+    fakeMaple({
+      repo: { info: () => Promise.resolve(xena) },
+      pr: { get: () => Promise.resolve({ data: current, error: null, fetchedAt: null }) },
+    });
+    const { rerender } = render(<CardTab tab={twoRepos} />);
+    await screen.findByRole('tab', { name: 'PR description', selected: true });
+    // when
+    current = null;
+    rerender(<CardTab tab={{ ...twoRepos, worktreePath: '/wts/halo-xena-62-config' }} />);
+    // then
+    await waitFor(() => {
+      expect(screen.queryByRole('tab', { name: 'PR description' })).not.toBeInTheDocument();
+    });
+    await act(() => Promise.resolve());
+    expect(screen.queryByRole('tab', { name: 'PR description' })).not.toBeInTheDocument();
+  });
+
+  test('the first worktree appearing keeps the open file tabs', async () => {
+    // given
+    fakeVault([{ path: 'Projects/Maple/Spike.md', modifiedAt: new Date().toISOString() }]);
+    const { rerender } = render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    await userEvent.click(await screen.findByText('Spike.md'));
+    // when
+    rerender(<CardTab tab={{ ...tab, worktreePaths: [tab.worktreePath ?? ''] }} />);
+    // then
+    expect(screen.getByRole('tab', { name: 'Spike.md', selected: true })).toBeInTheDocument();
+  });
+
+  test('marks a file viewed in one repo only', async () => {
+    // given
+    fakeMaple({
+      repo: {
+        info: () => Promise.resolve(xena),
+        changes: () =>
+          Promise.resolve({
+            base: 'abc',
+            files: [{ path: 'README.md', status: 'M', oldPath: null, stamp: '1:1' }],
+            added: 1,
+            removed: 0,
+          }),
+      },
+    });
+    const { rerender } = render(<CardTab tab={twoRepos} />);
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Viewed README.md' }));
+    // when
+    rerender(<CardTab tab={{ ...twoRepos, worktreePath: '/wts/halo-xena-62-config' }} />);
+    // then
+    expect(await screen.findByRole('checkbox', { name: 'Viewed README.md' })).not.toBeChecked();
+  });
+
+  test('switching repos clears the Approve error', async () => {
+    // given
+    fakeMaple({
+      pr: {
+        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
+        review: reviewOf([]),
+        approve: () => Promise.reject(new Error('approving PR: offline')),
+      },
+    });
+    const { rerender } = render(<CardTab tab={twoRepos} />);
+    await clickApprove();
+    await confirmApprove();
+    expect(await screen.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    // when
+    rerender(<CardTab tab={{ ...twoRepos, worktreePath: '/wts/halo-xena-62-config' }} />);
+    // then
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   test('keeps the active file when closing another file tab', async () => {
@@ -925,33 +1272,74 @@ describe('CardTab', () => {
     expect(screen.getByText('a.ts').closest('li')?.className).not.toMatch(/selected/);
   });
 
-  test('shows the config actions and Approve in the Claude pane', async () => {
+  test('shows Approve & merge in the Claude pane after its actions and not in the header', async () => {
     // given
     const sendPrompt = vi.fn();
-    const approve = vi.fn(() => Promise.resolve());
     fakeMaple({
       session: { sendPrompt },
-      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review: reviewOf([]), approve },
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review: reviewOf([]) },
     });
-    const config = {
-      worktreesDir: '',
-      vaultDir: null,
-      notifications: false,
-      backgroundWaitMinutes: 15,
-      eventKeepDays: 365,
-      eventMaxMegabytes: 200,
-      projects: [],
-      actions: [{ label: 'Sync', prompt: 'Sync {key}' }],
-    };
-    useMaple.setState({ config: { ...FAKE_CONFIG, data: config } });
+    useMaple.setState({
+      config: {
+        ...FAKE_CONFIG,
+        data: FAKE_CONFIG.data && { ...FAKE_CONFIG.data, actions: [{ label: 'Sync', prompt: 'Sync {key}' }] },
+      },
+    });
     render(<CardTab tab={tab} />);
     const slot = within(screen.getByTestId('claude-slot'));
     // when
     await userEvent.click(slot.getByRole('button', { name: 'Sync' }));
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
     // then
     expect(sendPrompt).toHaveBeenCalledWith('t1', 'Sync MPL-20');
-    expect(approve).toHaveBeenCalledWith('t1', head);
+    expect(await slot.findByRole('button', { name: 'Approve & merge' })).toBeEnabled();
+    expect(slot.getAllByRole('button').map((b) => b.textContent)).toEqual(['Sync', 'Approve & merge']);
+    expect(within(screen.getByRole('banner')).queryByRole('button', { name: 'Approve & merge' })).toBeNull();
+  });
+
+  test('Approve & merge always asks before approving', async () => {
+    // given
+    const approve = vi.fn(() => Promise.resolve());
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review: reviewOf([]), approve },
+    });
+    render(<CardTab tab={tab} />);
+    // when
+    await clickApprove();
+    // then
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Approves PR #13 and merges it.');
+    expect(within(dialog).getByRole('button', { name: 'Approve & merge' })).toHaveAttribute('data-variant', 'primary');
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  test('the approve dialog names the PR number', async () => {
+    // given
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review: reviewOf([]) },
+    });
+    render(<CardTab tab={tab} />);
+    // when
+    await clickApprove();
+    // then
+    expect(screen.getByRole('heading', { name: 'Approve & merge PR #13?' })).toBeInTheDocument();
+  });
+
+  test.each([
+    { name: 'confirm approves the head commit', button: 'Approve & merge', calls: [['t1', head]] },
+    { name: 'Cancel approves nothing', button: 'Cancel', calls: [] },
+  ])('the approve dialog: $name', async ({ button, calls }) => {
+    // given
+    const approve = vi.fn<(tabId: string, headSha: string) => Promise<void>>(() => Promise.resolve());
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review: reviewOf([]), approve },
+    });
+    render(<CardTab tab={tab} />);
+    await clickApprove();
+    // when
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: button }));
+    // then
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(approve.mock.calls).toEqual(calls);
   });
 
   test.each([
@@ -979,7 +1367,31 @@ describe('CardTab', () => {
     // then
     const slot = within(screen.getByTestId('claude-slot'));
     expect(slot.queryByText('Merged') !== null).toBe(shown);
-    expect(slot.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(slot.getByRole('button', { name: 'Approve & merge' })).toBeInTheDocument();
+  });
+
+  test('a Done card without a worktree shows a success notice with Close tab', async () => {
+    // given
+    const card: Card = {
+      key: 'MPL-20',
+      summary: 'File Tree',
+      status: 'Done',
+      points: 3,
+      labels: [],
+      blockedBy: [],
+      epic: null,
+      descriptionMd: '',
+      url: 'https://example.atlassian.net/browse/MPL-20',
+    };
+    const sprint = { id: 1, name: 'S1', startDate: '', endDate: '', cards: [card] };
+    fakeMaple({ jira: { sprint: () => Promise.resolve({ data: sprint, error: null, fetchedAt: null }) } });
+    // when
+    render(<CardTab tab={{ ...tab, worktreePath: null }} />);
+    // then
+    const notice = await within(screen.getByTestId('claude-slot')).findByRole('status');
+    expect(notice).toHaveTextContent('Merged');
+    expect(notice).toHaveAttribute('data-tone', 'success');
+    expect(within(notice).getByRole('button', { name: 'Close tab' })).toBeInTheDocument();
   });
 
   test('Close tab on the merged notice closes the tab', async () => {
@@ -1018,15 +1430,176 @@ describe('CardTab', () => {
       pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review: reviewOf([]), approve },
     });
     render(<CardTab tab={tab} />);
-    const slot = within(screen.getByTestId('claude-slot'));
     // when
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await clickApprove();
+    await confirmApprove();
     // then
-    expect(await slot.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    expect(await within(screen.getByTestId('claude-slot')).findByRole('alert')).toHaveTextContent(
+      'approving PR: offline',
+    );
     // when
-    await userEvent.click(slot.getByRole('button', { name: 'Approve' }));
+    await clickApprove();
+    await confirmApprove();
     // then
-    expect(slot.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('a PR with new commits reloads the review by itself and enables Approve', async () => {
+    // given
+    const moved = 'd'.repeat(40);
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockImplementationOnce(reviewOf([]))
+      .mockResolvedValue({
+        data: { number: 13, headSha: moved, baseSha: 'c'.repeat(40), added: 9, removed: 4, files: [] },
+        error: null,
+        fetchedAt: null,
+      });
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
+    const changed = captureRepoChanged({ pr: { get, review } });
+    render(<CardTab tab={tab} />);
+    const banner = within(screen.getByRole('banner'));
+    expect(await banner.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await banner.findByText('Updated to ddddddd')).toBeInTheDocument();
+    expect(within(screen.getByTestId('claude-slot')).getByRole('button', { name: 'Approve & merge' })).toBeEnabled();
+  });
+
+  test('keeps the Viewed check only on files the new commits did not change', async () => {
+    // given
+    const moved = 'd'.repeat(40);
+    const file = (path: string, stamp: string) => ({ path, status: 'M' as const, oldPath: null, stamp });
+    const reviewAt = (headSha: string, bStamp: string): Fetched<Review> => ({
+      data: {
+        number: 13,
+        headSha,
+        baseSha: 'c'.repeat(40),
+        added: 9,
+        removed: 4,
+        files: [file('a.ts', 'f'.repeat(40)), file('b.ts', bStamp)],
+      },
+      error: null,
+      fetchedAt: null,
+    });
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(reviewAt(head, 'f'.repeat(40)))
+      .mockResolvedValue(reviewAt(moved, 'e'.repeat(40)));
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
+    const changed = captureRepoChanged({ pr: { get, review } });
+    render(<CardTab tab={tab} />);
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Viewed a.ts' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Viewed b.ts' }));
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await within(screen.getByRole('banner')).findByText('Updated to ddddddd')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Viewed a.ts' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Viewed b.ts' })).not.toBeChecked();
+  });
+
+  test('an Approve error goes away when the review reloads at a new commit', async () => {
+    // given
+    const moved = 'd'.repeat(40);
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockImplementationOnce(reviewOf([]))
+      .mockResolvedValue({
+        data: { number: 13, headSha: moved, baseSha: 'c'.repeat(40), added: 9, removed: 4, files: [] },
+        error: null,
+        fetchedAt: null,
+      });
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
+    const approve = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('approving PR: offline'));
+    const changed = captureRepoChanged({ pr: { get, review, approve } });
+    render(<CardTab tab={tab} />);
+    await clickApprove();
+    await confirmApprove();
+    expect(await screen.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    expect(await within(screen.getByRole('banner')).findByText('Updated to ddddddd')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('an Approve error stays when a refresh finds the same head commit', async () => {
+    // given
+    const review = vi.fn<() => Promise<Fetched<Review>>>(reviewOf([]));
+    const approve = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('approving PR: offline'));
+    const changed = captureRepoChanged({
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review, approve },
+    });
+    render(<CardTab tab={tab} />);
+    await clickApprove();
+    await confirmApprove();
+    expect(await screen.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    // when
+    act(() => {
+      changed.value();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // then
+    expect(review).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('alert')).toHaveTextContent('approving PR: offline');
+  });
+
+  test.each([
+    { name: 'unviewed files', undecided: 0 },
+    { name: 'undecided findings', undecided: 1 },
+  ])('a review reload at a new commit closes the $name confirm without approving', async ({ undecided }) => {
+    // given
+    const moved = 'd'.repeat(40);
+    const files = [{ path: 'src/a.ts', status: 'M' as const, oldPath: null, stamp: 'f'.repeat(40) }];
+    const reviewAt = (headSha: string): Fetched<Review> => ({
+      data: { number: 13, headSha, baseSha: 'c'.repeat(40), added: 9, removed: 4, files },
+      error: null,
+      fetchedAt: null,
+    });
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce(reviewAt(head))
+      .mockResolvedValue(reviewAt(moved));
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ data: pr, error: null, fetchedAt: null })
+      .mockResolvedValue({ data: { ...pr, headSha: moved }, error: null, fetchedAt: null });
+    const approve = vi.fn<() => Promise<void>>(() => Promise.resolve());
+    const changed = captureRepoChanged({
+      pr: { get, review, approve },
+      findings: { get: undecidedFindings(undecided) },
+    });
+    render(<CardTab tab={tab} />);
+    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
+    await clickApprove();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    // when
+    act(() => {
+      changed.value();
+    });
+    // then
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+    expect(await within(screen.getByRole('banner')).findByText('Updated to ddddddd')).toBeInTheDocument();
+    expect(approve).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -1046,17 +1619,83 @@ describe('CardTab', () => {
       },
     });
     render(<CardTab tab={tab} />);
-    const slot = within(screen.getByTestId('claude-slot'));
     // when
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await clickApprove();
+    await confirmApprove();
     // then
-    expect(await slot.findByRole('alert')).toHaveTextContent(/^approving PR: offline$/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^approving PR: offline$/);
+  });
+
+  test('Approve & merge shows Merging… until the approve finishes', async () => {
+    // given
+    let settle: () => void = () => undefined;
+    const approve = vi.fn<() => Promise<void>>(
+      () =>
+        new Promise<void>((resolve) => {
+          settle = resolve;
+        }),
+    );
+    fakeMaple({
+      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review: reviewOf([]), approve },
+    });
+    render(<CardTab tab={tab} />);
+    // when
+    await clickApprove();
+    await confirmApprove();
+    // then
+    expect(within(screen.getByTestId('claude-slot')).getByRole('button', { name: 'Merging…' })).toBeDisabled();
+    // when
+    await act(async () => {
+      settle();
+      await Promise.resolve();
+    });
+    // then
+    expect(within(screen.getByTestId('claude-slot')).getByRole('button', { name: 'Approve & merge' })).toBeEnabled();
+  });
+
+  test('a failed merge restores Approve & merge and shows the error', async () => {
+    // given
+    fakeMaple({
+      pr: {
+        get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
+        review: reviewOf([]),
+        approve: vi.fn<() => Promise<void>>().mockRejectedValue(new Error('approving PR: offline')),
+      },
+    });
+    render(<CardTab tab={tab} />);
+    // when
+    await clickApprove();
+    await confirmApprove();
+    // then
+    expect(await screen.findByRole('alert')).toHaveTextContent('approving PR: offline');
+    expect(within(screen.getByTestId('claude-slot')).getByRole('button', { name: 'Approve & merge' })).toBeEnabled();
+  });
+
+  test('Reload review beside a blocked Approve & merge reloads the review', async () => {
+    // given
+    const review = vi
+      .fn<() => Promise<Fetched<Review>>>()
+      .mockResolvedValueOnce({ data: null, error: 'fetching review: offline', fetchedAt: null })
+      .mockImplementation(reviewOf([]));
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }), review } });
+    render(<CardTab tab={tab} />);
+    const pane = within(screen.getByTestId('claude-slot'));
+    await vi.waitFor(() => {
+      expect(pane.getByRole('button', { name: 'Approve & merge' })).toHaveAccessibleDescription('Review not loaded');
+    });
+    // when
+    await userEvent.click(pane.getByRole('button', { name: 'Reload review' }));
+    // then
+    await vi.waitFor(() => {
+      expect(pane.getByRole('button', { name: 'Approve & merge' })).toBeEnabled();
+    });
+    expect(review).toHaveBeenCalledTimes(2);
   });
 
   function fakeApprove(
     paths: readonly string[] = ['src/a.ts'],
     approve = vi.fn<(tabId: string, headSha: string) => Promise<void>>(() => Promise.resolve()),
-    findings: SecurityFinding[] = [],
+    undecided = 0,
   ) {
     fakeMaple({
       repo: {
@@ -1071,145 +1710,83 @@ describe('CardTab', () => {
       },
       pr: {
         get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }),
-        review: reviewOf(paths, findings),
+        review: reviewOf(paths),
         approve,
       },
+      findings: { get: undecidedFindings(undecided) },
     });
     return approve;
   }
 
   test.each([
-    { name: 'one file', paths: ['src/a.ts'], text: '1 changed file not viewed. Approve anyway?' },
-    { name: 'two files', paths: ['src/a.ts', 'src/b.ts'], text: '2 changed files not viewed. Approve anyway?' },
-  ])('Approve asks first while a changed file is not viewed: $name', async ({ paths, text }) => {
+    { name: 'one file', paths: ['src/a.ts'], text: '1 changed file not viewed.' },
+    { name: 'two files', paths: ['src/a.ts', 'src/b.ts'], text: '2 changed files not viewed.' },
+  ])('the approve dialog lists unviewed files: $name', async ({ paths, text }) => {
     // given
     const approve = fakeApprove(paths);
     render(<CardTab tab={tab} />);
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
-    const slot = within(screen.getByTestId('claude-slot'));
     // when
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await clickApprove();
     // then
-    expect(screen.getByRole('dialog')).toHaveTextContent(text);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent(text);
+    expect(within(dialog).getByRole('button', { name: 'Approve & merge' })).toHaveAttribute('data-variant', 'danger');
     expect(approve).not.toHaveBeenCalled();
   });
 
-  test.each([
-    { name: 'Approve anyway approves', button: 'Approve anyway', approved: true },
-    { name: 'Cancel does not approve', button: 'Cancel', approved: false },
-  ])('the unviewed files dialog: $name', async ({ button, approved }) => {
+  test('the approve dialog lists undecided findings', async () => {
     // given
-    const approve = fakeApprove();
-    render(<CardTab tab={tab} />);
-    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
-    // when
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: button }));
-    // then
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(approve.mock.calls).toEqual(approved ? [['t1', head]] : []);
-  });
-
-  test('the unviewed files confirm is danger', async () => {
-    // given
-    fakeApprove();
-    render(<CardTab tab={tab} />);
-    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
-    // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
-    // then
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' })).toHaveAttribute(
-      'data-variant',
-      'danger',
-    );
-  });
-
-  test('the open findings confirm is danger', async () => {
-    // given
-    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
-    fakeApprove([], undefined, [finding]);
+    fakeApprove([], undefined, 1);
     render(<CardTab tab={tab} />);
     await screen.findByText('Reviewing aaaaaaa');
     // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
-    // then
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' })).toHaveAttribute(
-      'data-variant',
-      'danger',
-    );
-  });
-
-  test('the Close card confirm is danger', async () => {
-    // given
-    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
-    render(<CardTab tab={tab} />);
-    // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Close' }));
-    // then
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close card' })).toHaveAttribute(
-      'data-variant',
-      'danger',
-    );
-  });
-
-  test('Close opens a dialog that warns before closing the card', async () => {
-    // given
-    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
-    render(<CardTab tab={tab} />);
-    // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Close' }));
+    await clickApprove();
     // then
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('Close MPL-20?');
-    expect(dialog).toHaveTextContent('This cannot be undone.');
-  });
-
-  test.each([
-    { name: 'Close card sends the close command', button: 'Close card', sent: [['t1', '/card MPL-20 close']] },
-    { name: 'Cancel sends nothing', button: 'Cancel', sent: [] },
-  ])('the close dialog: $name', async ({ button, sent }) => {
-    // given
-    const sendPrompt = vi.fn();
-    fakeMaple({
-      pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) },
-      session: { sendPrompt },
+    await vi.waitFor(() => {
+      expect(dialog).toHaveTextContent('1 finding not decided.');
     });
-    render(<CardTab tab={tab} />);
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Close' }));
-    // when
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: button }));
-    // then
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(sendPrompt.mock.calls).toEqual(sent);
+    expect(within(dialog).getByRole('button', { name: 'Approve & merge' })).toHaveAttribute('data-variant', 'danger');
   });
 
-  test('a failed Approve anyway shows its error', async () => {
+  test('one dialog lists both findings and unviewed files, and confirming approves', async () => {
     // given
-    fakeApprove(
-      ['src/a.ts'],
-      vi.fn<(tabId: string, headSha: string) => Promise<void>>().mockRejectedValue(new Error('approving PR: offline')),
-    );
+    const approve = fakeApprove(['src/a.ts'], undefined, 1);
     render(<CardTab tab={tab} />);
     await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
-    const slot = within(screen.getByTestId('claude-slot'));
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await clickApprove();
+    expect(screen.getByRole('dialog')).toHaveTextContent('1 finding not decided. 1 changed file not viewed.');
     // when
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' }));
-    // then
-    expect(await slot.findByRole('alert')).toHaveTextContent('approving PR: offline');
-  });
-
-  test('Approve goes straight through when every changed file is viewed', async () => {
-    // given
-    const approve = fakeApprove();
-    render(<CardTab tab={tab} />);
-    await userEvent.click(await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' }));
-    const slot = within(screen.getByTestId('claude-slot'));
-    // when
-    await userEvent.click(await slot.findByRole('button', { name: 'Approve' }));
+    await confirmApprove();
     // then
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(approve).toHaveBeenCalledWith('t1', head);
+  });
+
+  test('decided findings add no warning to the approve dialog', async () => {
+    // given
+    fakeApprove([], undefined);
+    const decision = { kind: 'fix-later' as const, reason: null, decidedAt: '2026-11-12T12:00:00.000Z' };
+    const file = findingsFile([finding({ decision })]);
+    window.maple.findings.get = vi.fn(() => Promise.resolve({ data: file, error: null, fetchedAt: null }));
+    render(<CardTab tab={tab} />);
+    await screen.findByText('Reviewing aaaaaaa');
+    // when
+    await clickApprove();
+    // then
+    expect(screen.getByRole('dialog')).toHaveTextContent('Approves PR #13 and merges it.');
+  });
+
+  test('shows no Close button in the Claude pane', async () => {
+    // given
+    fakeMaple({ pr: { get: () => Promise.resolve({ data: pr, error: null, fetchedAt: null }) } });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const slot = within(screen.getByTestId('claude-slot'));
+    await slot.findByRole('button', { name: 'Approve & merge' });
+    expect(slot.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
   });
 
   test('with a review, the tree lists the review files instead of the worktree changes', async () => {
@@ -1221,67 +1798,19 @@ describe('CardTab', () => {
     // then
     expect(await screen.findByRole('checkbox', { name: 'Viewed src/b.ts' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: 'Viewed src/a.ts' })).not.toBeInTheDocument();
-    expect(screen.getByText('1 files · +9 −4')).toBeInTheDocument();
+    expect(screen.getByText('1 file')).toBeInTheDocument();
+    expect(screen.getByText('+9')).toBeInTheDocument();
+    expect(screen.getByText('−4')).toBeInTheDocument();
   });
 
-  test('shows the reviewed commit and findings in the PR summary', async () => {
+  test('shows the reviewed commit in the header', async () => {
     // given
-    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
-    fakeApprove([], undefined, [finding]);
+    fakeApprove([], undefined);
     // when
     render(<CardTab tab={tab} />);
     // then
-    expect(await screen.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Token logged' })).toBeInTheDocument();
-  });
-
-  test.each([
-    { name: 'Approve anyway approves', button: 'Approve anyway', approved: true },
-    { name: 'Cancel does not approve', button: 'Cancel', approved: false },
-  ])('an open high finding asks first: $name', async ({ button, approved }) => {
-    // given
-    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
-    const approve = fakeApprove([], undefined, [finding]);
-    render(<CardTab tab={tab} />);
-    await screen.findByText('Reviewing aaaaaaa');
-    // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
-    // then
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('Open security findings');
-    expect(dialog).toHaveTextContent('1 open high-severity finding. Approve anyway?');
-    // when
-    await userEvent.click(within(dialog).getByRole('button', { name: button }));
-    // then
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(approve.mock.calls).toEqual(approved ? [['t1', head]] : []);
-  });
-
-  test('after the findings dialog, unviewed files still ask before approving', async () => {
-    // given
-    const finding: SecurityFinding = { id: 'F1', severity: 'high', summary: 'Token logged', url: 'https://x/1' };
-    const approve = fakeApprove(['src/a.ts'], undefined, [finding]);
-    render(<CardTab tab={tab} />);
-    await screen.findByRole('checkbox', { name: 'Viewed src/a.ts' });
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
-    // when
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve anyway' }));
-    // then
-    expect(screen.getByRole('dialog')).toHaveTextContent('1 changed file not viewed. Approve anyway?');
-    expect(approve).not.toHaveBeenCalled();
-  });
-
-  test('medium and low findings do not ask before approving', async () => {
-    // given
-    const finding: SecurityFinding = { id: 'F2', severity: 'medium', summary: 'Wide scope', url: 'https://x/2' };
-    const approve = fakeApprove([], undefined, [finding]);
-    render(<CardTab tab={tab} />);
-    await screen.findByText('Reviewing aaaaaaa');
-    // when
-    await userEvent.click(await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' }));
-    // then
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(approve).toHaveBeenCalledWith('t1', head);
+    const banner = within(screen.getByRole('banner'));
+    expect(await banner.findByText('Reviewing aaaaaaa')).toBeInTheDocument();
   });
 
   test('an open PR without a loaded review disables Approve', async () => {
@@ -1290,9 +1819,9 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={tab} />);
     // then
-    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' });
+    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' });
     await vi.waitFor(() => {
-      expect(approve).toHaveAttribute('title', 'Review not loaded');
+      expect(approve).toHaveAccessibleDescription('Review not loaded');
     });
   });
 
@@ -1307,9 +1836,9 @@ describe('CardTab', () => {
     // when
     render(<CardTab tab={tab} />);
     // then
-    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve' });
+    const approve = await within(screen.getByTestId('claude-slot')).findByRole('button', { name: 'Approve & merge' });
     await vi.waitFor(() => {
-      expect(approve).toHaveAttribute('title', 'Agent is working');
+      expect(approve).toHaveAccessibleDescription('Agent is working');
     });
     expect(approve).toBeDisabled();
   });
@@ -1359,6 +1888,46 @@ describe('CardTab', () => {
     expect(screen.getByTestId('terminal-pane')).toBeVisible();
     expect(button).toHaveAttribute('aria-pressed', 'true');
     expect(mounts).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    { info: null, want: false },
+    { info: { name: 'maple', branch: 'mpl-1-x', hasTry: false }, want: false },
+    { info: { name: 'maple', branch: 'mpl-1-x', hasTry: true }, want: true },
+  ])('shows the make try button $want when repo info is $info', async ({ info, want }) => {
+    // given
+    const repoInfo = vi.fn(() => Promise.resolve(info));
+    fakeMaple({ repo: { info: repoInfo } });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    await vi.waitFor(() => {
+      expect(repoInfo).toHaveBeenCalled();
+    });
+    await act(() => Promise.resolve());
+    expect(screen.queryByRole('button', { name: 'Run make try' }) !== null).toBe(want);
+    expect(screen.queryByTestId('terminal-pane')).not.toBeInTheDocument();
+  });
+
+  test('make try shows a hidden terminal panel and asks the pane for one more run each click', async () => {
+    // given
+    fakeMaple({ repo: { info: () => Promise.resolve({ name: 'maple', branch: 'mpl-1-x', hasTry: true }) } });
+    render(<CardTab tab={tab} />);
+    const terminal = screen.getByRole('button', { name: 'Terminal' });
+    await userEvent.click(terminal);
+    await userEvent.click(terminal);
+    const runTry = await screen.findByRole('button', { name: 'Run make try' });
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(runTry).toHaveTextContent(/^Make try$/);
+    expect(screen.getByTestId('terminal-pane')).toBeVisible();
+    expect(terminal).toHaveAttribute('aria-pressed', 'true');
+    expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 1, worktreePath: tab.worktreePath });
+    // when
+    await userEvent.click(runTry);
+    // then
+    expect(vi.mocked(TerminalPane).mock.lastCall?.[0]).toMatchObject({ tryRuns: 2 });
   });
 
   test('a tab that stops being active stops toggling on Ctrl+backtick', async () => {
@@ -1423,9 +1992,11 @@ describe('CardTab', () => {
   test('Ctrl+P does nothing in a card tab that is not active', async () => {
     // given
     fakeRepo(false);
-    useMaple.setState({ activeTabId: 'other' });
     render(<CardTab tab={tab} />);
     await screen.findByText('README.md');
+    act(() => {
+      useMaple.setState({ activeTabId: 'other' });
+    });
     // when
     await userEvent.keyboard('{Control>}p{/Control}');
     // then
@@ -1585,5 +2156,69 @@ describe('CardTab', () => {
     // then
     expect(list).toHaveBeenCalledTimes(2);
     expect(written).toHaveBeenCalledTimes(2);
+  });
+
+  test('the Terminal button reads only Terminal and keeps its shortcut for hover and screen readers', () => {
+    // given
+    fakeMaple();
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const button = screen.getByRole('button', { name: 'Terminal' });
+    expect(button).toHaveAttribute('aria-keyshortcuts', 'Control+`');
+    expect(button).toHaveAttribute('title', 'Show or hide the terminal (Ctrl+`)');
+    expect(button).toHaveTextContent(/^Terminal$/);
+  });
+
+  test.each([
+    { dot: 'ready' as const, count: 2, label: '2 findings need you' },
+    { dot: 'working' as const, count: 2, label: 'Findings (2)' },
+    { dot: 'ready' as const, count: 0, label: null },
+  ])('the findings button with a $dot dot and $count findings reads $label', async ({ dot, count, label }) => {
+    // given
+    const file = findingsFile(Array.from({ length: count }, (_, i) => finding({ id: `F${String(i + 1)}` })));
+    const get = vi.fn(() => Promise.resolve({ data: file, error: null, fetchedAt: null }));
+    fakeMaple({ findings: { get } });
+    useMaple.setState({
+      statuses: { t1: { tabId: 't1', dot, sessionAlive: true, exitCode: null, resumeFailed: false, sync: null } },
+    });
+    // when
+    render(<CardTab tab={tab} />);
+    // then
+    const banner = within(screen.getByRole('banner'));
+    if (label === null) {
+      await waitFor(() => {
+        expect(get).toHaveBeenCalledWith('t1');
+      });
+      expect(banner.queryByRole('button', { name: /findings/i })).not.toBeInTheDocument();
+    } else {
+      expect(await banner.findByRole('button', { name: label })).toBeInTheDocument();
+    }
+  });
+
+  test('a findings file that cannot be read still shows a button that opens its error', async () => {
+    // given
+    const error = 'reading findings: MPL-20.json is from a newer Maple';
+    fakeMaple({ findings: { get: vi.fn(() => Promise.resolve({ data: null, error, fetchedAt: null })) } });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(
+      await within(screen.getByRole('banner')).findByRole('button', { name: "Findings can't be read" }),
+    );
+    // then
+    expect(screen.getByRole('tab', { name: 'Findings', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(error);
+  });
+
+  test('the findings button opens the Findings tab', async () => {
+    // given
+    const file = findingsFile([finding({ title: 'Branch name reaches a shell' })]);
+    fakeMaple({ findings: { get: vi.fn(() => Promise.resolve({ data: file, error: null, fetchedAt: null })) } });
+    render(<CardTab tab={tab} />);
+    // when
+    await userEvent.click(await within(screen.getByRole('banner')).findByRole('button', { name: 'Findings (1)' }));
+    // then
+    expect(screen.getByRole('tab', { name: 'Findings', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Branch name reaches a shell' })).toBeInTheDocument();
   });
 });

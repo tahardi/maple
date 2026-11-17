@@ -1,4 +1,5 @@
-import type { TabStatus } from '@shared/types/tabs';
+import type { ReactNode } from 'react';
+import type { TabStatus } from '@shared/types/tabs/tabStatus';
 import { useEffect, useMemo, useRef } from 'react';
 import { useMaple } from '../store';
 import { ActionBar } from './ActionBar';
@@ -12,13 +13,12 @@ export type PaneAction = {
   label: string;
   onClick: () => void;
   disabled?: boolean;
-  title?: string;
-  variant?: 'primary' | 'danger';
+  reason?: string;
 };
 
-type ClaudePaneProps = { tabId: string; actions: readonly PaneAction[] };
+type ClaudePaneProps = { tabId: string; actions: readonly PaneAction[]; approve?: ReactNode };
 
-export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
+export function ClaudePane({ tabId, actions, approve }: ClaudePaneProps) {
   const host = useRef<HTMLDivElement>(null);
   const status = useMaple((s): TabStatus | undefined => s.statuses[tabId]);
   const [wheelLines, setWheelLines] = useWheelLines();
@@ -42,12 +42,13 @@ export function ClaudePane({ tabId, actions }: ClaudePaneProps) {
       wheelLines: () => wheelLinesRef.current,
     };
   }, [tabId]);
-  useXterm(host, io);
+  const focusTerminal = useXterm(host, io);
 
   return (
     <div className={styles.pane}>
       <ActionBar actions={actions}>
-        <ScrollSpeed value={wheelLines} onChange={setWheelLines} />
+        {approve}
+        <ScrollSpeed value={wheelLines} onChange={setWheelLines} onClose={focusTerminal} />
       </ActionBar>
       <div className={styles.body}>
         <div ref={host} className={styles.terminal} />

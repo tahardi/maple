@@ -25,32 +25,18 @@ describe('ActionBar', () => {
     expect(onClick).toHaveBeenCalledOnce();
   });
 
-  test('a disabled action shows its title and does not call onClick', async () => {
+  test('a disabled action shows its reason beside it and does not call onClick', async () => {
     // given
     const onClick = vi.fn();
-    render(<ActionBar actions={[{ label: 'Approve', onClick, disabled: true, title: 'No PR yet' }]} />);
-    const button = screen.getByRole('button', { name: 'Approve' });
+    render(<ActionBar actions={[{ label: 'Ship', onClick, disabled: true, reason: 'No worktree' }]} />);
+    const button = screen.getByRole('button', { name: 'Ship' });
     // when
     await userEvent.click(button);
     // then
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', 'No PR yet');
+    expect(screen.getByText('No worktree')).toBeVisible();
+    expect(button).toHaveAccessibleDescription('No worktree');
     expect(onClick).not.toHaveBeenCalled();
-  });
-
-  test('marks each action with its variant', () => {
-    // given
-    const actions = [
-      { label: 'Approve', onClick: vi.fn(), variant: 'primary' as const },
-      { label: 'Close', onClick: vi.fn(), variant: 'danger' as const },
-      { label: 'Ship', onClick: vi.fn() },
-    ];
-    // when
-    render(<ActionBar actions={actions} />);
-    // then
-    expect(screen.getByRole('button', { name: 'Approve' })).toHaveAttribute('data-variant', 'primary');
-    expect(screen.getByRole('button', { name: 'Close' })).toHaveAttribute('data-variant', 'danger');
-    expect(screen.getByRole('button', { name: 'Ship' })).not.toHaveAttribute('data-variant');
   });
 
   test('no actions renders no buttons', () => {
@@ -60,13 +46,14 @@ describe('ActionBar', () => {
     expect(screen.queryAllByRole('button')).toEqual([]);
   });
 
-  test('an enabled action without a title has no tooltip', () => {
+  test('an enabled action shows no reason', () => {
     // when
     render(<ActionBar actions={[{ label: 'Approve', onClick: vi.fn() }]} />);
     // then
     const button = screen.getByRole('button', { name: 'Approve' });
     expect(button).toBeEnabled();
-    expect(button).not.toHaveAttribute('title');
+    expect(button).not.toHaveAccessibleDescription();
+    expect(button.nextSibling).toBeNull();
   });
 
   test('renders its children after the actions', () => {

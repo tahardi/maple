@@ -1,6 +1,6 @@
 .lozenge {
-  border-radius: 3px;
-  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
   font-size: var(--font-xs);
   font-weight: 600;
   text-transform: uppercase;

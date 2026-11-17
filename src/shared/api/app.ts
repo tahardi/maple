@@ -1,6 +1,7 @@
-import type { ChannelKind } from '../ipc';
-import type { Unsubscribe } from '../types/app';
-import type { Dot } from '../types/tabs';
+import type { ChannelKind } from './mapleApi';
+import type { Unsubscribe } from '../types/app/unsubscribe';
+import type { Dot } from '../types/tabs/dot';
+import type { KeptTab } from '../types/tabs/keptTab';
 
 export type AppApi = {
   setNotifications(on: boolean): Promise<void>;
@@ -9,8 +10,12 @@ export type AppApi = {
   lastProject(): Promise<string | null>;
   setSeen(seen: Record<string, Dot>): Promise<void>;
   seen(): Promise<Record<string, Dot>>;
+  kept(): Promise<KeptTab[]>;
+  discardKept(tabId: string): Promise<void>;
   onQuitRequested(cb: (workingCardKeys: string[]) => void): Unsubscribe;
   confirmQuit(): void;
+  onReportRequested(cb: () => void): Unsubscribe;
+  onShortcutsRequested(cb: () => void): Unsubscribe;
 };
 
 export const APP_CHANNELS = {
@@ -20,6 +25,10 @@ export const APP_CHANNELS = {
   lastProject: 'invoke',
   setSeen: 'invoke',
   seen: 'invoke',
+  kept: 'invoke',
+  discardKept: 'invoke',
   onQuitRequested: 'event',
   confirmQuit: 'send',
+  onReportRequested: 'event',
+  onShortcutsRequested: 'event',
 } as const satisfies { [M in keyof AppApi]: ChannelKind };

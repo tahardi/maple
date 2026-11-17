@@ -1,8 +1,13 @@
 import { useState } from 'react';
-import { MarkdownText } from '@renderer/shell/MarkdownText';
+import { MarkdownText } from '@renderer/shell/markdown/MarkdownText';
+import { Badge } from '@renderer/shell/blocks/Badge';
+import { Button } from '@renderer/shell/blocks/Button';
+import { Notice } from '@renderer/shell/blocks/Notice';
 import { CommentEditor } from './CommentEditor';
 import styles from './CommentThread.module.css';
 import type { Thread } from './commentThreads';
+import { threadLabel } from './threadLabel';
+import { errorText } from '@shared/errors/errorText';
 
 type Props = {
   tabId: string;
@@ -10,53 +15,47 @@ type Props = {
   onPosted: () => void;
 };
 
-function label(thread: Thread): string {
-  return thread.startLine === null
-    ? `Line ${String(thread.line)}`
-    : `Lines ${String(thread.startLine)}-${String(thread.line)}`;
-}
-
 export function CommentThread({ tabId, thread, onPosted }: Props) {
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<'reply' | 'resolve' | 'unresolve' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
   const [posts, setPosts] = useState(0);
 
-  const send = (request: Promise<void>, onDone: () => void) => {
-    setBusy(true);
+  const send = (kind: 'reply' | 'resolve' | 'unresolve', request: Promise<void>, onDone: () => void) => {
+    setPending(kind);
     setError(null);
     request.then(
       () => {
-        setBusy(false);
+        setPending(null);
         onDone();
         onPosted();
       },
       (err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
-        setBusy(false);
+        setError(errorText(err));
+        setPending(null);
       },
     );
   };
 
   const post = () => {
-    send(window.maple.pr.reply(tabId, thread.id, text), () => {
+    send('reply', window.maple.pr.reply(tabId, thread.id, text), () => {
       setText('');
       setPosts(posts + 1);
     });
   };
 
   const { threadId } = thread;
+  const busy = pending !== null;
   const open = !thread.resolved;
 
   return (
     <div className={styles.thread}>
       <div className={styles.label}>
-        <span>{label(thread)}</span>
+        <span>{threadLabel(thread)}</span>
         {!open && (
           <>
-            <span className={styles.resolved}>Resolved</span>
+            <Badge tone="success">Resolved</Badge>
             <button
               onClick={() => {
                 setShown(!shown);
@@ -77,44 +76,42 @@ export function CommentThread({ tabId, thread, onPosted }: Props) {
       {open && (
         <div className={styles.reply}>
           <CommentEditor key={posts} label="Reply" value={text} onChange={setText} />
-          {error !== null && (
-            <div className={styles.error} role="alert">
-              {error}
-            </div>
-          )}
+          {error !== null && <Notice tone="danger">{error}</Notice>}
           <div className={styles.actions}>
-            <button disabled={busy || text.trim() === ''} onClick={post}>
-              Post
-            </button>
+            <Button
+              label="Post"
+              disabled={busy || text.trim() === ''}
+              busy={pending === 'reply'}
+              busyLabel="Posting…"
+              onClick={post}
+            />
             {threadId !== null && (
-              <button
+              <Button
+                label="Resolve"
                 disabled={busy}
+                busy={pending === 'resolve'}
+                busyLabel="Resolving…"
                 onClick={() => {
-                  send(window.maple.pr.resolve(tabId, threadId, true), () => undefined);
+                  send('resolve', window.maple.pr.resolve(tabId, threadId, true), () => undefined);
                 }}
-              >
-                Resolve
-              </button>
+              />
             )}
           </div>
         </div>
       )}
       {!open && shown && threadId !== null && (
         <div className={styles.reply}>
-          {error !== null && (
-            <div className={styles.error} role="alert">
-              {error}
-            </div>
-          )}
+          {error !== null && <Notice tone="danger">{error}</Notice>}
           <div className={styles.actions}>
-            <button
+            <Button
+              label="Unresolve"
               disabled={busy}
+              busy={pending === 'unresolve'}
+              busyLabel="Unresolving…"
               onClick={() => {
-                send(window.maple.pr.resolve(tabId, threadId, false), () => undefined);
+                send('unresolve', window.maple.pr.resolve(tabId, threadId, false), () => undefined);
               }}
-            >
-              Unresolve
-            </button>
+            />
           </div>
         </div>
       )}

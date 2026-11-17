@@ -1,4 +1,4 @@
-import { useEffect, useId } from 'react';
+import { Dialog } from './blocks/Dialog';
 import styles from './ConfirmDialog.module.css';
 
 type ConfirmDialogProps = {
@@ -11,34 +11,17 @@ type ConfirmDialogProps = {
 };
 
 export function ConfirmDialog({ title, body, confirmLabel, danger, onConfirm, onCancel }: ConfirmDialogProps) {
-  const titleId = useId();
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [onCancel]);
-
   return (
-    <div className={styles.backdrop}>
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className={styles.dialog}>
-        <h2 id={titleId}>{title}</h2>
-        <p>{body}</p>
-        <div className={styles.buttons}>
-          <button onClick={onCancel} autoFocus>
-            Cancel
-          </button>
-          <button onClick={onConfirm} data-variant={danger === true ? 'danger' : 'primary'}>
-            {confirmLabel}
-          </button>
-        </div>
+    <Dialog title={title} onClose={onCancel}>
+      <p>{body}</p>
+      <div className={styles.buttons}>
+        <button onClick={onCancel} data-autofocus>
+          Cancel
+        </button>
+        <button onClick={onConfirm} data-variant={danger === true ? 'danger' : 'primary'}>
+          {confirmLabel}
+        </button>
       </div>
-    </div>
+    </Dialog>
   );
 }

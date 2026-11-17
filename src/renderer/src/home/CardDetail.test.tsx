@@ -1,8 +1,11 @@
-import type { Card } from '@shared/types/jira';
-import type { TabState } from '@shared/types/tabs';
+import type { Card } from '@shared/types/jira/card';
+import type { TabState } from '@shared/types/tabs/tabState';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { card } from '../testing/sprintFixture';
+import { useRef } from 'react';
+import { Dialog } from '@renderer/shell/blocks/Dialog';
+import { useDismiss } from '@renderer/shell/menu/useDismiss';
 import { CardDetail } from './CardDetail';
 
 const tab: TabState = {
@@ -12,11 +15,18 @@ const tab: TabState = {
   cardKey: 'DIG-41',
   sessionId: 's1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
-function renderDetail(c: Card, t: TabState | null) {
+function OpenMenu({ onDismiss }: { onDismiss: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, true, onDismiss);
+  return <div ref={ref}>menu</div>;
+}
+
+function renderDetail(c: Card, t: TabState | null, busy = false) {
   const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
-  render(<CardDetail card={c} tab={t} failure={null} {...handlers} />);
+  render(<CardDetail card={c} tab={t} busy={busy} {...handlers} />);
   return handlers;
 }
 
@@ -43,6 +53,15 @@ describe('CardDetail', () => {
     renderDetail(card('DIG-40', 'Done'), null);
     // then
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['×']);
+  });
+
+  test('shows the status and labels as neutral badges', () => {
+    // given
+    // when
+    renderDetail(card('DIG-41', 'To Do'), null);
+    // then
+    expect(screen.getByText('To Do')).toHaveAttribute('data-tone', 'neutral');
+    expect(screen.getByText('parallelizable')).toHaveAttribute('data-tone', 'neutral');
   });
 
   test('shows the description, points, labels, blockers, and Jira link', () => {
@@ -109,7 +128,7 @@ describe('CardDetail', () => {
       <CardDetail
         card={card('DIG-41', status)}
         tab={hasTab ? tab : null}
-        failure={null}
+        busy={false}
         onStart={vi.fn()}
         onOpen={vi.fn()}
         onGoTo={vi.fn()}
@@ -131,7 +150,7 @@ describe('CardDetail', () => {
       <CardDetail
         card={card('DIG-41', 'To Do')}
         tab={null}
-        failure={null}
+        busy={false}
         onStart={vi.fn()}
         onOpen={vi.fn()}
         onGoTo={vi.fn()}
@@ -140,7 +159,36 @@ describe('CardDetail', () => {
       />,
     );
     // then
-    expect(screen.getByRole('button', { name: 'Add to sprint' })).toBeDisabled();
+    const button = screen.getByRole('button', { name: 'Add to sprint' });
+    expect(button).toBeDisabled();
+    expect(screen.getByText('No active sprint')).toBeVisible();
+    expect(button).toHaveAccessibleDescription('No active sprint');
+  });
+
+  test.each([
+    { label: 'Start', busyLabel: 'Starting…', status: 'To Do' as const, addToSprint: false },
+    { label: 'Open', busyLabel: 'Opening…', status: 'In Progress' as const, addToSprint: false },
+    { label: 'Add to sprint', busyLabel: 'Moving…', status: 'To Do' as const, addToSprint: true },
+  ])('$label reads $busyLabel while busy', ({ busyLabel, status, addToSprint }) => {
+    // given
+    const onAddToSprint = addToSprint ? vi.fn() : undefined;
+    // when
+    render(
+      <CardDetail
+        card={card('DIG-41', status)}
+        tab={null}
+        busy
+        onStart={vi.fn()}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+        onClose={vi.fn()}
+        onAddToSprint={onAddToSprint}
+      />,
+    );
+    // then
+    const button = screen.getByRole('button', { name: busyLabel });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
   });
 
   test('hides Blocked by when every blocker is Done', () => {
@@ -200,13 +248,7 @@ describe('CardDetail', () => {
     const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
     // when
     render(
-      <CardDetail
-        card={card('DIG-41', 'To Do')}
-        tab={null}
-        failure={null}
-        {...handlers}
-        onAddToSprint={onAddToSprint}
-      />,
+      <CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} {...handlers} onAddToSprint={onAddToSprint} />,
     );
     // then
     const button = screen.getByRole('button', { name: 'Add to sprint' });
@@ -230,5 +272,97 @@ describe('CardDetail', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close details' }));
     // then
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  test('Escape calls onClose', async () => {
+    // given
+    const { onClose } = renderDetail(card('DIG-41', 'To Do'), null);
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  test.each(['{Enter}', 'a'])('%s does not call onClose', async (key) => {
+    // given
+    const { onClose } = renderDetail(card('DIG-41', 'To Do'), null);
+    // when
+    await userEvent.keyboard(key);
+    // then
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test('Escape after unmount does not call onClose', async () => {
+    // given
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    const { unmount } = render(<CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} {...handlers} />);
+    unmount();
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(handlers.onClose).not.toHaveBeenCalled();
+  });
+
+  test('Escape on a hidden page does not call onClose', async () => {
+    // given
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    render(
+      <div hidden>
+        <CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} {...handlers} />
+      </div>,
+    );
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(handlers.onClose).not.toHaveBeenCalled();
+  });
+
+  test('Escape while a dialog is open does not call onClose', async () => {
+    // given
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    render(
+      <>
+        <CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} {...handlers} />
+        <Dialog title="Keyboard shortcuts" onClose={vi.fn()}>
+          <p>sheet</p>
+        </Dialog>
+      </>,
+    );
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(handlers.onClose).not.toHaveBeenCalled();
+  });
+
+  test('Escape that closes an open menu does not call onClose', async () => {
+    // given
+    const onDismiss = vi.fn();
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    render(
+      <>
+        <CardDetail card={card('DIG-41', 'To Do')} tab={null} busy={false} {...handlers} />
+        <OpenMenu onDismiss={onDismiss} />
+      </>,
+    );
+    // when
+    await userEvent.keyboard('{Escape}');
+    // then
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(handlers.onClose).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { name: 'a queued card without a tab shows its place', hasTab: false, badge: true, button: 'Start' },
+    { name: 'a queued card with a tab keeps Go to tab', hasTab: true, badge: false, button: 'Go to tab' },
+  ])('$name', ({ hasTab, badge, button }) => {
+    // given
+    const handlers = { onStart: vi.fn(), onOpen: vi.fn(), onGoTo: vi.fn(), onClose: vi.fn() };
+    // when
+    render(
+      <CardDetail card={card('DIG-41', 'To Do')} tab={hasTab ? tab : null} busy={false} queuePlace={2} {...handlers} />,
+    );
+    // then
+    expect(screen.queryByText('Queued #2') !== null).toBe(badge);
+    expect(screen.queryByRole('button', { name: button }) !== null).toBe(hasTab);
   });
 });

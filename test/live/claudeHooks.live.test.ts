@@ -3,12 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { HookEvent } from '@shared/types/tabs';
+import type { HookEvent } from '@shared/types/tabs/hookEvent';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { startHookServer } from '../../src/main/sessions/hookServer';
-import { writeHooksFile } from '../../src/main/sessions/hooksFile';
-import { createLogger } from '../../src/main/app/log';
-import { hasTranscript } from '../../src/main/sessions/transcripts';
+import { startHookServer } from '../../src/main/sessions/hooks/hookServer';
+import { writeHooksFile } from '../../src/main/sessions/hooks/hooksFile';
+import { createLogger } from '../../src/main/app/log/log';
+import { hasTranscript } from '../../src/main/sessions/transcripts/transcripts';
 
 function runClaude(args: string[], env: Record<string, string>): Promise<{ code: number | null; stdout: string }> {
   return new Promise((done, fail) => {
@@ -41,7 +41,12 @@ describe('claude hooks', () => {
       (e) => events.push(e),
       createLogger(() => undefined),
     );
-    const hooks = await writeHooksFile(dir, process.execPath, resolve('resources/maple-hook.mjs'));
+    const hooks = await writeHooksFile(
+      dir,
+      process.execPath,
+      resolve('resources/maple-hook.mjs'),
+      join(dir, 'findings'),
+    );
     flags = ['--dangerously-skip-permissions', '--settings', hooks];
   });
 

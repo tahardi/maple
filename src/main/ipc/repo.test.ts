@@ -1,40 +1,57 @@
+import { EventEmitter } from 'node:events';
 import type { IpcMainInvokeEvent } from 'electron';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SessionManager } from '@main/sessions/sessions';
-import type { StatusEngine } from '@main/sessions/status';
-import type { Terminals } from '@main/sessions/terminals';
+import type { SessionManager } from '@main/sessions/SessionManager';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { StatusEngine } from '@main/sessions/StatusEngine';
+import type { Terminals } from '@main/sessions/Terminals';
 import { registerRepo } from './repo';
+import type { StartQueue } from '@main/sessions/StartQueue';
+import { fakeRunner } from '@main/testing/fakeRunner';
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
-const { handle, changes, currentBranch, listFiles, mergeBase, readFilePair, repoName, searchFiles, writeWorktreeFile } =
-  vi.hoisted(() => ({
-    handle: vi.fn<(channel: string, handler: Handler) => void>(),
-    changes: vi.fn(),
-    currentBranch: vi.fn(),
-    listFiles: vi.fn(),
-    mergeBase: vi.fn(),
-    readFilePair: vi.fn(),
-    repoName: vi.fn(),
-    searchFiles: vi.fn(),
-    writeWorktreeFile: vi.fn(),
-  }));
-
-vi.mock('electron', () => ({ ipcMain: { handle } }));
-vi.mock('@main/git/git', () => ({
+const {
+  handle,
+  stop,
+  watchWorktree,
   changes,
   currentBranch,
+  hasTryTarget,
   listFiles,
   mergeBase,
   readFilePair,
   repoName,
   searchFiles,
   writeWorktreeFile,
-}));
-vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktree: () => () => undefined }));
+} = vi.hoisted(() => {
+  const stop = vi.fn();
+  return {
+    handle: vi.fn<(channel: string, handler: Handler) => void>(),
+    stop,
+    watchWorktree: vi.fn(() => stop),
+    changes: vi.fn(),
+    currentBranch: vi.fn(),
+    hasTryTarget: vi.fn(),
+    listFiles: vi.fn(),
+    mergeBase: vi.fn(),
+    readFilePair: vi.fn(),
+    repoName: vi.fn(),
+    searchFiles: vi.fn(),
+    writeWorktreeFile: vi.fn(),
+  };
+});
+
+vi.mock('electron', () => ({ ipcMain: { handle } }));
+vi.mock('@main/git/makeTarget', () => ({ hasTryTarget }));
+vi.mock('@main/git/changes', () => ({ changes, mergeBase }));
+vi.mock('@main/git/repoIdentity', () => ({ currentBranch, repoName }));
+vi.mock('@main/git/worktreeFiles', () => ({ listFiles, readFilePair, searchFiles, writeWorktreeFile }));
+vi.mock('@main/git/worktreeWatcher', () => ({ watchWorktree }));
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 let worktree: string | null = '/wt';
+let sessions = new EventEmitter() as SessionManager;
 
 function invoke(channel: string, ...args: unknown[]): unknown {
   registerRepo(
@@ -42,7 +59,7 @@ function invoke(channel: string, ...args: unknown[]): unknown {
       window: () => null,
       worktreeFor: () => worktree,
       project: () => Promise.resolve(null),
-      sessions: {} as SessionManager,
+      sessions,
       terminals: {} as Terminals,
       status: {} as StatusEngine,
       setActiveTab: () => undefined,
@@ -54,6 +71,15 @@ function invoke(channel: string, ...args: unknown[]): unknown {
       lastProject: () => Promise.resolve(null),
       setSeen: () => Promise.resolve(),
       seen: () => Promise.resolve({}),
+      startQueue: new EventEmitter() as StartQueue,
+      prs: { latest: () => Promise.resolve({ data: null, error: null, fetchedAt: null }), refresh: () => undefined },
+      jira: new Promise<never>(() => undefined),
+      jiraCreds: new Promise<never>(() => undefined),
+      watchVault: () => undefined,
+      findingsDir: '/tmp/maple/findings',
+      decisionsDir: '/tmp/maple/decisions',
+      runner: fakeRunner(),
+      home: '/home/dev',
     },
     logger,
   );
@@ -68,15 +94,34 @@ describe('registerRepo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     worktree = '/wt';
+    sessions = new EventEmitter() as SessionManager;
     mergeBase.mockResolvedValue('base');
     repoName.mockResolvedValue('maple');
     currentBranch.mockResolvedValue('mpl-155-repo-name');
+    hasTryTarget.mockResolvedValue(true);
+  });
+
+  test.each([
+    { name: 'stops the watcher of a tab that closed', tabs: [], stops: 1 },
+    { name: 'keeps the watcher of a tab that is still open', tabs: [{ id: 't1' }], stops: 0 },
+    { name: 'stops the watcher of a closed tab only once', tabs: [], stops: 1, emits: 2 },
+  ])('$name', async ({ tabs, stops, emits = 1 }) => {
+    // given
+    changes.mockResolvedValue(null);
+    await invoke('repo:changes', 't1');
+    // when
+    for (let i = 0; i < emits; i++) {
+      sessions.emit('changed', tabs as TabState[]);
+    }
+    // then
+    expect(stop).toHaveBeenCalledTimes(stops);
   });
 
   test.each([
     { channel: 'repo:changes', args: ['t1'], fail: changes },
     { channel: 'repo:info', args: ['t1'], fail: repoName },
     { channel: 'repo:info', args: ['t1'], fail: currentBranch },
+    { channel: 'repo:info', args: ['t1'], fail: hasTryTarget },
     { channel: 'repo:listFiles', args: ['t1'], fail: listFiles },
     { channel: 'repo:readFile', args: ['t1', 'a.ts'], fail: readFilePair },
     { channel: 'repo:search', args: ['t1', 'needle'], fail: searchFiles },
@@ -112,9 +157,10 @@ describe('registerRepo', () => {
     // when
     const got = await invoke('repo:info', 't1');
     // then
-    expect(got).toEqual({ name: 'maple', branch: 'mpl-155-repo-name' });
+    expect(got).toEqual({ name: 'maple', branch: 'mpl-155-repo-name', hasTry: true });
     expect(repoName).toHaveBeenCalledWith('/wt');
     expect(currentBranch).toHaveBeenCalledWith('/wt');
+    expect(hasTryTarget).toHaveBeenCalledWith('/wt');
   });
 
   test('repo:info returns null for a tab without a worktree', async () => {
@@ -125,6 +171,7 @@ describe('registerRepo', () => {
     // then
     expect(got).toBeNull();
     expect(repoName).not.toHaveBeenCalled();
+    expect(hasTryTarget).not.toHaveBeenCalled();
   });
 
   test('repo:writeFile writes the file in the tab worktree', async () => {

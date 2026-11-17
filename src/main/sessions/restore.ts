@@ -1,11 +1,15 @@
-import { appLogger, type Logger } from '@main/app/log';
-import type { TabState } from '@shared/types/tabs';
-import type { SessionManager } from './sessions';
-import type { SavedState } from '@main/app/state';
+import { appLogger, type Logger } from '@main/app/log/log';
+import type { TabState } from '@shared/types/tabs/tabState';
+import type { SessionManager } from './SessionManager';
+import type { SavedState } from '@main/app/state/state';
+import { errorText } from '@shared/errors/errorText';
 
 function reopen(tab: TabState, sessions: SessionManager): TabState {
   if (tab.kind === 'vault') {
     return sessions.openVault(tab.projectKey, tab.sessionId, tab.id);
+  }
+  if (tab.kind === 'learning') {
+    return sessions.openLearning(tab.projectKey, tab.sessionId, tab.id);
   }
   if (tab.cardKey === null) {
     return sessions.openPlanner(tab.projectKey, tab.sessionId, tab.id);
@@ -16,27 +20,26 @@ function reopen(tab: TabState, sessions: SessionManager): TabState {
 export async function restoreTabs(
   saved: SavedState,
   sessions: SessionManager,
-  findWt: (key: string) => Promise<string | null>,
+  findWt: (key: string) => Promise<string[]>,
   logger: Logger = appLogger,
-): Promise<{ restored: number; warnings: string[] }> {
-  const warnings: string[] = [];
+): Promise<{ restored: number }> {
   let restored = 0;
   const release = sessions.holdSaves();
   try {
     for (const tab of saved.tabs) {
       const name = tab.cardKey ?? `${tab.projectKey} ${tab.kind}`;
       if (!sessions.hasProject(tab.projectKey)) {
-        warnings.push(`dropped ${name}: project ${tab.projectKey} is not in config`);
-        logger.warn('restore', 'dropped', { tab: name, reason: 'project not in config' });
+        const reason = `project ${tab.projectKey} is not in config`;
+        sessions.keep(tab, reason);
+        logger.warn('restore', 'kept', { tab: name, reason });
         continue;
       }
       let opened: TabState;
       try {
         opened = reopen(tab, sessions);
       } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        sessions.keep(tab);
-        warnings.push(`kept ${name} for the next launch: ${reason}`);
+        const reason = errorText(err);
+        sessions.keep(tab, reason);
         logger.warn('restore', 'kept', { tab: name, reason });
         continue;
       }
@@ -47,22 +50,25 @@ export async function restoreTabs(
         continue;
       }
       logger.info('restore', 'restored', { projectKey: tab.projectKey, cardKey });
-      const path = await findWt(cardKey).catch((err: unknown) => {
-        const error = err instanceof Error ? err.message : String(err);
-        logger.warn('worktree', 'failed', { operation: 'findWorktree', cardKey, error });
-        return null;
+      const paths = await findWt(cardKey).catch((err: unknown): string[] => {
+        const error = errorText(err);
+        logger.warn('worktree', 'failed', { operation: 'findWorktrees', cardKey, error });
+        return [];
       });
-      if (path === null) {
+      if (paths.length === 0) {
         logger.info('worktree', 'gone', { cardKey });
       } else {
-        logger.info('worktree', 'found', { cardKey, path });
+        logger.info('worktree', 'found', { cardKey, paths });
         if (sessions.get(opened.id) !== null) {
-          sessions.setWorktree(opened.id, path);
+          sessions.setWorktrees(opened.id, paths);
+          if (tab.worktreePath !== null && paths.includes(tab.worktreePath)) {
+            sessions.selectWorktree(opened.id, tab.worktreePath);
+          }
         }
       }
     }
   } finally {
     release();
   }
-  return { restored, warnings };
+  return { restored };
 }

@@ -1,4 +1,4 @@
-import type { Epic } from '@shared/types/jira';
+import type { Epic } from '@shared/types/jira/epic';
 import styles from './EpicLozenge.module.css';
 
 const SHADES = ['purple', 'blue', 'green', 'teal', 'yellow', 'orange', 'red', 'magenta', 'lime'];

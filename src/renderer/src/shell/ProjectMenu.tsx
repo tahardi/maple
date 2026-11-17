@@ -1,10 +1,10 @@
-import type { ProjectConfig } from '@shared/types/config';
-import { projectCounts } from '@shared/dots';
+import type { ProjectConfig } from '@shared/types/config/projectConfig';
+import { projectCounts } from '@shared/status/dots';
 import { useCallback, useRef, useState } from 'react';
 import { useMaple } from '../store';
 import styles from './ProjectMenu.module.css';
-import { useDismiss } from './useDismiss';
-import { useMenuKeys } from './useMenuKeys';
+import { useDismiss } from '@renderer/shell/menu/useDismiss';
+import { useMenuKeys } from '@renderer/shell/menu/useMenuKeys';
 
 export function ProjectMenu() {
   const projects = useMaple((s) => s.config?.data?.projects);
@@ -31,7 +31,7 @@ export function ProjectMenu() {
   };
 
   const selected = projects?.find((p) => p.jiraKey === projectKey);
-  const current = selected ? label(selected) : 'No project selected';
+  const current = selected ? `${selected.name} (${selected.jiraKey})` : 'No project selected';
 
   return (
     <div ref={root} className={styles.project}>
@@ -40,7 +40,6 @@ export function ProjectMenu() {
         aria-label={`Project: ${current}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={current}
         onClick={() => {
           setOpen(!open);
         }}

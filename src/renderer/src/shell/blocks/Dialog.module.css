@@ -1,0 +1,17 @@
+.dialog {
+  background: var(--bg-raised);
+  color: var(--text);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  min-width: 320px;
+}
+
+.dialog::backdrop {
+  background: var(--overlay);
+}
+
+.dialog h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-xl);
+}

@@ -1,21 +1,37 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--divider);
   font-size: var(--font-md);
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.header > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.header a {
+  color: inherit;
 }
 
 .title {
+  color: var(--text-strong);
   font-weight: 600;
+  min-width: 0;
+  flex: 0 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 button.title {
   background: transparent;
   border: none;
   padding: 0;
-  color: inherit;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -25,12 +41,54 @@ button.title:hover {
   text-decoration: underline;
 }
 
-.pill {
-  background: var(--surface);
-  border-radius: 10px;
-  padding: 1px 8px;
+.pr {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pr:hover {
+  text-decoration: underline;
+}
+
+.findings,
+.comments {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.findings:hover,
+.comments:hover {
+  text-decoration: underline;
 }
 
 .branch {
   font-family: monospace;
+  max-width: 30ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.changes {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.added {
+  color: var(--success);
+}
+
+.removed {
+  color: var(--danger);
+}
+
+.cost {
+  margin-left: auto;
 }

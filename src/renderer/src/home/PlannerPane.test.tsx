@@ -1,5 +1,6 @@
-import type { TabState } from '@shared/types/tabs';
-import { refinePrompt, suggestPrompt } from '@shared/prompts';
+import type { TabState } from '@shared/types/tabs/tabState';
+import { refinePrompt } from '@shared/prompts/refinePrompt';
+import { suggestPrompt } from '@shared/prompts/suggestPrompt';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeMaple } from '../testing/fakeMaple';
@@ -16,6 +17,7 @@ const PLANNER: TabState = {
   cardKey: null,
   sessionId: 's-p1',
   worktreePath: null,
+  worktreePaths: [],
 };
 
 type Options = {
@@ -24,10 +26,11 @@ type Options = {
   readyCount?: number;
   refineCount?: number;
   failure?: string | null;
+  busy?: 'start' | 'accept' | 'acceptAndStart' | null;
 };
 
 function setup(
-  { selected = [], toAccept = [], readyCount = 0, refineCount = 0, failure = null }: Options = {},
+  { selected = [], toAccept = [], readyCount = 0, refineCount = 0, failure = null, busy = null }: Options = {},
   planner: Promise<TabState> = Promise.resolve(PLANNER),
 ) {
   let emit: (keys: string[]) => void = () => undefined;
@@ -59,6 +62,8 @@ function setup(
       onAccept={onAccept}
       onAcceptAndStart={onAcceptAndStart}
       failure={failure}
+      busy={busy}
+      width={40}
     />,
   );
   return {
@@ -175,12 +180,12 @@ describe('PlannerPane', () => {
     expect(screen.getByRole('button', { name: 'Select ready (0)' })).toBeDisabled();
   });
 
-  test('a selection shows Start (N) and Clear', async () => {
+  test('a selection shows Start N selected and Clear', async () => {
     // given
     const { onStart, onClear } = setup({ selected: ['DIG-41', 'DIG-42'] });
     await screen.findByTestId('claude-pane');
     // when
-    await userEvent.click(screen.getByRole('button', { name: 'Start (2)' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Start 2 selected' }));
     await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
     // then
     expect(onStart).toHaveBeenCalledTimes(1);
@@ -207,7 +212,7 @@ describe('PlannerPane', () => {
       'Suggest next batch',
       'Refine (1)',
       'Select ready (1)',
-      'Start (1)',
+      'Start 1 selected',
       'Clear',
       'Accept 1',
       'Accept 1 and start all',
@@ -227,7 +232,7 @@ describe('PlannerPane', () => {
     expect(buttonsIn('Plan')).toEqual(['Suggest next batch', 'Refine (1)']);
     expect(buttonsIn('Batch')).toEqual([
       'Select ready (1)',
-      'Start (1)',
+      'Start 1 selected',
       'Clear',
       'Accept 1',
       'Accept 1 and start all',
@@ -241,11 +246,21 @@ describe('PlannerPane', () => {
     await screen.findByTestId('claude-pane');
     // then
     const primary = screen.getAllByRole('button').filter((b) => b.dataset.variant === 'primary');
-    expect(primary.map((b) => b.textContent)).toEqual(['Start (1)', 'Accept 1 and start all']);
+    expect(primary.map((b) => b.textContent)).toEqual(['Start 1 selected', 'Accept 1 and start all']);
     const others = screen.getAllByRole('button').filter((b) => !primary.includes(b));
     others.forEach((b) => {
       expect(b).not.toHaveAttribute('data-variant');
     });
+  });
+
+  test('shows no start queue', async () => {
+    // given
+    setup();
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.queryByRole('list', { name: 'Start queue' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/queued/)).not.toBeInTheDocument();
   });
 
   test('shows the failure outside the button groups', async () => {
@@ -393,5 +408,34 @@ describe('PlannerPane', () => {
     unmount();
     // then
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    { busy: 'start' as const, label: 'Start 2 selected', busyLabel: 'Starting…' },
+    { busy: 'accept' as const, label: 'Accept 1', busyLabel: 'Moving…' },
+    { busy: 'acceptAndStart' as const, label: 'Accept 1 and start all', busyLabel: 'Starting…' },
+  ])('$label reads $busyLabel while $busy runs', async ({ busy, label, busyLabel }) => {
+    // given
+    const options = { selected: ['DIG-41', 'DIG-42'], toAccept: ['DIG-50'], readyCount: 2, busy };
+    // when
+    setup(options);
+    // then
+    const batch = within(screen.getByRole('group', { name: 'Batch' }));
+    expect(batch.getByRole('button', { name: busyLabel })).toHaveAttribute('aria-busy', 'true');
+    expect(batch.queryByRole('button', { name: label })).not.toBeInTheDocument();
+    expect(batch.getAllByRole('button').filter((b) => !(b as HTMLButtonElement).disabled)).toEqual([]);
+    await screen.findByTestId('claude-pane');
+  });
+
+  test('while starting, Start N selected reads Starting… and is disabled', async () => {
+    // given
+    setup({ selected: ['DIG-41', 'DIG-42'], busy: 'start' });
+    // when
+    await screen.findByTestId('claude-pane');
+    // then
+    expect(screen.queryByRole('button', { name: 'Start 2 selected' })).not.toBeInTheDocument();
+    const start = screen.getByRole('button', { name: 'Starting…' });
+    expect(start).toBeDisabled();
+    expect(start).toHaveAttribute('aria-busy', 'true');
   });
 });

@@ -2,8 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { expandHome } from '../../src/main/app/config';
-import { createLogger } from '../../src/main/app/log';
+import { expandHome } from '../../src/main/app/config/config';
+import { createLogger } from '../../src/main/app/log/log';
 import { defaultRunner, runPreflight } from '../../src/main/app/preflight';
 
 describe('preflight', () => {

@@ -4,9 +4,14 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+    groups:
+      dev-dependencies:
+        dependency-type: 'development'
     ignore:
       - dependency-name: 'typescript'
         update-types: ['version-update:semver-major']
+      - dependency-name: 'electron'
+        versions: ['44.11.x']
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
