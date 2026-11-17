@@ -9,6 +9,7 @@ import { queueFindings } from '@main/findings/queueFindings';
 import { saveFindings } from '@main/findings/saveFindings';
 import { readDecisions } from '@main/findings/decisions/readDecisions';
 import { saveDecisions } from '@main/findings/decisions/saveDecisions';
+import { findingFingerprint } from '@main/findings/decisions/findingFingerprint';
 import { trustDecisions } from '@main/findings/decisions/trustDecisions';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
 import type { IpcDeps } from './index';
@@ -65,7 +66,13 @@ export function registerFindings(
           key,
           edited.findings
             .filter((f) => f.decision !== null || f.severityOverride !== null)
-            .map(({ id, identity, decision, severityOverride }) => ({ id, identity, decision, severityOverride })),
+            .map((f) => ({
+              id: f.id,
+              identity: f.identity,
+              decision: f.decision,
+              severityOverride: f.severityOverride,
+              fingerprint: findingFingerprint(f),
+            })),
         );
       });
     } catch (err) {

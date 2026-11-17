@@ -11,6 +11,7 @@ const record: StoredDecision = {
   identity: { kind: 'dependency', advisory: 'GHSA-1234-5678-9abc', package: 'lodash' },
   decision: { kind: 'fix-later', reason: null, decidedAt: '2026-11-13T12:00:00.000Z' },
   severityOverride: 'medium',
+  fingerprint: 'a'.repeat(64),
 };
 
 describe('decision store', () => {
@@ -39,6 +40,16 @@ describe('decision store', () => {
     const got = await readDecisions(join(dir, 'decisions'), 'MPL-1');
     // then
     expect(got).toEqual([record]);
+  });
+
+  test('reads a record saved before fingerprints with no fingerprint', async () => {
+    // given
+    const old = { id: record.id, identity: record.identity, decision: record.decision, severityOverride: 'medium' };
+    await writeFile(join(dir, 'MPL-1.json'), JSON.stringify([old]));
+    // when
+    const got = await readDecisions(dir, 'MPL-1');
+    // then
+    expect(got).toEqual([{ ...record, fingerprint: null }]);
   });
 
   test('replaces the saved decisions', async () => {

@@ -7,4 +7,5 @@ export type StoredDecision = {
   identity: FindingIdentity;
   decision: FindingDecision | null;
   severityOverride: Severity | null;
+  fingerprint: string | null;
 };
