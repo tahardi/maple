@@ -97,8 +97,9 @@ Any part that runs Claude can be misled, so its trust is a best effort and its l
 - `hook-server`: trusted with passing session events to the main process. Limited by a private socket, validation of
   every line, and events that carry no commands.
 - `sessions`: trusted with a best-effort try at the card's task, and not with an honest report on its own work. Limited
-  by the Bash sandbox Maple forces on and the folders it may write. A worktree's own settings can widen the sandbox,
-  and its Write and Edit tools and its credentials reach further, accepted until Xena.
+  by the Bash sandbox Maple forces on and the folders it may write. A worktree's own settings or an edit to Maple's
+  shared hooks file can widen the sandbox, and its Write and Edit tools and its credentials reach further, accepted
+  until Xena.
 - `shell-terminals`: trusted with whatever Taylor types. Nothing limits it; it is the trusted base.
 - `config-dir`: trusted with Maple's settings, state, logs, findings, decisions, and the SSH control socket. Limited
   only by file permissions, the schema checks the main process runs on what it reads back, and a size cap on findings
@@ -106,8 +107,8 @@ Any part that runs Claude can be misled, so its trust is a best effort and its l
 - `vault`: trusted with Taylor's notes. Limited by notes drawn as Markdown with no raw HTML, and access only inside
   the vault; any session can change any note.
 - `claude-config`: trusted with the skills, hooks, settings, and memory every session follows. Limited by Maple's
-  settings file forcing the sandbox on. Sessions can edit it directly, and since it is the dotclaude working copy,
-  edits apply with no review.
+  settings file forcing the sandbox on. Sessions can edit it and Maple's settings file directly, and since it is the
+  dotclaude working copy, edits apply with no review.
 - `outside-services`: trusted with cards, code, PRs, and the checks that guard `main`. On Maple's repo, limited by
   branch rules that need a PR and passing checks, but no approval. Limits on Jira and Taylor's other repos are
   unknown.

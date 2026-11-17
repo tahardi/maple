@@ -63,8 +63,9 @@ components:
       report on its own work, so tests, CI, the Security Pass, and Taylor's review check it
     limited_by: >-
       The Bash sandbox Maple forces on with no escape hatch, and the folders it may write: its worktree, the findings
-      dir, and the paths in the sandbox write list. Gaps, accepted until Xena: a worktree's own Claude settings can
-      widen the sandbox, and the Write and Edit tools and its credentials reach far wider than its card needs
+      dir, and the paths in the sandbox write list. Gaps, accepted until Xena: a worktree's own Claude settings, or an
+      edit to Maple's shared hooks file, can widen the sandbox, and the Write and Edit tools and its credentials reach
+      far wider than its card needs
   - id: shell-terminals
     what: Plain shells in a card tab that Taylor drives, with no sandbox
     trusted_with: Running whatever Taylor types, with Taylor's full access
@@ -87,7 +88,8 @@ components:
     trusted_with: The skills, hooks, settings, and memory every session follows
     limited_by: >-
       Maple's own settings file, which forces the sandbox on whatever the global settings say. Gaps, accepted until
-      Xena: sessions can edit it directly, and it is the dotclaude working copy, so edits apply with no PR or review
+      Xena: sessions can edit it directly, and Maple's settings file too, and it is the dotclaude working copy, so
+      edits apply with no PR or review
   - id: outside-services
     what: Jira and GitHub, reached as Taylor
     trusted_with: Storing cards, code, PRs, and review comments, and running the checks that guard main
