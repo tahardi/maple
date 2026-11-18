@@ -63,6 +63,19 @@ describe('writeTmuxConf', () => {
   });
 });
 
+describe('writeTmuxConf errors', () => {
+  test('throws the stderr when the conf cannot be written', async () => {
+    // given
+    const runner = fakeRunner({ exec: vi.fn().mockResolvedValue({ stdout: '', stderr: 'denied\n', code: 1 }) });
+
+    // when
+    const written = writeTmuxConf(runner, '/home/dev');
+
+    // then
+    await expect(written).rejects.toThrow('writing tmux conf: denied');
+  });
+});
+
 describe('endTmux', () => {
   test('ends one tab session on the VM tmux server', async () => {
     // given
@@ -76,14 +89,38 @@ describe('endTmux', () => {
     expect(exec).toHaveBeenCalledWith(['tmux', '-L', 'maple', 'kill-session', '-t', 'maple-t1']);
   });
 
-  test('swallows a kill-session that fails', async () => {
+  test.each([
+    { name: 'a missing session', stderr: "can't find session: maple-t1", code: 1 },
+    { name: 'no tmux server', stderr: 'no server running on /tmp/tmux-1000/maple', code: 1 },
+  ])('stays quiet about $name', async ({ stderr, code }) => {
     // given
-    const runner = fakeRunner({ exec: vi.fn().mockRejectedValue(new Error('no server')) });
+    const runner = fakeRunner({ exec: vi.fn().mockResolvedValue({ stdout: '', stderr, code }) });
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
     // when
-    const ended = endTmux(runner, 'maple-t1');
+    await endTmux(runner, 'maple-t1', logger);
+
+    // then
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    {
+      name: 'exits non-zero',
+      exec: vi.fn().mockResolvedValue({ stdout: '', stderr: 'Connection closed', code: 255 }),
+      error: 'Connection closed',
+    },
+    { name: 'rejects', exec: vi.fn().mockRejectedValue(new Error('timing out')), error: 'timing out' },
+  ])('logs a kill-session that $name and still resolves', async ({ exec, error }) => {
+    // given
+    const runner = fakeRunner({ exec });
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+
+    // when
+    const ended = endTmux(runner, 'maple-t1', logger);
 
     // then
     await expect(ended).resolves.toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith('session', 'failed', { operation: 'endTmux', name: 'maple-t1', error });
   });
 });
