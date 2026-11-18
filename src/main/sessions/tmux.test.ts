@@ -61,9 +61,7 @@ describe('writeTmuxConf', () => {
     }
     expect(input).not.toContain('JIRA');
   });
-});
 
-describe('writeTmuxConf errors', () => {
   test('throws the stderr when the conf cannot be written', async () => {
     // given
     const runner = fakeRunner({ exec: vi.fn().mockResolvedValue({ stdout: '', stderr: 'denied\n', code: 1 }) });

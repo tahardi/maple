@@ -198,9 +198,11 @@ export class ClaudeProcesses extends EventEmitter<Events> {
     } catch (err) {
       this.log.warn('session', 'failed', { operation: 'reconnect', tabId: tab.id, error: errorText(err) });
     }
+
     if (this.processes.get(tab.id) !== proc || !proc.alive) {
       return;
     }
+
     try {
       this.launch(tab, { resume: true, prompt: null });
     } catch (err) {

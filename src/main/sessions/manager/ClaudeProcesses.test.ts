@@ -410,11 +410,34 @@ describe('ClaudeProcesses', () => {
         touched = resolve;
       }),
     );
+
     processes.launch(tab('card'), { resume: false, prompt: null });
     ptys[0].emitExit(255);
     await vi.advanceTimersByTimeAsync(5000);
     // when
     await processes.kill('t1');
+    touched();
+    await vi.advanceTimersByTimeAsync(0);
+    // then
+    expect(ptys).toHaveLength(1);
+  });
+
+  test('killAll while the reconnect waits for a touch cancels the reattach', async () => {
+    // given
+    vi.useFakeTimers();
+    const { processes, ptys, reconnect } = setup();
+    let touched: () => void = () => undefined;
+    reconnect.mockReturnValue(
+      new Promise<void>((resolve) => {
+        touched = resolve;
+      }),
+    );
+
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    ptys[0].emitExit(255);
+    await vi.advanceTimersByTimeAsync(5000);
+    // when
+    processes.killAll();
     touched();
     await vi.advanceTimersByTimeAsync(0);
     // then

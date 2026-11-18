@@ -2,7 +2,8 @@ import { describe, expect, test } from 'vitest';
 import { fallbackRunner } from './fallbackRunner';
 import { LocalRunner } from './localRunner';
 
-const NO_VM = 'reaching the VM: Maple started without a remote block; add one and restart Maple';
+const NO_VM =
+  'reaching the VM: Maple started without a loaded config with a remote block; fix the config and restart Maple';
 
 describe('fallbackRunner', () => {
   test('runs locally when MAPLE_LOCAL_RUNNER is 1', () => {

@@ -29,7 +29,7 @@ make install-apparmor  # install the AppArmor profile Maple needs, with sudo
 make install  # build Maple, copy it to ~/.local/share/maple/app, and add it to the desktop launcher
 ```
 
-Run `make install-apparmor` once before the first `make install`, and again whenever `resources/apparmor/maple` changes; `make install` tells you when it is missing or out of date. It needs sudo. The Claude sandbox and Electron's own sandbox need user namespaces, which Ubuntu allows only for programs with an AppArmor profile, so without it the installed Maple may not start and its Claude sessions cannot run commands.
+Run `make install-apparmor` once before the first `make install`, and again whenever `resources/apparmor/maple` changes; `make install` tells you when it is missing or out of date. It needs sudo. The Claude sandbox and Electron's own sandbox need user namespaces, which Ubuntu allows only for programs with an AppArmor profile, so without it the installed Maple may not start. Claude sessions run in the VM, so the profile matters for them only when `MAPLE_LOCAL_RUNNER=1` runs them locally.
 
 The launcher starts Maple through your login shell, so Maple gets the PATH from your shell config each launch. Claude sessions run in the VM and get the VM's PATH.
 
@@ -118,7 +118,7 @@ Maple runs Claude sessions with permissions skipped and holds a Jira token, so i
 - Untrusted text renders as text. A lint rule rejects `innerHTML` and `dangerouslySetInnerHTML`. Security findings always show as plain text, never as Markdown.
 - Card sessions write findings to `~/.local/state/maple/findings` in the VM, which the VM's managed settings allow.
 - The main process checks every IPC argument, reads files only inside a tab's worktree, and never returns the Jira token.
-- `git`, `gh`, and `claude` run with argument arrays, never through a shell.
+- `git` and `gh` run with argument arrays, never through a shell. Commands for the VM, `claude` included, are shell-quoted argument by argument before ssh sends them.
 - The hook socket is private to the user and drops oversized lines.
 
 ## Live Tests

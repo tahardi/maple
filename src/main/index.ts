@@ -129,6 +129,7 @@ async function start(): Promise<Zoom> {
       if (made.code !== 0) {
         throw new Error(`creating findings dir: ${made.stderr.trim()}`);
       }
+
       await writeTmuxConf(runner, home);
       return null;
     } catch (err) {
@@ -145,7 +146,7 @@ async function start(): Promise<Zoom> {
     }
   };
   let stopKeepAlive: () => void = () => undefined;
-  let connected = ssh === null;
+  let connected = ssh === null && loaded.data !== null;
   if (ssh) {
     try {
       const started = await ssh.connect(touch);

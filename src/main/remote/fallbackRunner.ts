@@ -1,7 +1,8 @@
 import { LocalRunner } from './localRunner';
 import type { Runner } from './runner';
 
-const NO_VM = 'reaching the VM: Maple started without a remote block; add one and restart Maple';
+const NO_VM =
+  'reaching the VM: Maple started without a loaded config with a remote block; fix the config and restart Maple';
 
 export function fallbackRunner(env: NodeJS.ProcessEnv = process.env): Runner {
   if (env.MAPLE_LOCAL_RUNNER === '1') {

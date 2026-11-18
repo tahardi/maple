@@ -38,6 +38,7 @@ export async function endTmux(runner: Runner, name: string, logger: Logger = app
   const failed = (error: string): void => {
     logger.warn('session', 'failed', { operation: 'endTmux', name, error });
   };
+
   try {
     const result = await runner.exec(['tmux', '-L', 'maple', 'kill-session', '-t', name]);
     if (result.code !== 0 && !GONE.test(result.stderr)) {

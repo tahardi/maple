@@ -406,9 +406,7 @@ describe('SshRunner.connect', () => {
     await expect(result).rejects.toBe(err);
     expect(touch).toHaveBeenCalledTimes(1);
   });
-});
 
-describe('SshRunner.connect overlap', () => {
   test('shares one touch and one start between connects that overlap', async () => {
     // given
     let started: () => void = () => undefined;
@@ -441,6 +439,22 @@ describe('SshRunner.connect overlap', () => {
     // when
     await ssh.connect(vi.fn());
     // then
+    expect(start).toHaveBeenCalledTimes(2);
+  });
+
+  test('connects again after an earlier connect failed', async () => {
+    // given
+    const start = vi.fn<() => Promise<void>>();
+    start.mockRejectedValueOnce(new Error('starting ssh master: timing out')).mockResolvedValueOnce(undefined);
+    const { ssh } = stubbed(() => Promise.resolve(false), start);
+
+    await ssh.connect(vi.fn()).catch(() => undefined);
+
+    // when
+    const again = await ssh.connect(vi.fn());
+
+    // then
+    expect(again).toBe(true);
     expect(start).toHaveBeenCalledTimes(2);
   });
 });
