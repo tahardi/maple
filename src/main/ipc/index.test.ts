@@ -41,6 +41,7 @@ describe('registerIpc', () => {
     uuid: vi.fn(),
     tmuxConf: '',
     endTmux: vi.fn(),
+    reconnect: vi.fn(),
     runner: fakeRunner(),
     home: '/home/dev',
   });

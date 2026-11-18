@@ -79,6 +79,7 @@ describe('SessionManager with a real claude', () => {
       uuid: randomUUID,
       tmuxConf: await writeTmuxConf(runner, homedir()),
       endTmux: (name) => endTmux(runner, name),
+      reconnect: () => Promise.resolve(),
       runner,
       home: homedir(),
       logger: silent,

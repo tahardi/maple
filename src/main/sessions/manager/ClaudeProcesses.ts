@@ -3,6 +3,7 @@ import { stripVTControlCharacters } from 'node:util';
 import type { IPty } from 'node-pty';
 import { parseSuggestedBatch } from '@shared/prompts/suggestedBatch';
 import type { TabState } from '@shared/types/tabs/tabState';
+import { errorText } from '@shared/errors/errorText';
 import { appLogger, type Logger } from '@main/app/log/log';
 import { vmFindingsDir } from '@main/remote/vmPaths';
 import { tmuxArgs } from '../tmux';
@@ -10,7 +11,7 @@ import type { SessionDeps } from '../SessionManager';
 
 const BACKLOG_CHARS = 200_000;
 const LINE_CHARS = 10_000;
-const SSH_LOST_CODE = 255;
+export const SSH_LOST_CODE = 255;
 const REATTACH_DELAY_MS = 5000;
 const REATTACH_LIMIT = 3;
 
@@ -175,15 +176,37 @@ export class ClaudeProcesses extends EventEmitter<Events> {
     if (exitCode === SSH_LOST_CODE && proc.reattaches < REATTACH_LIMIT) {
       proc.reattaches += 1;
       this.log.warn('session', 'ssh lost, reattaching', { tabId: tab.id, attempt: proc.reattaches });
+      proc.pty = null;
       proc.timer = setTimeout(() => {
         proc.timer = null;
-        this.launch(tab, { resume: true, prompt: null });
+        void this.reattach(tab, proc);
       }, REATTACH_DELAY_MS);
       return;
     }
+    this.exited(tab, proc, exitCode);
+  }
+
+  private exited(tab: TabState, proc: Process, exitCode: number): void {
     proc.alive = false;
     this.log.info('session', 'exited', { tabId: tab.id, code: exitCode });
     this.emit('exit', tab.id, exitCode);
+  }
+
+  private async reattach(tab: TabState, proc: Process): Promise<void> {
+    try {
+      await this.deps.reconnect();
+    } catch (err) {
+      this.log.warn('session', 'failed', { operation: 'reconnect', tabId: tab.id, error: errorText(err) });
+    }
+    if (this.processes.get(tab.id) !== proc || !proc.alive) {
+      return;
+    }
+    try {
+      this.launch(tab, { resume: true, prompt: null });
+    } catch (err) {
+      this.log.warn('session', 'failed', { operation: 'reattach', tabId: tab.id, error: errorText(err) });
+      this.exited(tab, proc, SSH_LOST_CODE);
+    }
   }
 
   private onData(tab: TabState, proc: Process, data: string): void {

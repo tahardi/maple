@@ -408,6 +408,43 @@ describe('SshRunner.connect', () => {
   });
 });
 
+describe('SshRunner.connect overlap', () => {
+  test('shares one touch and one start between connects that overlap', async () => {
+    // given
+    let started: () => void = () => undefined;
+    const { ssh, start } = stubbed(
+      () => Promise.resolve(false),
+      () =>
+        new Promise<void>((resolve) => {
+          started = resolve;
+        }),
+    );
+    const touch = vi.fn();
+    // when
+    const first = ssh.connect(touch);
+    const second = ssh.connect(touch);
+    await Promise.resolve();
+    started();
+    // then
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+    expect(touch).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
+  test('connects again once an earlier connect has finished', async () => {
+    // given
+    const { ssh, start } = stubbed(
+      () => Promise.resolve(false),
+      () => Promise.resolve(),
+    );
+    await ssh.connect(vi.fn());
+    // when
+    await ssh.connect(vi.fn());
+    // then
+    expect(start).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('SshRunner.keepAlive', () => {
   beforeEach(() => {
     vi.useFakeTimers();

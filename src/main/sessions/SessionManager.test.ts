@@ -55,6 +55,7 @@ function setup(closedSessions: Record<string, string> = {}, cfg: MapleConfig = c
     uuid: () => `uuid-${String(++n)}`,
     tmuxConf: '/home/dev/.xena/maple-tmux.conf',
     endTmux,
+    reconnect: () => Promise.resolve(),
     logger,
     runner: fakeRunner({ spawnPty: spawnFn }),
     home: '/home/dev',

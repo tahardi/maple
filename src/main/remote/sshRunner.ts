@@ -36,6 +36,8 @@ export function remoteCommand(cmd: string[], cwd?: string): string {
 }
 
 export class SshRunner implements Runner {
+  private connecting: Promise<boolean> | null = null;
+
   constructor(
     private readonly remote: RemoteConfig,
     private readonly configDir: string,
@@ -111,7 +113,14 @@ export class SshRunner implements Runner {
     return result.code === 0;
   }
 
-  async connect(touch: () => void): Promise<boolean> {
+  connect(touch: () => void): Promise<boolean> {
+    this.connecting ??= this.reconnect(touch).finally(() => {
+      this.connecting = null;
+    });
+    return this.connecting;
+  }
+
+  private async reconnect(touch: () => void): Promise<boolean> {
     if (await this.check()) {
       return false;
     }

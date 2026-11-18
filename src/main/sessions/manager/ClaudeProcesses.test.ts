@@ -45,15 +45,17 @@ function setup(current: MapleConfig = config) {
   const spawnFn = fakeRunnerPty(ptys);
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const endTmux = vi.fn<(name: string) => Promise<void>>().mockResolvedValue(undefined);
+  const reconnect = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
   const processes = new ClaudeProcesses({
     config: () => current,
+    reconnect,
     tmuxConf: '/home/dev/.xena/maple-tmux.conf',
     endTmux,
     runner: fakeRunner({ spawnPty: spawnFn }),
     home: '/home/dev',
     logger,
   });
-  return { processes, ptys, spawnFn, logger, endTmux };
+  return { processes, ptys, spawnFn, logger, endTmux, reconnect };
 }
 
 describe('ClaudeProcesses', () => {
@@ -309,19 +311,20 @@ describe('ClaudeProcesses', () => {
     expect(endTmux).not.toHaveBeenCalled();
   });
 
-  test('an ssh pty that exits with 255 reattaches after five seconds, three times, then reports the exit', () => {
+  test('an ssh pty that exits with 255 reattaches after five seconds, three times, then reports the exit', async () => {
     // given
     vi.useFakeTimers();
-    const { processes, ptys, logger } = setup();
+    const { processes, ptys, logger, reconnect } = setup();
     const exit = vi.fn();
     processes.on('exit', exit);
     processes.launch(tab('card'), { resume: false, prompt: '/card DIG-44' });
     // when
     for (let attempt = 1; attempt <= 3; attempt++) {
       ptys[attempt - 1].emitExit(255);
-      vi.advanceTimersByTime(4999);
+      await vi.advanceTimersByTimeAsync(4999);
       expect(ptys).toHaveLength(attempt);
-      vi.advanceTimersByTime(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(reconnect).toHaveBeenCalledTimes(attempt);
       // then
       expect(ptys).toHaveLength(attempt + 1);
       expect(ptys[attempt].args).toContain('maple-t1');
@@ -330,13 +333,13 @@ describe('ClaudeProcesses', () => {
       expect(exit).not.toHaveBeenCalled();
     }
     ptys[3].emitExit(255);
-    vi.advanceTimersByTime(5000);
+    await vi.advanceTimersByTimeAsync(5000);
     expect(ptys).toHaveLength(4);
     expect(exit).toHaveBeenCalledWith('t1', 255);
     expect(processes.isAlive('t1')).toBe(false);
   });
 
-  test('output from the session resets the reattach count', () => {
+  test('output from the session resets the reattach count', async () => {
     // given
     vi.useFakeTimers();
     const { processes, ptys } = setup();
@@ -344,12 +347,12 @@ describe('ClaudeProcesses', () => {
     processes.on('exit', exit);
     processes.launch(tab('card'), { resume: false, prompt: null });
     ptys[0].emitExit(255);
-    vi.advanceTimersByTime(5000);
+    await vi.advanceTimersByTimeAsync(5000);
     ptys[1].emitData('x');
     // when
     for (let i = 1; i <= 3; i++) {
       ptys[i].emitExit(255);
-      vi.advanceTimersByTime(5000);
+      await vi.advanceTimersByTimeAsync(5000);
     }
     // then
     expect(ptys).toHaveLength(5);
@@ -379,8 +382,98 @@ describe('ClaudeProcesses', () => {
     ptys[0].emitExit(255);
     // when
     await processes.kill('t1');
-    vi.advanceTimersByTime(5000);
+    await vi.advanceTimersByTimeAsync(5000);
     // then
     expect(ptys).toHaveLength(1);
+  });
+
+  test('killAll during a reattach wait cancels the reattach', async () => {
+    // given
+    vi.useFakeTimers();
+    const { processes, ptys } = setup();
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    ptys[0].emitExit(255);
+    // when
+    processes.killAll();
+    await vi.advanceTimersByTimeAsync(5000);
+    // then
+    expect(ptys).toHaveLength(1);
+  });
+
+  test('kill while the reconnect waits for a touch cancels the reattach', async () => {
+    // given
+    vi.useFakeTimers();
+    const { processes, ptys, reconnect } = setup();
+    let touched: () => void = () => undefined;
+    reconnect.mockReturnValue(
+      new Promise<void>((resolve) => {
+        touched = resolve;
+      }),
+    );
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    ptys[0].emitExit(255);
+    await vi.advanceTimersByTimeAsync(5000);
+    // when
+    await processes.kill('t1');
+    touched();
+    await vi.advanceTimersByTimeAsync(0);
+    // then
+    expect(ptys).toHaveLength(1);
+  });
+
+  test('a reconnect that fails is logged and the reattach still runs', async () => {
+    // given
+    vi.useFakeTimers();
+    const { processes, ptys, reconnect, logger } = setup();
+    reconnect.mockRejectedValue(new Error('starting ssh master: timing out'));
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    // when
+    ptys[0].emitExit(255);
+    await vi.advanceTimersByTimeAsync(5000);
+    // then
+    expect(logger.warn).toHaveBeenCalledWith('session', 'failed', {
+      operation: 'reconnect',
+      tabId: 't1',
+      error: 'starting ssh master: timing out',
+    });
+    expect(ptys).toHaveLength(2);
+  });
+
+  test('input during a reattach wait does not reach the exited pty', async () => {
+    // given
+    vi.useFakeTimers();
+    const { processes, ptys } = setup();
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    ptys[0].emitExit(255);
+    // when
+    processes.write('t1', 'x');
+    processes.resize('t1', 80, 24);
+    processes.sendPrompt('t1', 'hi');
+    await vi.advanceTimersByTimeAsync(100);
+    // then
+    expect(ptys[0].written).toEqual([]);
+    expect(ptys[0].resized).toEqual([]);
+  });
+
+  test('a reattach whose project is gone reports the exit instead of throwing', async () => {
+    // given
+    vi.useFakeTimers();
+    const current = { ...config };
+    const { processes, ptys, logger } = setup(current);
+    const exit = vi.fn();
+    processes.on('exit', exit);
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    current.projects = [];
+    // when
+    ptys[0].emitExit(255);
+    await vi.advanceTimersByTimeAsync(5000);
+    // then
+    expect(exit).toHaveBeenCalledWith('t1', 255);
+    expect(processes.isAlive('t1')).toBe(false);
+    expect(logger.warn).toHaveBeenCalledWith('session', 'failed', {
+      operation: 'reattach',
+      tabId: 't1',
+      error: 'starting session: unknown project DIG',
+    });
   });
 });

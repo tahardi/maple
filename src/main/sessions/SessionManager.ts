@@ -15,6 +15,7 @@ export type SessionDeps = {
   config: () => MapleConfig;
   tmuxConf: string;
   endTmux: (name: string) => Promise<void>;
+  reconnect: () => Promise<void>;
   save: (tabs: TabState[], closedSessions: Record<string, string>) => Promise<void>;
   closedSessions: Record<string, string>;
   uuid: () => string;
