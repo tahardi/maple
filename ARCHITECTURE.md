@@ -5,7 +5,7 @@ security model; this page covers what happens inside.
 
 ## Processes
 
-Maple is one Electron app that drives Claude sessions running in tmux.
+Maple is one Electron app that drives Claude sessions running in tmux on the Xena VM, reached through `ssh -t`.
 
 - **Main process** (Node). `src/main/index.ts` wires everything at launch: config, saved state, the hook server, the
   session manager, the status engine, the pollers, and the IPC handlers. Code lives in topic folders under `src/main/`.
@@ -13,10 +13,11 @@ Maple is one Electron app that drives Claude sessions running in tmux.
   in one zustand store, `src/renderer/src/store.ts`. The renderer cannot touch Node, files, or the network.
 - **Preload bridge.** `src/preload/index.ts` builds `window.maple` from the shared channel table and is the renderer's
   only way to reach the main process.
-- **tmux.** One tmux server, `tmux -L maple`, holds one tmux session `maple-<tabId>` per tab. Each runs `claude`. The
-  main process attaches to it through `node-pty` and streams the terminal to the renderer.
-- **Shell terminals.** A card tab can also open plain shells (`src/main/sessions/Terminals.ts`). They run through
-  `node-pty` outside tmux, back the `terminal` IPC area, and close on quit.
+- **tmux.** One tmux server in the VM, `tmux -L maple`, holds one tmux session `maple-<tabId>` per tab. Each runs
+  `claude`. The main process attaches to it through the runner's `ssh -t` pty and streams the terminal to the renderer.
+- **Shell terminals.** A card tab can also open plain shells (`src/main/sessions/Terminals.ts`). They run `bash -l` in
+  the VM through the runner, outside tmux, with no environment from the desktop, back the `terminal` IPC area, and
+  close on quit.
 - **Hook script.** Claude runs `resources/maple-hook.mjs` on each hook. It sends one JSON line to Maple's hook socket.
 - **Outside tools.** `git` and `gh` run as child processes with argument arrays and timeouts. Jira is called over REST
   by one client, `src/main/jira/JiraClient.ts`. `src/shared/` holds types and pure helpers both sides import.
@@ -76,21 +77,26 @@ A **tab** is a saved record (`TabState`); a **session** is the Claude conversati
 `src/main/sessions/SessionManager.ts`, owns both and splits the work across `src/main/sessions/manager/`: the tab
 registry, the Claude processes, the worktree tracker, and the tab saver.
 
-**Opening.** Starting a card runs, inside `tmux new-session -A` in the project's `plannerDir` (vault and learning tabs
-use `vaultDir`):
+**Opening.** Starting a card runs, inside `tmux new-session -A` in the VM in the project's `plannerDir` (vault and
+learning tabs use the VM home):
 
 ```text
-claude --dangerously-skip-permissions --settings <config dir>/hooksFile.json \
-  --session-id <new uuid> | --resume <id>  [prompt]
+claude --dangerously-skip-permissions --session-id <new uuid> | --resume <id>  [prompt]
 ```
 
 A new card gets `--session-id` with a fresh uuid and the card prompt. Reopening a card whose session was closed passes
-`--resume <id>` with no prompt, but only when a transcript for that id exists under `~/.claude/projects`; otherwise
-Maple logs `no transcript, starting fresh` and starts a new session with the same id. The tmux session's environment
-carries `MAPLE_TAB_ID`, `MAPLE_SOCKET`, and, for card tabs, `MAPLE_SNAPSHOT_DIR`, `MAPLE_VAULT_DIR`, and
-`MAPLE_FINDINGS_DIR`. The process environment also carries the Jira credentials so Claude can call Jira.
+`--resume <id>` with no prompt; if the transcript is gone, Claude exits and the tab offers to start fresh. The tmux
+session's environment carries `MAPLE_TAB_ID` and, for card and learning tabs, `MAPLE_FINDINGS_DIR` at
+`~/.local/state/maple/findings` in the VM. No desktop variable or token crosses into the session; Claude in the VM
+uses the Jira bot token Xena installs.
 
-**Hooks.** `hooksFile.json` registers `maple-hook.mjs` for `Stop`, `UserPromptSubmit`, `SessionStart`, `Notification`
+**Reattaching.** An ssh pty that exits with 255 means the link dropped, not Claude. Maple waits five seconds and
+reattaches to the same tmux session, up to three times in a row before it reports the exit. Any output resets the
+count.
+
+**Hooks.** VM sessions get no `--settings`: Xena installs Maple's hooks in the VM as managed settings, which append
+to `~/.xena/hooks.jsonl` keyed on `MAPLE_TAB_ID`, and XENA-41 has Maple follow that file. The rest of this section
+describes the desktop hook path. `hooksFile.json` registers `maple-hook.mjs` for `Stop`, `UserPromptSubmit`, `SessionStart`, `Notification`
 (permission prompts only), and `PreToolUse` (file writes and vault note writes only). It also turns the Bash sandbox
 on with no unsandboxed escape hatch, and a session refuses to start when the sandbox cannot run. Settings passed with
 `--settings` outrank a worktree's own, so a worktree cannot turn the sandbox off. It adds the findings dir to
@@ -106,7 +112,8 @@ card may have several worktrees; the tab keeps one selected.
 **Closing.** Closing a tab kills its tmux session and remembers the card's session id in `closedSessions`. Opening the
 same card later resumes that session.
 
-**Quitting** stops the pollers and the start queue, kills the tmux server, closes the shell terminals, and waits up to
+**Quitting** stops the pollers and the start queue, detaches from the tmux sessions by closing the local ssh ptys
+(the sessions keep running in the VM and reattach at the next launch), closes the shell terminals, and waits up to
 two seconds for the event recorder to finish writing.
 
 **Launch.** Maple loads `config.json` and `state.json`, then `src/main/sessions/restore.ts` reopens every saved tab with
@@ -203,8 +210,6 @@ user switches away while it is still `queued`.
   the last chosen project, and seen dots (`src/main/app/state/state.ts`).
 - `state.json.1` to `.N`: launch backups, newest first, `stateBackups` kept (`src/main/app/state/backupState.ts`).
 - `state.json.corrupt`: an unreadable `state.json`, moved aside at launch.
-- `hooksFile.json`: Claude settings that register the hooks; rewritten each launch.
-- `tmux.conf`: config for the `maple` tmux server; rewritten each launch.
 - `maple.sock`: the hook socket. It lives in `XDG_RUNTIME_DIR` instead when that is set and `MAPLE_CONFIG_DIR` is
   not.
 - `logs/main.log`: the main process log with secrets scrubbed (`src/main/app/log/log.ts`).
@@ -231,8 +236,12 @@ at version 2, which added the `learning` tab kind; version 1 files load unchange
 shown as a config error. A `state.json` from a newer Maple stays in place: Maple starts with no tabs, shows a notice
 naming the file, and does not save state that run.
 
+In the VM home: `.xena/maple-tmux.conf`, config for the `maple` tmux server, rewritten each launch, and
+`.local/state/maple/findings/`, where sessions write findings.
+
 Outside it: the Jira credentials file at `MAPLE_JIRA_ENV` (default `~/.config/jira/env`), shared with other tools, and
-`.maple-try/` in the repo, the throwaway config dir `make try` uses, which also gets its own tmux server.
+`.maple-try/` in the repo, the throwaway config dir `make try` uses. Its sessions share the VM's tmux server; tab ids never
+collide.
 
 ## Glossary
 

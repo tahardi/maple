@@ -1,8 +1,6 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { tmuxArgs, writeTmuxConf } from './tmux';
+import { describe, expect, test, vi } from 'vitest';
+import { fakeRunner } from '@main/testing/fakeRunner';
+import { endTmux, tmuxArgs, writeTmuxConf } from './tmux';
 
 describe('tmuxArgs', () => {
   test('wraps the command in a reattachable session on the maple server', () => {
@@ -34,35 +32,58 @@ describe('tmuxArgs', () => {
 });
 
 describe('writeTmuxConf', () => {
-  let dir = '';
-
-  beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'maple-tmux-'));
-  });
-
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
-  });
-
-  test('writes a conf that hides the status bar, frees Ctrl+B, and passes the Jira env into sessions', async () => {
+  test('writes a conf into the VM that hides the status bar, frees Ctrl+B, and carries no Jira variables', async () => {
     // given
-    const want = [
+    const exec = vi.fn().mockResolvedValue({ stdout: '', stderr: '', code: 0 });
+    const runner = fakeRunner({ exec });
+
+    // when
+    const path = await writeTmuxConf(runner, '/home/dev');
+
+    // then
+    expect(path).toBe('/home/dev/.xena/maple-tmux.conf');
+    const [command, { input }] = exec.mock.calls[0] as [string[], { input: string }];
+    expect(command).toEqual([
+      'sh',
+      '-c',
+      'mkdir -p "$(dirname "$1")" && cat > "$1"',
+      'sh',
+      '/home/dev/.xena/maple-tmux.conf',
+    ]);
+    for (const line of [
       'set -g status off',
       'set -g prefix None',
       'unbind C-b',
       'set -g escape-time 0',
       "set -ga terminal-overrides ',xterm-256color:smcup@:rmcup@'",
-      'set -ga update-environment JIRA_SITE',
-      'set -ga update-environment JIRA_EMAIL',
-      'set -ga update-environment JIRA_TOKEN',
-    ];
-    // when
-    const path = await writeTmuxConf(dir);
-    // then
-    expect(path).toBe(join(dir, 'tmux.conf'));
-    const lines = (await readFile(path, 'utf8')).split('\n');
-    for (const line of want) {
-      expect(lines).toContain(line);
+    ]) {
+      expect(input).toContain(line);
     }
+    expect(input).not.toContain('JIRA');
+  });
+});
+
+describe('endTmux', () => {
+  test('ends one tab session on the VM tmux server', async () => {
+    // given
+    const exec = vi.fn().mockResolvedValue({ stdout: '', stderr: '', code: 0 });
+    const runner = fakeRunner({ exec });
+
+    // when
+    await endTmux(runner, 'maple-t1');
+
+    // then
+    expect(exec).toHaveBeenCalledWith(['tmux', '-L', 'maple', 'kill-session', '-t', 'maple-t1']);
+  });
+
+  test('swallows a kill-session that fails', async () => {
+    // given
+    const runner = fakeRunner({ exec: vi.fn().mockRejectedValue(new Error('no server')) });
+
+    // when
+    const ended = endTmux(runner, 'maple-t1');
+
+    // then
+    await expect(ended).resolves.toBeUndefined();
   });
 });

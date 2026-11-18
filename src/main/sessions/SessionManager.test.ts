@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { findWorktrees } from '@main/git/findWorktrees';
-import { fakeSpawn, type FakePty } from '@main/testing/fakeSpawn';
+import { fakeRunnerPty, type FakePty } from '@main/testing/fakeSpawn';
 import { SessionManager } from './SessionManager';
 import { tmuxArgs } from './tmux';
 import { watchWorktrees } from '@main/git/worktreeWatcher';
@@ -41,42 +41,29 @@ const config: MapleConfig = {
 
 const vaultConfig: MapleConfig = { ...config, vaultDir: '/tmp/vault' };
 
-const JIRA_ENV = { JIRA_SITE: 'https://x.atlassian.net', JIRA_EMAIL: 'me@example.com', JIRA_TOKEN: 'tok-1' };
-
-function setup(
-  closedSessions: Record<string, string> = {},
-  hasTranscript: (id: string) => boolean = () => true,
-  cfg: MapleConfig = config,
-) {
+function setup(closedSessions: Record<string, string> = {}, cfg: MapleConfig = config) {
   const ptys: FakePty[] = [];
   let n = 0;
   const save = vi.fn<(tabs: TabState[], closed: Record<string, string>) => Promise<void>>(() => Promise.resolve());
-  const spawnFn = fakeSpawn(ptys);
+  const spawnFn = fakeRunnerPty(ptys);
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-  const endTmux = vi.fn<(name: string | null) => void>();
+  const endTmux = vi.fn<(name: string) => Promise<void>>().mockResolvedValue(undefined);
   const manager = new SessionManager({
-    spawn: spawnFn,
     config: () => cfg,
-    hooksFile: '/tmp/maple/hooksFile.json',
-    socketPath: '/tmp/maple.sock',
-    snapshotRoot: '/tmp/maple/snapshots',
-    findingsDir: '/tmp/maple/findings',
     save,
     closedSessions,
     uuid: () => `uuid-${String(++n)}`,
-    hasTranscript,
-    tmuxConf: '/tmp/maple/tmux.conf',
+    tmuxConf: '/home/dev/.xena/maple-tmux.conf',
     endTmux,
-    sessionEnv: JIRA_ENV,
     logger,
-    runner: fakeRunner(),
+    runner: fakeRunner({ spawnPty: spawnFn }),
     home: '/home/dev',
   });
   return { manager, ptys, save, spawnFn, logger, endTmux };
 }
 
-function fresh(manager: SessionManager, tab: TabState): TabState {
-  manager.startFresh(tab.id);
+async function fresh(manager: SessionManager, tab: TabState): Promise<TabState> {
+  await manager.startFresh(tab.id);
   return tab;
 }
 
@@ -89,22 +76,21 @@ function keptTab(kind: TabState['kind'], projectKey: string, cardKey: string | n
   return { id: 'old-1', projectKey, kind, cardKey, sessionId: 's-old', worktreePath: null, worktreePaths: [] };
 }
 
-const base = ['--dangerously-skip-permissions', '--settings', '/tmp/maple/hooksFile.json'];
+const base = ['--dangerously-skip-permissions'];
+
+const TMUX_CONF = '/home/dev/.xena/maple-tmux.conf';
 
 function wrapped(tabId: string, claude: string[], cwd = '/tmp/dig-days'): string[] {
-  const env = { MAPLE_TAB_ID: tabId, MAPLE_SOCKET: '/tmp/maple.sock' };
-  return tmuxArgs(`maple-${tabId}`, '/tmp/maple/tmux.conf', cwd, env, ['claude', ...claude]);
+  return ['tmux', ...tmuxArgs(`maple-${tabId}`, TMUX_CONF, cwd, { MAPLE_TAB_ID: tabId }, ['claude', ...claude])];
 }
 
 function wrappedCard(tabId: string, claude: string[]): string[] {
-  const flag = claude.includes('--resume') ? '--resume' : '--session-id';
-  const env = {
-    MAPLE_TAB_ID: tabId,
-    MAPLE_SOCKET: '/tmp/maple.sock',
-    MAPLE_SNAPSHOT_DIR: `/tmp/maple/snapshots/${claude[claude.indexOf(flag) + 1]}`,
-    MAPLE_FINDINGS_DIR: '/tmp/maple/findings',
-  };
-  return tmuxArgs(`maple-${tabId}`, '/tmp/maple/tmux.conf', '/tmp/dig-days', env, ['claude', ...claude]);
+  const env = { MAPLE_TAB_ID: tabId, MAPLE_FINDINGS_DIR: '/home/dev/.local/state/maple/findings' };
+  return ['tmux', ...tmuxArgs(`maple-${tabId}`, TMUX_CONF, '/tmp/dig-days', env, ['claude', ...claude])];
+}
+
+function spawned(pty: FakePty): string[] {
+  return [pty.file, ...pty.args];
 }
 
 describe('SessionManager', () => {
@@ -126,10 +112,8 @@ describe('SessionManager', () => {
     const tab = manager.startCard('DIG', 'DIG-44');
     // then
     expect(spawnFn).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(spawnFn).mock.calls[0][0]).toBe('tmux');
-    expect(ptys[0].args).toEqual(wrappedCard(tab.id, [...base, '--session-id', tab.sessionId, '/card DIG-44']));
-    expect(ptys[0].options).toMatchObject({ cwd: '/tmp/dig-days', cols: 120, rows: 40 });
-    expect(ptys[0].options.env).toMatchObject({ TERM: 'xterm-256color' });
+    expect(spawned(ptys[0])).toEqual(wrappedCard(tab.id, [...base, '--session-id', tab.sessionId, '/card DIG-44']));
+    expect(ptys[0].options).toEqual({ cwd: '/tmp/dig-days', cols: 120, rows: 40, env: {} });
   });
 
   test('sessionOf finds the session of an open card, a closed card, and no card', () => {
@@ -142,50 +126,16 @@ describe('SessionManager', () => {
     expect(got).toEqual([tab.sessionId, 'closed-session', null]);
   });
 
-  test('gives a card session its snapshot dir and the vault dir', () => {
-    // given
-    const { manager, ptys } = setup({}, () => true, vaultConfig);
-    // when
-    const tab = manager.startCard('DIG', 'DIG-44');
-    // then
-    const args = ptys[0].args.join(' ');
-    expect(args).toContain(`MAPLE_SNAPSHOT_DIR=/tmp/maple/snapshots/${tab.sessionId}`);
-    expect(args).toContain('MAPLE_VAULT_DIR=/tmp/vault');
-  });
-
   test.each([
     { name: 'planner', open: (manager: SessionManager) => manager.openPlanner('DIG', null) },
     { name: 'vault', open: (manager: SessionManager) => manager.openVault('DIG', null) },
   ])('gives a $name session no snapshot dir', ({ open }) => {
     // given
-    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    const { manager, ptys } = setup({}, vaultConfig);
     // when
     open(manager);
     // then
     expect(ptys[0].args.join(' ')).not.toContain('MAPLE_SNAPSHOT_DIR');
-  });
-
-  test('drops CLAUDE_CODE_CHILD_SESSION so claude writes a transcript', () => {
-    // given
-    vi.stubEnv('CLAUDE_CODE_CHILD_SESSION', '1');
-    vi.stubEnv('MAPLE_TEST_KEEP', 'kept');
-    const { manager, ptys } = setup();
-    // when
-    manager.openPlanner('DIG', null);
-    // then
-    vi.unstubAllEnvs();
-    expect(ptys[0].options.env).not.toHaveProperty('CLAUDE_CODE_CHILD_SESSION');
-    expect(ptys[0].options.env).toMatchObject({ MAPLE_TEST_KEEP: 'kept' });
-  });
-
-  test('gives the session the Jira env through the pty env, never the tmux arguments', () => {
-    // given
-    const { manager, ptys } = setup();
-    // when
-    manager.openPlanner('DIG', null);
-    // then
-    expect(ptys[0].options.env).toMatchObject(JIRA_ENV);
-    expect(ptys[0].args.join(' ')).not.toContain('tok-1');
   });
 
   test('logs spawned with the args', () => {
@@ -249,15 +199,15 @@ describe('SessionManager', () => {
       prompted: false,
       resumes: true,
     },
-  ])('$name emits spawn with prompted $prompted and resumes $resumes', ({ open, prompted, resumes }) => {
+  ])('$name emits spawn with prompted $prompted and resumes $resumes', async ({ open, prompted, resumes }) => {
     // given
     const { manager } = setup();
-    const spawned = vi.fn();
-    manager.on('spawn', spawned);
+    const onSpawn = vi.fn();
+    manager.on('spawn', onSpawn);
     // when
-    const tab = open(manager);
+    const tab = await open(manager);
     // then
-    expect(spawned).toHaveBeenLastCalledWith(tab.id, prompted, resumes);
+    expect(onSpawn).toHaveBeenLastCalledWith(tab.id, prompted, resumes);
   });
 
   test.each([
@@ -269,56 +219,44 @@ describe('SessionManager', () => {
     // when
     const tab = manager.openCard('DIG', 'DIG-44', resumeId);
     // then
-    expect(ptys[0].args).toEqual(wrappedCard(tab.id, [...base, ...want]));
+    expect(spawned(ptys[0])).toEqual(wrappedCard(tab.id, [...base, ...want]));
   });
 
-  test('close then openCard resumes the closed session', () => {
+  test('close then openCard resumes the closed session', async () => {
     // given
     const { manager, ptys } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
-    manager.close(tab.id);
+    await manager.close(tab.id);
     // when
     const reopened = manager.openCard('DIG', 'DIG-44', null);
     // then
     expect(ptys[0].killed).toBe(true);
-    expect(ptys[1].args).toEqual(wrappedCard(reopened.id, [...base, '--resume', tab.sessionId]));
+    expect(spawned(ptys[1])).toEqual(wrappedCard(reopened.id, [...base, '--resume', tab.sessionId]));
   });
 
-  test('startFresh on a card tab spawns a new session with the card prompt', () => {
+  test('startFresh on a card tab spawns a new session with the card prompt', async () => {
     // given
     const { manager, ptys, save } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
     // when
-    manager.startFresh(tab.id);
+    await manager.startFresh(tab.id);
     // then
     const fresh = manager.get(tab.id);
     expect(fresh?.sessionId).not.toBe(tab.sessionId);
-    expect(ptys[1].args).toEqual(
+    expect(spawned(ptys[1])).toEqual(
       wrappedCard(tab.id, [...base, '--session-id', fresh?.sessionId ?? '', '/card DIG-44']),
     );
     expect(save).toHaveBeenLastCalledWith([fresh], {});
   });
 
-  test('startFresh on a planner tab spawns a new session without a prompt', () => {
+  test('startFresh on a planner tab spawns a new session without a prompt', async () => {
     // given
     const { manager, ptys } = setup();
     const tab = manager.openPlanner('DIG', null);
     // when
-    manager.startFresh(tab.id);
+    await manager.startFresh(tab.id);
     // then
-    expect(ptys[1].args).toEqual(wrapped(tab.id, [...base, '--session-id', manager.get(tab.id)?.sessionId ?? '']));
-  });
-
-  test('openCard with a resume id that has no transcript starts that session fresh', () => {
-    // given
-    const { manager, ptys } = setup({}, () => false);
-    const spawned = vi.fn();
-    manager.on('spawn', spawned);
-    // when
-    const tab = manager.openCard('DIG', 'DIG-44', 'old-session');
-    // then
-    expect(ptys[0].args).toEqual(wrappedCard(tab.id, [...base, '--session-id', 'old-session']));
-    expect(spawned).toHaveBeenCalledWith(tab.id, false, false);
+    expect(spawned(ptys[1])).toEqual(wrapped(tab.id, [...base, '--session-id', manager.get(tab.id)?.sessionId ?? '']));
   });
 
   test('resize and write after the session exits leave the dead pty alone', () => {
@@ -356,7 +294,7 @@ describe('SessionManager', () => {
     // when
     manager.resume(tab.id);
     // then
-    expect(ptys[1].args).toEqual(wrappedCard(tab.id, [...base, '--resume', tab.sessionId]));
+    expect(spawned(ptys[1])).toEqual(wrappedCard(tab.id, [...base, '--resume', tab.sessionId]));
     expect(manager.isAlive(tab.id)).toBe(true);
   });
 
@@ -504,8 +442,9 @@ describe('SessionManager', () => {
     expect(manager.isAlive(tab.id)).toBe(false);
   });
 
-  test('every tab list change saves all tabs and closed sessions and emits changed', () => {
+  test('every tab list change saves all tabs and closed sessions and emits changed', async () => {
     // given
+    vi.mocked(findWorktrees).mockReturnValue(new Promise(() => undefined));
     const { manager, save } = setup({ 'DIG-1': 'old' });
     const changed = vi.fn<(tabs: TabState[]) => void>();
     manager.on('changed', changed);
@@ -513,8 +452,8 @@ describe('SessionManager', () => {
     const card = manager.startCard('DIG', 'DIG-44');
     const planner = manager.openPlanner('DIG', null);
     manager.setWorktrees(card.id, ['/tmp/wts/dig-days-dig-44']);
-    manager.close(planner.id);
-    manager.close(card.id);
+    await manager.close(planner.id);
+    await manager.close(card.id);
     // then
     const withWorktree = {
       ...card,
@@ -570,7 +509,7 @@ describe('SessionManager', () => {
     { kind: 'vault', cardKey: null, open: (m: SessionManager) => m.openVault('DIG', null) },
   ] as const)('a kept $kind tab leaves the kept list once it reopens', ({ kind, cardKey, open }) => {
     // given
-    const { manager } = setup({}, () => true, vaultConfig);
+    const { manager } = setup({}, vaultConfig);
     manager.keep(keptTab(kind, 'DIG', cardKey), 'project DIG is not in config');
     // when
     open(manager);
@@ -629,7 +568,7 @@ describe('SessionManager', () => {
     expect(tab.sessionId).toBe(want);
   });
 
-  test('holdSaves writes the tabs and closed sessions as they are when released', () => {
+  test('holdSaves writes the tabs and closed sessions as they are when released', async () => {
     // given
     const { manager, save } = setup();
     const card = manager.startCard('DIG', 'DIG-44');
@@ -637,7 +576,7 @@ describe('SessionManager', () => {
     save.mockClear();
     const release = manager.holdSaves();
     // when
-    manager.close(card.id);
+    await manager.close(card.id);
     release();
     // then
     expect(save.mock.calls).toEqual([[[planner], { 'DIG-44': card.sessionId }]]);
@@ -677,7 +616,7 @@ describe('SessionManager', () => {
     { name: 'a planner tab in another project', open: (m: SessionManager) => m.openPlanner('HALO', null) },
   ])('keep holds on to a planner tab when $name opens', ({ open }) => {
     // given
-    const { manager, save } = setup({}, () => true, vaultConfig);
+    const { manager, save } = setup({}, vaultConfig);
     const kept = keptTab('planner', 'DIG', null);
     manager.keep(kept, 'starting session: spawn failed');
     // when
@@ -717,7 +656,7 @@ describe('SessionManager', () => {
     // when
     const tab = manager.openCard('DIG', 'DIG-44', resumeId);
     // then
-    expect(ptys[0].args).toEqual(wrappedCard(tab.id, [...base, '--resume', want]));
+    expect(spawned(ptys[0])).toEqual(wrappedCard(tab.id, [...base, '--resume', want]));
     expect(tab.sessionId).toBe(want);
   });
 
@@ -727,7 +666,7 @@ describe('SessionManager', () => {
     // when
     const tab = manager.openPlanner('HALO', 'planner-session');
     // then
-    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--resume', 'planner-session'], '/tmp/halo'));
+    expect(spawned(ptys[0])).toEqual(wrapped(tab.id, [...base, '--resume', 'planner-session'], '/tmp/halo'));
     expect(ptys[0].options.cwd).toBe('/tmp/halo');
     expect(tab).toMatchObject({ kind: 'planner', cardKey: null, sessionId: 'planner-session' });
   });
@@ -743,30 +682,30 @@ describe('SessionManager', () => {
     expect(spawnFn).toHaveBeenCalledTimes(2);
   });
 
-  test('openVault starts a session in the vault dir', () => {
+  test('openVault starts a session in the VM home', () => {
     // given
-    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    const { manager, ptys } = setup({}, vaultConfig);
     // when
     const tab = manager.openVault('DIG', null);
     // then
-    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--session-id', tab.sessionId], '/tmp/vault'));
-    expect(ptys[0].options.cwd).toBe('/tmp/vault');
+    expect(spawned(ptys[0])).toEqual(wrapped(tab.id, [...base, '--session-id', tab.sessionId], '/home/dev'));
+    expect(ptys[0].options.cwd).toBe('/home/dev');
     expect(tab).toMatchObject({ kind: 'vault', cardKey: null, projectKey: 'DIG' });
   });
 
-  test('openVault with a resume id resumes it in the vault dir', () => {
+  test('openVault with a resume id resumes it in the VM home', () => {
     // given
-    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    const { manager, ptys } = setup({}, vaultConfig);
     // when
     const tab = manager.openVault('DIG', 'vault-session');
     // then
-    expect(ptys[0].args).toEqual(wrapped(tab.id, [...base, '--resume', 'vault-session'], '/tmp/vault'));
-    expect(ptys[0].options.cwd).toBe('/tmp/vault');
+    expect(spawned(ptys[0])).toEqual(wrapped(tab.id, [...base, '--resume', 'vault-session'], '/home/dev'));
+    expect(ptys[0].options.cwd).toBe('/home/dev');
   });
 
   test('openVault returns the open vault tab of the project', () => {
     // given
-    const { manager, spawnFn } = setup({}, () => true, vaultConfig);
+    const { manager, spawnFn } = setup({}, vaultConfig);
     const first = manager.openVault('DIG', null);
     // when
     const again = manager.openVault('DIG', null);
@@ -790,20 +729,20 @@ describe('SessionManager', () => {
 
   test('openLearning returns the existing learning tab', () => {
     // given
-    const { manager, spawnFn, ptys } = setup({}, () => true, vaultConfig);
+    const { manager, spawnFn, ptys } = setup({}, vaultConfig);
     const first = manager.openLearning('DIG', null);
     // when
     const again = manager.openLearning('DIG', null);
     // then
     expect(again.id).toBe(first.id);
     expect(first).toMatchObject({ kind: 'learning', cardKey: null, projectKey: 'DIG' });
-    expect(ptys[0].options.cwd).toBe('/tmp/vault');
+    expect(ptys[0].options.cwd).toBe('/home/dev');
     expect(spawnFn).toHaveBeenCalledTimes(1);
   });
 
   test('openLearning starts a new learning tab with the prompt', () => {
     // given
-    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    const { manager, ptys } = setup({}, vaultConfig);
     // when
     const tab = manager.openLearning('DIG', null, null, '/learn Learning/Security/xss.md');
     // then
@@ -834,7 +773,7 @@ describe('SessionManager', () => {
 
   test('openVault and openPlanner keep separate tabs in one project', () => {
     // given
-    const { manager } = setup({}, () => true, vaultConfig);
+    const { manager } = setup({}, vaultConfig);
     const planner = manager.openPlanner('DIG', null);
     const vault = manager.openVault('DIG', null);
     // when
@@ -846,38 +785,24 @@ describe('SessionManager', () => {
     expect(vault.id).not.toBe(planner.id);
   });
 
-  test('startFresh on a vault tab spawns a new session in the vault dir without a prompt', () => {
+  test('startFresh on a vault tab spawns a new session in the VM home without a prompt', async () => {
     // given
-    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    const { manager, ptys } = setup({}, vaultConfig);
     const tab = manager.openVault('DIG', null);
     // when
-    manager.startFresh(tab.id);
+    await manager.startFresh(tab.id);
     // then
     const sessionId = manager.get(tab.id)?.sessionId ?? '';
-    expect(ptys[1].args).toEqual(wrapped(tab.id, [...base, '--session-id', sessionId], '/tmp/vault'));
-    expect(ptys[1].options.cwd).toBe('/tmp/vault');
+    expect(spawned(ptys[1])).toEqual(wrapped(tab.id, [...base, '--session-id', sessionId], '/home/dev'));
+    expect(ptys[1].options.cwd).toBe('/home/dev');
   });
 
-  test('resume on a vault tab throws once the vaultDir is gone', () => {
+  test('close on a vault tab saves no closed session', async () => {
     // given
-    const cfg: MapleConfig = { ...vaultConfig };
-    const { manager } = setup({}, () => true, cfg);
-    const tab = manager.openVault('DIG', null);
-    cfg.vaultDir = null;
-    // when
-    const resume = () => {
-      manager.resume(tab.id);
-    };
-    // then
-    expect(resume).toThrow('starting session: no vaultDir in config');
-  });
-
-  test('close on a vault tab saves no closed session', () => {
-    // given
-    const { manager, save } = setup({}, () => true, vaultConfig);
+    const { manager, save } = setup({}, vaultConfig);
     const tab = manager.openVault('DIG', null);
     // when
-    manager.close(tab.id);
+    await manager.close(tab.id);
     // then
     expect(save).toHaveBeenLastCalledWith([], {});
   });
@@ -908,22 +833,21 @@ describe('SessionManager', () => {
       name: 'resume',
       restart: (m: SessionManager, id: string) => {
         m.resume(id);
+        return Promise.resolve();
       },
     },
     {
       name: 'startFresh',
-      restart: (m: SessionManager, id: string) => {
-        m.startFresh(id);
-      },
+      restart: (m: SessionManager, id: string) => m.startFresh(id),
     },
-  ])('$name kills the old pty and ignores its late exit', ({ restart }) => {
+  ])('$name kills the old pty and ignores its late exit', async ({ restart }) => {
     // given
     const { manager, ptys } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
     const exit = vi.fn();
     manager.on('exit', exit);
     // when
-    restart(manager, tab.id);
+    await restart(manager, tab.id);
     ptys[0].emitExit(0);
     // then
     expect(ptys[0].killed).toBe(true);
@@ -936,7 +860,7 @@ describe('SessionManager', () => {
     { kind: 'vault', open: (m: SessionManager) => m.openVault('DIG', null) },
   ])('$kind output never emits batch', ({ open }) => {
     // given
-    const { manager, ptys } = setup({}, () => true, vaultConfig);
+    const { manager, ptys } = setup({}, vaultConfig);
     open(manager);
     const batch = vi.fn();
     manager.on('batch', batch);
@@ -1025,7 +949,7 @@ describe('SessionManager', () => {
       expect(findWorktrees).toHaveBeenCalledTimes(1);
     });
     // when
-    manager.close(tab.id);
+    await manager.close(tab.id);
     // then
     expect(stop).toHaveBeenCalledTimes(1);
   });
@@ -1153,7 +1077,7 @@ describe('SessionManager', () => {
     );
     const { manager, save } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
-    manager.close(tab.id);
+    await manager.close(tab.id);
     const saves = save.mock.calls.length;
     // when
     resolve(['/tmp/wts/dig-days-dig-44']);
@@ -1192,18 +1116,6 @@ describe('SessionManager', () => {
     // then
     expect(logger.info).toHaveBeenCalledWith('session', 'prompt sent', { tabId: tab.id, length: text.length });
     expect(JSON.stringify(logger.info.mock.calls)).not.toContain('secret plan');
-  });
-
-  test('logs a fresh start when a resume has no transcript', () => {
-    // given
-    const { manager, logger } = setup({}, () => false);
-    // when
-    const tab = manager.openCard('DIG', 'DIG-44', 'old');
-    // then
-    expect(logger.warn).toHaveBeenCalledWith('session', 'no transcript, starting fresh', {
-      tabId: tab.id,
-      sessionId: 'old',
-    });
   });
 
   test('logs a found worktree', async () => {
@@ -1278,48 +1190,47 @@ describe('SessionManager', () => {
     expect(args[args.indexOf('-s') + 1]).toBe(`maple-${tab.id}`);
   });
 
-  test.each([
-    {
-      name: 'startFresh',
-      restart: (m: SessionManager, id: string) => {
-        m.startFresh(id);
-      },
-    },
-    {
-      name: 'resume',
-      restart: (m: SessionManager, id: string) => {
-        m.resume(id);
-      },
-    },
-  ])('$name ends the old tmux session before spawning', ({ restart }) => {
+  test('startFresh ends the old tmux session before spawning', async () => {
     // given
     const { manager, spawnFn, endTmux } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
     // when
-    restart(manager, tab.id);
+    await manager.startFresh(tab.id);
     // then
     expect(endTmux).toHaveBeenCalledWith(`maple-${tab.id}`);
     expect(endTmux.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(spawnFn).mock.invocationCallOrder[1]);
   });
 
-  test('close ends the tab tmux session', () => {
+  test('resume reattaches without ending the tmux session', () => {
+    // given
+    const { manager, spawnFn, endTmux } = setup();
+    const tab = manager.startCard('DIG', 'DIG-44');
+    // when
+    manager.resume(tab.id);
+    // then
+    expect(spawnFn).toHaveBeenCalledTimes(2);
+    expect(endTmux).not.toHaveBeenCalled();
+  });
+
+  test('close ends the tab tmux session', async () => {
     // given
     const { manager, endTmux } = setup();
     const tab = manager.startCard('DIG', 'DIG-44');
     // when
-    manager.close(tab.id);
+    await manager.close(tab.id);
     // then
     expect(endTmux).toHaveBeenCalledWith(`maple-${tab.id}`);
   });
 
-  test('killAll ends the tmux server', () => {
+  test('killAll leaves the tmux sessions running', () => {
     // given
-    const { manager, endTmux } = setup();
+    const { manager, ptys, endTmux } = setup();
     manager.startCard('DIG', 'DIG-44');
     // when
     manager.killAll();
     // then
-    expect(endTmux).toHaveBeenCalledWith(null);
+    expect(ptys[0].killed).toBe(true);
+    expect(endTmux).not.toHaveBeenCalled();
   });
 
   test.each([

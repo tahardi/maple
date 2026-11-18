@@ -89,7 +89,7 @@ Maple reads `config.json` from `MAPLE_CONFIG_DIR` (default `~/.config/maple`). `
 
 Maple saves open tabs in `state.json` in `MAPLE_CONFIG_DIR`. At each launch, if `state.json` changed since the last backup, Maple copies it to `state.json.1` and moves older copies up, keeping `stateBackups` copies (default 3) with the newest in `state.json.1`. A `state.json` Maple cannot read moves to `state.json.corrupt`, and the banner names the newest backup. To restore, quit Maple, copy a backup over `state.json`, and start Maple again.
 
-`remote` is optional. When set, Maple connects to the Xena VM over one SSH master connection when it starts, and asks you to touch your YubiKey once:
+`remote` is required, because Maple runs Claude sessions and terminal tabs only in the VM; a config without it refuses to load. Setting `MAPLE_LOCAL_RUNNER=1` lets Maple load a config without `remote` and run sessions on the machine it runs on, which the unit and end-to-end tests use, as does Maple when it runs inside the VM itself. Maple connects to the Xena VM over one SSH master connection when it starts, and asks you to touch your YubiKey once:
 
 ```json
 {

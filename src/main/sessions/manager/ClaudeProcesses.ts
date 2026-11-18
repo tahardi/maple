@@ -1,16 +1,18 @@
 import { EventEmitter } from 'node:events';
-import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import type { IPty } from 'node-pty';
 import { parseSuggestedBatch } from '@shared/prompts/suggestedBatch';
 import type { TabState } from '@shared/types/tabs/tabState';
 import { appLogger, type Logger } from '@main/app/log/log';
-import { parentEnv } from '@main/util/parentEnv';
+import { vmFindingsDir } from '@main/remote/vmPaths';
 import { tmuxArgs } from '../tmux';
 import type { SessionDeps } from '../SessionManager';
 
 const BACKLOG_CHARS = 200_000;
 const LINE_CHARS = 10_000;
+const SSH_LOST_CODE = 255;
+const REATTACH_DELAY_MS = 5000;
+const REATTACH_LIMIT = 3;
 
 type Events = {
   data: [tabId: string, data: string];
@@ -26,6 +28,8 @@ type Process = {
   alive: boolean;
   backlog: string;
   line: string;
+  reattaches: number;
+  timer: ReturnType<typeof setTimeout> | null;
 };
 
 function tmuxName(tabId: string): string {
@@ -42,44 +46,34 @@ export class ClaudeProcesses extends EventEmitter<Events> {
   }
 
   launch(tab: TabState, { resume, prompt }: { resume: boolean; prompt: string | null }): void {
-    const proc = this.processes.get(tab.id) ?? { pty: null, alive: false, backlog: '', line: '' };
-    if (proc.pty !== null) {
-      proc.pty.kill();
-      this.deps.endTmux(tmuxName(tab.id));
-    }
-    const resumable = resume && this.deps.hasTranscript(tab.sessionId);
-    if (resume && !resumable) {
-      this.log.warn('session', 'no transcript, starting fresh', { tabId: tab.id, sessionId: tab.sessionId });
-    }
+    const proc = this.processes.get(tab.id) ?? {
+      pty: null,
+      alive: false,
+      backlog: '',
+      line: '',
+      reattaches: 0,
+      timer: null,
+    };
+    this.stopTimer(proc);
+    proc.pty?.kill();
     const config = this.deps.config();
     const project = config.projects.find((p) => p.jiraKey === tab.projectKey);
     if (!project) {
       throw new Error(`starting session: unknown project ${tab.projectKey}`);
     }
-    const cwd = tab.kind === 'vault' || tab.kind === 'learning' ? config.vaultDir : project.plannerDir;
-    if (cwd === null) {
-      throw new Error('starting session: no vaultDir in config');
-    }
-    const args = ['--dangerously-skip-permissions', '--settings', this.deps.hooksFile];
-    args.push(resumable ? '--resume' : '--session-id', tab.sessionId);
+    const cwd = tab.kind === 'vault' || tab.kind === 'learning' ? this.deps.home : project.plannerDir;
+    const args = ['--dangerously-skip-permissions', resume ? '--resume' : '--session-id', tab.sessionId];
     if (prompt !== null) {
       args.push(prompt);
     }
     const env = {
       MAPLE_TAB_ID: tab.id,
-      MAPLE_SOCKET: this.deps.socketPath,
-      ...(tab.kind === 'card' && { MAPLE_SNAPSHOT_DIR: join(this.deps.snapshotRoot, tab.sessionId) }),
-      ...((tab.kind === 'card' || tab.kind === 'learning') && { MAPLE_FINDINGS_DIR: this.deps.findingsDir }),
-      ...(tab.kind === 'card' && config.vaultDir !== null && { MAPLE_VAULT_DIR: config.vaultDir }),
+      ...((tab.kind === 'card' || tab.kind === 'learning') && {
+        MAPLE_FINDINGS_DIR: vmFindingsDir(this.deps.home),
+      }),
     };
-    const command = tmuxArgs(tmuxName(tab.id), this.deps.tmuxConf, cwd, env, ['claude', ...args]);
-    const pty = this.deps.spawn('tmux', command, {
-      name: 'xterm-256color',
-      cols: 120,
-      rows: 40,
-      cwd,
-      env: { ...parentEnv(), ...this.deps.sessionEnv, TERM: 'xterm-256color' },
-    });
+    const command = ['tmux', ...tmuxArgs(tmuxName(tab.id), this.deps.tmuxConf, cwd, env, ['claude', ...args])];
+    const pty = this.deps.runner.spawnPty(command, { cwd, env: {}, cols: 120, rows: 40 });
     proc.pty = pty;
     proc.alive = true;
     this.processes.set(tab.id, proc);
@@ -89,17 +83,15 @@ export class ClaudeProcesses extends EventEmitter<Events> {
       sessionId: tab.sessionId,
       cwd,
       args,
-      resumed: resumable,
+      resumed: resume,
     });
-    this.emit('spawn', tab.id, prompt !== null, resumable);
+    this.emit('spawn', tab.id, prompt !== null, resume);
     pty.onData((data) => {
       this.onData(tab, proc, data);
     });
     pty.onExit(({ exitCode }) => {
       if (proc.pty === pty) {
-        proc.alive = false;
-        this.log.info('session', 'exited', { tabId: tab.id, code: exitCode });
-        this.emit('exit', tab.id, exitCode);
+        this.onExit(tab, proc, exitCode);
       }
     });
   }
@@ -145,17 +137,19 @@ export class ClaudeProcesses extends EventEmitter<Events> {
     return this.processes.get(tabId)?.alive ?? false;
   }
 
-  kill(tabId: string): void {
-    this.processes.get(tabId)?.pty?.kill();
-    this.deps.endTmux(tmuxName(tabId));
+  async kill(tabId: string): Promise<void> {
+    const proc = this.processes.get(tabId);
+    if (proc) {
+      this.detach(proc);
+    }
     this.processes.delete(tabId);
+    await this.deps.endTmux(tmuxName(tabId));
   }
 
   killAll(): void {
     for (const proc of this.processes.values()) {
-      proc.pty?.kill();
+      this.detach(proc);
     }
-    this.deps.endTmux(null);
   }
 
   private live(tabId: string): Process | undefined {
@@ -163,7 +157,37 @@ export class ClaudeProcesses extends EventEmitter<Events> {
     return proc?.alive ? proc : undefined;
   }
 
+  private detach(proc: Process): void {
+    this.stopTimer(proc);
+    proc.pty?.kill();
+    proc.pty = null;
+    proc.alive = false;
+  }
+
+  private stopTimer(proc: Process): void {
+    if (proc.timer !== null) {
+      clearTimeout(proc.timer);
+      proc.timer = null;
+    }
+  }
+
+  private onExit(tab: TabState, proc: Process, exitCode: number): void {
+    if (exitCode === SSH_LOST_CODE && proc.reattaches < REATTACH_LIMIT) {
+      proc.reattaches += 1;
+      this.log.warn('session', 'ssh lost, reattaching', { tabId: tab.id, attempt: proc.reattaches });
+      proc.timer = setTimeout(() => {
+        proc.timer = null;
+        this.launch(tab, { resume: true, prompt: null });
+      }, REATTACH_DELAY_MS);
+      return;
+    }
+    proc.alive = false;
+    this.log.info('session', 'exited', { tabId: tab.id, code: exitCode });
+    this.emit('exit', tab.id, exitCode);
+  }
+
   private onData(tab: TabState, proc: Process, data: string): void {
+    proc.reattaches = 0;
     proc.backlog = (proc.backlog + data).slice(-BACKLOG_CHARS);
     this.emit('data', tab.id, data);
     if (tab.kind !== 'planner') {

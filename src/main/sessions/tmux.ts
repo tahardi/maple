@@ -1,6 +1,5 @@
-import { execFileSync } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import type { Runner } from '@main/remote/runner';
+import { vmTmuxConf } from '@main/remote/vmPaths';
 
 const CONF = [
   'set -g status off',
@@ -8,9 +7,6 @@ const CONF = [
   'unbind C-b',
   'set -g escape-time 0',
   "set -ga terminal-overrides ',xterm-256color:smcup@:rmcup@'",
-  'set -ga update-environment JIRA_SITE',
-  'set -ga update-environment JIRA_EMAIL',
-  'set -ga update-environment JIRA_TOKEN',
 ];
 
 export function tmuxArgs(
@@ -24,18 +20,13 @@ export function tmuxArgs(
   return ['-L', 'maple', '-f', conf, 'new-session', '-A', '-s', name, '-c', cwd, ...vars, ...command];
 }
 
-export async function writeTmuxConf(dir: string): Promise<string> {
-  const path = join(dir, 'tmux.conf');
-  await mkdir(dir, { recursive: true });
-  await writeFile(path, `${CONF.join('\n')}\n`);
+export async function writeTmuxConf(runner: Runner, home: string): Promise<string> {
+  const path = vmTmuxConf(home);
+  const command = ['sh', '-c', 'mkdir -p "$(dirname "$1")" && cat > "$1"', 'sh', path];
+  await runner.exec(command, { input: `${CONF.join('\n')}\n` });
   return path;
 }
 
-export function endTmux(name: string | null): void {
-  const args = name === null ? ['kill-server'] : ['kill-session', '-t', name];
-  try {
-    execFileSync('tmux', ['-L', 'maple', ...args], { stdio: 'ignore' });
-  } catch {
-    return;
-  }
+export async function endTmux(runner: Runner, name: string): Promise<void> {
+  await runner.exec(['tmux', '-L', 'maple', 'kill-session', '-t', name]).catch(() => undefined);
 }

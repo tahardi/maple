@@ -39,9 +39,9 @@ function fakeSessions() {
     openPlanner: vi.fn(() => tab),
     openVault: vi.fn(() => tab),
     openLearning: vi.fn(() => tab),
-    close: vi.fn(),
+    close: vi.fn(() => Promise.resolve()),
     resume: vi.fn(),
-    startFresh: vi.fn(),
+    startFresh: vi.fn(() => Promise.resolve()),
     selectWorktree: vi.fn(),
     get: vi.fn((tabId: string) => (tabId === 't1' ? tab : null)),
   });
@@ -160,11 +160,11 @@ describe('registerTabs', () => {
       want: ['t1', '/wts/a'],
       result: undefined,
     },
-  ] as const)('$channel calls $method', ({ channel, args, method, want, result }) => {
+  ] as const)('$channel calls $method', async ({ channel, args, method, want, result }) => {
     // given
     const { sessions } = setup();
     // when
-    const got = invoke(channel, ...args);
+    const got = await invoke(channel, ...args);
     // then
     expect(sessions[method]).toHaveBeenCalledWith(...want);
     expect(got).toEqual(result);
@@ -261,12 +261,12 @@ describe('registerTabs', () => {
     expect(sessions.selectWorktree).not.toHaveBeenCalled();
   });
 
-  test('tabs:close asks to confirm when the tab is working and not forced', () => {
+  test('tabs:close asks to confirm when the tab is working and not forced', async () => {
     // given
     const { sessions, engine } = setup();
     engine.statuses.mockReturnValue([{ ...status, dot: 'working' }]);
     // when
-    const got = invoke('tabs:close', 't1', false);
+    const got = await invoke('tabs:close', 't1', false);
     // then
     expect(sessions.close).not.toHaveBeenCalled();
     expect(got).toEqual({ closed: false, needsConfirm: true });
@@ -275,32 +275,58 @@ describe('registerTabs', () => {
   test.each([
     { name: 'a working tab when forced', dot: 'working', force: true },
     { name: 'an idle tab', dot: 'idle', force: false },
-  ] as const)('tabs:close closes $name', ({ dot, force }) => {
+  ] as const)('tabs:close closes $name', async ({ dot, force }) => {
     // given
     const { sessions, engine } = setup();
     engine.statuses.mockReturnValue([{ ...status, dot }]);
     // when
-    const got = invoke('tabs:close', 't1', force);
+    const got = await invoke('tabs:close', 't1', force);
     // then
     expect(sessions.close).toHaveBeenCalledWith('t1');
     expect(got).toEqual({ closed: true, needsConfirm: false });
   });
 
-  test('tabs:close closes the tab shell', () => {
+  test.each([
+    { channel: 'tabs:close', args: ['t1', false], method: 'close' },
+    { channel: 'tabs:startFresh', args: ['t1'], method: 'startFresh' },
+  ] as const)('$channel waits for the session before it resolves', async ({ channel, args, method }) => {
+    // given
+    const { sessions } = setup();
+    let finish: () => void = () => undefined;
+    sessions[method].mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    let settled = false;
+    // when
+    const got = Promise.resolve(invoke(channel, ...args)).then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    // then
+    expect(settled).toBe(false);
+    finish();
+    await got;
+    expect(settled).toBe(true);
+  });
+
+  test('tabs:close closes the tab shell', async () => {
     // given
     const { terminals } = setup();
     // when
-    invoke('tabs:close', 't1', false);
+    await invoke('tabs:close', 't1', false);
     // then
     expect(terminals.closeTab).toHaveBeenCalledWith('t1');
   });
 
-  test('tabs:close keeps the shell when asking to confirm', () => {
+  test('tabs:close keeps the shell when asking to confirm', async () => {
     // given
     const { terminals, engine } = setup();
     engine.statuses.mockReturnValue([{ ...status, dot: 'working' }]);
     // when
-    invoke('tabs:close', 't1', false);
+    await invoke('tabs:close', 't1', false);
     // then
     expect(terminals.closeTab).not.toHaveBeenCalled();
   });
@@ -380,12 +406,12 @@ describe('registerTabs', () => {
   test.each([
     { name: 'another tab is working', statuses: [{ ...status, tabId: 't2', dot: 'working' as const }] },
     { name: 'the tab has no status', statuses: [] },
-  ])('tabs:close closes without asking when $name', ({ statuses }) => {
+  ])('tabs:close closes without asking when $name', async ({ statuses }) => {
     // given
     const { sessions, engine } = setup();
     engine.statuses.mockReturnValue(statuses);
     // when
-    const got = invoke('tabs:close', 't1', false);
+    const got = await invoke('tabs:close', 't1', false);
     // then
     expect(sessions.close).toHaveBeenCalledWith('t1');
     expect(got).toEqual({ closed: true, needsConfirm: false });

@@ -1,5 +1,4 @@
 import { EventEmitter } from 'node:events';
-import type { spawn } from 'node-pty';
 import { cardPrompt } from '@shared/prompts/cardPrompt';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { KeptTab } from '@shared/types/tabs/keptTab';
@@ -13,19 +12,12 @@ import { WorktreeTracker } from './manager/WorktreeTracker';
 import { withSelectedWorktree, withWorktrees } from './manager/worktreeSelection';
 
 export type SessionDeps = {
-  spawn: typeof spawn;
   config: () => MapleConfig;
-  hooksFile: string;
-  socketPath: string;
-  snapshotRoot: string;
-  findingsDir: string;
+  tmuxConf: string;
+  endTmux: (name: string) => Promise<void>;
   save: (tabs: TabState[], closedSessions: Record<string, string>) => Promise<void>;
   closedSessions: Record<string, string>;
   uuid: () => string;
-  hasTranscript: (sessionId: string) => boolean;
-  tmuxConf: string;
-  endTmux: (name: string | null) => void;
-  sessionEnv: Record<string, string>;
   logger?: Logger;
   runner: Runner;
   home: string;
@@ -118,7 +110,8 @@ export class SessionManager extends EventEmitter<Events> {
     this.processes.launch(this.tabs.require(tabId), { resume: true, prompt: null });
   }
 
-  startFresh(tabId: string): void {
+  async startFresh(tabId: string): Promise<void> {
+    await this.processes.kill(tabId);
     const tab = { ...this.tabs.require(tabId), sessionId: this.deps.uuid() };
     this.tabs.update(tab);
     const prompt = tab.cardKey === null ? null : cardPrompt(tab.cardKey);
@@ -126,12 +119,12 @@ export class SessionManager extends EventEmitter<Events> {
     this.changed();
   }
 
-  close(tabId: string): void {
+  async close(tabId: string): Promise<void> {
     if (this.tabs.get(tabId) === null) {
       return;
     }
     this.worktrees.stop(tabId);
-    this.processes.kill(tabId);
+    await this.processes.kill(tabId);
     this.tabs.close(tabId);
     this.changed();
   }

@@ -1,19 +1,14 @@
-import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { spawn } from 'node-pty';
-import type { HookEvent } from '@shared/types/tabs/hookEvent';
+import { randomUUID } from 'node:crypto';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { expandHome } from '../../src/main/app/config/config';
-import { startHookServer } from '../../src/main/sessions/hooks/hookServer';
-import { writeHooksFile } from '../../src/main/sessions/hooks/hooksFile';
 import { createLogger } from '../../src/main/app/log/log';
+import { LocalRunner } from '../../src/main/remote/localRunner';
 import { SessionManager } from '../../src/main/sessions/SessionManager';
 import { endTmux, writeTmuxConf } from '../../src/main/sessions/tmux';
-import { hasTranscript } from '../../src/main/sessions/transcripts/transcripts';
-import { fakeRunner } from '@main/testing/fakeRunner';
 
 const silent = createLogger(() => undefined);
 
@@ -35,23 +30,20 @@ function settled(sessions: SessionManager, tabId: string, quietMs = 2000): Promi
 
 describe('SessionManager with a real claude', () => {
   let dir = '';
-  let events: HookEvent[] = [];
-  let stop: () => Promise<void> = () => Promise.resolve();
   let sessions: SessionManager | null = null;
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'maple-live-'));
-    events = [];
-    stop = await startHookServer(join(dir, 'maple.sock'), (e) => events.push(e), silent);
   });
 
   afterEach(async () => {
-    sessions?.killAll();
-    await stop();
+    for (const tab of sessions?.list() ?? []) {
+      await sessions?.close(tab.id);
+    }
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('reports hooks from an interactive planner session, then resumes it', async () => {
+  test('runs an interactive planner session through the runner, then resumes it', async () => {
     // given
     const config: MapleConfig = {
       worktreesDir: dir,
@@ -79,27 +71,16 @@ describe('SessionManager with a real claude', () => {
         },
       ],
     };
+    const runner = new LocalRunner();
     const manager = new SessionManager({
-      spawn,
       config: () => config,
-      hooksFile: await writeHooksFile(
-        dir,
-        process.execPath,
-        resolve('resources/maple-hook.mjs'),
-        join(dir, 'findings'),
-      ),
-      socketPath: join(dir, 'maple.sock'),
-      snapshotRoot: join(dir, 'snapshots'),
-      findingsDir: join(dir, 'findings'),
       save: () => Promise.resolve(),
       closedSessions: {},
       uuid: randomUUID,
-      hasTranscript,
-      tmuxConf: await writeTmuxConf(dir),
-      endTmux,
-      sessionEnv: {},
-      runner: fakeRunner(),
-      home: '/home/dev',
+      tmuxConf: await writeTmuxConf(runner, homedir()),
+      endTmux: (name) => endTmux(runner, name),
+      runner,
+      home: homedir(),
       logger: silent,
     });
     sessions = manager;
@@ -109,56 +90,17 @@ describe('SessionManager with a real claude', () => {
     const tab = manager.openPlanner('MPL', null);
     await settled(manager, tab.id);
     manager.sendPrompt(tab.id, 'Reply with the single word ok.');
+    await settled(manager, tab.id);
     // then
-    await vi.waitFor(
-      () => {
-        expect(events).toContainEqual({
-          tabId: tab.id,
-          event: 'UserPromptSubmit',
-          notificationType: null,
-          backgroundTasks: [],
-          crons: 0,
-          sessionId: expect.any(String) as unknown,
-        });
-        expect(events).toContainEqual({
-          tabId: tab.id,
-          event: 'Stop',
-          notificationType: null,
-          backgroundTasks: [],
-          crons: 0,
-          sessionId: expect.any(String) as unknown,
-        });
-      },
-      { timeout: 90_000, interval: 500 },
-    );
     expect(manager.isAlive(tab.id)).toBe(true);
-    await vi.waitFor(
-      () => {
-        expect(hasTranscript(tab.sessionId)).toBe(true);
-      },
-      { timeout: 10_000, interval: 250 },
-    );
     // when
-    manager.close(tab.id);
-    events = [];
+    await manager.close(tab.id);
     const again = manager.openPlanner('MPL', tab.sessionId);
     await settled(manager, again.id);
     manager.sendPrompt(again.id, 'Reply with the single word again.');
     // then
     expect(again.sessionId).toBe(tab.sessionId);
     expect(resumed).toEqual([false, true]);
-    await vi.waitFor(
-      () => {
-        expect(events).toContainEqual({
-          tabId: again.id,
-          event: 'Stop',
-          notificationType: null,
-          backgroundTasks: [],
-          crons: 0,
-          sessionId: expect.any(String) as unknown,
-        });
-      },
-      { timeout: 90_000, interval: 500 },
-    );
+    expect(manager.isAlive(again.id)).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { MapleConfig } from '@shared/types/config/mapleConfig';
 import type { TabState } from '@shared/types/tabs/tabState';
-import { fakeSpawn, type FakePty } from '@main/testing/fakeSpawn';
+import { fakeRunnerPty, type FakePty } from '@main/testing/fakeSpawn';
 import { tmuxArgs } from '../tmux';
 import { ClaudeProcesses } from './ClaudeProcesses';
 import { fakeRunner } from '@main/testing/fakeRunner';
@@ -33,30 +33,23 @@ const config: MapleConfig = {
   remote: null,
 };
 
-const base = ['--dangerously-skip-permissions', '--settings', '/tmp/maple/hooksFile.json'];
+const base = ['--dangerously-skip-permissions'];
 
 function tab(kind: TabState['kind'], projectKey = 'DIG'): TabState {
   const cardKey = kind === 'card' ? 'DIG-44' : null;
   return { id: 't1', projectKey, kind, cardKey, sessionId: 's1', worktreePath: null, worktreePaths: [] };
 }
 
-function setup(hasTranscript = true, current: MapleConfig = config) {
+function setup(current: MapleConfig = config) {
   const ptys: FakePty[] = [];
-  const spawnFn = fakeSpawn(ptys);
+  const spawnFn = fakeRunnerPty(ptys);
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-  const endTmux = vi.fn<(name: string | null) => void>();
+  const endTmux = vi.fn<(name: string) => Promise<void>>().mockResolvedValue(undefined);
   const processes = new ClaudeProcesses({
-    spawn: spawnFn,
     config: () => current,
-    hooksFile: '/tmp/maple/hooksFile.json',
-    socketPath: '/tmp/maple.sock',
-    snapshotRoot: '/tmp/maple/snapshots',
-    findingsDir: '/tmp/maple/findings',
-    hasTranscript: () => hasTranscript,
-    tmuxConf: '/tmp/maple/tmux.conf',
+    tmuxConf: '/home/dev/.xena/maple-tmux.conf',
     endTmux,
-    sessionEnv: { JIRA_SITE: 'https://x.atlassian.net' },
-    runner: fakeRunner(),
+    runner: fakeRunner({ spawnPty: spawnFn }),
     home: '/home/dev',
     logger,
   });
@@ -68,7 +61,7 @@ describe('ClaudeProcesses', () => {
     vi.useRealTimers();
   });
 
-  test('launch spawns claude in tmux with the hooks settings, a new session id, and the prompt', () => {
+  test('launch spawns claude in tmux on the VM with a new session id and the prompt', () => {
     // given
     const { processes, ptys, spawnFn } = setup();
     const spawned = vi.fn();
@@ -76,45 +69,54 @@ describe('ClaudeProcesses', () => {
     // when
     processes.launch(tab('card'), { resume: false, prompt: '/card DIG-44' });
     // then
-    const env = {
-      MAPLE_TAB_ID: 't1',
-      MAPLE_SOCKET: '/tmp/maple.sock',
-      MAPLE_SNAPSHOT_DIR: '/tmp/maple/snapshots/s1',
-      MAPLE_FINDINGS_DIR: '/tmp/maple/findings',
-    };
+    const env = { MAPLE_TAB_ID: 't1', MAPLE_FINDINGS_DIR: '/home/dev/.local/state/maple/findings' };
     const claude = ['claude', ...base, '--session-id', 's1', '/card DIG-44'];
-    expect(vi.mocked(spawnFn).mock.calls[0][0]).toBe('tmux');
-    expect(ptys[0].args).toEqual(tmuxArgs('maple-t1', '/tmp/maple/tmux.conf', '/tmp/dig-days', env, claude));
-    expect(ptys[0].options).toMatchObject({ cwd: '/tmp/dig-days', cols: 120, rows: 40 });
-    expect(ptys[0].options.env).toMatchObject({ TERM: 'xterm-256color', JIRA_SITE: 'https://x.atlassian.net' });
+    expect(vi.mocked(spawnFn).mock.calls[0][0]).toEqual([
+      'tmux',
+      ...tmuxArgs('maple-t1', '/home/dev/.xena/maple-tmux.conf', '/tmp/dig-days', env, claude),
+    ]);
+    expect(ptys[0].options).toEqual({ cwd: '/tmp/dig-days', cols: 120, rows: 40, env: {} });
     expect(spawned).toHaveBeenCalledWith('t1', true, false);
     expect(processes.isAlive('t1')).toBe(true);
   });
 
-  test.each([
-    { exists: 'exists', hasTranscript: true, flag: '--resume' },
-    { exists: 'is missing', hasTranscript: false, flag: '--session-id' },
-  ])('launch with resume uses $flag when the transcript $exists', ({ hasTranscript, flag }) => {
+  test('launch with resume always passes --resume', () => {
     // given
-    const { processes, ptys } = setup(hasTranscript);
+    const { processes, ptys, spawnFn } = setup();
+    const spawned = vi.fn();
+    processes.on('spawn', spawned);
     // when
     processes.launch(tab('planner'), { resume: true, prompt: null });
     // then
-    expect(ptys[0].args.join(' ')).toContain(`${flag} s1`);
+    expect(ptys[0].args.slice(-2)).toEqual(['--resume', 's1']);
+    expect(spawnFn).toHaveBeenCalledTimes(1);
+    expect(spawned).toHaveBeenCalledWith('t1', false, true);
   });
 
   test.each([
-    { kind: 'card' as const, want: '/tmp/maple/findings' },
-    { kind: 'learning' as const, want: '/tmp/maple/findings' },
+    { kind: 'card' as const, want: '/home/dev/.local/state/maple/findings' },
+    { kind: 'learning' as const, want: '/home/dev/.local/state/maple/findings' },
     { kind: 'vault' as const, want: undefined },
   ])('launch gives MAPLE_FINDINGS_DIR to a $kind tab: $want', ({ kind, want }) => {
     // given
-    const { processes, ptys } = setup(true, { ...config, vaultDir: '/tmp/vault' });
+    const { processes, ptys } = setup({ ...config, vaultDir: '/tmp/vault' });
     // when
     processes.launch(tab(kind), { resume: false, prompt: null });
     // then
     const assignments = ptys[0].args.filter((arg) => arg.startsWith('MAPLE_FINDINGS_DIR='));
     expect(assignments).toEqual(want === undefined ? [] : [`MAPLE_FINDINGS_DIR=${want}`]);
+  });
+
+  test('launch gives no session the snapshot dir, the vault dir, or the hook socket', () => {
+    // given
+    const { processes, ptys } = setup({ ...config, vaultDir: '/tmp/vault' });
+    // when
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    // then
+    const joined = ptys[0].args.join(' ');
+    for (const name of ['MAPLE_SNAPSHOT_DIR', 'MAPLE_VAULT_DIR', 'MAPLE_SOCKET']) {
+      expect(joined).not.toContain(name);
+    }
   });
 
   test('launch for an unknown project throws', () => {
@@ -130,38 +132,27 @@ describe('ClaudeProcesses', () => {
   });
 
   test.each([{ kind: 'vault' as const }, { kind: 'learning' as const }])(
-    'launch on a $kind tab starts in the vaultDir',
+    'launch on a $kind tab starts in the VM home',
     ({ kind }) => {
       // given
-      const { processes, ptys } = setup(true, { ...config, vaultDir: '/tmp/vault' });
+      const { processes, ptys } = setup({ ...config, vaultDir: '/tmp/vault' });
       // when
       processes.launch(tab(kind), { resume: false, prompt: null });
       // then
-      expect(ptys[0].options.cwd).toBe('/tmp/vault');
+      expect(ptys[0].options.cwd).toBe('/home/dev');
     },
   );
 
-  test('launch on a vault tab without a vaultDir throws', () => {
+  test('launch again kills the old pty and reattaches to the tmux session', () => {
     // given
-    const { processes } = setup();
-    // when
-    const launch = () => {
-      processes.launch(tab('vault'), { resume: false, prompt: null });
-    };
-    // then
-    expect(launch).toThrow('starting session: no vaultDir in config');
-  });
-
-  test('launch again kills the old pty and ends its tmux session', () => {
-    // given
-    const { processes, ptys, spawnFn, endTmux } = setup();
+    const { processes, ptys, endTmux } = setup();
     processes.launch(tab('card'), { resume: false, prompt: null });
     // when
     processes.launch(tab('card'), { resume: true, prompt: null });
     // then
     expect(ptys[0].killed).toBe(true);
-    expect(endTmux).toHaveBeenCalledWith('maple-t1');
-    expect(endTmux.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(spawnFn).mock.invocationCallOrder[1]);
+    expect(ptys[1].args).toContain('maple-t1');
+    expect(endTmux).not.toHaveBeenCalled();
   });
 
   test('write sends keystrokes and emits input', () => {
@@ -293,13 +284,13 @@ describe('ClaudeProcesses', () => {
     expect(processes.isAlive('t1')).toBe(true);
   });
 
-  test('kill kills the pty and ends the tab tmux session', () => {
+  test('kill kills the pty and ends the tab tmux session', async () => {
     // given
     const { processes, ptys, endTmux } = setup();
     processes.launch(tab('card'), { resume: false, prompt: null });
     ptys[0].emitData('hello');
     // when
-    processes.kill('t1');
+    await processes.kill('t1');
     // then
     expect(ptys[0].killed).toBe(true);
     expect(endTmux).toHaveBeenCalledWith('maple-t1');
@@ -307,7 +298,7 @@ describe('ClaudeProcesses', () => {
     expect(processes.backlog('t1')).toBe('');
   });
 
-  test('killAll ends the tmux server', () => {
+  test('killAll kills the ptys and leaves the tmux sessions running', () => {
     // given
     const { processes, ptys, endTmux } = setup();
     processes.launch(tab('card'), { resume: false, prompt: null });
@@ -315,6 +306,81 @@ describe('ClaudeProcesses', () => {
     processes.killAll();
     // then
     expect(ptys[0].killed).toBe(true);
-    expect(endTmux).toHaveBeenCalledWith(null);
+    expect(endTmux).not.toHaveBeenCalled();
+  });
+
+  test('an ssh pty that exits with 255 reattaches after five seconds, three times, then reports the exit', () => {
+    // given
+    vi.useFakeTimers();
+    const { processes, ptys, logger } = setup();
+    const exit = vi.fn();
+    processes.on('exit', exit);
+    processes.launch(tab('card'), { resume: false, prompt: '/card DIG-44' });
+    // when
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      ptys[attempt - 1].emitExit(255);
+      vi.advanceTimersByTime(4999);
+      expect(ptys).toHaveLength(attempt);
+      vi.advanceTimersByTime(1);
+      // then
+      expect(ptys).toHaveLength(attempt + 1);
+      expect(ptys[attempt].args).toContain('maple-t1');
+      expect(ptys[attempt].args.slice(-2)).toEqual(['--resume', 's1']);
+      expect(logger.warn).toHaveBeenCalledWith('session', 'ssh lost, reattaching', { tabId: 't1', attempt });
+      expect(exit).not.toHaveBeenCalled();
+    }
+    ptys[3].emitExit(255);
+    vi.advanceTimersByTime(5000);
+    expect(ptys).toHaveLength(4);
+    expect(exit).toHaveBeenCalledWith('t1', 255);
+    expect(processes.isAlive('t1')).toBe(false);
+  });
+
+  test('output from the session resets the reattach count', () => {
+    // given
+    vi.useFakeTimers();
+    const { processes, ptys } = setup();
+    const exit = vi.fn();
+    processes.on('exit', exit);
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    ptys[0].emitExit(255);
+    vi.advanceTimersByTime(5000);
+    ptys[1].emitData('x');
+    // when
+    for (let i = 1; i <= 3; i++) {
+      ptys[i].emitExit(255);
+      vi.advanceTimersByTime(5000);
+    }
+    // then
+    expect(ptys).toHaveLength(5);
+    expect(exit).not.toHaveBeenCalled();
+  });
+
+  test('an exit that is not 255 is reported at once', () => {
+    // given
+    vi.useFakeTimers();
+    const { processes, ptys } = setup();
+    const exit = vi.fn();
+    processes.on('exit', exit);
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    // when
+    ptys[0].emitExit(1);
+    vi.advanceTimersByTime(5000);
+    // then
+    expect(exit).toHaveBeenCalledWith('t1', 1);
+    expect(ptys).toHaveLength(1);
+  });
+
+  test('kill during a reattach wait cancels the reattach', async () => {
+    // given
+    vi.useFakeTimers();
+    const { processes, ptys } = setup();
+    processes.launch(tab('card'), { resume: false, prompt: null });
+    ptys[0].emitExit(255);
+    // when
+    await processes.kill('t1');
+    vi.advanceTimersByTime(5000);
+    // then
+    expect(ptys).toHaveLength(1);
   });
 });
