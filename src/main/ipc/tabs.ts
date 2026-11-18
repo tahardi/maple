@@ -32,11 +32,11 @@ export function registerTabs(
   handle('tabs', 'openLearning', z.tuple([projectKeyArg]), (projectKey) =>
     logged('tabs:openLearning', [projectKey], () => sessions.openLearning(projectKey, null)),
   );
-  handle('tabs', 'close', z.tuple([tabIdArg, z.boolean()]), (tabId, force): CloseResult => {
+  handle('tabs', 'close', z.tuple([tabIdArg, z.boolean()]), async (tabId, force): Promise<CloseResult> => {
     if (closeNeedsConfirm(status.statuses(), tabId, force)) {
       return { closed: false, needsConfirm: true };
     }
-    sessions.close(tabId);
+    await sessions.close(tabId);
     terminals.closeTab(tabId);
     return { closed: true, needsConfirm: false };
   });
@@ -45,11 +45,9 @@ export function registerTabs(
       sessions.resume(tabId);
     });
   });
-  handle('tabs', 'startFresh', z.tuple([tabIdArg]), (tabId) => {
-    logged('tabs:startFresh', [tabId], () => {
-      sessions.startFresh(tabId);
-    });
-  });
+  handle('tabs', 'startFresh', z.tuple([tabIdArg]), (tabId) =>
+    logged('tabs:startFresh', [tabId], () => sessions.startFresh(tabId)),
+  );
   handle('tabs', 'selectWorktree', z.tuple([tabIdArg, z.string().min(1).max(4096)]), (tabId, path) => {
     logged('tabs:selectWorktree', [tabId, path], () => {
       sessions.selectWorktree(tabId, path);

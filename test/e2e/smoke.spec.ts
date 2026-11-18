@@ -45,6 +45,7 @@ async function sandbox(jiraDown = false) {
     MAPLE_CLAUDE_JSON: claudeJson,
     MAPLE_CLAUDE_SETTINGS: join(root, 'claude-settings.json'),
     TMUX_TMPDIR: root,
+    MAPLE_LOCAL_RUNNER: '1',
   };
   const tmux = (...args: string[]) => execFileSync('tmux', ['-L', 'maple', ...args], { env }).toString();
   const eventsLog = test.info().outputPath('events.log');

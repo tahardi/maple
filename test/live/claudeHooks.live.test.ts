@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { startHookServer } from '../../src/main/sessions/hooks/hookServer';
 import { writeHooksFile } from '../../src/main/sessions/hooks/hooksFile';
 import { createLogger } from '../../src/main/app/log/log';
-import { hasTranscript } from '../../src/main/sessions/transcripts/transcripts';
 
 function runClaude(args: string[], env: Record<string, string>): Promise<{ code: number | null; stdout: string }> {
   return new Promise((done, fail) => {
@@ -58,7 +57,6 @@ describe('claude hooks', () => {
   test('reports Stop and UserPromptSubmit, then resumes', async () => {
     // given
     const sessionId = randomUUID();
-    expect(hasTranscript(sessionId)).toBe(false);
     // when
     const first = await runClaude(['-p', 'Reply with the single word ok.', ...flags, '--session-id', sessionId], {
       MAPLE_TAB_ID: 'live-1',
@@ -85,7 +83,6 @@ describe('claude hooks', () => {
         sessionId: expect.any(String) as unknown,
       });
     });
-    expect(hasTranscript(sessionId)).toBe(true);
     // when
     const second = await runClaude(['-p', 'Reply with the single word again.', ...flags, '--resume', sessionId], {
       MAPLE_TAB_ID: 'live-2',

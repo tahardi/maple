@@ -6,10 +6,10 @@ principles:
       knows it
 assets:
   - id: desktop
-    what: Taylor's machine and home folder, where Maple's main process, git, gh, and shell terminals run unsandboxed
+    what: Taylor's machine and home folder, where Maple's main process, git, and gh run unsandboxed
     loss: Full control of Taylor's account, keys, browser sessions, and every repo
   - id: jira-token
-    what: Jira site, email, and user-rights token in the shared env file, passed into every session's environment
+    what: Jira site, email, and user-rights token in the shared env file, used only by Maple's desktop Jira client
     loss: Someone could read and change every card Taylor can reach in every Jira project
   - id: github-access
     what: >-
@@ -57,19 +57,19 @@ components:
       A socket private to the user, oversized lines dropped, every line validated, and events that carry no commands,
       so the worst case is a wrong status dot or a queued sync prompt
   - id: sessions
-    what: Claude sessions in tmux, run with permissions skipped and Claude's Bash sandbox forced on by Maple
+    what: >-
+      Claude sessions in tmux on the Xena VM, reached through ssh -t, run with permissions skipped under the VM's
+      managed settings
     trusted_with: >-
-      A best-effort try at the card's task, and the Jira and GitHub credentials in its environment; not an honest
-      report on its own work, so tests, CI, the Security Pass, and Taylor's review check it
+      A best-effort try at the card's task, and the Jira bot token and other credentials Xena installs in the VM; not
+      an honest report on its own work, so tests, CI, the Security Pass, and Taylor's review check it
     limited_by: >-
-      The Bash sandbox Maple forces on with no escape hatch, and the folders it may write: its worktree, the findings
-      dir, and the paths in the sandbox write list. Gaps, accepted until Xena: a worktree's own Claude settings, or an
-      edit to Maple's shared hooks file, can widen the sandbox, and the Write and Edit tools and its credentials reach
-      far wider than its card needs
+      The VM: sessions run as the VM's dev user, get no desktop variable or token, and receive only their tab id and
+      the VM findings dir, as tmux arguments; hooks and sandbox come from the VM's managed settings
   - id: shell-terminals
-    what: Plain shells in a card tab that Taylor drives, with no sandbox
-    trusted_with: Running whatever Taylor types, with Taylor's full access
-    limited_by: Nothing; it is the trusted base
+    what: Plain bash login shells in a card tab that Taylor drives, run in the Xena VM through ssh -t
+    trusted_with: Running whatever Taylor types, as the VM's dev user
+    limited_by: The VM, and an empty environment, so nothing from the desktop crosses
   - id: config-dir
     what: Maple's config, state, logs, events, findings, and snapshots
     trusted_with: >-
@@ -162,13 +162,11 @@ boundaries:
   - id: main-to-sessions
     between: [main-process, sessions]
     crosses: >-
-      Session start with permissions skipped, the hooks settings file, and an environment holding Jira and GitHub
-      credentials
+      Session start over ssh -t with permissions skipped, and only the tab id and VM findings dir as tmux -e
+      arguments
     checks: >-
-      Maple's settings file turns Claude's Bash sandbox on, with no unsandboxed escape hatch, and the session fails
-      if the sandbox cannot run; Maple adds only the findings dir to its write list; preflight warns when user
-      settings have the sandbox off or the escape hatch on. Gap: a worktree's own settings can still add sandbox
-      exceptions. Gap, accepted until Xena: sessions hold the Jira token and a long-lived GitHub token for all repos
+      The ssh pty gets an empty environment, so ssh sends no variables; every argument is shell-quoted; no desktop
+      token, socket, or settings file is passed
   - id: sessions-to-hook-server
     between: [sessions, hook-server]
     crosses: One JSON line per hook event
@@ -232,9 +230,9 @@ users:
     who: Every Claude session Maple starts, acting for Taylor
     can: >-
       Read and change cards the Jira token allows; write code, PRs, workflows, webhooks, secrets, and pages, merge its
-      own PRs, and create repos on every one of Taylor's repos; write files anywhere Taylor can through the Write and
-      Edit tools. Cannot change repo administration settings or rulesets
-    access: Jira credentials and a long-lived fine-grained GitHub token in its environment, and Taylor's Claude login
+      own PRs, and create repos with whatever GitHub access Xena gives the VM; write files anywhere the VM's dev user
+      can. Cannot change repo administration settings or rulesets
+    access: The credentials Xena installs in the VM, including a Jira bot token, and Taylor's Claude login
 build:
   built: >-
     make pre-pr in sandboxed sessions with npm install scripts on; GitHub Actions on every PR and push to main runs
