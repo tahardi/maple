@@ -59,9 +59,9 @@ import { transcriptOffset } from '@main/sessions/transcripts/transcripts';
 import { windowTitle } from '@main/app/window/windowTitle';
 import { createZoom, type Zoom } from '@main/app/window/zoom/windowZoom';
 import { zoomKey } from '@main/app/window/zoom/zoomKey';
-import { LocalRunner } from '@main/remote/localRunner';
+import { fallbackRunner } from '@main/remote/fallbackRunner';
 import { vmHome, type Runner } from '@main/remote/runner';
-import { vmFindingsDir } from '@main/remote/vmPaths';
+import { vmFindingsDir, vmTmuxConf } from '@main/remote/vmPaths';
 import { SshRunner } from '@main/remote/sshRunner';
 import { errorText } from '@shared/errors/errorText';
 
@@ -120,15 +120,36 @@ async function start(): Promise<Zoom> {
   const warnings: string[] = warning === null ? [] : [warning];
   const remote = loaded.data?.remote ?? null;
   const ssh = remote ? new SshRunner(remote, configDir()) : null;
-  const runner: Runner = ssh ?? new LocalRunner();
+  const runner: Runner = ssh ?? fallbackRunner();
   const home = vmHome(remote);
+  const tmuxConf = vmTmuxConf(home);
+  const prepareVm = async (): Promise<string | null> => {
+    try {
+      const made = await runner.exec(['mkdir', '-p', vmFindingsDir(home)]);
+      if (made.code !== 0) {
+        throw new Error(`creating findings dir: ${made.stderr.trim()}`);
+      }
+      await writeTmuxConf(runner, home);
+      return null;
+    } catch (err) {
+      appLogger.warn('remote', 'failed', { operation: 'prepareVm', error: errorText(err) });
+      return `preparing VM: ${errorText(err)}`;
+    }
+  };
+  const touch = (): void => {
+    new Notification({ title: 'Maple', body: 'Touch your YubiKey to connect Maple to the VM' }).show();
+  };
+  const reconnect = async (): Promise<void> => {
+    if (ssh && (await ssh.connect(touch))) {
+      await prepareVm();
+    }
+  };
   let stopKeepAlive: () => void = () => undefined;
+  let connected = ssh === null;
   if (ssh) {
-    const touch = (): void => {
-      new Notification({ title: 'Maple', body: 'Touch your YubiKey to connect Maple to the VM' }).show();
-    };
     try {
       const started = await ssh.connect(touch);
+      connected = true;
       appLogger.info('remote', 'connected', { operation: 'start', reused: !started });
     } catch (err) {
       warnings.push(`connecting to VM: ${errorText(err)}`);
@@ -138,6 +159,7 @@ async function start(): Promise<Zoom> {
       touch,
       restarted: () => {
         appLogger.info('remote', 'connected', { operation: 'keepAlive', reused: false });
+        void prepareVm();
       },
       failed: (err) => {
         appLogger.warn('remote', 'failed', { operation: 'keepAlive', error: errorText(err) });
@@ -164,8 +186,10 @@ async function start(): Promise<Zoom> {
   });
   const findingsDir = join(configDir(), 'findings');
   await mkdir(findingsDir, { recursive: true });
-  await runner.exec(['mkdir', '-p', vmFindingsDir(home)]);
-  const tmuxConf = await writeTmuxConf(runner, home);
+  const prepared = connected ? await prepareVm() : null;
+  if (prepared !== null) {
+    warnings.push(prepared);
+  }
   const socketPath = hookSocketPath();
   const creds = readCreds(jiraEnvPath());
   void creds.then(
@@ -188,6 +212,7 @@ async function start(): Promise<Zoom> {
     uuid: randomUUID,
     tmuxConf,
     endTmux: (name) => endTmux(runner, name),
+    reconnect,
     runner,
     home,
   });
