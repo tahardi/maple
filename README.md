@@ -31,7 +31,7 @@ make install  # build Maple, copy it to ~/.local/share/maple/app, and add it to 
 
 Run `make install-apparmor` once before the first `make install`, and again whenever `resources/apparmor/maple` changes; `make install` tells you when it is missing or out of date. It needs sudo. The Claude sandbox and Electron's own sandbox need user namespaces, which Ubuntu allows only for programs with an AppArmor profile, so without it the installed Maple may not start and its Claude sessions cannot run commands.
 
-The launcher starts Maple through your login shell, so Maple and its Claude sessions get the PATH from your shell config each launch.
+The launcher starts Maple through your login shell, so Maple gets the PATH from your shell config each launch. Claude sessions run in the VM and get the VM's PATH.
 
 Only one Maple runs per config dir: opening a second one, from the launcher or `make run`, focuses the open window. To test a card's branch next to your main Maple, run `make try` in its worktree. It copies your `config.json` into `.maple-try/` in the worktree and keeps that copy's tabs, sessions, and settings there, so closing it never touches your main Maple's sessions. Like `make run`, it needs a display, so it does not run in the sandbox.
 
@@ -116,11 +116,11 @@ Maple runs Claude sessions with permissions skipped and holds a Jira token, so i
 - The renderer is sandboxed and isolated, has a strict Content-Security-Policy, and may not navigate away from the app. Links open in the browser, and only `http` and `https` links.
 - The renderer gets clipboard access only. Every other permission, such as notifications, camera, or location, is denied.
 - Untrusted text renders as text. A lint rule rejects `innerHTML` and `dangerouslySetInnerHTML`. Security findings always show as plain text, never as Markdown.
-- Card sessions may write outside their worktree only to the findings folder in the config dir, which Maple adds to the Claude sandbox's write list.
+- Card sessions write findings to `~/.local/state/maple/findings` in the VM, which the VM's managed settings allow.
 - The main process checks every IPC argument, reads files only inside a tab's worktree, and never returns the Jira token.
 - `git`, `gh`, and `claude` run with argument arrays, never through a shell.
 - The hook socket is private to the user and drops oversized lines.
 
 ## Live Tests
 
-`make test-live` runs a real `claude` session with Maple's hooks, fetches the MPL board from Jira, looks up a merged PR with `gh`, and runs preflight, which checks that Claude trusts `~/Documents/code/maple`. It needs `claude` logged in, `gh` logged in, Jira credentials at `MAPLE_JIRA_ENV` (default `~/.config/jira/env`), and this repo cloned at `~/Documents/code/maple`. A run costs a few cents. Run it after upgrading `claude` or `gh`, or when Jira or GitHub responses change. It never runs in CI or `make pre-pr`, only in `make test-live` and `make test-all`. Permission-prompt notifications are not covered, because print mode with permissions skipped never asks for permission.
+`make test-live` runs a real `claude` session through the local runner, runs `claude` with Maple's hooks file, fetches the MPL board from Jira, looks up a merged PR with `gh`, and runs preflight, which checks that Claude trusts `~/Documents/code/maple`. It needs `claude` logged in, `gh` logged in, Jira credentials at `MAPLE_JIRA_ENV` (default `~/.config/jira/env`), and this repo cloned at `~/Documents/code/maple`. A run costs a few cents. Run it after upgrading `claude` or `gh`, or when Jira or GitHub responses change. It never runs in CI or `make pre-pr`, only in `make test-live` and `make test-all`. Permission-prompt notifications are not covered, because print mode with permissions skipped never asks for permission.

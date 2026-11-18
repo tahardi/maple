@@ -94,17 +94,11 @@ uses the Jira bot token Xena installs.
 reattaches to the same tmux session, up to three times in a row before it reports the exit. Any output resets the
 count.
 
-**Hooks.** VM sessions get no `--settings`: Xena installs Maple's hooks in the VM as managed settings, which append
-to `~/.xena/hooks.jsonl` keyed on `MAPLE_TAB_ID`, and XENA-41 has Maple follow that file. The rest of this section
-describes the desktop hook path. `hooksFile.json` registers `maple-hook.mjs` for `Stop`, `UserPromptSubmit`, `SessionStart`, `Notification`
-(permission prompts only), and `PreToolUse` (file writes and vault note writes only). It also turns the Bash sandbox
-on with no unsandboxed escape hatch, and a session refuses to start when the sandbox cannot run. Settings passed with
-`--settings` outrank a worktree's own, so a worktree cannot turn the sandbox off. It adds the findings dir to
-`sandbox.filesystem.allowWrite`, so the `/card` skill's script can write findings from Bash. `PreToolUse` sends
-nothing; it copies the vault note about to change into the snapshot dir. Every other hook sends one JSON line (tab
-id, event, notification type, background tasks, cron count, session id) to the hook socket. The hook server,
-`src/main/sessions/hooks/hookServer.ts`, validates each line and hands it to the status engine, the event recorder,
-and PR events.
+**Hooks.** VM sessions get no `--settings`. Xena installs Maple's hooks in the VM as managed settings, which also
+turn the Bash sandbox on, and the hooks append to `~/.xena/hooks.jsonl` keyed on `MAPLE_TAB_ID`; XENA-41 has Maple
+follow that file. Until then, no hook events reach Maple from VM sessions. The hook server,
+`src/main/sessions/hooks/hookServer.ts`, still listens on its socket, validates each line, and hands it to the status
+engine, the event recorder, and PR events.
 
 **Worktrees.** For each card tab the worktree tracker watches `worktreesDir` for folders named after the card key. A
 card may have several worktrees; the tab keeps one selected.
