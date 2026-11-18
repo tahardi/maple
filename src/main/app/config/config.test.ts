@@ -463,30 +463,35 @@ describe('loadConfig', () => {
     }
   });
 
-  test('refuses a config without remote', async () => {
+  test.each([
+    {
+      name: 'unset',
+      value: undefined,
+      want: 'reading config: remote: remote is required: Maple runs Claude sessions only in the VM',
+    },
+    {
+      name: '0',
+      value: '0',
+      want: 'reading config: remote: remote is required: Maple runs Claude sessions only in the VM',
+    },
+    {
+      name: 'true',
+      value: 'true',
+      want: 'reading config: remote: remote is required: Maple runs Claude sessions only in the VM',
+    },
+    { name: '1', value: '1', want: null },
+  ])('a config without remote with MAPLE_LOCAL_RUNNER $name loads with error $want', async ({ value, want }) => {
     // given
-    vi.stubEnv('MAPLE_LOCAL_RUNNER', undefined);
+    vi.stubEnv('MAPLE_LOCAL_RUNNER', value);
     await writeFile(join(dir, 'config.json'), JSON.stringify(vmConfig));
 
     // when
     const result = await loadConfig(dir, silentLogger);
 
     // then
-    expect(result.data).toBeNull();
-    expect(result.error).toBe('reading config: remote: remote is required: Maple runs Claude sessions only in the VM');
-  });
-
-  test('allows a config without remote when MAPLE_LOCAL_RUNNER is 1', async () => {
-    // given
-    vi.stubEnv('MAPLE_LOCAL_RUNNER', '1');
-    await writeFile(join(dir, 'config.json'), JSON.stringify(vmConfig));
-
-    // when
-    const result = await loadConfig(dir, silentLogger);
-
-    // then
-    expect(result.error).toBeNull();
-    expect(result.data?.remote).toBeNull();
+    expect(result.error).toBe(want);
+    expect(result.data?.remote ?? null).toBeNull();
+    expect(result.data === null).toBe(want !== null);
   });
 
   test('logs the error when loading fails', async () => {
