@@ -65,11 +65,20 @@ components:
       an honest report on its own work, so tests, CI, the Security Pass, and Taylor's review check it
     limited_by: >-
       The VM: sessions run as the VM's dev user, get no desktop variable or token, and receive only their tab id and
-      the VM findings dir, as tmux arguments; hooks and sandbox come from the VM's managed settings
+      the VM findings dir, as tmux arguments; hooks and sandbox come from the VM's managed settings. Under the
+      local-runner switch they run on the machine Maple runs on instead, outside every VM limit
   - id: shell-terminals
     what: Plain bash login shells in a card tab that Taylor drives, run in the Xena VM through ssh -t
     trusted_with: Running whatever Taylor types, as the VM's dev user
     limited_by: The VM, and an empty environment, so nothing from the desktop crosses
+  - id: local-runner
+    what: >-
+      The MAPLE_LOCAL_RUNNER=1 switch, which lets Maple load a config with no remote block and run sessions and
+      shells on the machine Maple runs on, for the e2e tests and for Maple running inside the VM
+    trusted_with: Running sessions and shells locally when nothing else is possible
+    limited_by: >-
+      Only being set by hand; nothing in Maple sets it. On the desktop, sessions start with permissions skipped and
+      Maple passes no settings file forcing the sandbox, so only the desktop's own Claude settings keep it on
   - id: config-dir
     what: Maple's config, state, logs, events, findings, and snapshots
     trusted_with: >-
@@ -104,10 +113,13 @@ components:
       A read-only contents token, no pull_request_target, and every action pinned to a full commit SHA
   - id: xena-vm
     what: The Xena VM, reached over one SSH master connection whose control socket lives in Maple's config dir
-    trusted_with: Running Xena's work and sending back command output, file reads, and log lines
+    trusted_with: >-
+      Running Xena's work and sending back command output, file reads, log lines, and the live terminal streams of
+      sessions and shells
     limited_by: >-
       A pinned host key with strict checking, no agent or X11 forwarding, quoted arguments, output size and time
-      limits, and the main process treating all VM output as untrusted
+      limits on commands, and the main process treating all VM output as untrusted. Gap: the live terminal streams
+      have no size or time limit
   - id: vault-gateway
     what: The desktop vault gateway socket, forwarded into the VM at ~/.xena/vault.sock
     trusted_with: Deciding which vault requests from the VM to allow
@@ -131,6 +143,7 @@ attackers:
       - claude-config
       - main-process
       - shell-terminals
+      - local-runner
       - outside-services
       - renderer
       - ci
@@ -194,15 +207,18 @@ boundaries:
       Timeouts on every call, argument arrays, card keys checked by pattern, fork PRs ignored, merges pinned to the
       head commit and base branch, token never logged, logs scrubbed
   - id: vm-to-desktop
-    between: [xena-vm, main-process, vault-gateway]
+    between: [xena-vm, main-process, renderer, vault-gateway]
     crosses: >-
-      Command output, file reads, and followed log lines from the VM, and VM requests through the forwarded vault
-      socket
+      Command output, file reads, and followed log lines from the VM, the raw ssh -t terminal streams of sessions and
+      shells, escape codes included, which the main process passes to the window, and VM requests through the
+      forwarded vault socket
     checks: >-
       Pinned host key with strict checking, ssh config ignored, no agent or X11 forwarding, arguments shell-quoted,
       environment values sent through SendEnv and never on a command line, output size and time limits; the main
-      process treats VM output as untrusted; vault requests are checked only by the gateway. Gap: any desktop process
-      running as Taylor can reuse the open SSH connection through the control socket without a touch
+      process treats VM output as untrusted; terminal streams are drawn only as terminal text by xterm with no
+      clipboard or link add-ons, and planner output is only scanned for card keys; vault requests are checked only by
+      the gateway. Gaps: the terminal streams have no size or time limit, and any desktop process running as Taylor can
+      reuse the open SSH connection through the control socket without a touch
   - id: main-to-obsidian
     between: [main-process, obsidian]
     crosses: obsidian://open links for one vault note, handed to the desktop's link handler
