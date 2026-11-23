@@ -13,6 +13,7 @@ const xterm = vi.hoisted(() => {
   let typed: (data: string) => void = () => undefined;
   let keyHandler: (e: KeyboardEvent) => boolean = () => true;
   let wheelHandler: (e: WheelEvent) => boolean = () => true;
+  const oscHandlers = new Map<number, (data: string) => boolean>();
   const dispose = vi.fn();
   const paste = vi.fn();
   const stopTyping = vi.fn();
@@ -39,6 +40,12 @@ const xterm = vi.hoisted(() => {
     modes: { mouseTrackingMode: 'none' },
     unicode: { activeVersion: '6' },
     getSelection: vi.fn(() => 'selected'),
+    parser: {
+      registerOscHandler: vi.fn((id: number, cb: (data: string) => boolean) => {
+        oscHandlers.set(id, cb);
+        return { dispose: vi.fn() };
+      }),
+    },
     focus: vi.fn(),
     paste,
     dispose,
@@ -55,6 +62,7 @@ const xterm = vi.hoisted(() => {
     },
     key: (e: KeyboardEvent) => keyHandler(e),
     wheel: (e: WheelEvent) => wheelHandler(e),
+    osc: (id: number, data: string) => oscHandlers.get(id)?.(data) ?? false,
   };
 });
 
@@ -353,20 +361,86 @@ describe('ClaudePane', () => {
   });
 
   test.each([
-    { name: 'Ctrl+Shift+C copies the selection', type: 'keydown', key: 'C', ctrl: true, shift: true, passed: false },
     {
-      name: 'Ctrl+Shift+V is left to the native paste',
+      name: 'Ctrl+Shift+C copies the selection',
+      type: 'keydown',
+      key: 'C',
+      ctrl: true,
+      shift: true,
+      passed: false,
+      copied: true,
+      pasted: false,
+    },
+    {
+      name: 'Ctrl+Shift+V pastes the clipboard',
       type: 'keydown',
       key: 'V',
       ctrl: true,
       shift: true,
-      passed: true,
+      passed: false,
+      copied: false,
+      pasted: true,
     },
-    { name: 'Ctrl+C goes to the session', type: 'keydown', key: 'c', ctrl: true, shift: false, passed: true },
-    { name: 'Ctrl+Shift+X goes to the session', type: 'keydown', key: 'X', ctrl: true, shift: true, passed: true },
-    { name: 'Shift+C goes to the session', type: 'keydown', key: 'C', ctrl: false, shift: true, passed: true },
-    { name: 'Ctrl+Shift+C keyup does not copy', type: 'keyup', key: 'C', ctrl: true, shift: true, passed: true },
-    { name: 'Ctrl+V goes to the session', type: 'keydown', key: 'v', ctrl: true, shift: false, passed: true },
+    {
+      name: 'Ctrl+Shift+V keyup does not paste',
+      type: 'keyup',
+      key: 'V',
+      ctrl: true,
+      shift: true,
+      passed: true,
+      copied: false,
+      pasted: false,
+    },
+    {
+      name: 'Ctrl+C goes to the session',
+      type: 'keydown',
+      key: 'c',
+      ctrl: true,
+      shift: false,
+      passed: true,
+      copied: false,
+      pasted: false,
+    },
+    {
+      name: 'Ctrl+Shift+X goes to the session',
+      type: 'keydown',
+      key: 'X',
+      ctrl: true,
+      shift: true,
+      passed: true,
+      copied: false,
+      pasted: false,
+    },
+    {
+      name: 'Shift+C goes to the session',
+      type: 'keydown',
+      key: 'C',
+      ctrl: false,
+      shift: true,
+      passed: true,
+      copied: false,
+      pasted: false,
+    },
+    {
+      name: 'Ctrl+Shift+C keyup does not copy',
+      type: 'keyup',
+      key: 'C',
+      ctrl: true,
+      shift: true,
+      passed: true,
+      copied: false,
+      pasted: false,
+    },
+    {
+      name: 'Ctrl+V goes to the session',
+      type: 'keydown',
+      key: 'v',
+      ctrl: true,
+      shift: false,
+      passed: true,
+      copied: false,
+      pasted: false,
+    },
     {
       name: 'Ctrl+backtick is left to the panel toggle',
       type: 'keydown',
@@ -374,12 +448,15 @@ describe('ClaudePane', () => {
       ctrl: true,
       shift: false,
       passed: false,
+      copied: false,
+      pasted: false,
     },
-  ])('$name', async ({ type, key, ctrl, shift, passed }) => {
+  ])('$name', async ({ type, key, ctrl, shift, passed, copied, pasted }) => {
     // given
     fakeMaple();
     const writeText = vi.fn(() => Promise.resolve());
-    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const readText = vi.fn(() => Promise.resolve('clipped'));
+    vi.stubGlobal('navigator', { clipboard: { writeText, readText } });
     render(<ClaudePane tabId="t1" actions={[]} />);
     await flush();
     const event = new KeyboardEvent(type, { key, ctrlKey: ctrl, shiftKey: shift, cancelable: true });
@@ -388,10 +465,31 @@ describe('ClaudePane', () => {
     await flush();
     // then
     expect(result).toBe(passed);
-    const handled = !passed;
-    expect(writeText.mock.calls).toEqual(handled && key === 'C' ? [['selected']] : []);
-    expect(xterm.paste).not.toHaveBeenCalled();
-    expect(event.defaultPrevented).toBe(false);
+    expect(writeText.mock.calls).toEqual(copied ? [['selected']] : []);
+    expect(xterm.paste.mock.calls).toEqual(pasted ? [['clipped']] : []);
+    expect(event.defaultPrevented).toBe(pasted);
+  });
+
+  test.each([
+    { name: 'OSC 52 copies the decoded text', data: 'c;aGVsbG8gd29ybGQ=', copied: [['hello world']] },
+    { name: 'OSC 52 with no selection copies', data: ';aGk=', copied: [['hi']] },
+    { name: 'OSC 52 copies UTF-8 text', data: 'c;w6ljaGVsbGUg4pyT', copied: [['échelle ✓']] },
+    { name: 'OSC 52 clipboard query is ignored', data: 'c;?', copied: [] },
+    { name: 'OSC 52 with bad base64 is ignored', data: 'c;!!!', copied: [] },
+    { name: 'OSC 52 with no text part is ignored', data: 'c', copied: [] },
+  ])('$name', async ({ data, copied }) => {
+    // given
+    fakeMaple();
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+    // when
+    const handled = xterm.osc(52, data);
+    await flush();
+    // then
+    expect(handled).toBe(true);
+    expect(writeText.mock.calls).toEqual(copied);
   });
 
   async function wheelAt(clientX: number, clientY: number, deltaY: number) {

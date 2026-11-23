@@ -38,8 +38,9 @@ components:
   - id: renderer
     what: The sandboxed app window that draws the board, tabs, terminals, and outside text
     trusted_with: >-
-      Drawing cards, PR comments, files, notes, and terminal output as text or Markdown with no raw HTML, and passing
-      Taylor's clicks and keystrokes to the main process
+      Drawing cards, PR comments, files, notes, and terminal output as text or Markdown with no raw HTML, passing
+      Taylor's clicks and keystrokes to the main process, putting text a terminal sends in an OSC 52 code on the
+      desktop clipboard, and pasting the desktop clipboard into a terminal on Ctrl+Shift+V
     limited_by: >-
       The window sandbox, context isolation, and strict CSP with no navigation; the schema check on every IPC argument;
       and file access only inside the tab's worktree or the vault. Gap: the main process does not check which frame
@@ -115,11 +116,12 @@ components:
     what: The Xena VM, reached over one SSH master connection whose control socket lives in Maple's config dir
     trusted_with: >-
       Running Xena's work and sending back command output, file reads, log lines, and the live terminal streams of
-      sessions and shells
+      sessions and shells, which can set the desktop clipboard through OSC 52 codes
     limited_by: >-
       A pinned host key with strict checking, no agent or X11 forwarding, quoted arguments, output size and time
-      limits on commands, and the main process treating all VM output as untrusted. Gap: the live terminal streams
-      have no size or time limit
+      limits on commands, the main process treating all VM output as untrusted, and clipboard reads never being
+      answered. Gaps: the live terminal streams have no size or time limit, and any program in the VM can replace the
+      desktop clipboard at any time
   - id: vault-gateway
     what: The desktop vault gateway socket, forwarded into the VM at ~/.xena/vault.sock
     trusted_with: Deciding which vault requests from the VM to allow
@@ -210,15 +212,16 @@ boundaries:
     between: [xena-vm, main-process, renderer, vault-gateway]
     crosses: >-
       Command output, file reads, and followed log lines from the VM, the raw ssh -t terminal streams of sessions and
-      shells, escape codes included, which the main process passes to the window, and VM requests through the
-      forwarded vault socket
+      shells, escape codes included, which the main process passes to the window, OSC 52 clipboard text inside those
+      streams, and VM requests through the forwarded vault socket
     checks: >-
       Pinned host key with strict checking, ssh config ignored, no agent or X11 forwarding, arguments shell-quoted,
       environment values sent through SendEnv and never on a command line, output size and time limits; the main
-      process treats VM output as untrusted; terminal streams are drawn only as terminal text by xterm with no
-      clipboard or link add-ons, and planner output is only scanned for card keys; vault requests are checked only by
-      the gateway. Gaps: the terminal streams have no size or time limit, and any desktop process running as Taylor can
-      reuse the open SSH connection through the control socket without a touch
+      process treats VM output as untrusted; terminal streams are drawn only as terminal text by xterm with no link
+      add-on, OSC 52 clipboard reads are never answered, and planner output is only scanned for card keys; vault
+      requests are checked only by the gateway. Gaps: the terminal streams have no size or time limit, OSC 52 clipboard
+      writes reach the desktop clipboard unchecked at any time, not only after Taylor selects text, and any desktop
+      process running as Taylor can reuse the open SSH connection through the control socket without a touch
   - id: main-to-obsidian
     between: [main-process, obsidian]
     crosses: obsidian://open links for one vault note, handed to the desktop's link handler

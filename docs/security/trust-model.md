@@ -77,12 +77,14 @@ The boundaries between them:
 - `main-to-outside`: Jira and gh calls as Taylor, with timeouts, argument arrays, fork PRs ignored, and merges pinned to
   the head commit.
 - `vm-to-desktop`: command output, file reads, and log lines from the VM, the raw terminal streams of sessions and
-  shells, escape codes included, which reach the app window, and VM requests through the forwarded vault socket. SSH
+  shells, escape codes included, which reach the app window, clipboard text sent in OSC 52 codes inside those streams,
+  and VM requests through the forwarded vault socket. SSH
   pins the host key, ignores ssh config, turns off agent and X11 forwarding, quotes every argument, sends environment
   values outside the command line, and limits command output size and time. Maple treats VM output as untrusted.
-  Terminal streams are drawn only as terminal text, with no clipboard or link add-ons, and planner output is only
-  scanned for card keys, but the streams have no size or time limit. Only the gateway checks vault requests. Any
-  desktop process running as Taylor can reuse the open SSH connection without a touch.
+  Terminal streams are drawn only as terminal text, with no link add-on, clipboard reads are never answered, and
+  planner output is only scanned for card keys, but the streams have no size or time limit. Clipboard writes from the
+  VM reach the desktop clipboard unchecked at any time, not only after Taylor selects text. Only the gateway checks
+  vault requests. Any desktop process running as Taylor can reuse the open SSH connection without a touch.
 - `main-to-obsidian`: Open in Obsidian hands one `obsidian://open` link to the desktop's link handler. Only Markdown
   notes inside the vault get through, with symlinks resolved and broken links refused, and the path is encoded.
   Whatever app is registered for those links runs, and Obsidian opens notes sessions wrote with its plugins active.
@@ -93,8 +95,9 @@ The boundaries between them:
 
 Any part that runs Claude can be misled, so its trust is a best effort and its limits carry the weight.
 
-- `renderer`: trusted with drawing outside text and Markdown, with no raw HTML, and passing Taylor's clicks and
-  keystrokes on. Limited by the window sandbox, a strict CSP, the schema check on every IPC call, and file access only
+- `renderer`: trusted with drawing outside text and Markdown, with no raw HTML, passing Taylor's clicks and
+  keystrokes on, putting text a terminal sends in a clipboard code on the desktop clipboard, and pasting the desktop
+  clipboard into a terminal on Ctrl+Shift+V. Limited by the window sandbox, a strict CSP, the schema check on every IPC call, and file access only
   inside the worktree or the vault. The main process does not check which frame sent a call.
 - `main-process`: trusted with Taylor's gh login and Jira token, merging PRs, starting sessions, findings and
   decisions, and the VM's SSH connection. Nothing limits it; it is the trusted base.
@@ -122,9 +125,10 @@ Any part that runs Claude can be misled, so its trust is a best effort and its l
   unknown.
 - `ci`: trusted with running the checks on every PR. Limited by a read-only token, no `pull_request_target`, and
   actions pinned to commits.
-- `xena-vm`: trusted with running Xena's work and sending back output and terminal streams. Limited by a pinned host
-  key, no forwarding of the agent or X11, size and time limits on commands, and Maple treating its output as untrusted.
-  The terminal streams have no size or time limit.
+- `xena-vm`: trusted with running Xena's work and sending back output and terminal streams, which can set the desktop
+  clipboard. Limited by a pinned host key, no forwarding of the agent or X11, size and time limits on commands, Maple
+  treating its output as untrusted, and clipboard reads never being answered. The terminal streams have no size or time
+  limit, and any program in the VM can replace the desktop clipboard at any time.
 - `vault-gateway`: trusted with deciding which vault requests from the VM to allow. Its limits are unknown; they live
   in Xena.
 - `obsidian`: trusted with opening one vault note when Taylor asks. Limited to Markdown notes inside the vault, but

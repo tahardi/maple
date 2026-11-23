@@ -26,8 +26,34 @@ function clipboardKeys(term: Terminal) {
       void navigator.clipboard.writeText(term.getSelection());
       return false;
     }
+
+    if (e.key === 'V') {
+      e.preventDefault();
+      void navigator.clipboard.readText().then((text) => {
+        term.paste(text);
+      });
+      return false;
+    }
+
     return true;
   };
+}
+
+function osc52Copy(data: string): boolean {
+  const encoded = data.slice(data.indexOf(';') + 1);
+  if (!data.includes(';') || encoded === '?') {
+    return true;
+  }
+
+  let bytes: Uint8Array;
+  try {
+    bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+  } catch {
+    return true;
+  }
+
+  void navigator.clipboard.writeText(new TextDecoder().decode(bytes));
+  return true;
 }
 
 function loadWebgl(term: Terminal): void {
@@ -78,6 +104,7 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): (
     terminal.current = term;
     loadWebgl(term);
     term.attachCustomKeyEventHandler(clipboardKeys(term));
+    term.parser.registerOscHandler(52, osc52Copy);
     term.attachCustomWheelEventHandler(
       wheelReports(
         term,
