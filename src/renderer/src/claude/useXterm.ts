@@ -23,11 +23,40 @@ function clipboardKeys(term: Terminal) {
       return true;
     }
     if (e.key === 'C') {
-      void navigator.clipboard.writeText(term.getSelection());
+      navigator.clipboard.writeText(term.getSelection()).catch(() => undefined);
       return false;
     }
+
+    if (e.key === 'V') {
+      e.preventDefault();
+      navigator.clipboard
+        .readText()
+        .then((text) => {
+          term.paste(text);
+        })
+        .catch(() => undefined);
+      return false;
+    }
+
     return true;
   };
+}
+
+function osc52Copy(data: string): boolean {
+  const encoded = data.slice(data.indexOf(';') + 1);
+  if (!data.includes(';') || encoded === '?') {
+    return true;
+  }
+
+  let bytes: Uint8Array;
+  try {
+    bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+  } catch {
+    return true;
+  }
+
+  navigator.clipboard.writeText(new TextDecoder().decode(bytes)).catch(() => undefined);
+  return true;
 }
 
 function loadWebgl(term: Terminal): void {
@@ -89,6 +118,7 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): (
       ),
     );
     let replaying = true;
+    term.parser.registerOscHandler(52, (data) => replaying || osc52Copy(data));
     const typing = term.onData((data) => {
       if (!replaying) {
         io.write(data);
