@@ -23,7 +23,7 @@ function clipboardKeys(term: Terminal) {
       return true;
     }
     if (e.key === 'C') {
-      void navigator.clipboard.writeText(term.getSelection());
+      navigator.clipboard.writeText(term.getSelection()).catch(() => undefined);
       return false;
     }
 

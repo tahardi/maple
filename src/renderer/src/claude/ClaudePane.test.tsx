@@ -515,13 +515,31 @@ describe('ClaudePane', () => {
   });
 
   test.each([
-    { name: 'a refused clipboard read on Ctrl+Shift+V pastes nothing', run: () => xterm.key(pasteKey()) },
-    { name: 'a refused clipboard write from OSC 52 is dropped', run: () => xterm.osc(52, 'c;aGk=') },
-  ])('$name', async ({ run }) => {
+    {
+      name: 'a refused clipboard read on Ctrl+Shift+V pastes nothing',
+      run: () => xterm.key(clipboardKey('V')),
+      read: 1,
+      written: 0,
+    },
+    {
+      name: 'a refused clipboard write on Ctrl+Shift+C is dropped',
+      run: () => xterm.key(clipboardKey('C')),
+      read: 0,
+      written: 1,
+    },
+    {
+      name: 'a refused clipboard write from OSC 52 is dropped',
+      run: () => xterm.osc(52, 'c;aGk='),
+      read: 0,
+      written: 1,
+    },
+  ])('$name', async ({ run, read, written }) => {
     // given
     fakeMaple();
     const refused = () => Promise.reject(new Error('NotAllowedError'));
-    vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn(refused), readText: vi.fn(refused) } });
+    const writeText = vi.fn(refused);
+    const readText = vi.fn(refused);
+    vi.stubGlobal('navigator', { clipboard: { writeText, readText } });
     render(<ClaudePane tabId="t1" actions={[]} />);
     await flush();
 
@@ -530,11 +548,13 @@ describe('ClaudePane', () => {
     await flush();
 
     // then
+    expect(readText).toHaveBeenCalledTimes(read);
+    expect(writeText).toHaveBeenCalledTimes(written);
     expect(xterm.paste).not.toHaveBeenCalled();
   });
 
-  function pasteKey(): KeyboardEvent {
-    return new KeyboardEvent('keydown', { key: 'V', ctrlKey: true, shiftKey: true, cancelable: true });
+  function clipboardKey(key: string): KeyboardEvent {
+    return new KeyboardEvent('keydown', { key, ctrlKey: true, shiftKey: true, cancelable: true });
   }
 
   async function wheelAt(clientX: number, clientY: number, deltaY: number) {
