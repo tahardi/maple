@@ -29,9 +29,12 @@ function clipboardKeys(term: Terminal) {
 
     if (e.key === 'V') {
       e.preventDefault();
-      void navigator.clipboard.readText().then((text) => {
-        term.paste(text);
-      });
+      navigator.clipboard
+        .readText()
+        .then((text) => {
+          term.paste(text);
+        })
+        .catch(() => undefined);
       return false;
     }
 
@@ -52,7 +55,7 @@ function osc52Copy(data: string): boolean {
     return true;
   }
 
-  void navigator.clipboard.writeText(new TextDecoder().decode(bytes));
+  navigator.clipboard.writeText(new TextDecoder().decode(bytes)).catch(() => undefined);
   return true;
 }
 
@@ -104,7 +107,6 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): (
     terminal.current = term;
     loadWebgl(term);
     term.attachCustomKeyEventHandler(clipboardKeys(term));
-    term.parser.registerOscHandler(52, osc52Copy);
     term.attachCustomWheelEventHandler(
       wheelReports(
         term,
@@ -116,6 +118,7 @@ export function useXterm(host: RefObject<HTMLDivElement | null>, io: XtermIo): (
       ),
     );
     let replaying = true;
+    term.parser.registerOscHandler(52, (data) => replaying || osc52Copy(data));
     const typing = term.onData((data) => {
       if (!replaying) {
         io.write(data);

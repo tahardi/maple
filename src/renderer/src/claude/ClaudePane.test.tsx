@@ -477,6 +477,7 @@ describe('ClaudePane', () => {
     { name: 'OSC 52 clipboard query is ignored', data: 'c;?', copied: [] },
     { name: 'OSC 52 with bad base64 is ignored', data: 'c;!!!', copied: [] },
     { name: 'OSC 52 with no text part is ignored', data: 'c', copied: [] },
+    { name: 'OSC 52 with empty text clears the clipboard', data: 'c;', copied: [['']] },
   ])('$name', async ({ data, copied }) => {
     // given
     fakeMaple();
@@ -491,6 +492,50 @@ describe('ClaudePane', () => {
     expect(handled).toBe(true);
     expect(writeText.mock.calls).toEqual(copied);
   });
+
+  test('OSC 52 in the replayed backlog is ignored and live OSC 52 still copies', async () => {
+    // given
+    fakeMaple();
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    xterm.terminal.write.mockImplementationOnce((data: string, done?: () => void) => {
+      xterm.written.push(data);
+      xterm.osc(52, 'c;b2xk');
+      done?.();
+    });
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+
+    // when
+    xterm.osc(52, 'c;bmV3');
+    await flush();
+
+    // then
+    expect(writeText.mock.calls).toEqual([['new']]);
+  });
+
+  test.each([
+    { name: 'a refused clipboard read on Ctrl+Shift+V pastes nothing', run: () => xterm.key(pasteKey()) },
+    { name: 'a refused clipboard write from OSC 52 is dropped', run: () => xterm.osc(52, 'c;aGk=') },
+  ])('$name', async ({ run }) => {
+    // given
+    fakeMaple();
+    const refused = () => Promise.reject(new Error('NotAllowedError'));
+    vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn(refused), readText: vi.fn(refused) } });
+    render(<ClaudePane tabId="t1" actions={[]} />);
+    await flush();
+
+    // when
+    run();
+    await flush();
+
+    // then
+    expect(xterm.paste).not.toHaveBeenCalled();
+  });
+
+  function pasteKey(): KeyboardEvent {
+    return new KeyboardEvent('keydown', { key: 'V', ctrlKey: true, shiftKey: true, cancelable: true });
+  }
 
   async function wheelAt(clientX: number, clientY: number, deltaY: number) {
     const write = vi.fn();
