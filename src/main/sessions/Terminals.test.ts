@@ -1,41 +1,26 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
-import { fakeSpawn, type FakePty } from '@main/testing/fakeSpawn';
+import { describe, expect, test } from 'vitest';
+import { fakeRunner } from '@main/testing/fakeRunner';
+import { fakeRunnerPty, type FakePty } from '@main/testing/fakeSpawn';
 import { Terminals } from './Terminals';
 
 function setup() {
   const ptys: FakePty[] = [];
-  const spawnFn = fakeSpawn(ptys);
-  return { terminals: new Terminals({ spawn: spawnFn }), ptys, spawnFn };
+  const spawnFn = fakeRunnerPty(ptys);
+  return { terminals: new Terminals({ runner: fakeRunner({ spawnPty: spawnFn }) }), ptys, spawnFn };
 }
 
 describe('Terminals', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  test.each([
-    { name: 'SHELL', shell: '/usr/bin/zsh', want: '/usr/bin/zsh' },
-    { name: '/bin/bash when SHELL is unset', shell: undefined, want: '/bin/bash' },
-  ])('open spawns $name as a login shell in the cwd', ({ shell, want }) => {
+  test('open runs a login shell in the VM in the cwd and sends no environment', () => {
     // given
-    vi.stubEnv('SHELL', shell);
-    vi.stubEnv('MAPLE_TAB_ID', 'leaked');
-    vi.stubEnv('MAPLE_SOCKET', '/tmp/leaked.sock');
-    vi.stubEnv('MAPLE_SNAPSHOT_DIR', '/tmp/leaked-snapshots');
-    vi.stubEnv('MAPLE_VAULT_DIR', '/tmp/leaked-vault');
     const { terminals, ptys } = setup();
     // when
-    terminals.open('t1', '/tmp/wts/card');
+    terminals.open('t1', '/home/dev/Documents/code/wts/card');
     // then
     expect(ptys).toHaveLength(1);
-    expect(ptys[0].file).toBe(want);
+    expect(ptys[0].file).toBe('bash');
     expect(ptys[0].args).toEqual(['-l']);
-    expect(ptys[0].options.cwd).toBe('/tmp/wts/card');
-    expect(ptys[0].options.env?.TERM).toBe('xterm-256color');
-    expect(ptys[0].options.env).not.toHaveProperty('MAPLE_TAB_ID');
-    expect(ptys[0].options.env).not.toHaveProperty('MAPLE_SOCKET');
-    expect(ptys[0].options.env).not.toHaveProperty('MAPLE_SNAPSHOT_DIR');
-    expect(ptys[0].options.env).not.toHaveProperty('MAPLE_VAULT_DIR');
+    expect(ptys[0].options.cwd).toBe('/home/dev/Documents/code/wts/card');
+    expect(ptys[0].options.env).toEqual({});
   });
 
   test('a second open does not spawn again', () => {

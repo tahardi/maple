@@ -97,6 +97,13 @@ const configSchema = z
       seen.add(jiraKey);
     }
     if (config.remote === null) {
+      if (process.env.MAPLE_LOCAL_RUNNER !== '1') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['remote'],
+          message: 'remote is required: Maple runs Claude sessions only in the VM',
+        });
+      }
       return;
     }
     if (!config.worktreesDir.startsWith('/')) {

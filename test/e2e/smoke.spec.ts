@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
   appendFileSync,
   copyFileSync,
@@ -45,6 +45,7 @@ async function sandbox(jiraDown = false) {
     MAPLE_CLAUDE_JSON: claudeJson,
     MAPLE_CLAUDE_SETTINGS: join(root, 'claude-settings.json'),
     TMUX_TMPDIR: root,
+    MAPLE_LOCAL_RUNNER: '1',
   };
   const tmux = (...args: string[]) => execFileSync('tmux', ['-L', 'maple', ...args], { env }).toString();
   const eventsLog = test.info().outputPath('events.log');
@@ -93,7 +94,7 @@ async function sandbox(jiraDown = false) {
       .catch(() => undefined);
     const closed = app.waitForEvent('close');
     app.process().kill('SIGKILL');
-    tmux('kill-server');
+    spawnSync('tmux', ['-L', 'maple', 'kill-server'], { env });
     await closed;
     await jira.close();
     const log = join(configDir, 'logs', 'main.log');
@@ -215,6 +216,30 @@ test.describe('smoke', () => {
       await expect(reattached).toContainText('typed before the crash');
       await expect(reattached).not.toContainText('--resume');
       expect(tmux('ls', '-F', '#{session_name}')).toBe(sessions);
+    } finally {
+      await cleanup(app);
+    }
+  });
+
+  test('the Resume button sits above an ended session', async () => {
+    // given
+    const { launch, cleanup } = await sandbox();
+    const app = await launch();
+    const page = await app.firstWindow();
+
+    try {
+      await page.locator(`[data-key="${cardKey}"]`).click();
+      await page.getByRole('button', { name: 'Start', exact: true }).click();
+      const terminal = page.locator('.xterm').filter({ hasText: `/card ${cardKey}` });
+      await expect(terminal).toContainText('FAKE CLAUDE --dangerously-skip-permissions');
+      await terminal.click();
+
+      // when
+      await page.keyboard.press('Control+d');
+
+      // then
+      await expect(page.getByText(/Session ended/)).toBeVisible();
+      await page.getByRole('button', { name: 'Resume', exact: true }).click({ trial: true, timeout: 5000 });
     } finally {
       await cleanup(app);
     }

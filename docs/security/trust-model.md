@@ -9,10 +9,10 @@ Maple is a desktop app that runs Jira cards with Claude sessions. Taylor is its 
 
 ## Assets
 
-- `desktop`: Taylor's machine and home folder, where Maple, git, gh, and shells run unsandboxed. Losing it means full
-  control of Taylor's account.
-- `jira-token`: the Jira user token in the shared env file, passed into every session. If it leaks, someone could read
-  and change every card Taylor can reach.
+- `desktop`: Taylor's machine and home folder, where Maple, git, and gh run unsandboxed. Losing it means full control of
+  Taylor's account.
+- `jira-token`: the Jira user token in the shared env file, used only by Maple's desktop Jira client. If it leaks,
+  someone could read and change every card Taylor can reach.
 - `github-access`: the gh login Maple uses to merge, and the long-lived GitHub token sessions hold for all repos. If
   misused, any repo's code, workflows, webhooks, and secrets can change.
 - `main-code`: what lands on `main`, which Taylor later builds and runs. A backdoor there runs on the desktop.
@@ -40,13 +40,16 @@ The main threat is a well-meaning Claude session that does harm it does not reco
 
 ## Trust Boundaries
 
-Maple has thirteen parts:
+Maple has fourteen parts:
 
 - `renderer`: the sandboxed app window.
 - `main-process`: the Node process that runs git, gh, the Jira client, the pollers, and IPC handlers.
 - `hook-server`: the hook script Claude runs and the socket that takes its events.
-- `sessions`: Claude sessions in tmux, with permissions skipped and Claude's Bash sandbox forced on by Maple.
-- `shell-terminals`: plain shells in a card tab that Taylor drives, with no sandbox.
+- `sessions`: Claude sessions in tmux on the Xena VM, reached through `ssh -t`, with permissions skipped under the VM's
+  managed settings.
+- `shell-terminals`: plain bash login shells in a card tab that Taylor drives, run in the Xena VM.
+- `local-runner`: the `MAPLE_LOCAL_RUNNER=1` switch, which runs sessions and shells on the machine Maple runs on, for
+  the e2e tests and for Maple inside the VM.
 - `config-dir`: Maple's config, state, logs, events, findings, and snapshots.
 - `vault`: the Obsidian vault folder.
 - `claude-config`: the global `~/.claude`, symlinked to the dotclaude repo.
@@ -62,10 +65,9 @@ The boundaries between them:
   strict CSP. The sender frame is not checked.
 - `main-to-renderer`: outside text such as cards, PR comments, files, and terminal output. It renders as text, except
   code blocks, which Monaco's colorizer draws as escaped HTML. Links open in the browser.
-- `main-to-sessions`: Maple starts Claude with permissions skipped. Maple's settings file turns the Bash sandbox on
-  with no escape hatch, and a session refuses to start if the sandbox cannot run. Startup warns when user settings
-  have the sandbox off. A worktree's own settings can still add sandbox exceptions. Sessions hold the Jira token and
-  a broad GitHub token.
+- `main-to-sessions`: Maple starts Claude in the VM over `ssh -t` with permissions skipped. Only the tab id and the VM
+  findings dir cross, as tmux arguments; the ssh pty gets an empty environment, so no desktop token, socket, or
+  settings file reaches the session.
 - `sessions-to-hook-server`: one JSON line per hook event, on a private socket, size-limited and validated. Events
   carry no commands.
 - `sessions-to-main-files`: worktrees, git config, findings, and notes Maple reads. git runs with fsmonitor off, and
@@ -74,11 +76,13 @@ The boundaries between them:
   Taylor can except a short deny list, including the installed app, shell startup files, and Claude config.
 - `main-to-outside`: Jira and gh calls as Taylor, with timeouts, argument arrays, fork PRs ignored, and merges pinned to
   the head commit.
-- `vm-to-desktop`: command output, file reads, and log lines from the VM, and VM requests through the forwarded vault
-  socket. SSH pins the host key, ignores ssh config, turns off agent and X11 forwarding, quotes every argument, sends
-  environment values outside the command line, and limits output size and time. Maple treats VM output as untrusted,
-  and only the gateway checks vault requests. Any desktop process running as Taylor can reuse the open SSH connection
-  without a touch.
+- `vm-to-desktop`: command output, file reads, and log lines from the VM, the raw terminal streams of sessions and
+  shells, escape codes included, which reach the app window, and VM requests through the forwarded vault socket. SSH
+  pins the host key, ignores ssh config, turns off agent and X11 forwarding, quotes every argument, sends environment
+  values outside the command line, and limits command output size and time. Maple treats VM output as untrusted.
+  Terminal streams are drawn only as terminal text, with no clipboard or link add-ons, and planner output is only
+  scanned for card keys, but the streams have no size or time limit. Only the gateway checks vault requests. Any
+  desktop process running as Taylor can reuse the open SSH connection without a touch.
 - `main-to-obsidian`: Open in Obsidian hands one `obsidian://open` link to the desktop's link handler. Only Markdown
   notes inside the vault get through, with symlinks resolved and broken links refused, and the path is encoded.
   Whatever app is registered for those links runs, and Obsidian opens notes sessions wrote with its plugins active.
@@ -96,11 +100,15 @@ Any part that runs Claude can be misled, so its trust is a best effort and its l
   decisions, and the VM's SSH connection. Nothing limits it; it is the trusted base.
 - `hook-server`: trusted with passing session events to the main process. Limited by a private socket, validation of
   every line, and events that carry no commands.
-- `sessions`: trusted with a best-effort try at the card's task, and not with an honest report on its own work. Limited
-  by the Bash sandbox Maple forces on and the folders it may write. A worktree's own settings or an edit to Maple's
-  shared hooks file can widen the sandbox, and its Write and Edit tools and its credentials reach further, accepted
-  until Xena.
-- `shell-terminals`: trusted with whatever Taylor types. Nothing limits it; it is the trusted base.
+- `sessions`: trusted with a best-effort try at the card's task and the credentials Xena installs in the VM, and not
+  with an honest report on its own work. Limited by the VM: they run as the VM's dev user with no desktop variable or
+  token, and get hooks and sandbox from the VM's managed settings. Under the local-runner switch they run outside the
+  VM, with none of these limits.
+- `shell-terminals`: trusted with whatever Taylor types, as the VM's dev user. Limited by the VM and an empty
+  environment.
+- `local-runner`: trusted with running sessions and shells locally when nothing else is possible. Limited only by
+  being set by hand. On the desktop, sessions start with permissions skipped and Maple forces no sandbox, so only the
+  desktop's own Claude settings keep it on.
 - `config-dir`: trusted with Maple's settings, state, logs, findings, decisions, and the SSH control socket. Limited
   only by file permissions, the schema checks the main process runs on what it reads back, and a size cap on findings
   files; any session can write it.
@@ -114,8 +122,9 @@ Any part that runs Claude can be misled, so its trust is a best effort and its l
   unknown.
 - `ci`: trusted with running the checks on every PR. Limited by a read-only token, no `pull_request_target`, and
   actions pinned to commits.
-- `xena-vm`: trusted with running Xena's work and sending back output. Limited by a pinned host key, no forwarding of
-  the agent or X11, size and time limits, and Maple treating its output as untrusted.
+- `xena-vm`: trusted with running Xena's work and sending back output and terminal streams. Limited by a pinned host
+  key, no forwarding of the agent or X11, size and time limits on commands, and Maple treating its output as untrusted.
+  The terminal streams have no size or time limit.
 - `vault-gateway`: trusted with deciding which vault requests from the VM to allow. Its limits are unknown; they live
   in Xena.
 - `obsidian`: trusted with opening one vault note when Taylor asks. Limited to Markdown notes inside the vault, but
@@ -125,8 +134,8 @@ Any part that runs Claude can be misled, so its trust is a best effort and its l
 
 - `taylor`: the owner, who can do everything. Access is the desktop login, gh as repo owner, the Jira user token, and
   the Claude login.
-- `claude-session`: every session Maple starts, acting for Taylor. It can change cards, write to and merge on every
-  repo, and write files anywhere Taylor can, but cannot change rulesets.
+- `claude-session`: every session Maple starts, acting for Taylor in the VM with the credentials Xena installs there.
+  It cannot change rulesets.
 
 ## Build, Deploy, and Monitor
 
@@ -141,7 +150,6 @@ the PR's base commit, so a PR cannot loosen its own review, and raises every edi
 Design risks accepted until Xena moves sessions into a VM:
 
 - `sessions-to-host-files`: sessions can write anywhere Taylor can through the Write and Edit tools.
-- `main-to-sessions`: sessions hold the Jira token and a long-lived GitHub token for all repos.
 - `github-to-ci`: `main` needs no approval, so only the `/card` skill and Maple's Approve button stop a session merging
   its own PR.
 - `deployed`: `make try` runs unreviewed code on the desktop, and nothing checks which commit the installed app came
@@ -152,6 +160,7 @@ Risks accepted from findings:
 - Forced sandbox can still be widened by a worktree's own Claude settings or by editing the shared hooks file (MPL-392 F1): We only have to live with this shortcoming until we have Xena in-place to sandbox Claude
 - A decided finding's likelihood, attacker, or recommendation can change while Taylor's decision stays (MPL-419 F1): Those fields are known to not be trusted. We fingerprint what we can control
 - Sessions can write Maple's decisions record directly and give it a matching fingerprint (MPL-419 F3): This is the known gap, accepted until Xena, that lets sessions write anywhere Taylor can. The fingerprint method is public and has no secret, so only moving sessions into the VM closes it.
+- With the local escape hatch on, Claude sessions run on the desktop with permissions skipped and no forced sandbox (XENA-39 F1): This is only used for testing. You explicitly have to set the flag. Normal Maple runs do not do this
 
 ## Severity Overrides
 

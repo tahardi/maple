@@ -12,6 +12,7 @@ import { appLogger, type Logger } from '@main/app/log/log';
 import { withTimeout } from '@main/util/withTimeout';
 import { backgroundWait, unknownTasks, type BackgroundWait } from './backgroundWait';
 import type { SessionManager } from './SessionManager';
+import { SSH_LOST_CODE } from './manager/ClaudeProcesses';
 import { errorText } from '@shared/errors/errorText';
 
 export type StatusDeps = {
@@ -70,7 +71,8 @@ export class StatusEngine extends EventEmitter<Events> {
         clearTimeout(tracked.waitLimit);
         const { resumedAt } = tracked;
         const prev = tracked.status.dot;
-        const resumeFailed = exitCode !== 0 && resumedAt !== null && Date.now() - resumedAt < RESUME_FAIL_MS;
+        const resumeFailed =
+          exitCode !== SSH_LOST_CODE && resumedAt !== null && Date.now() - resumedAt < RESUME_FAIL_MS;
         const dot = prev === 'working' ? 'idle' : prev;
         tracked.status = { ...tracked.status, dot, sessionAlive: false, exitCode, resumeFailed };
         if (dot !== prev) {

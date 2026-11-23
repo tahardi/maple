@@ -1,19 +1,10 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
 export function projectsDir(): string {
   return join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), 'projects');
-}
-
-export function hasTranscript(sessionId: string, root: string = projectsDir()): boolean {
-  if (!existsSync(root)) {
-    return false;
-  }
-  return readdirSync(root, { withFileTypes: true }).some(
-    (entry) => entry.isDirectory() && existsSync(join(root, entry.name, `${sessionId}.jsonl`)),
-  );
 }
 
 export async function transcriptFiles(sessionId: string, root: string): Promise<string[] | null> {

@@ -406,6 +406,57 @@ describe('SshRunner.connect', () => {
     await expect(result).rejects.toBe(err);
     expect(touch).toHaveBeenCalledTimes(1);
   });
+
+  test('shares one touch and one start between connects that overlap', async () => {
+    // given
+    let started: () => void = () => undefined;
+    const { ssh, start } = stubbed(
+      () => Promise.resolve(false),
+      () =>
+        new Promise<void>((resolve) => {
+          started = resolve;
+        }),
+    );
+    const touch = vi.fn();
+    // when
+    const first = ssh.connect(touch);
+    const second = ssh.connect(touch);
+    await Promise.resolve();
+    started();
+    // then
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+    expect(touch).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
+  test('connects again once an earlier connect has finished', async () => {
+    // given
+    const { ssh, start } = stubbed(
+      () => Promise.resolve(false),
+      () => Promise.resolve(),
+    );
+    await ssh.connect(vi.fn());
+    // when
+    await ssh.connect(vi.fn());
+    // then
+    expect(start).toHaveBeenCalledTimes(2);
+  });
+
+  test('connects again after an earlier connect failed', async () => {
+    // given
+    const start = vi.fn<() => Promise<void>>();
+    start.mockRejectedValueOnce(new Error('starting ssh master: timing out')).mockResolvedValueOnce(undefined);
+    const { ssh } = stubbed(() => Promise.resolve(false), start);
+
+    await ssh.connect(vi.fn()).catch(() => undefined);
+
+    // when
+    const again = await ssh.connect(vi.fn());
+
+    // then
+    expect(again).toBe(true);
+    expect(start).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('SshRunner.keepAlive', () => {

@@ -40,6 +40,8 @@ const vmRemote = {
   vaultSocket: '~/.local/state/xena/vault.sock',
 };
 
+const silentLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+
 const withoutActions = { ...validConfig, actions: undefined };
 const withoutNotifications = { ...validConfig, notifications: undefined };
 const duplicateKey = { ...validConfig, projects: [validConfig.projects[0], validConfig.projects[0]] };
@@ -88,6 +90,7 @@ describe('loadConfig', () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -382,7 +385,6 @@ describe('loadConfig', () => {
   });
 
   test.each([
-    { name: 'remote absent', remote: undefined, want: { data: null } },
     {
       name: 'remote set',
       remote: vmRemote,
@@ -459,6 +461,37 @@ describe('loadConfig', () => {
       expect(result.error).toBeNull();
       expect(result.data?.remote).toEqual(want.data);
     }
+  });
+
+  test.each([
+    {
+      name: 'unset',
+      value: undefined,
+      want: 'reading config: remote: remote is required: Maple runs Claude sessions only in the VM',
+    },
+    {
+      name: '0',
+      value: '0',
+      want: 'reading config: remote: remote is required: Maple runs Claude sessions only in the VM',
+    },
+    {
+      name: 'true',
+      value: 'true',
+      want: 'reading config: remote: remote is required: Maple runs Claude sessions only in the VM',
+    },
+    { name: '1', value: '1', want: null },
+  ])('a config without remote with MAPLE_LOCAL_RUNNER $name loads with error $want', async ({ value, want }) => {
+    // given
+    vi.stubEnv('MAPLE_LOCAL_RUNNER', value);
+    await writeFile(join(dir, 'config.json'), JSON.stringify(vmConfig));
+
+    // when
+    const result = await loadConfig(dir, silentLogger);
+
+    // then
+    expect(result.error).toBe(want);
+    expect(result.data?.remote ?? null).toBeNull();
+    expect(result.data === null).toBe(want !== null);
   });
 
   test('logs the error when loading fails', async () => {

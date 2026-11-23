@@ -35,19 +35,13 @@ function channelsOf(kind: ChannelKind): string[] {
 
 describe('registerIpc', () => {
   const sessions = new SessionManager({
-    spawn: vi.fn(),
     config: vi.fn(),
-    hooksFile: '',
-    socketPath: '',
-    snapshotRoot: '/tmp/maple/snapshots',
-    findingsDir: '/tmp/maple/findings',
     save: vi.fn(),
     closedSessions: {},
     uuid: vi.fn(),
-    hasTranscript: vi.fn(),
     tmuxConf: '',
     endTmux: vi.fn(),
-    sessionEnv: {},
+    reconnect: vi.fn(),
     runner: fakeRunner(),
     home: '/home/dev',
   });
@@ -62,7 +56,7 @@ describe('registerIpc', () => {
     worktreeFor: () => null,
     project: () => Promise.resolve(null),
     sessions,
-    terminals: new Terminals({ spawn: vi.fn() }),
+    terminals: new Terminals({ runner: fakeRunner() }),
     status,
     setActiveTab: vi.fn(),
     warnings: () => [],

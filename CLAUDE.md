@@ -51,7 +51,7 @@ Personal agentic IDE for running Jira cards with Claude. Electron main process, 
 - The main process never imports from `src/renderer` - it runs in Node, not the browser.
 - The renderer never imports Node or Electron modules - it runs sandboxed in the browser.
 - Both sides may import `src/shared` - shared types and pure helpers live there.
-- Spawn every Claude session with `--dangerously-skip-permissions` and `--settings <hooks file>` - no opt out.
+- Run every Claude session in the VM with `--dangerously-skip-permissions` and no `--settings` - hooks and sandbox come from the VM's managed settings.
 - The config dir is `MAPLE_CONFIG_DIR`, default `~/.config/maple` - tests point it at a temp dir.
 - Read Jira credentials from `MAPLE_JIRA_ENV`, default `~/.config/jira/env` - the file other tools share.
 - Never log or display the Jira token - logs and screenshots get shared.

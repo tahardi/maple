@@ -1,10 +1,10 @@
 import { EventEmitter } from 'node:events';
-import type { IPty, spawn } from 'node-pty';
-import { parentEnv } from '@main/util/parentEnv';
+import type { IPty } from 'node-pty';
+import type { Runner } from '@main/remote/runner';
 
 const BACKLOG_CHARS = 200_000;
 
-export type TerminalDeps = { spawn: typeof spawn };
+export type TerminalDeps = { runner: Runner };
 
 type Events = {
   data: [terminalId: string, data: string];
@@ -25,18 +25,7 @@ export class Terminals extends EventEmitter<Events> {
     if (existing?.alive) {
       return;
     }
-    const env = parentEnv();
-    delete env.MAPLE_TAB_ID;
-    delete env.MAPLE_SOCKET;
-    delete env.MAPLE_SNAPSHOT_DIR;
-    delete env.MAPLE_VAULT_DIR;
-    const pty = this.deps.spawn(process.env.SHELL ?? '/bin/bash', ['-l'], {
-      name: 'xterm-256color',
-      cols: 120,
-      rows: 40,
-      cwd,
-      env: { ...env, TERM: 'xterm-256color' },
-    });
+    const pty = this.deps.runner.spawnPty(['bash', '-l'], { cwd, env: {}, cols: 120, rows: 40 });
     const shell: Shell = { pty, alive: true, backlog: existing?.backlog ?? '' };
     this.shells.set(terminalId, shell);
     pty.onData((data) => {

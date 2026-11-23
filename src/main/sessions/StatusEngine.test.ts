@@ -996,7 +996,9 @@ describe('StatusEngine', () => {
   test.each([
     { name: 'a resume exiting 1 after 4999 ms', resumes: true, ms: 4999, code: 1, want: true },
     { name: 'a resume exiting 1 after 5000 ms', resumes: true, ms: 5000, code: 1, want: false },
-    { name: 'a resume exiting 0 after 10 ms', resumes: true, ms: 10, code: 0, want: false },
+    { name: 'a resume exiting 0 after 10 ms', resumes: true, ms: 10, code: 0, want: true },
+    { name: 'a resume exiting 0 after 5000 ms', resumes: true, ms: 5000, code: 0, want: false },
+    { name: 'a resume losing the ssh link after 10 ms', resumes: true, ms: 10, code: 255, want: false },
     { name: 'a fresh session exiting 1 after 10 ms', resumes: false, ms: 10, code: 1, want: false },
   ])('$name sets resumeFailed $want', ({ resumes, ms, code, want }) => {
     // given
